@@ -1,4 +1,11 @@
 import { z } from "zod";
+import type {
+  AccountAuth,
+  AccountKindData,
+  ExtensionPermissions,
+  SettingField as ApiSettingField,
+  SettingsSchema as ApiSettingsSchema,
+} from "@nervekit/extension-api";
 
 /** Where a settings entry can live. Profiles act at conversation scope. */
 export const extensionScopeSchema = z.enum(["user", "project", "conversation"]);
@@ -80,7 +87,7 @@ export const settingFieldSchema = z.discriminatedUnion("type", [
     type: z.literal("model"),
     capability: z.enum(["image", "vision"]).optional(),
   }),
-]);
+]) satisfies z.ZodType<ApiSettingField>;
 export type SettingField = z.infer<typeof settingFieldSchema>;
 
 export const settingsSchemaSchema = z.strictObject({
@@ -94,8 +101,22 @@ export const settingsSchemaSchema = z.strictObject({
     )
     .optional(),
   fields: z.record(fieldKeySchema, settingFieldSchema),
-});
+}) satisfies z.ZodType<ApiSettingsSchema>;
 export type SettingsSchema = z.infer<typeof settingsSchemaSchema>;
+
+/** How `ctx.http` injects an account's credential. */
+export const accountAuthSchema = z.discriminatedUnion("scheme", [
+  z.strictObject({
+    scheme: z.literal("basic"),
+    /** Account field holding the user name. */
+    user: fieldKeySchema,
+  }),
+  z.strictObject({ scheme: z.literal("bearer") }),
+  z.strictObject({
+    scheme: z.literal("header"),
+    name: z.string().regex(/^[A-Za-z0-9-]+$/),
+  }),
+]) satisfies z.ZodType<AccountAuth>;
 
 /** An account kind an extension defines; accounts are user-only and hold credentials. */
 export const accountKindSchema = z.strictObject({
@@ -107,9 +128,22 @@ export const accountKindSchema = z.strictObject({
     label: z.string().min(1),
     help: z.string().optional(),
   }),
+  /** How the host sends the secret with `ctx.http` requests. Absent: the kind has no injected credential. */
+  auth: accountAuthSchema.optional(),
+  /** Origins the credential is sent to; `{<field>}` is replaced by the account's field. */
+  origins: z.array(z.string().min(1)).optional(),
   test: z.literal(true).optional(),
-});
+}) satisfies z.ZodType<AccountKindData & { kind: string; test?: true }>;
 export type AccountKind = z.infer<typeof accountKindSchema>;
+
+/** What an extension may reach: network origins and host capabilities. */
+export const extensionPermissionsSchema = z.strictObject({
+  network: z.array(z.string().min(1)).optional(),
+  capabilities: z.array(z.enum(["models.image"])).optional(),
+}) satisfies z.ZodType<ExtensionPermissions>;
+export type ExtensionPermissionsData = z.infer<
+  typeof extensionPermissionsSchema
+>;
 
 /** Serializable extension description for the app. */
 export const extensionMetadataSchema = z.strictObject({
@@ -121,6 +155,8 @@ export const extensionMetadataSchema = z.strictObject({
   settingsVersion: z.number().int().positive(),
   /** Default of the implicit `enabled` switch. */
   enabledByDefault: z.boolean(),
+  /** What the extension may reach (network origins, host capabilities); shown for consent. */
+  permissions: extensionPermissionsSchema,
   /** What the extension adds, for the detail view. */
   contributes: z.strictObject({
     /** `quick_script` namespaces. */
@@ -128,7 +164,11 @@ export const extensionMetadataSchema = z.strictObject({
       z.strictObject({
         id: z.string().min(1),
         /** Boolean setting that switches the namespace; absent when it follows the extension. */
-        enabledBy: z.string().optional(),
+        enabledBy: z.union([z.string(), z.array(z.string())]).optional(),
+        /** Account setting that must select an account with a saved secret. */
+        requiresAccount: z.string().optional(),
+        /** Sandbox-side helper namespace without host methods. */
+        helper: z.boolean().optional(),
         summary: z.string(),
       }),
     ),

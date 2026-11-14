@@ -120,7 +120,6 @@ const projectId = $derived(
       onOpenFile={project
         ? (path) => void openFilePane({ projectId: project.id, path })
         : undefined}
-      {settingsDraft}
       {models}
       {authProviders}
       {skills}
@@ -168,13 +167,11 @@ const projectId = $derived(
     <ExtensionsSettingsPage
       {scope}
       {projectId}
-      {settingsDraft}
       {models}
       {authProviders}
       {itemId}
       {sectionId}
       {onOpenItem}
-      {onSettingsChange}
     />
   {:else if page.id === "launch"}
     <LaunchSettingsPage
@@ -194,14 +191,7 @@ const projectId = $derived(
   {:else if page.id === "providers"}
     <ProvidersSettingsPage {models} {authProviders} />
   {:else if page.id === "tools"}
-    <ToolsSettingsPage
-      {scope}
-      {projectId}
-      {settingsDraft}
-      {models}
-      {authProviders}
-      {status}
-    />
+    <ToolsSettingsPage {scope} {projectId} {models} {authProviders} {status} />
   {:else if page.id === "skills"}
     <SkillsSettingsPage
       {scope}

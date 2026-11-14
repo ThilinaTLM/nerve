@@ -32,6 +32,7 @@ function atlassian(patch: Partial<ExtensionView> = {}): ExtensionView {
       source: "builtin",
       settingsVersion: 1,
       enabledByDefault: false,
+      permissions: {},
       contributes: { namespaces: [], tools: [], skills: [] },
     },
     settingsSchema: {

@@ -64,6 +64,7 @@
   },
   "dependencies": {
     "@nervekit/contracts": "workspace:*",
+    "@nervekit/extension-api": "workspace:*",
     "@nervekit/native": "workspace:*",
     "cross-spawn": "7.0.6",
     "diff": "^8.0.4",

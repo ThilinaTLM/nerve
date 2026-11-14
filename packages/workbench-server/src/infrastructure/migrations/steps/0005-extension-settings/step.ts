@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { defineStep, type StepContext } from "../../framework/step.js";
+import { renameSecrets, reshapeAccounts } from "./accounts.js";
 import {
   convertConversationAgent,
   convertProfileDefinition,
@@ -18,8 +19,11 @@ import {
 } from "./removed-tools.js";
 
 /**
- * Extension settings: integration accounts move to `config/accounts.json`
- * (content unchanged), and account choices and tool options leave agent
+ * Extension settings: integration accounts move to `config/accounts.json`,
+ * reshaped by kind (`{ accounts: { <kind>: [{ id, name, fields }] } }`), and
+ * their secrets are renamed to `account:<kind>:<id>` in the secret store
+ * (`secrets/credentials.enc`, rewritten in the same journaled unit). Account
+ * choices and tool options leave agent
  * configuration for `extensions.json` at the same scope:
  *
  * - user `config/agent.json` → user `config/extensions.json`
@@ -109,6 +113,7 @@ function owned(context: StepContext): string[] {
   return [
     join(paths.configPath, "integrations.json"),
     paths.accountsConfigPath,
+    paths.credentialsPath,
     ...targets(context).flatMap((target) => [
       target.path,
       ...(target.extensions ? [target.extensions] : []),
@@ -186,6 +191,39 @@ export default defineStep({
         else context.fs.rename(legacy, paths.accountsConfigPath);
       });
     }
+    if (existsSync(paths.accountsConfigPath)) {
+      if (context.discarded.has(paths.accountsConfigPath))
+        context.quarantine(
+          {
+            kind: "configuration",
+            id: paths.accountsConfigPath,
+            reason: "Set aside at user request after an upgrade failure",
+          },
+          { files: [paths.accountsConfigPath], retainSource: true },
+        );
+      else
+        await context.unit(
+          { kind: "configuration", id: paths.accountsConfigPath },
+          () => {
+            const converted = reshapeAccounts(
+              readObject(paths.accountsConfigPath),
+              (reason) => context.loss(reason),
+            );
+            if (!converted) return;
+            context.fs.write(
+              paths.accountsConfigPath,
+              serialize(converted.document),
+            );
+            const secrets = renameSecrets(
+              paths.credentialsPath,
+              paths.masterKeyPath,
+              converted.renames,
+            );
+            if (secrets)
+              context.fs.write(paths.credentialsPath, secrets.content);
+          },
+        );
+    }
     const all = targets(context);
     context.progress("run", 0, all.length, "Moving extension settings");
     let done = 0;
@@ -213,6 +251,12 @@ export default defineStep({
       !existsSync(paths.accountsConfigPath)
     )
       throw new Error("Integration accounts were not moved to accounts.json");
+    if (
+      existsSync(paths.accountsConfigPath) &&
+      !context.discarded.has(paths.accountsConfigPath) &&
+      isRecord(readObject(paths.accountsConfigPath).profiles)
+    )
+      throw new Error("Accounts were not reshaped by kind");
     for (const target of targets(context)) {
       if (context.discarded.has(target.path)) continue;
       const document = readObject(target.path);

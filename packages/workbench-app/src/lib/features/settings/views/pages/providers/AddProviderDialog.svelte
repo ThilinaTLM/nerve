@@ -48,9 +48,7 @@ const available = $derived(
     .filter(
       (provider) =>
         isProviderAvailableForDialog(provider, kind) &&
-        !excluded.has(provider.provider) &&
-        !provider.provider.startsWith("atlassian:") &&
-        !provider.provider.startsWith("tavily:"),
+        !excluded.has(provider.provider),
     )
     .sort((a, b) => a.displayName.localeCompare(b.displayName)),
 );

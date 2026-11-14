@@ -1,6 +1,6 @@
 import { HOST_ERROR_CODES } from "./errors.js";
 import { renderLimits } from "../limits.js";
-import { quickScriptRegistry } from "../registry.js";
+import { quickScriptRegistry, type QuickScriptRegistry } from "../registry.js";
 
 /**
  * The `quick_script` tool description, built from the registry for the
@@ -23,10 +23,11 @@ const RULES = `Rules: methods take one argument, a bare string (key, id, JQL, CQ
 const DISCOVER =
   'Discover before first use of a namespace: sdk.describe("<namespace>"), sdk.docs("<namespace>"), sdk.search("<words>"), sdk.list().';
 
-export function quickScriptDescription({
-  namespaces: configured = [],
-}: QuickScriptCapabilities = {}): string {
-  const active = quickScriptRegistry().namespaces.filter(
+export function quickScriptDescription(
+  { namespaces: configured = [] }: QuickScriptCapabilities = {},
+  registry: QuickScriptRegistry = quickScriptRegistry(),
+): string {
+  const active = registry.namespaces.filter(
     (namespace) =>
       namespace.source === "builtin" || configured.includes(namespace.id),
   );
@@ -47,5 +48,6 @@ export function quickScriptDescription({
     ]
       .filter(Boolean)
       .join("\n"),
+    registry.limits,
   );
 }

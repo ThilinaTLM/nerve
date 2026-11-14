@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@nervekit/contracts": "workspace:*",
+    "@nervekit/extension-api": "workspace:*",
     "@nervekit/native": "workspace:*",
     "@nervekit/tools": "workspace:*",
     "typebox": "1.3.7"

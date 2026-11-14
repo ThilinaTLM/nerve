@@ -3,9 +3,15 @@ import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import {
   diagramServer,
   imagegenSettings,
-  quickScriptAvailability,
-} from "../../core-host/quick-script-availability.js";
-import { resolveExecutionAccounts } from "../../core-host/execution-accounts.js";
+  resolveExecutionAccounts,
+} from "../../core-host/legacy-extension-context.js";
+import {
+  assertExtensionToolOffered,
+  extensionAvailability,
+} from "../../core-host/extension-availability.js";
+import { createExtensionPorts } from "../../core-host/extension-ports.js";
+import { hostRegistry } from "../../core-host/host-tools.js";
+import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
 import { conversationExtensions } from "../../core-host/conversation-extensions.js";
 import { ExtensionSettingsService } from "../../infrastructure/configuration/extensions/extension-settings-service.js";
 import { extensionSettingsDefinitions } from "@nervekit/extensions";
@@ -53,7 +59,11 @@ import {
   ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
-import { classifyQuickScriptArguments } from "@nervekit/tools/quick-script";
+import {
+  classifyQuickScriptArguments,
+  quickScriptToolRisk,
+} from "@nervekit/tools/quick-script";
+import type { ToolName } from "@nervekit/contracts/tools";
 import { explainImageWithModel } from "@nervekit/harness/models";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
@@ -68,7 +78,7 @@ import { ImageGenerationService } from "../../domains/image-generation/image-gen
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
 
 export function createConversationCore(
-  deps: RuntimeDeps,
+  deps: RuntimeDeps & { accounts: AccountsReader },
   launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
   processHost?: CoreProcessHost,
@@ -99,6 +109,7 @@ export function createConversationCore(
         throw new Error("Agent configuration unavailable");
       return view.resolution.settings.tools?.bash?.settings?.shellPath;
     });
+  const { accounts } = deps;
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(deps.auth),
   ]);
@@ -135,7 +146,6 @@ export function createConversationCore(
     settings: LeadSettingsOverrides,
     forcePython = false,
   ) => {
-    const providers = structuredClone(deps.storage.settings.providers);
     const extensions = await conversationExtensionSettings(
       conversation.id,
       conversation.projectId,
@@ -163,7 +173,7 @@ export function createConversationCore(
     } catch {
       shell = { available: false };
     }
-    return { providers, extensions, modelConfiguration, python, shell };
+    return { extensions, modelConfiguration, python, shell };
   };
   let credentialEpoch = 0;
   let extensionEpoch = 0;
@@ -242,8 +252,7 @@ export function createConversationCore(
             "TOOL_NOT_ENABLED",
             `${input.toolName}: not enabled for this conversation`,
           );
-        const { providers, extensions, modelConfiguration, python, shell } =
-          resources;
+        const { extensions, modelConfiguration, python, shell } = resources;
         const bash = structuredClone(
           settings.tools!.bash!.settings as BashToolSettings,
         );
@@ -266,14 +275,31 @@ export function createConversationCore(
           extensionOn,
           tavilyAccount,
           tavilyKey,
-          atlassianKey,
           atlassianAccounts,
         } = await resolveExecutionAccounts({
           toolName: input.toolName,
           extensions,
-          providers,
-          getApiKey: (name) => deps.auth.getApiKey(name),
+          accounts,
         });
+        const extensionPorts = createExtensionPorts({
+          resolution: extensions,
+          accounts,
+          generateImage: (request) => imageGeneration.generate(request),
+          warn: (extensionId, message, data) =>
+            void deps.logger.warn("Extension warning", {
+              context: { extension: extensionId, message, data },
+            }),
+        });
+        const isExtensionTool = hostRegistry.tools.some(
+          (tool) => tool.definition.name === input.toolName,
+        );
+        // Direct tools of extensions: offered only while available (advertising is not authorization).
+        await assertExtensionToolOffered(
+          hostRegistry,
+          input.toolName,
+          extensions,
+          accounts,
+        );
         if (input.toolName === "python_exec" && (!python || !python.available))
           throw new ToolExecutionError(
             "PYTHON_UNAVAILABLE",
@@ -304,16 +330,26 @@ export function createConversationCore(
               : provider === "tavily"
                 ? tavilyKey
                 : undefined,
-          ...(quickScript
+          registry: hostRegistry,
+          extensionPorts,
+          ...(quickScript || isExtensionTool
             ? {
-                web: {
-                  enabled: extensionOn("web"),
-                  search: Boolean(tavilyKey),
-                },
-                namespaces: quickScriptAvailability(extensions, providers, {
-                  atlassian: Boolean(atlassianKey),
-                  tavily: Boolean(tavilyKey),
-                }),
+                ...(quickScript
+                  ? {
+                      web: {
+                        enabled: extensionOn("web"),
+                        search: Boolean(tavilyKey),
+                      },
+                      namespaces: (
+                        await extensionAvailability(
+                          hostRegistry,
+                          extensions,
+                          accounts,
+                          { checkSecrets: true, ports: extensionPorts },
+                        )
+                      ).namespaces,
+                    }
+                  : {}),
                 authorizeNested: (request) =>
                   // Only a person's approval of the script sets the ceiling: the
                   // admission stored on the tool call says whether a rule allowed
@@ -329,9 +365,15 @@ export function createConversationCore(
                       signal: input.signal,
                       admission: {
                         by: userApproved(input.toolCallId) ? "user" : "rule",
-                        scriptRisk: classifyQuickScriptArguments(
-                          input.args as Record<string, unknown>,
-                        ).risk,
+                        scriptRisk: quickScript
+                          ? classifyQuickScriptArguments(
+                              input.args as Record<string, unknown>,
+                              hostRegistry,
+                            ).risk
+                          : quickScriptToolRisk(
+                              input.toolName as ToolName,
+                              input.args as Record<string, unknown>,
+                            ),
                       },
                     },
                     request,
@@ -429,7 +471,7 @@ export function createConversationCore(
       discoveredSkills: [...discoveredSkills],
       credentialEpoch,
       extensionEpoch,
-      providers: deps.storage.settings.providers,
+      accounts: deps.storage.configuration.accounts,
       modelConfiguration: deps.storage.configuration.providers,
       models: deps.providerCatalog.resolvedModels(),
       nerve: deps.nerveSkills.skills,
@@ -591,9 +633,10 @@ export function createConversationCore(
       agentBrowserSkills: () => deps.agentBrowserSkills.skills,
       hasChildren: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
+      registry: hostRegistry,
       extensions: async (id, projectId) => ({
         resolution: await conversationExtensionSettings(id, projectId),
-        accounts: deps.storage.settings.providers,
+        accounts,
       }),
     }),
   });
@@ -613,6 +656,7 @@ export function createConversationCore(
   };
   const authorizeQuickScriptCall = createQuickScriptAuthorizer(
     createExecutionAdmission(admissionPolicy),
+    hostRegistry,
   );
   const conversationTitles = new ConversationTitleService({
     settings: () => deps.storage.settings.conversationTitles,
@@ -685,6 +729,7 @@ export function createConversationCore(
         "settings.updated",
         "providers.catalog_changed",
         "auth.providers_changed",
+        "accounts.changed",
       ].includes(event.type)
     )
       return;

@@ -9,15 +9,24 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
   string,
   readonly string[]
 > = new Map([
-  ["@nervekit/contracts", []],
+  ["@nervekit/extension-api", []],
+  ["@nervekit/contracts", ["@nervekit/extension-api"]],
   ["@nervekit/native", []],
   ["@nervekit/protocol", ["@nervekit/contracts"]],
   ["@nervekit/harness", ["@nervekit/contracts", "@nervekit/native"]],
-  ["@nervekit/tools", ["@nervekit/contracts", "@nervekit/native"]],
+  [
+    "@nervekit/tools",
+    ["@nervekit/contracts", "@nervekit/native", "@nervekit/extension-api"],
+  ],
   [
     "@nervekit/extensions",
     // TEMPORARY until docs/proposals/extension-platform phase 1 step 3: target is @nervekit/extension-api only.
-    ["@nervekit/contracts", "@nervekit/native", "@nervekit/tools"],
+    [
+      "@nervekit/extension-api",
+      "@nervekit/contracts",
+      "@nervekit/native",
+      "@nervekit/tools",
+    ],
   ],
   [
     "@nervekit/conversation-core",

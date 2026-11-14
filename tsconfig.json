@@ -2,6 +2,9 @@
   "files": [],
   "references": [
     {
+      "path": "./packages/extension-api"
+    },
+    {
       "path": "./packages/contracts"
     },
     {

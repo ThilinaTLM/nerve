@@ -5,9 +5,11 @@ import {
   quickScriptToolRisk,
   quickScriptRiskOfMethod,
   findQuickScriptNamespace,
+  type QuickScriptRegistry,
   describeQuickScriptRisk,
   type QuickScriptRisk,
 } from "@nervekit/tools/quick-script";
+import { hostRegistry } from "./host-tools.js";
 import {
   ToolExecutionError,
   type QuickScriptNestedRequest,
@@ -58,6 +60,7 @@ function brokerableDirectTool(toolName: string): boolean {
  */
 export function createQuickScriptAuthorizer(
   prepareAdmission: PrepareAdmission,
+  registry: QuickScriptRegistry = hostRegistry,
 ) {
   return async (
     call: QuickScriptCall,
@@ -69,7 +72,14 @@ export function createQuickScriptAuthorizer(
     let risk: QuickScriptRisk;
     if ("operation" in request) {
       const [namespace] = request.operation.split(".");
-      if (!namespace || !findQuickScriptNamespace(namespace))
+      // An operation belongs to a namespace, or to an extension's own direct tool (`<extension>.<tool>`).
+      if (
+        !namespace ||
+        !(
+          findQuickScriptNamespace(namespace, registry) ??
+          registry?.extensions.find((extension) => extension.id === namespace)
+        )
+      )
         throw new ToolExecutionError(
           "NESTED_DENIED",
           `${request.operation}: not available to quick_script`,

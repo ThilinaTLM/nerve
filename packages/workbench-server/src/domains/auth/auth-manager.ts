@@ -12,6 +12,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { AuthProviderMetadata } from "@nervekit/contracts/auth";
+import { isAccountSecretId } from "@nervekit/contracts/settings";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import {
@@ -48,21 +49,6 @@ const OPENAI_OAUTH_WARNING =
 const ANTHROPIC_OAUTH_WARNING =
   "Anthropic subscription auth may use paid extra usage outside normal Claude plan limits.";
 
-function displayNameForProvider(provider: string): string {
-  if (provider.startsWith("atlassian:")) return "Atlassian profile";
-  if (provider.startsWith("tavily:")) return "Tavily profile";
-  const known: Record<string, string> = {
-    confluence: "Confluence",
-    jira: "Jira",
-    tavily: "Tavily",
-  };
-  return known[provider] ?? provider;
-}
-
-function isIntegrationProfileProvider(provider: string): boolean {
-  return provider.startsWith("atlassian:") || provider.startsWith("tavily:");
-}
-
 export function providerEnvVarName(provider: string): string {
   const known: Record<string, string> = {
     anthropic: "ANTHROPIC_API_KEY",
@@ -71,9 +57,6 @@ export function providerEnvVarName(provider: string): string {
     openai: "OPENAI_API_KEY",
     openrouter: "OPENROUTER_API_KEY",
     radius: "RADIUS_API_KEY",
-    confluence: "CONFLUENCE_API_TOKEN",
-    jira: "JIRA_API_TOKEN",
-    tavily: "TAVILY_API_KEY",
     xai: "XAI_API_KEY",
   };
   return (
@@ -239,7 +222,9 @@ export class AuthManager {
       providers.add(providerId);
     }
     for (const credential of await this.credentials.list()) {
-      providers.add(credential.providerId);
+      // Account secrets belong to their account, not to the provider lists.
+      if (!isAccountSecretId(credential.providerId))
+        providers.add(credential.providerId);
     }
 
     const items = await Promise.all(
@@ -256,17 +241,14 @@ export class AuthManager {
           displayName:
             provider?.name ??
             customProviderNames?.get(providerId) ??
-            displayNameForProvider(providerId),
+            providerId,
           supportsApiKey,
           supportsOAuth,
           oauthName:
             provider?.auth.oauth?.loginLabel ?? provider?.auth.oauth?.name,
           configured: Boolean(credential ?? checked),
           credentialType: credential?.type ?? checked?.type,
-          envVar:
-            supportsApiKey && !isIntegrationProfileProvider(providerId)
-              ? providerEnvVarName(providerId)
-              : undefined,
+          envVar: supportsApiKey ? providerEnvVarName(providerId) : undefined,
           warning:
             providerId === "openai"
               ? OPENAI_OAUTH_WARNING

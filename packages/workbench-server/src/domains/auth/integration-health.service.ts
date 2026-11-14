@@ -1,193 +1,123 @@
 import { createHash } from "node:crypto";
 import {
-  atlassianProfileHealthSchema,
-  integrationHealthResultSchema,
-  type AtlassianProfileHealth,
-  type AtlassianService,
-  type IntegrationHealthResult,
+  accountHealthSchema,
+  type AccountHealth,
   type IntegrationHealthStatus,
 } from "@nervekit/contracts/auth";
-import type { AtlassianProfile } from "@nervekit/contracts/settings";
-import { checkAtlassianConnection } from "@nervekit/extensions";
-import { z } from "zod";
+import type { AccountKind } from "@nervekit/contracts/extensions";
+import { ApplicationError } from "../../core/application-error.js";
+import type {
+  AccountRecord,
+  AccountsReader,
+} from "../accounts/accounts.service.js";
 
-const services = ["jira", "confluence"] as const;
-
-const storedResultSchema = integrationHealthResultSchema.extend({
-  /** Fingerprint of the token that produced this evidence; never the token. */
-  credentialDigest: z.string(),
-});
-type StoredResult = z.infer<typeof storedResultSchema>;
-type StoredHealth = {
-  version: 1;
-  jira?: StoredResult;
-  confluence?: StoredResult;
+export type AccountTestResult = {
+  status: IntegrationHealthStatus;
+  message?: string;
 };
 
+/** Checks that an account's credentials work. Throws only when it cannot run the check. */
+export type AccountTester = (
+  account: AccountRecord,
+  secret: string,
+) => Promise<AccountTestResult>;
+
 export type IntegrationHealthDeps = {
-  /** Atlassian profiles shown in user settings. */
-  profiles: () => readonly AtlassianProfile[];
-  getToken: (profileId: string) => Promise<string | undefined>;
-  publish: (profileId: string) => Promise<void>;
-  check?: typeof checkAtlassianConnection;
+  accounts: AccountsReader;
+  /** Account kinds the registered extensions define; only kinds that declare `test` are checked. */
+  kinds: () => readonly AccountKind[];
+  /** The connection check per kind. */
+  testers: Readonly<Record<string, AccountTester>>;
+  publish: (kind: string, accountId: string) => Promise<void>;
   now?: () => Date;
 };
 
+type Stored = {
+  result: AccountHealth;
+  /** Fingerprint of the fields and secret that produced the result; never the secret. */
+  fingerprint: string;
+};
+
+const key = (kind: string, id: string) => `${kind}\u0000${id}`;
+
 /**
- * Tracks whether each Atlassian profile's credentials currently work for Jira
- * and Confluence. Evidence comes from explicit checks and from real tool
- * calls. Each result is bound to the site, email, and token fingerprint that
- * produced it, so editing a profile or replacing its token invalidates it.
+ * Tracks whether each account's credentials currently work, for kinds that can
+ * be tested. A result is bound to the account's fields and secret, so editing
+ * the account or replacing its secret invalidates it.
  */
 export class IntegrationHealthService {
-  readonly #health = new Map<string, StoredHealth>();
-  readonly #queues = new Map<string, Promise<void>>();
+  readonly #health = new Map<string, Stored>();
 
   constructor(private readonly deps: IntegrationHealthDeps) {}
 
-  async list(): Promise<AtlassianProfileHealth[]> {
-    return Promise.all(
-      this.deps.profiles().map((profile) => this.#current(profile)),
-    );
+  #testable(kind: string): AccountKind | undefined {
+    return this.deps
+      .kinds()
+      .find((candidate) => candidate.kind === kind && candidate.test);
   }
 
-  async check(profileId: string): Promise<AtlassianProfileHealth> {
-    const profile = this.deps.profiles().find((item) => item.id === profileId);
-    if (!profile) throw new Error(`Atlassian profile ${profileId} not found.`);
-    const token = await this.deps.getToken(profileId);
-    if (!profile.siteUrl || !profile.email || !token)
-      throw new Error(
-        "Add the site URL, Atlassian email, and API token before testing this profile.",
-      );
-    const connection = {
-      siteUrl: profile.siteUrl,
-      email: profile.email,
-      token,
-    };
-    const check = this.deps.check ?? checkAtlassianConnection;
-    const results = await Promise.all(
-      services.map(async (service) => {
-        const outcome = await check(connection, service);
-        return [service, outcome] as const;
-      }),
-    );
-    for (const [service, outcome] of results)
-      await this.#write(profile, token, service, {
-        status: outcome.status,
-        source: "check",
-        message: outcome.message,
-      });
-    await this.deps.publish(profile.id);
-    return this.#current(profile);
-  }
-
-  /**
-   * Record evidence from a finished Jira/Confluence tool call. Only outcomes
-   * that say something about the credentials change the status: success and
-   * refused credentials (401). Permission, not-found, rate-limit, and server
-   * failures are usually specific to one request and are ignored. `token` is
-   * the credential the call actually used, so a token replaced mid-call never
-   * inherits the old token's outcome.
-   */
-  async recordToolOutcome(input: {
-    profile: AtlassianProfile;
-    service: AtlassianService;
-    token: string;
-    errorCode?: string;
-    message?: string;
-  }): Promise<void> {
-    const status: IntegrationHealthStatus | undefined =
-      input.errorCode === undefined
-        ? "verified"
-        : input.errorCode === "JIRA_UNAUTHORIZED" ||
-            input.errorCode === "CONFLUENCE_UNAUTHORIZED"
-          ? "rejected"
-          : undefined;
-    if (!status || !input.profile.siteUrl || !input.profile.email) return;
-    const previous = (await this.#read(input.profile.id))?.[input.service];
-    // Avoid a store write and event for every successful call.
-    if (
-      previous?.status === status &&
-      previous.credentialDigest === digest(input.token) &&
-      previous.siteUrl === input.profile.siteUrl &&
-      previous.email === input.profile.email
-    )
-      return;
-    await this.#write(input.profile, input.token, input.service, {
-      status,
-      source: "tool",
-      message: status === "verified" ? undefined : input.message,
-    });
-    await this.deps.publish(input.profile.id);
-  }
-
-  async #current(profile: AtlassianProfile): Promise<AtlassianProfileHealth> {
-    const stored = await this.#read(profile.id);
-    const token = stored ? await this.deps.getToken(profile.id) : undefined;
-    const health: AtlassianProfileHealth = { profileId: profile.id };
-    for (const service of services) {
-      const result = stored?.[service];
-      if (
-        result &&
-        token &&
-        result.credentialDigest === digest(token) &&
-        result.siteUrl === profile.siteUrl &&
-        result.email === profile.email
-      )
-        health[service] = publicResult(result);
+  async list(): Promise<AccountHealth[]> {
+    const health: AccountHealth[] = [];
+    for (const { kind, test } of this.deps.kinds()) {
+      if (!test) continue;
+      for (const account of await this.deps.accounts.list(kind)) {
+        const current = await this.#current(account);
+        if (current) health.push(current);
+      }
     }
-    return atlassianProfileHealthSchema.parse(health);
+    return health;
   }
 
-  async #read(profileId: string): Promise<StoredHealth | undefined> {
-    return this.#health.get(profileId);
-  }
-
-  #write(
-    profile: AtlassianProfile,
-    token: string,
-    service: AtlassianService,
-    result: Pick<IntegrationHealthResult, "status" | "source" | "message">,
-  ): Promise<void> {
-    return this.#exclusive(profile.id, async () => {
-      const next: StoredHealth = {
-        ...(this.#health.get(profile.id) ?? { version: 1 }),
-      };
-      next[service] = storedResultSchema.parse({
-        status: result.status,
-        source: result.source,
-        ...(result.message ? { message: result.message.slice(0, 2000) } : {}),
-        checkedAt: (this.deps.now?.() ?? new Date()).toISOString(),
-        siteUrl: profile.siteUrl,
-        email: profile.email,
-        credentialDigest: digest(token),
-      });
-      this.#health.set(profile.id, next);
+  async check(kind: string, id: string): Promise<AccountHealth> {
+    const tester = this.#testable(kind) && this.deps.testers[kind];
+    if (!tester)
+      throw new ApplicationError(
+        400,
+        "ACCOUNT_NOT_TESTABLE",
+        `Accounts of kind '${kind}' cannot be tested.`,
+      );
+    const account = await this.deps.accounts.get(kind, id);
+    if (!account)
+      throw new ApplicationError(
+        404,
+        "ACCOUNT_NOT_FOUND",
+        `Account '${id}' does not exist.`,
+      );
+    const secret = await this.deps.accounts.secret(kind, id);
+    if (!secret)
+      throw new ApplicationError(
+        400,
+        "ACCOUNT_SECRET_MISSING",
+        "Add the secret before testing this account.",
+      );
+    const outcome = await tester(account, secret);
+    const result = accountHealthSchema.parse({
+      kind,
+      accountId: id,
+      status: outcome.status,
+      checkedAt: (this.deps.now?.() ?? new Date()).toISOString(),
+      ...(outcome.message ? { message: outcome.message.slice(0, 2000) } : {}),
     });
+    this.#health.set(key(kind, id), {
+      result,
+      fingerprint: fingerprint(account, secret),
+    });
+    await this.deps.publish(kind, id);
+    return result;
   }
 
-  #exclusive(key: string, operation: () => Promise<void>): Promise<void> {
-    const previous = this.#queues.get(key) ?? Promise.resolve();
-    const result = previous.catch(() => undefined).then(operation);
-    const tail = result.catch(() => undefined);
-    this.#queues.set(key, tail);
-    return result.finally(() => {
-      if (this.#queues.get(key) === tail) this.#queues.delete(key);
-    });
+  async #current(account: AccountRecord): Promise<AccountHealth | undefined> {
+    const stored = this.#health.get(key(account.kind, account.id));
+    if (!stored) return undefined;
+    const secret = await this.deps.accounts.secret(account.kind, account.id);
+    return secret && stored.fingerprint === fingerprint(account, secret)
+      ? stored.result
+      : undefined;
   }
 }
 
-function publicResult(result: StoredResult): IntegrationHealthResult {
-  return integrationHealthResultSchema.parse({
-    status: result.status,
-    checkedAt: result.checkedAt,
-    source: result.source,
-    siteUrl: result.siteUrl,
-    email: result.email,
-    ...(result.message ? { message: result.message } : {}),
-  });
-}
-
-function digest(token: string): string {
-  return `sha256:${createHash("sha256").update(token).digest("hex")}`;
+function fingerprint(account: AccountRecord, secret: string): string {
+  return createHash("sha256")
+    .update(JSON.stringify([account.name, account.fields, secret]))
+    .digest("hex");
 }

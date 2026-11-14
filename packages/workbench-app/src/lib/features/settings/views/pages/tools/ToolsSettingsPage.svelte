@@ -1,4 +1,5 @@
 <script lang="ts">
+import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { toolSettingsMutation } from "./tool-settings-mutation";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
@@ -16,12 +17,7 @@ import Code from "@lucide/svelte/icons/code";
 import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import type {
-  AuthProviderMetadata,
-  ModelInfo,
-  Settings,
-  StatusResponse,
-} from "$lib/api";
+import type { AuthProviderMetadata, ModelInfo, StatusResponse } from "$lib/api";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import {
@@ -59,14 +55,12 @@ import {
 let {
   scope,
   projectId,
-  settingsDraft,
   status,
   models = [],
   authProviders = [],
 }: {
   scope: "user" | "project";
   projectId?: string;
-  settingsDraft: Settings;
   status?: StatusResponse;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
@@ -96,7 +90,9 @@ $effect(() => {
   );
 });
 $effect(() => extensions.observe());
-const accounts = $derived(accountOptions(settingsDraft.providers));
+const accounts = $derived(
+  accountOptions(accountsState.accounts, accountsState.kinds),
+);
 function extensionState(id: ToolId) {
   return toolExtensionState(id, extensions.view?.extensions, accounts);
 }

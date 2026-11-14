@@ -17,7 +17,28 @@ export { quickScriptDescription } from "./runtime/description.js";
 export * from "./runtime/script-risk.js";
 export { executeQuickScript };
 
-export { quickScriptToolDefinition } from "./tool.js";
+export {
+  createQuickScriptToolDefinition,
+  quickScriptHostTools,
+  quickScriptToolDefinition,
+} from "./tool.js";
+export { createExtensionToolDefinitions } from "./extension-host/direct-tools.js";
+export {
+  configuredNamespaces,
+  deriveAvailability,
+} from "./extension-host/availability.js";
+export type {
+  AvailabilityInput,
+  DerivedAvailability,
+  ExtensionState,
+} from "./extension-host/availability.js";
+export type { ExtensionHostPorts } from "./extension-host/ports.js";
+export { createAvailabilityContext } from "./extension-host/host-context.js";
+export { fromDefinition } from "./extension-host/from-definition.js";
+export type {
+  NamespaceAvailability,
+  QuickScriptAvailability,
+} from "./manifest-types.js";
 export type { QuickScriptContext } from "./runtime/sdk-types.js";
 export type {
   ImageBackendRequest,

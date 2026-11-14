@@ -1,4 +1,6 @@
 import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
+import type { AccountKind } from "@nervekit/contracts/extensions";
+import type { AccountView } from "@nervekit/contracts/settings";
 export type ToolId = CapabilityToolName;
 
 /** The editable shape shared by every tool: all fields optional. */
@@ -78,27 +80,40 @@ export function toolRow(id: ToolId): ToolRowDef {
 
 export type AccountOption = { id: string; name: string; detail?: string };
 
-/** Account kinds the user manages in an extension's Accounts section. */
-export type AccountKind = "tavily" | "atlassian";
+/** Every account the user can pick from, by account kind. */
+export type AccountOptions = Record<string, AccountOption[]>;
 
-/** Every account the user can pick from, by kind. */
-export type AccountOptions = Record<AccountKind, AccountOption[]>;
+/** The account's first filled field in the kind's order, e.g. the site URL. */
+function accountDetail(
+  kind: AccountKind | undefined,
+  account: AccountView,
+): string | undefined {
+  for (const key of Object.keys(kind?.fields ?? {})) {
+    const value = account.fields[key];
+    if (key !== "name" && typeof value === "string" && value) return value;
+  }
+  return undefined;
+}
+
 export function accountOptions(
-  providers:
-    | {
-        tavilyProfiles: AccountOption[];
-        atlassianProfiles: { id: string; name: string; siteUrl?: string }[];
-      }
-    | undefined,
+  accounts: readonly AccountView[],
+  kinds: readonly AccountKind[],
 ): AccountOptions {
-  return {
-    tavily: providers?.tavilyProfiles ?? [],
-    atlassian: (providers?.atlassianProfiles ?? []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      detail: p.siteUrl,
-    })),
-  };
+  const options: AccountOptions = Object.fromEntries(
+    kinds.map(({ kind }) => [kind, []]),
+  );
+  for (const account of accounts) {
+    const detail = accountDetail(
+      kinds.find(({ kind }) => kind === account.kind),
+      account,
+    );
+    (options[account.kind] ??= []).push({
+      id: account.id,
+      name: account.name,
+      ...(detail ? { detail } : {}),
+    });
+  }
+  return options;
 }
 
 export type ToolDisplayContext = {

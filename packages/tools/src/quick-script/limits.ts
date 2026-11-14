@@ -21,9 +21,12 @@ function formatBytes(bytes: number): string {
 }
 
 /** Fills `{{limit:name}}` placeholders; an unknown name throws so a typo cannot ship. */
-export function renderLimits(text: string): string {
+export function renderLimits(
+  text: string,
+  limits: Readonly<Record<string, number>> = quickScriptRegistry().limits,
+): string {
   return text.replace(/\{\{limit:([\w.]+)\}\}/g, (_, name: string) => {
-    const bytes = LIMIT_BYTES[name] ?? quickScriptRegistry().limits[name];
+    const bytes = LIMIT_BYTES[name] ?? limits[name];
     if (bytes === undefined) throw new Error(`Unknown limit '${name}'.`);
     return formatBytes(bytes);
   });

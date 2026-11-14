@@ -72,6 +72,7 @@ export const imagegenExtension: ExtensionManifest = {
       },
     },
   },
+  permissions: { capabilities: ["models.image"] },
   readDoc: (file) => readExtensionDoc("imagegen", file),
   contributes: {
     sdk: [

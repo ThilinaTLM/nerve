@@ -17,7 +17,12 @@ export const webExtension: ExtensionManifest = {
       kind: "tavily",
       label: "Tavily account",
       fields: { name: { type: "string", label: "Name", maxLength: 128 } },
-      secret: { label: "API key" },
+      secret: {
+        label: "API key",
+        help: "Get a Tavily API key at https://app.tavily.com.",
+      },
+      auth: { scheme: "bearer" },
+      origins: ["https://api.tavily.com"],
     },
   ],
   settings: {
@@ -30,6 +35,7 @@ export const webExtension: ExtensionManifest = {
       },
     },
   },
+  permissions: { network: ["https://api.tavily.com"] },
   readDoc: (file) => readExtensionDoc("web", file),
   contributes: {
     tools: ["web_fetch", "web_search"],

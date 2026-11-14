@@ -24,6 +24,8 @@ export const diagramExtension: ExtensionManifest = {
       },
     },
   },
+  // The Kroki server the user configured; it may be on a private network.
+  permissions: { network: ["{settings.server}"] },
   readDoc: (file) => readExtensionDoc("diagram", file),
   limits: { "diagram.source": MAX_SOURCE_BYTES },
   contributes: {

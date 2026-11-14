@@ -20,6 +20,7 @@ import {
   publicUrlSchema,
   trustProxySchema,
 } from "./application-configuration.js";
+import { accountsConfigSchema, defaultAccountsConfig } from "./accounts.js";
 
 const homeMigrationLedgerSchema = z.array(
   z
@@ -287,42 +288,6 @@ export const defaultProvidersConfig: ProvidersConfig = {
   providers: [],
   models: [],
   authentication: [],
-};
-
-const atlassianProfileConfigSchema = z
-  .object({
-    id: z.string().trim().min(1),
-    name: z.string().trim().min(1),
-    siteUrl: z.string().url().optional(),
-    email: z.string().email().optional(),
-    defaultProjectKey: z.string().trim().min(1).optional(),
-    defaultSpaceKey: z.string().trim().min(1).optional(),
-    credential: z.string().trim().min(1),
-  })
-  .strict();
-const tavilyProfileConfigSchema = z
-  .object({
-    id: z.string().trim().min(1),
-    name: z.string().trim().min(1),
-    credential: z.string().trim().min(1),
-  })
-  .strict();
-
-export const accountsConfigSchema = z
-  .object({
-    version: z.literal(2),
-    profiles: z
-      .object({
-        atlassian: z.array(atlassianProfileConfigSchema),
-        tavily: z.array(tavilyProfileConfigSchema),
-      })
-      .strict(),
-  })
-  .strict();
-export type AccountsConfig = z.infer<typeof accountsConfigSchema>;
-export const defaultAccountsConfig: AccountsConfig = {
-  version: 2,
-  profiles: { atlassian: [], tavily: [] },
 };
 
 export const userConfigurationSchema = z

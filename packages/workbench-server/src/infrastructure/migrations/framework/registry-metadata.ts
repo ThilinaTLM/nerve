@@ -52,7 +52,7 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
     {
       step: { id: "0005-extension-settings" },
       checksum:
-        "90995c5489c9015b5bb6474d28ebda01bb7fb1de65bfe76c00b224f8cc657dcd",
+        "e8ec89e0a87898b20b36ed4a400a2971460b74913c3d96da5e2ff3afa7b67550",
       stage: "draft",
     },
   ]);

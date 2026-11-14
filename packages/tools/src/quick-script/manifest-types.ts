@@ -4,6 +4,14 @@ import type {
   SettingsSchema,
 } from "@nervekit/contracts/extensions";
 import type {
+  Availability,
+  ExtensionContext,
+  ExtensionDefinition,
+  ExtensionPermissions,
+  Requires,
+  ToolDefinition as ExtensionToolDefinition,
+} from "@nervekit/extension-api";
+import type {
   QuickScriptContext,
   SdkEnvironment,
   SdkMethod,
@@ -12,12 +20,23 @@ import type {
 /** One `sdk.docs` topic. `id` is the full topic id (`jira/workflows`); `file` is relative to the owner's `docs/` folder. */
 export type DocTopic = { id: string; whenToRead: string; file: string };
 
-/** A `quick_script` global namespace contributed by an extension or the runtime. */
+/**
+ * A `quick_script` global namespace contributed by an extension or the runtime.
+ * Extensions built on `@nervekit/extension-api` are converted to this shape by `fromDefinition`.
+ */
 export type SdkNamespace = {
   /** Global name in the sandbox: `jira`. */
   id: string;
-  /** Boolean setting key of the extension that switches this namespace (`jira` in Atlassian's settings). Absent: the namespace follows its extension. */
-  enabledBy?: string;
+  /** Boolean setting key (or any of several) of the extension that switches this namespace (`jira` in Atlassian's settings). Absent: the namespace follows its extension. */
+  enabledBy?: string | string[];
+  /** Account setting that must select an existing account with a saved secret for the namespace to be available. */
+  requires?: Requires;
+  /** Sandbox-side helper namespace (no host methods of its own). */
+  helper?: boolean;
+  /** Extra availability check (extension-API namespaces only). */
+  availability?: (
+    ctx: ExtensionContext,
+  ) => Availability | Promise<Availability>;
   /** One line in the `quick_script` description. */
   summary: string;
   /** At most three short lines, added to the description whenever the namespace is configured. */
@@ -47,7 +66,12 @@ export type ExtensionEnvironment = Partial<
   >
 >;
 
-/** The manifest of a built-in extension (installed extensions come later). */
+/**
+ * The manifest of a built-in extension as the host registers it. Extensions
+ * written against `@nervekit/extension-api` are converted into it
+ * (`fromDefinition`); the built-ins still hand-write it with `contributes.sdk`,
+ * `SdkMethod` and `createEnvironment`. LEGACY until extension-platform S2.
+ */
 export type ExtensionManifest = {
   /** Kebab-case, unique, stable. */
   id: string;
@@ -67,13 +91,21 @@ export type ExtensionManifest = {
   migrations?: ExtensionSettingsDefinition["migrations"];
   /** Account kinds the extension defines (user-only, credentials in the secret store). */
   accounts?: AccountKind[];
+  /** What the extension may reach: network origins and host capabilities. */
+  permissions?: ExtensionPermissions;
+  /** Set when the extension is built on `@nervekit/extension-api`; its methods run through `ctx`, not `SdkEnvironment`. */
+  definition?: ExtensionDefinition;
+  /** Direct tools (extension-API extensions). */
+  tools?: readonly ExtensionToolDefinition[];
+  /** Sandbox-side helper source appended to the SDK prelude. */
+  prelude?: string;
   /** Reads a doc topic file (`DocTopic.file`) of this extension. */
   readDoc: (file: string) => string;
   /** Byte limits the extension enforces, filled into `{{limit:<name>}}` placeholders of its docs and rules. */
   limits?: Readonly<Record<string, number>>;
   /**
    * The extension's part of the per-run environment (connection loaders).
-   * TEMPORARY until docs/proposals/extension-platform phase 1 step 3 replaces it with `ctx`.
+   * LEGACY until extension-platform S2 ports the built-ins to the extension API (`ctx`).
    */
   createEnvironment?: (context: QuickScriptContext) => ExtensionEnvironment;
   contributes: {

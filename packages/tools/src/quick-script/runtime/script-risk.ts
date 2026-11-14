@@ -5,6 +5,8 @@ import {
   toolNameSchema,
 } from "@nervekit/contracts/tools";
 import { classifyToolRisk } from "../../catalog/index.js";
+import { quickScriptRegistry, type QuickScriptRegistry } from "../registry.js";
+import { sdkGlobals } from "./sdk-globals.js";
 import { createSdkEnvironment, findSdkMethod } from "./sdk.js";
 import {
   isOperationCheck,
@@ -185,16 +187,6 @@ const ARGUMENT_DEPENDENT = new Set([
   "files.edit",
 ]);
 
-const SDK_GLOBALS = new Set([
-  "atlassian",
-  "jira",
-  "confluence",
-  "diagram",
-  "files",
-  "image",
-  "imagegen",
-  "web",
-]);
 /** Ways to reach an SDK global or run code without naming it. */
 const ESCAPES = new Set([
   "eval",
@@ -581,7 +573,10 @@ function literalValue(tokens: Token[]): unknown {
   return at === tokens.length ? value : NOT_LITERAL;
 }
 
-let scanEnvironment: ReturnType<typeof createSdkEnvironment> | undefined;
+const scanEnvironments = new WeakMap<
+  QuickScriptRegistry,
+  ReturnType<typeof createSdkEnvironment>
+>();
 
 /**
  * The operation checks of a call with literal arguments, from the method's own
@@ -591,11 +586,16 @@ let scanEnvironment: ReturnType<typeof createSdkEnvironment> | undefined;
 function literalChecks(
   method: NonNullable<ReturnType<typeof findSdkMethod>>,
   args: Token[][],
+  registry: QuickScriptRegistry,
 ): ScannedCall[] | undefined {
   const values = args.map(literalValue);
   if (values.includes(NOT_LITERAL)) return undefined;
   try {
-    scanEnvironment ??= createSdkEnvironment({ cwd: process.cwd() });
+    let scanEnvironment = scanEnvironments.get(registry);
+    if (!scanEnvironment) {
+      scanEnvironment = createSdkEnvironment({ cwd: process.cwd(), registry });
+      scanEnvironments.set(registry, scanEnvironment);
+    }
     const prepared = method.prepare(values, scanEnvironment);
     return [
       prepared.authorization,
@@ -625,15 +625,16 @@ type Found = { risk: QuickScriptRisk; targets: string[] };
  */
 export function classifyQuickScriptScript(
   code: string,
+  registry: QuickScriptRegistry = quickScriptRegistry(),
 ): QuickScriptClassification {
   const [division, regex] = [
     tokenize(code, "division"),
     tokenize(code, "regex"),
   ];
-  const first = classifyTokens(division);
+  const first = classifyTokens(division, registry);
   if (JSON.stringify(division) === JSON.stringify(regex)) return first;
   // The readings disagree: report the riskier, and every operation either found.
-  const second = classifyTokens(regex);
+  const second = classifyTokens(regex, registry);
   const seen = new Set<string>();
   return {
     risk: higherRisk(first.risk, second.risk),
@@ -646,7 +647,11 @@ export function classifyQuickScriptScript(
   };
 }
 
-function classifyTokens(tokens: Token[]): QuickScriptClassification {
+function classifyTokens(
+  tokens: Token[],
+  registry: QuickScriptRegistry,
+): QuickScriptClassification {
+  const globals = sdkGlobals(registry);
   const found = new Map<string, Found[]>();
   const scanned: ScannedCall[] = [];
   let admissible = true;
@@ -688,12 +693,12 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
     }
     if (tokens[i - 1]?.text === "." && tokens[i - 1]?.kind === "punct") {
       // `this.jira` reaches the global when `this` is the global object.
-      if (SDK_GLOBALS.has(token.text) && tokens[i - 2]?.text === "this")
+      if (globals.has(token.text) && tokens[i - 2]?.text === "this")
         record(`this.${token.text} (not analysable)`, "destructive");
       continue;
     }
     // Bracket access by name: `x["constructor"]`.
-    if (!SDK_GLOBALS.has(token.text)) continue;
+    if (!globals.has(token.text)) continue;
     // `{ files: 1 }` names a property, not the global.
     if (
       tokens[i + 1]?.text === ":" &&
@@ -714,7 +719,7 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
       record("image", "read", callTargets(callArguments(tokens, j)));
       continue;
     }
-    const method = findSdkMethod(name);
+    const method = findSdkMethod(name, registry);
     if (path.length === 0 || tokens[j]?.text !== "(" || !method) {
       record(`${name} (not a direct call)`, "destructive");
       continue;
@@ -758,7 +763,7 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
     else {
       record(name, methodRisk, targets, "operation");
       scanned.push(
-        ...(literalChecks(method, args) ?? [
+        ...(literalChecks(method, args, registry) ?? [
           { operation: name, risk: method.risk, targets: undefined },
         ]),
       );
@@ -780,8 +785,9 @@ function classifyTokens(tokens: Token[]): QuickScriptClassification {
 /** Classifies the arguments of an `quick_script` call. */
 export function classifyQuickScriptArguments(
   args: Record<string, unknown>,
+  registry: QuickScriptRegistry = quickScriptRegistry(),
 ): QuickScriptClassification {
   return typeof args.code === "string"
-    ? classifyQuickScriptScript(args.code)
+    ? classifyQuickScriptScript(args.code, registry)
     : { risk: "destructive", operations: [], calls: [], admissible: false };
 }

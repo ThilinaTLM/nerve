@@ -7,4 +7,4 @@ The built-in `quick_script` extensions: Atlassian (`jira`, `confluence`, `storag
 - `src/docs-source.ts`: reads a topic from `src/<id>/docs/` from source and from `dist/extension-docs/<id>/` in builds and the desktop bundle (`scripts/build/copy-extension-assets.ts` copies it).
 - `test/`: tests of the runtime together with the built-ins (registry, discovery, risk samples, docs).
 
-Depends on `@nervekit/tools` (runtime, manifest types, execution primitives and the Jira, Confluence, web and kroki clients). Tools does not import this package: the host installs the list with `installQuickScriptExtensions(builtinExtensions)`.
+Depends on `@nervekit/tools` (runtime, manifest types, execution primitives and the Jira, Confluence, web and kroki clients). Tools does not import this package: the host builds its registry from `builtinExtensions` (`createQuickScriptRegistry`).

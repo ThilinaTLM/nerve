@@ -38,10 +38,22 @@ export function extensionMetadata(
     source: extension.source,
     settingsVersion: extension.settingsVersion,
     enabledByDefault: extension.enabledByDefault,
+    permissions: {
+      ...(extension.permissions?.network
+        ? { network: [...extension.permissions.network] }
+        : {}),
+      ...(extension.permissions?.capabilities
+        ? { capabilities: [...extension.permissions.capabilities] }
+        : {}),
+    },
     contributes: {
       namespaces: (extension.contributes.sdk ?? []).map((namespace) => ({
         id: namespace.id,
         ...(namespace.enabledBy ? { enabledBy: namespace.enabledBy } : {}),
+        ...(namespace.requires?.account
+          ? { requiresAccount: namespace.requires.account }
+          : {}),
+        ...(namespace.helper ? { helper: true } : {}),
         summary: namespace.summary,
       })),
       tools: extension.contributes.tools ?? [],

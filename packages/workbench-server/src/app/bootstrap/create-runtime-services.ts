@@ -25,6 +25,9 @@ import {
 } from "../../domains/prompt-suggestions/index.js";
 import { PromptSuggestionEnablementService } from "../../domains/prompt-suggestions/prompt-suggestion-enablement.service.js";
 import type { AuthManager } from "../../domains/auth/index.js";
+import { builtinExtensions } from "@nervekit/extensions";
+import { AccountsService } from "../../domains/accounts/index.js";
+import { accountTesters } from "../../domains/auth/account-testers.js";
 import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
@@ -116,6 +119,9 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       await events.publish(type, data);
     },
   );
+  const accountKinds = () =>
+    builtinExtensions.flatMap((extension) => extension.accounts ?? []);
+  const accounts = new AccountsService({ storage, auth, kinds: accountKinds });
   const {
     conversationTitles,
     core: conversationCore,
@@ -126,7 +132,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scopedConfiguration,
     admissionPolicy,
   } = createConversationCore(
-    deps,
+    { ...deps, accounts },
     { launches, definitions: launchDefinitions },
     // Lazy: completion project lookup depends on the constructed core.
     async (projectId) => {
@@ -154,10 +160,11 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     },
   );
   const integrationHealth = new IntegrationHealthService({
-    profiles: () => storage.settings.providers.atlassianProfiles,
-    getToken: (profileId) => auth.getApiKey(`atlassian:${profileId}`),
-    publish: async (profileId) => {
-      await events.publish("auth.integration_health_changed", { profileId });
+    accounts,
+    kinds: accountKinds,
+    testers: accountTesters,
+    publish: async (kind, accountId) => {
+      await events.publish("accounts.health_changed", { kind, accountId });
     },
   });
   const gitService = new GitService((id) => {
@@ -390,6 +397,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     launchDefinitions,
     launchDefinitionOperations,
     scratchNotes,
+    accounts,
     integrationHealth,
     workspaceMonitor,
     prSync,

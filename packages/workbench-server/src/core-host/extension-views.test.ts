@@ -8,6 +8,7 @@ import { ProjectMigrationService } from "../infrastructure/configuration/project
 import { AgentConfigurationPaths } from "../infrastructure/configuration/agent-configuration/document-adapters.js";
 import { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { createExtensionViews } from "./extension-views.js";
+import { hostRegistry } from "./host-tools.js";
 
 void test("the user view lists every built-in extension with sources, availability and read-only entries", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "extension-views-"));
@@ -43,11 +44,17 @@ void test("the user view lists every built-in extension with sources, availabili
   const views = createExtensionViews({
     extensions,
     agents: {} as never,
-    accounts: () => ({
-      atlassianProfiles: [{ id: "acme" }],
-      tavilyProfiles: [],
-    }),
-    hasCredential: async () => false,
+    registry: hostRegistry,
+    // The account exists but has no saved token.
+    accounts: {
+      get: async (kind, id) =>
+        kind === "atlassian" && id === "acme"
+          ? { id, kind, name: "Acme", fields: {} }
+          : undefined,
+      list: async () => [],
+      secret: async () => undefined,
+      hasSecret: async () => false,
+    },
   });
   const view = await views.view({ scope: "user" });
   assert.deepEqual(

@@ -16,6 +16,7 @@ import { processFooter } from "../../result-projection/index.js";
 import { withImageSizes } from "./files/artifacts.js";
 import { assertDeclaredRisk } from "./script-risk.js";
 import { declarationLine } from "./sdk-dts.js";
+import { quickScriptRegistry } from "../registry.js";
 import {
   createSdkEnvironment,
   findSdkMethod,
@@ -69,7 +70,12 @@ export async function executeQuickScript(
   const abortStop = () => stop.abort();
   context.signal?.addEventListener("abort", abortStop, { once: true });
   if (context.signal?.aborted) stop.abort();
-  const env = createSdkEnvironment({ ...context, signal: stop.signal });
+  const registry = context.registry ?? quickScriptRegistry();
+  const env = createSdkEnvironment({
+    ...context,
+    registry,
+    signal: stop.signal,
+  });
   const hostCalls: QuickScriptHostCall[] = [];
   const paths: DisplayPaths = {
     cwd: context.cwd,
@@ -87,7 +93,7 @@ export async function executeQuickScript(
     .runSandboxScript({
       code: wrapScript(code),
       typescript: true,
-      preludes: preludesFor(code),
+      preludes: preludesFor(code, registry),
       timeoutMs: clampTimeoutSeconds(args.timeout) * 1000,
       signal: stop.signal,
       onHostCall: (method, rawArgs) => {
@@ -122,9 +128,9 @@ export async function executeQuickScript(
       record({ outcome: "failed", error: authFailure });
       throw new Error(`[UNAUTHORIZED] ${authFailure}`);
     }
-    const sdkMethod = findSdkMethod(method);
+    const sdkMethod = findSdkMethod(method, registry);
     if (!sdkMethod) {
-      const message = `Unknown method '${method}'. Valid methods: ${sdkMethodNames().join(", ")}.`;
+      const message = `Unknown method '${method}'. Valid methods: ${sdkMethodNames(registry).join(", ")}.`;
       record({ outcome: "failed", error: message });
       throw new Error(`[BAD_REQUEST] ${message}`);
     }
@@ -265,7 +271,7 @@ export async function executeQuickScript(
     outcome.output.trimEnd(),
     outcome.outputTruncated ? "[output truncated]" : undefined,
     error,
-    ...reportLines(pages, artifacts, report),
+    ...reportLines(pages, artifacts, report, env.report.notes),
     footer,
   ]
     .filter((part): part is string => Boolean(part))
@@ -347,6 +353,8 @@ export function reportLines(
   pages: readonly PageReport[],
   artifacts: readonly ArtifactReport[],
   changes: ChangeReport,
+  /** Free-text lines extensions added through `ctx.report.note`. */
+  notes: readonly string[] = [],
 ): string[] {
   const lines = pages.map((page) => {
     const parts = [
@@ -378,6 +386,7 @@ export function reportLines(
     const more = items.length - MAX_CREATED_LISTED;
     lines.push(`${label}: ${shown}${more > 0 ? `, +${more} more` : ""}`);
   }
+  lines.push(...notes);
   return lines;
 }
 
@@ -490,6 +499,8 @@ async function unauthorizedMessage(
   env: SdkEnvironment,
 ): Promise<string | undefined> {
   if (!(error instanceof ToolExecutionError)) return undefined;
+  // The host's own 401 on an authenticated `ctx.http` request: the message names the account and the fix.
+  if (error.code === "UNAUTHORIZED") return error.message;
   const product = /^(JIRA|CONFLUENCE)_UNAUTHORIZED$/.exec(error.code)?.[1];
   if (!product) return undefined;
   const connection = await (

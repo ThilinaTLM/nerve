@@ -30,12 +30,12 @@ describe("guide completion storage", () => {
   it("reads and writes validated per-guide versions", () => {
     const storage = memoryStorage();
     writeGuideCompletionVersions(
-      { provider: 1, "web-search": 1, workbench: 2 },
+      { provider: 1, voice: 1, workbench: 2 },
       storage,
     );
     assert.deepEqual(readGuideCompletionVersions(storage), {
       provider: 1,
-      "web-search": 1,
+      voice: 1,
       workbench: 2,
     });
   });
@@ -47,6 +47,7 @@ describe("guide completion storage", () => {
         guides: {
           provider: 1,
           unknown: 4,
+          atlassian: 1,
           voice: -1,
           workbench: 1.5,
         },

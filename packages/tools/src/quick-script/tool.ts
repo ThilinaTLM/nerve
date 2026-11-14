@@ -1,5 +1,7 @@
 import { Type } from "typebox";
 import type { ToolDefinition } from "../catalog/index.js";
+import { createExtensionToolDefinitions } from "./extension-host/direct-tools.js";
+import type { QuickScriptRegistry } from "./registry.js";
 import { executeQuickScript } from "./runtime/quick-script.js";
 import { classifyQuickScriptArguments } from "./runtime/script-risk.js";
 
@@ -20,21 +22,40 @@ const parameters = Type.Object(
 );
 
 /**
- * The `quick_script` tool. The host registers it with
+ * The `quick_script` tool for `registry` (absent: the default registry). The host registers it with
  * `registerToolDefinitions` (`@nervekit/tools/catalog`) at startup and
  * replaces the description per conversation with `quickScriptDescription`.
  */
-export const quickScriptToolDefinition: ToolDefinition = {
-  name: "quick_script",
-  group: "quickScript",
-  baseRisk: "network",
-  traits: ["write_capable", "credentialed", "long_running"],
-  executionKind: "local",
-  executor: (args, context) => executeQuickScript(args, context),
-  classifyRisk: (args) => classifyQuickScriptArguments(args).risk,
-  label: "Quick script",
-  description:
-    "Run a sandboxed TypeScript script (ES module, top-level await) that calls the SDK namespaces of the configured extensions; only its output returns.",
-  parameters,
-  executionMode: "parallel",
-};
+export function createQuickScriptToolDefinition(
+  registry?: QuickScriptRegistry,
+): ToolDefinition {
+  return {
+    name: "quick_script",
+    group: "quickScript",
+    baseRisk: "network",
+    traits: ["write_capable", "credentialed", "long_running"],
+    executionKind: "local",
+    executor: (args, context) =>
+      executeQuickScript(args, registry ? { ...context, registry } : context),
+    classifyRisk: (args) => classifyQuickScriptArguments(args, registry).risk,
+    label: "Quick script",
+    description:
+      "Run a sandboxed TypeScript script (ES module, top-level await) that calls the SDK namespaces of the configured extensions; only its output returns.",
+    parameters,
+    executionMode: "parallel",
+  };
+}
+
+/** The `quick_script` tool serving the default registry (LEGACY, see `registry.ts`). */
+export const quickScriptToolDefinition: ToolDefinition =
+  createQuickScriptToolDefinition();
+
+/** Every tool the extensions' registry contributes: `quick_script` and the extensions' direct tools. */
+export function quickScriptHostTools(
+  registry: QuickScriptRegistry,
+): ToolDefinition[] {
+  return [
+    createQuickScriptToolDefinition(registry),
+    ...createExtensionToolDefinitions(registry),
+  ];
+}

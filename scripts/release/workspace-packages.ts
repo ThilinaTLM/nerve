@@ -17,6 +17,7 @@ import { readRustReleaseVersions } from "./release-version.ts";
  * part of the tagged release surface.
  */
 export const versionLockedPackages = [
+  "extension-api",
   "contracts",
   "native",
   "protocol",
@@ -31,6 +32,7 @@ export const versionLockedPackages = [
 
 /** The npm-published @nervekit packages bundled into the desktop tarball. */
 export const bundledPackages = [
+  ["@nervekit/extension-api", "extension-api"],
   ["@nervekit/contracts", "contracts"],
   ["@nervekit/native", "native"],
   ["@nervekit/protocol", "protocol"],

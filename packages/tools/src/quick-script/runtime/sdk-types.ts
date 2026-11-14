@@ -1,4 +1,7 @@
 import { ToolExecutionError } from "../../execution/index.js";
+import type { ExtensionHostPorts } from "../extension-host/ports.js";
+import type { ExtensionRuntime } from "../extension-host/runtime.js";
+import type { QuickScriptRegistry } from "../registry.js";
 import type { KrokiToolSettings } from "@nervekit/contracts/settings";
 import type {
   IntegrationExecutionContext,
@@ -148,8 +151,17 @@ export interface ImageGenerationExecutionContext {
   ) => Promise<ImageGenerateResponse>;
 }
 
+/** The extension host's ports and the registry this run serves. */
+export interface ExtensionExecutionContext {
+  /** Registry of the extensions this run serves; the host passes the one it composed. */
+  registry?: QuickScriptRegistry;
+  /** How the runtime reaches settings, accounts and model backends for extensions built on the extension API. */
+  extensionPorts?: ExtensionHostPorts;
+}
+
 /** Context type of the quick-script executor: integrations plus the extensions' settings and host adapters. */
 export type QuickScriptContext = IntegrationExecutionContext &
+  ExtensionExecutionContext &
   KrokiExecutionContext &
   ImageGenerationExecutionContext &
   WebExecutionContext;
@@ -184,6 +196,10 @@ export type SdkEnvironment = {
   jiraFields: () => Promise<JiraFieldInfo[]>;
   /** Confluence space keys by id, fetched lazily and cached per script run. */
   confluenceSpaceKeys: (ids: string[]) => Promise<Map<string, string>>;
+  /** Extension API runtime of this run: `ctx` per extension and namespace sessions. */
+  extensions: ExtensionRuntime;
+  /** The registry of this run. */
+  registry: QuickScriptRegistry;
   /** Characters of `sdk.*` text returned so far; discovery shares one budget per run. */
   discovery: { used: number };
   /** What the run produced; appended to the tool result automatically. */
@@ -198,6 +214,8 @@ export type SdkEnvironment = {
     deleted: string[];
     /** Raw non-GET requests (`POST /rest/api/3/issue`); recorded by the executor, not by methods. */
     raw: string[];
+    /** Free-text lines extensions add through `ctx.report.note`. */
+    notes: string[];
   };
 };
 

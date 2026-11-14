@@ -4,3 +4,4 @@ export * from "./validator.js";
 export * from "./versions.js";
 export * from "./resolver.js";
 export * from "./extension-operations.js";
+export * from "./tool-display.js";

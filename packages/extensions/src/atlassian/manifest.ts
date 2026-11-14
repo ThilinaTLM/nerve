@@ -46,6 +46,8 @@ export const atlassianExtension: ExtensionManifest = {
         label: "API token",
         help: "Create an API token in your Atlassian account settings.",
       },
+      auth: { scheme: "basic", user: "email" },
+      origins: ["{siteUrl}"],
       test: true,
     },
   ],
@@ -71,6 +73,13 @@ export const atlassianExtension: ExtensionManifest = {
       },
     },
   },
+  permissions: {
+    network: [
+      "https://*.atlassian.net",
+      "https://api.media.atlassian.com",
+      "{account.siteUrl}",
+    ],
+  },
   readDoc: (file) => readExtensionDoc("atlassian", file),
   createEnvironment: (context) => {
     const jira = jiraConnectionLoader(context);
@@ -86,6 +95,8 @@ export const atlassianExtension: ExtensionManifest = {
     sdk: [
       {
         id: "atlassian",
+        enabledBy: ["jira", "confluence"],
+        requires: { account: "account" },
         summary: "site, default project/space and current user",
         rules: [
           "Write to Jira and Confluence only on explicit user request; start with `await atlassian.defaults()`.",
@@ -104,6 +115,7 @@ export const atlassianExtension: ExtensionManifest = {
       {
         id: "jira",
         enabledBy: "jira",
+        requires: { account: "account" },
         summary: "issues, sprints, comments; bounded JQL",
         rules: [
           "Text is Markdown; methods take `key`; JQL needs a restriction (`project = X AND …`).",
@@ -126,6 +138,7 @@ export const atlassianExtension: ExtensionManifest = {
       {
         id: "confluence",
         enabledBy: "confluence",
+        requires: { account: "account" },
         summary: "pages; bodies are Markdown or `storage.*` builders",
         rules: [
           'Methods take `id`. Edit with `body: "storage"` and the `version` you read (`CONFLICT` if newer).',
@@ -150,6 +163,8 @@ export const atlassianExtension: ExtensionManifest = {
       {
         id: "storage",
         enabledBy: "confluence",
+        requires: { account: "account" },
+        helper: true,
         summary: "builders for Confluence storage-format bodies",
         methods: [],
         types: "",

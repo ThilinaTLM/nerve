@@ -15,7 +15,7 @@ import {
   type PermissionOverlayDocument,
   type ToolRisk,
 } from "@nervekit/contracts/permissions";
-import { toolNameSchema } from "@nervekit/contracts/tools";
+import { activeToolNameSchema } from "@nervekit/contracts/tools";
 import {
   composeEffectivePermissionPolicy,
   composeScriptAdmission,
@@ -37,6 +37,7 @@ import {
   type CurrentPolicy,
 } from "./execution-admission/admission.js";
 import { emptyOverlayDocument, overlayDigest } from "./permission-overlays.js";
+import { hostRegistry } from "./host-tools.js";
 
 type Loaded =
   | { kind: "missing" }
@@ -217,7 +218,7 @@ export function createScopedPermissionSource(options: {
                 projectId: context.project.id,
               })
             : normalizePermissionRequest({
-                toolName: toolNameSchema.parse(input.toolName),
+                toolName: activeToolNameSchema.parse(input.toolName),
                 args: input.args as Record<string, unknown>,
                 conversationId: input.conversationId,
                 projectId: context.project.id,
@@ -359,7 +360,7 @@ export function createScopedPermissionSource(options: {
                   throw new Error("Permission request was not prepared");
                 const scanned =
                   actual.toolName === "quick_script" && !request.operation
-                    ? classifyQuickScriptArguments(request.args)
+                    ? classifyQuickScriptArguments(request.args, hostRegistry)
                     : undefined;
                 const script = evaluatePermissionRequest({ policy, request });
                 // A complete scan lets operation rules decide the script.
@@ -468,7 +469,7 @@ function withScriptOperations(
   reason: string,
   args: Record<string, unknown>,
 ): string {
-  const { operations } = classifyQuickScriptArguments(args);
+  const { operations } = classifyQuickScriptArguments(args, hostRegistry);
   return operations.length > 0
     ? `${reason} Script operations: ${operations.join(", ")}.`
     : reason;

@@ -130,8 +130,23 @@ export const toolPermissionMetadata: Readonly<
   Record<ToolName, ToolPermissionMetadata>
 > = Object.freeze(metadata);
 
+const extensionToolMetadata = new Map<string, ToolPermissionMetadata>();
+
+/** Records the permission metadata of an extension's tool (see `registerToolDefinitions`). */
+export function registerExtensionToolMetadata(
+  name: string,
+  metadata: ToolPermissionMetadata,
+): void {
+  if (name in toolPermissionMetadata)
+    throw new Error(`Duplicate tool definition: ${name}`);
+  extensionToolMetadata.set(name, Object.freeze({ ...metadata }));
+}
+
 export function permissionMetadataForTool(
   name: ToolName,
 ): ToolPermissionMetadata {
-  return toolPermissionMetadata[name];
+  const metadata =
+    toolPermissionMetadata[name] ?? extensionToolMetadata.get(name);
+  if (!metadata) throw new Error(`Unknown tool: ${name}`);
+  return metadata;
 }

@@ -18,6 +18,7 @@ import {
   REMOVED_TOOL_OPERATIONS,
   convertRemovedToolException,
 } from "./removed-tools.js";
+import { EncryptedFileSecretProvider } from "../../../secrets/index.js";
 import step from "./step.js";
 
 const findQuickScriptNamespace = (id: string) =>
@@ -25,10 +26,20 @@ const findQuickScriptNamespace = (id: string) =>
     .flatMap((extension) => extension.contributes.sdk ?? [])
     .find((namespace) => namespace.id === id);
 
+/** Released `integrations.json`: per-product profiles that name their credential. */
 const accounts = {
   version: 2,
   profiles: {
-    atlassian: [{ id: "acme", name: "Acme", credential: "atlassian:acme" }],
+    atlassian: [
+      {
+        id: "acme",
+        name: "Acme",
+        siteUrl: "https://acme.atlassian.net",
+        email: "a@acme.test",
+        defaultProjectKey: "ACME",
+        credential: "atlassian:acme",
+      },
+    ],
     tavily: [{ id: "tav", name: "Tavily", credential: "tavily:tav" }],
   },
 };
@@ -162,6 +173,11 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   const { root, paths, put, read, context } = home();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   put(join(paths.configPath, "integrations.json"), accounts);
+  const secrets = new EncryptedFileSecretProvider(root);
+  await secrets.initialize();
+  await secrets.set("provider:atlassian:acme:apiKey", "atl-token");
+  await secrets.set("provider:tavily:tav:apiKey", "tvly-key");
+  await secrets.set("provider:openai:apiKey", "sk-other");
   put(join(paths.configPath, "agent.json"), {
     schemaVersion: 1,
     revision: 5,
@@ -206,7 +222,35 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   await step.verify!(context);
 
   assert.ok(!existsSync(join(paths.configPath, "integrations.json")));
-  assert.deepEqual(read(paths.accountsConfigPath), accounts);
+  assert.deepEqual(read(paths.accountsConfigPath), {
+    version: 2,
+    accounts: {
+      atlassian: [
+        {
+          id: "acme",
+          name: "Acme",
+          fields: {
+            siteUrl: "https://acme.atlassian.net",
+            email: "a@acme.test",
+            defaultProjectKey: "ACME",
+          },
+        },
+      ],
+      tavily: [{ id: "tav", name: "Tavily", fields: {} }],
+    },
+  });
+  // Account secrets take the `account:<kind>:<id>` id; other secrets stay.
+  assert.deepEqual(await new EncryptedFileSecretProvider(root).list(), [
+    "provider:account:atlassian:acme:apiKey",
+    "provider:account:tavily:tav:apiKey",
+    "provider:openai:apiKey",
+  ]);
+  assert.equal(
+    await new EncryptedFileSecretProvider(root).get(
+      "provider:account:atlassian:acme:apiKey",
+    ),
+    "atl-token",
+  );
   const agent = read(join(paths.configPath, "agent.json"));
   assert.equal(agent.revision, 5);
   assert.deepEqual(agent.overrides.tools, { quick_script: { enabled: true } });
@@ -264,7 +308,7 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   );
 });
 
-void test("an existing accounts file is never replaced", async (t) => {
+void test("an existing accounts file is never replaced, only reshaped", async (t) => {
   const { root, paths, put, context } = home();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   put(join(paths.configPath, "integrations.json"), accounts);
@@ -276,7 +320,7 @@ void test("an existing accounts file is never replaced", async (t) => {
   await step.run(context);
   assert.ok(existsSync(join(paths.configPath, "integrations.json")));
   assert.deepEqual(
-    JSON.parse(readFileSync(paths.accountsConfigPath, "utf8")).profiles,
+    JSON.parse(readFileSync(paths.accountsConfigPath, "utf8")).accounts,
     { atlassian: [], tavily: [] },
   );
 });

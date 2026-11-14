@@ -208,3 +208,17 @@ type AccountInfo = {
 ```
 
 Secret ids become `account:<kind>:<id>`. Kinds are unique across extensions; the registry rejects duplicates. Migration: extend draft step 0005 to reshape `accounts.json` and rename `atlassian:<id>` / `tavily:<id>` secrets. The stale `jira`/`confluence`/`tavily` env-var mappings in `auth-manager.ts` go.
+
+## Deviations in step 1 (S1a)
+
+Recorded where the implementation ([`extension-api`](../../../packages/extension-api), [`extension-host/`](../../../packages/tools/src/quick-script/extension-host)) refines the shapes above:
+
+- **Account kinds** in the API are keyed by kind (`accounts: { atlassian: {…} }`); the registry and contracts keep the array form with `kind` (`AccountKind[]`).
+- **`ctx.http` `auth`** names the extension's `account` setting (`auth: { account: "account" }`), the same field name `ctx.accounts.selected` takes, not an account id.
+- **`permissions.network` templates:** besides `{account.<field>}` (a field of the selected account), `{settings.<key>}` names a setting of the extension (the Diagrams Kroki server). Both are user-supplied destinations and may be on a private network; every other origin goes through the SSRF guard. The account kind's `origins` use `{<field>}`.
+- **`enabledBy`** is one switch or a list (any of): the `atlassian` namespace follows `jira` or `confluence`.
+- **Authorization** of a method returns one check, several or none (`authorize` may return an array). A host-tool check such as `{ toolName: "read", args: { path } }` opens that workspace file to `ctx.artifacts.read` for the run; reading a file the call did not declare fails with `DENIED`.
+- **Bound direct tools** call the method's `parse` with the tool's arguments object as the single argument (`parse([args])`); a script passes positional arguments. Own tools (`parse`/`authorize`/`run`) default their operation to `<extension>.<tool>`.
+- **Responses:** `ctx.http.request` returns `{ status, ok, headers, url, body }` for every status except `401`/`403` on an authenticated request, which become host errors (`UNAUTHORIZED` ends the run, `FORBIDDEN` names the account). `body` is the parsed JSON, text, bytes or the `ArtifactRef` for `response: { artifact }`.
+- **`ReportEntry`** is a string label; `ctx.report.note` lines print after the run's report.
+- **Permission rules** can name an extension tool's operation (`web.search`) through `quick_script` operation rules; rule exceptions naming the tool itself (`tool: "<name>"`) still validate against the core tool names only, because contracts cannot see the runtime registry.

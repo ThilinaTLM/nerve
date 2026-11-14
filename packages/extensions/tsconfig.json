@@ -7,6 +7,7 @@
   },
   "references": [
     { "path": "../contracts" },
+    { "path": "../extension-api" },
     { "path": "../native" },
     { "path": "../tools" }
   ],

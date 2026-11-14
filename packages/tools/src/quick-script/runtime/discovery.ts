@@ -338,7 +338,7 @@ async function docsText(
   }
   const state = stateOf(owner, env);
   if (!available(state)) return unavailableText(owner, state!);
-  const text = renderLimits(owner.readDoc(entry.file));
+  const text = renderLimits(owner.readDoc(entry.file), env.registry.limits);
   if (text.length <= remaining(env)) return spend(env, text);
 
   const name = `sdk-docs-${topic.replaceAll("/", "-")}.md`;

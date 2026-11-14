@@ -1,4 +1,5 @@
 import { quickScriptRegistry, type QuickScriptRegistry } from "../registry.js";
+import { ExtensionRuntime } from "../extension-host/runtime.js";
 import { librariesPrelude } from "./libraries.js";
 import { RUNTIME_HEAD, runtimeTail } from "./runtime-prelude.js";
 import type {
@@ -24,8 +25,7 @@ type Derived = {
 
 const derived = new WeakMap<QuickScriptRegistry, Derived>();
 
-function derive(): Derived {
-  const registry = quickScriptRegistry();
+function derive(registry: QuickScriptRegistry): Derived {
   let value = derived.get(registry);
   if (!value) {
     value = {
@@ -42,21 +42,30 @@ function derive(): Derived {
   return value;
 }
 
-export function findSdkMethod(name: string): SdkMethod | undefined {
-  return derive().methodByName.get(name);
+export function findSdkMethod(
+  name: string,
+  registry: QuickScriptRegistry = quickScriptRegistry(),
+): SdkMethod | undefined {
+  return derive(registry).methodByName.get(name);
 }
 
-export function sdkMethodNames(): string[] {
-  return [...derive().methodByName.keys()];
+export function sdkMethodNames(
+  registry: QuickScriptRegistry = quickScriptRegistry(),
+): string[] {
+  return [...derive(registry).methodByName.keys()];
 }
 
 export function createSdkEnvironment(
   context: QuickScriptContext,
 ): SdkEnvironment {
   // Connection loaders come from the extensions that need them; without one, the namespace is not registered either.
+  const registry = context.registry ?? quickScriptRegistry();
   const unavailable = () => Promise.reject(new Error("Not available."));
   const environment: SdkEnvironment = {
     context,
+    registry,
+    // Assigned right below: the runtime reads the environment's report and context.
+    extensions: undefined as unknown as SdkEnvironment["extensions"],
     jira: unavailable,
     confluence: unavailable,
     jiraFields: unavailable,
@@ -69,9 +78,11 @@ export function createSdkEnvironment(
       updated: [],
       deleted: [],
       raw: [],
+      notes: [],
     },
   };
-  for (const extension of quickScriptRegistry().extensions)
+  environment.extensions = new ExtensionRuntime(environment);
+  for (const extension of registry.extensions)
     Object.assign(environment, extension.createEnvironment?.(context));
   return environment;
 }
@@ -117,16 +128,20 @@ function buildPrelude(registry: QuickScriptRegistry): string {
     ...withMethods.map((namespace) => productPrelude(methods, namespace.id)),
     `${runtimeTail(guarded)}})();`,
     STORAGE_PRELUDE,
+    ...registry.extensions.flatMap((extension) =>
+      extension.prelude ? [extension.prelude] : [],
+    ),
   ].join("\n");
 }
 
 /** Everything evaluated before the module: the SDK, plus lazy libraries the script mentions. */
 export function preludesFor(
   code: string,
+  registry: QuickScriptRegistry = quickScriptRegistry(),
 ): Array<{ name: string; source: string }> {
   const libraries = librariesPrelude(code);
   return [
-    { name: "nerve:atlassian-sdk", source: derive().prelude },
+    { name: "nerve:atlassian-sdk", source: derive(registry).prelude },
     ...(libraries ? [{ name: "nerve:libraries", source: libraries }] : []),
   ];
 }

@@ -5,6 +5,7 @@ Nerve separates the reusable agent engine from the workbench that hosts it. The 
 ```mermaid
 flowchart TB
   subgraph Foundation
+    extension-api
     contracts
     protocol
     native
@@ -19,6 +20,9 @@ flowchart TB
     workbench-server --> desktop-shell
     workbench-app
   end
+  extension-api --> contracts
+  extension-api --> tools
+  extension-api --> extensions
   contracts --> protocol
   native --> harness
   conversation-core --> workbench-server
@@ -33,6 +37,7 @@ Arrows mean “is consumed by.” The diagram highlights key direct dependencies
 
 | Package             | Layer      | One-line responsibility                                                                                                                                                                                                                                           |
 | ------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `extension-api`     | Foundation | The extension contract: manifest and `ctx` types, `define*` helpers and a fake context for tests. No dependencies.                                                                                                                                                |
 | `contracts`         | Foundation | Transport-neutral domain schemas and policy contracts.                                                                                                                                                                                                            |
 | `protocol`          | Foundation | Sessions, remote procedure calls, replay and transport lifecycle.                                                                                                                                                                                                 |
 | `native`            | Foundation | Rust-backed Git reads, managed processes, file monitoring, listing, search and script sandbox.                                                                                                                                                                    |
