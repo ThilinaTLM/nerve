@@ -24,7 +24,7 @@ import {
 import { join } from "node:path";
 
 /**
- * The `sdk` runtime namespace: `list`, `describe`, `search` and `docs` answer
+ * The `sdk` built-in namespace: `list`, `describe`, `search` and `docs` answer
  * from the registry, with risk `none`. All `sdk.*` text of one run shares a
  * budget well below the inline result budget (see the result projection), so
  * the script's own prints still fit. Output over the budget becomes a summary
@@ -49,7 +49,7 @@ function stateOf(
   namespace: RegisteredNamespace,
   env: SdkEnvironment,
 ): NamespaceAvailability | undefined {
-  return namespace.source === "runtime"
+  return namespace.source === "builtin"
     ? undefined
     : env.context.namespaces?.[namespace.id];
 }
@@ -60,7 +60,7 @@ function unavailableText(
 ): string {
   if (state.available && state.configured) return "";
   if (state.available)
-    return `${namespace.id} is not configured. Ask the user to enable it in Settings.`;
+    return `${namespace.id} is not enabled. Ask the user to enable it in Settings → Extensions${namespace.extension ? ` → ${namespace.extension}` : ""}.`;
   return `${namespace.id} is unavailable: ${state.reason}\nFix: ${state.fix}`;
 }
 
@@ -99,7 +99,9 @@ function listText(
     const state = stateOf(namespace, env);
     const usable = available(state);
     const facts = [
-      namespace.source,
+      namespace.source === "builtin"
+        ? "built-in"
+        : `${namespace.extension} extension`,
       ...(usable ? [] : ["unavailable"]),
       ...(namespace.methods.length > 0
         ? [

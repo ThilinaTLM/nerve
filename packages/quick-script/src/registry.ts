@@ -23,7 +23,7 @@ export const builtinExtensions: readonly ExtensionManifest[] = [
 ];
 
 /**
- * Every `quick_script` namespace: the runtime's, `sdk`, then the extensions'.
+ * Every `quick_script` namespace: the built-in capabilities, `sdk`, then the extensions'.
  * Description, prelude, guarded globals, discovery and the host's availability
  * all read this list, so adding a namespace means adding it to a manifest.
  */
@@ -31,20 +31,21 @@ export const registeredNamespaces: readonly RegisteredNamespace[] = [
   ...runtimeNamespaces.map(
     (namespace): RegisteredNamespace => ({
       ...namespace,
-      source: "runtime",
+      source: "builtin",
       owner: "runtime",
     }),
   ),
   {
     ...createSdkNamespace(() => registeredNamespaces),
-    source: "runtime",
+    source: "builtin",
     owner: "runtime",
   },
   ...builtinExtensions.flatMap((extension) =>
     (extension.contributes.sdk ?? []).map(
       (namespace): RegisteredNamespace => ({
         ...namespace,
-        source: extension.source,
+        source: "extension",
+        extension: extension.name,
         owner: extension.id,
       }),
     ),

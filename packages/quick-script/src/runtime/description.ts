@@ -11,7 +11,7 @@ import { registeredNamespaces } from "../registry.js";
  */
 
 export type QuickScriptCapabilities = {
-  /** Ids of the configured extension namespaces (`jira`, `web`, `diagram`, …); runtime namespaces are always present. */
+  /** Ids of the configured extension namespaces (`jira`, `web`, `diagram`, …); built-in capabilities are always present. */
   namespaces?: readonly string[];
 };
 
@@ -28,7 +28,7 @@ export function quickScriptDescription({
 }: QuickScriptCapabilities = {}): string {
   const active = registeredNamespaces.filter(
     (namespace) =>
-      namespace.source === "runtime" || configured.includes(namespace.id),
+      namespace.source === "builtin" || configured.includes(namespace.id),
   );
   const listed = active.filter(
     (namespace) => namespace.id !== "sdk" && namespace.id !== "libraries",

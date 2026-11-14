@@ -54,7 +54,7 @@ The registry replaces the hard-coded lists in `description.ts`, `sdk.ts`, `runti
 | Image generation | Backend, model and default options (today's `imageGeneration` union, `provider: "openai-codex"`) | `imagegen` namespace                                                                |
 | Diagrams         | Kroki server URL                                                                                 | `diagram` namespace                                                                 |
 
-`files`, `image`, the document libraries (`XLSX`, `Papa`, `docx`, …) and `sdk` are part of the `quick_script` runtime, not extensions. They need no settings and are always present.
+`files`, `image`, the document libraries (`XLSX`, `Papa`, `docx`, …) and `sdk` are **quick_script built-in capabilities**, not extensions. They need no settings and are always present; `sdk.list()` labels them `built-in` and extension namespaces `<Name> extension`.
 
 `web.search` stays in the SDK even though the direct tool exists: it costs nothing in the description and lets one script search, fetch the top results, and print only what matters.
 

@@ -81,9 +81,15 @@ export type QuickScriptAvailability = Readonly<
   Record<string, NamespaceAvailability>
 >;
 
-/** A namespace as the registry serves it: where it comes from and which docs folder owns its topics. */
+/**
+ * A namespace as the registry serves it. `builtin` namespaces are quick_script's
+ * own capabilities (files, image, libraries, sdk): no settings, always present.
+ * `extension` namespaces come from an extension and follow its settings.
+ */
 export type RegisteredNamespace = SdkNamespace & {
-  source: "builtin" | "runtime";
+  source: "builtin" | "extension";
+  /** Display name of the contributing extension (`Atlassian`); extension namespaces only. */
+  extension?: string;
   /** Extension id, or `runtime`; names the docs folder. */
   owner: string;
 };

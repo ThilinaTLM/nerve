@@ -52,16 +52,16 @@ void test("list reports availability with reason and fix", async () => {
   const text = await session()("sdk.list");
   assert.match(
     text,
-    /^- jira \(builtin; \d+ methods; docs: jira\/workflows, jira\/raw\)/m,
+    /^- jira \(Atlassian extension; \d+ methods; docs: jira\/workflows, jira\/raw\)/m,
   );
-  assert.match(text, /^- confluence \(builtin; unavailable;/m);
+  assert.match(text, /^- confluence \(Atlassian extension; unavailable;/m);
   assert.match(
     text,
     /reason: no Atlassian account is selected for Confluence\./,
   );
   assert.match(text, /fix: Ask the user to choose an Atlassian account/);
-  assert.match(text, /^- files \(runtime;/m);
-  assert.match(text, /^- libraries \(runtime;/m);
+  assert.match(text, /^- files \(built-in;/m);
+  assert.match(text, /^- libraries \(built-in;/m);
 });
 
 void test("describe serves a group, a method and unavailable namespaces", async () => {

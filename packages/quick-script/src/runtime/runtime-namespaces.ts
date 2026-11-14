@@ -4,8 +4,8 @@ import { imageMethods } from "./files/image-methods.js";
 import type { SdkNamespace } from "../manifest-types.js";
 
 /**
- * Namespaces that are part of the `quick_script` runtime, not extensions: no
- * settings, always present. `sdk` joins them in the registry.
+ * quick_script's built-in capabilities, not extensions: no settings, always
+ * present. `sdk` joins them in the registry.
  */
 
 /** Globals of the document libraries (`libraries.ts` loads each when a script mentions it). */
