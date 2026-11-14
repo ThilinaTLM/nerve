@@ -11,10 +11,7 @@ Phase 1 of the extension platform shipped ([architecture/extension-platform](../
 ### Decisions
 
 1. **Web extension on by default.** `web` has `enabledByDefault: false`. `web.fetch` needs no account and the direct `web_fetch` tool is already on; draft step 0005 enables Web only for homes that had a search account. Recommended: default on. `web.search` and the `web_search` tool stay unavailable until an account is selected (derived availability already says why).
-2. **Permission exceptions naming extension tools.** Rule exceptions with `tool: "<name>"` validate against `toolNameSchema` in contracts, which cannot see the runtime registry. `web_search` works only because the name is still a capability name; a new extension tool can be matched only through its operation (`web.search`).
-   - Option A: operations are the only route for extension tools; document it and reject tool-name exceptions for them with a hint.
-   - Option B: contracts accept any well-formed tool name, and the server validates against the registry when it loads rules (an unknown name becomes a diagnostic, not a parse failure).
-   - Recommended: A now (no schema change); B if users ask to write rules by tool name.
+2. **Permission rules for extension tools (decided: operations only).** Rule exceptions with `tool: "<name>"` validate against `toolNameSchema` in contracts, which cannot see the runtime registry. Extension tools are targeted by their operation (`web.search`), never by tool name; core tools keep tool-name rules. Existing rules are unaffected: core names are unchanged, `web_search` stays a valid name, and draft step 0005 rewrites rules for the removed `jira_*`/`confluence_*` tools into operation rules. To do: document it on the Permission rules page and in [permissions](../architecture/permissions.md), and reject a tool-name exception that names an extension tool with a hint naming its operation.
 3. **Account test UX.** The Test button reports `rejected`, `restricted`, `unavailable` or `unreachable`. Open: show what was checked (for Atlassian: Jira and Confluence separately), and whether to test automatically after saving an account. Recommended: test after save, keep the result line short.
 
 ### Small changes
@@ -39,8 +36,8 @@ Phase 1 of the extension platform shipped ([architecture/extension-platform](../
 
 ## Recommendation
 
-Order: 1 (one-line default) → 8 (unknown risk) → 2 and 4 (policy shape, before third parties write rules) → 5, 6, 3 → 7 and 9 when convenient. Items 1–6 are small enough for one branch; 7 is UI cleanup and can go separately.
+Order: 1 (one-line default) → 8 (unknown risk) → 2 and 4 (policy shape, before third parties write rules) → 5, 6, 3 → 7 and 9 when convenient. Surfacing extension changes to the user is phase 3 scope ([extension-platform](extension-platform/README.md#phase-3-installable-extensions)). Items 1–6 are small enough for one branch; 7 is UI cleanup and can go separately.
 
 ## Open questions
 
-- Item 2 is about consistency for new extension tools, not compatibility: existing rules keep working (core tool names are unchanged, `web_search` stays a valid name, and draft step 0005 rewrites rules for the removed `jira_*`/`confluence_*` tools into operation rules). Is it acceptable that a future extension tool (say a `jira_search` direct tool) can be targeted only by its operation (`jira.issues.search`) and not by its tool name, while core tools are targeted by name?
+- Item 5: should a brand icon offer a separate dark-theme variant, or is one coloured SVG always enough?
