@@ -3,6 +3,7 @@ import { isMethodTool, type DisplayKind } from "@nervekit/extension-api";
 import type { ToolName } from "@nervekit/contracts/tools";
 import type { ToolDefinition } from "../../catalog/contracts.js";
 import { policy } from "../../result-projection/policies/define-policy.js";
+import { searchResultPolicy } from "../../result-projection/policies/search.js";
 import { textCandidate } from "../../result-projection/candidates/text.js";
 import type {
   ToolExecutionContext,
@@ -33,7 +34,11 @@ const MAX_DISPLAY_VALUE_CHARS = 64_000;
 
 type RegisteredTool = QuickScriptRegistry["tools"][number];
 
-const genericResultPolicy = policy("network_prose", "head", textCandidate);
+const proseResultPolicy = policy("network_prose", "head", textCandidate);
+
+/** How the agent sees a tool's result follows the display kind it declares: lists of links are summarised per item, everything else is prose. */
+const resultPolicyFor = (display: DisplayKind) =>
+  display === "links" ? searchResultPolicy : proseResultPolicy;
 
 function render(value: unknown): string {
   if (value === undefined || value === null) return "(no result)";
@@ -116,7 +121,11 @@ async function executeExtensionTool(
     raw: [],
   });
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
-  const presented =
+  const presented: {
+    text: string;
+    value?: unknown;
+    details?: { query?: string; answer?: string };
+  } =
     value !== undefined && !isMethodTool(tool) && tool.present
       ? tool.present(value)
       : { text: render(value), value };
@@ -138,6 +147,10 @@ async function executeExtensionTool(
         kind: tool.display satisfies DisplayKind,
         ...(carried !== undefined ? { value: carried } : {}),
       },
+      // What the item-aware agent projection of a `links` tool reads.
+      ...(tool.display === "links" && Array.isArray(shown)
+        ? { results: shown, ...presented.details }
+        : {}),
       artifacts,
       created: changes.created,
       updated: changes.updated,
@@ -189,7 +202,7 @@ export function createExtensionToolDefinitions(
         targetKinds: ["whole_tool"],
         primaryTargetComplete: true,
       },
-      agentResult: genericResultPolicy,
+      agentResult: resultPolicyFor(tool.display),
       executionKind: "local",
       executionMode: "parallel",
       executor: (args, context: ToolExecutionContext) =>

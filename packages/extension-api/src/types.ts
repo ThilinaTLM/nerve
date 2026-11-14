@@ -518,8 +518,14 @@ export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
   /**
    * Splits the output into what the agent reads (`text`) and what the
    * transcript renders (`value`, per `display`). Without it, both are the output.
+   * `details` adds fields to the result's details; the agent projection of a
+   * `links` tool reads `query` and `answer` from them (a header above the results).
    */
-  present?(output: Output): { text: string; value?: unknown };
+  present?(output: Output): {
+    text: string;
+    value?: unknown;
+    details?: { query?: string; answer?: string };
+  };
 };
 
 export type ToolDefinition = MethodToolDefinition | OwnToolDefinition;

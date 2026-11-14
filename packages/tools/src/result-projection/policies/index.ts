@@ -71,3 +71,4 @@ export * from "./plan-review.js";
 export * from "./process.js";
 export * from "./vision.js";
 export * from "./web.js";
+export * from "./search.js";

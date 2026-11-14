@@ -262,13 +262,21 @@ export const webSearchTool = {
     };
   },
   /** The text the agent reads, and the links the transcript lists (snippets bounded). */
-  present(output: WebSearchOutput): { text: string; value: unknown } {
+  present(output: WebSearchOutput): {
+    text: string;
+    value: unknown;
+    details: { query: string; answer?: string };
+  } {
     const lines: string[] = [];
     if (output.answer) lines.push(`**Answer:** ${output.answer}`, "");
     for (const result of output.results)
       lines.push(`### ${result.title}`, result.url, "", result.content, "");
     return {
       text: lines.join("\n").trimEnd(),
+      details: {
+        query: output.query,
+        ...(output.answer ? { answer: output.answer } : {}),
+      },
       value: output.results.map((result) => ({
         title: result.title,
         url: result.url,

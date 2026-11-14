@@ -233,6 +233,11 @@ void test("web_search gives the agent the Tavily answer and full result content,
       "more",
     ].join("\n"),
   );
+  // The agent projection of a links tool reads the query and answer from the details.
+  assert.deepEqual(presented.details, {
+    query: "nerve",
+    answer: "The answer.",
+  });
   const links = presented.value as { snippet?: string }[];
   assert.equal(links[0].snippet?.length, 300);
   assert.equal(links[1].snippet, "more");
