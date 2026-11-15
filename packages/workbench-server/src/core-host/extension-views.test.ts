@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { extensionsViewSchema } from "@nervekit/contracts/extensions";
 import { extensionSettingsDefinitions } from "./host-tools.js";
 import { ProjectMigrationService } from "../infrastructure/configuration/project-migration/project-migration.js";
 import { AgentConfigurationPaths } from "../infrastructure/configuration/agent-configuration/document-adapters.js";
@@ -83,4 +84,32 @@ void test("the user view lists every built-in extension with sources, availabili
     ["newer-version"],
   );
   assert.equal(view.extensions[3].enabled.value, true);
+});
+
+void test("a fresh home's view survives JSON and parses: unset fields have no value", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "extension-views-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const paths = new AgentConfigurationPaths({
+    home,
+    projectDirectory: () => undefined,
+    conversationOwner: () => ({ projectId: "p", role: "lead" }),
+  });
+  const views = createExtensionViews({
+    extensions: new ExtensionSettingsService({
+      paths,
+      projectMigration: new ProjectMigrationService({ home }),
+      definitions: extensionSettingsDefinitions,
+      isProjectTrusted: () => true,
+    }),
+    agents: {} as never,
+    registry: hostRegistry,
+    accounts: {
+      get: async () => undefined,
+      list: async () => [],
+      secret: async () => undefined,
+      hasSecret: async () => false,
+    },
+  });
+  const wire = JSON.parse(JSON.stringify(await views.view({ scope: "user" })));
+  assert.equal(extensionsViewSchema.safeParse(wire).success, true);
 });

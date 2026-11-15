@@ -1,7 +1,8 @@
 <!--
-  One extension's detail view: header, the settings its schema declares,
-  its accounts, and what it contributes. The breadcrumb replaces the page
-  header, so this renders its own.
+  One extension's detail view, below its page header
+  (`ExtensionDetailHeader`): the problem callout, the settings its schema
+  declares, Features (what the agent can use, with the switches that belong to
+  one namespace moved onto its row), then Accounts.
 -->
 <script lang="ts">
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
@@ -10,7 +11,7 @@ import type { ExtensionView } from "@nervekit/contracts/extensions";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
-import { Switch } from "@nervekit/ui-kit/components/ui/switch";
+import { tick } from "svelte";
 import type { ModelInfo } from "$lib/api";
 import type { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import {
@@ -21,15 +22,13 @@ import { SettingsRow, SettingsSection } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
 import AccountsSection from "./AccountsSection.svelte";
 import ExtensionFieldRow from "./ExtensionFieldRow.svelte";
-import { extensionIcon } from "./extension-icons";
 import {
-  entryWithEnabled,
+  detailLayout,
   entryWithSetting,
   extensionChanges,
   extensionFix,
   extensionProblem,
-  fieldSections,
-  contributedNamespaces,
+  helperNote,
   type AccountChoices,
   type ExtensionsScope,
 } from "./extensions-view";
@@ -56,41 +55,42 @@ let {
 }: Props = $props();
 
 const id = $derived(extension.metadata.id);
-const Icon = $derived(extensionIcon(extension.metadata.icon));
-const sections = $derived(fieldSections(extension, scope));
+const layout = $derived(detailLayout(extension, scope));
+const sections = $derived(layout.sections);
 const changes = $derived(
   extensionChanges(extension, scope, accounts, inherited),
 );
 const problem = $derived(extensionProblem(extension));
+// The callout above already gives this reason; the row only marks itself.
+const rowProblem = (reason: string | undefined) =>
+  reason !== undefined && reason === problem ? "Unavailable" : reason;
 const fix = $derived(extensionFix(extension, accounts));
-const namespaces = $derived(contributedNamespaces(extension));
+const note = $derived(helperNote(layout.helpers));
 const contributes = $derived(extension.metadata.contributes);
-const hasContributions = $derived(
-  namespaces.length + contributes.tools.length + contributes.skills.length > 0,
+const hasFeatures = $derived(
+  layout.features.length +
+    contributes.tools.length +
+    contributes.skills.length >
+    0,
 );
-
-// Opening a detail unmounts the row that was clicked; focus the heading so
-// Escape and keyboard users stay inside the settings view.
-let heading = $state<HTMLElement>();
-$effect(() => heading?.focus({ preventScroll: true }));
-const locked = $derived(extension.enabled.source.locked === true);
 const busy = $derived(extensions.saving || extension.readOnly);
 const hasAccounts = $derived(extension.accountKinds.length > 0);
 
 let advancedOpen = $state<Record<string, boolean>>({});
-let accountSections = $state<Record<string, { openAdd: () => void }>>({});
 
 function openUserAccounts(): void {
   void openSettingsPane("extensions", { item: id, section: "accounts" });
-}
-function addAccount(kind: string): void {
-  if (scope === "project") return openUserAccounts();
-  accountSections[kind]?.openAdd();
 }
 function revealSection(section: string): void {
   document
     .getElementById(settingsSectionDomId(section))
     ?.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+/** Scrolls to the Settings field a Features row points at, opening Advanced if needed. */
+async function revealField(sectionId: string, advanced: boolean) {
+  if (advanced) advancedOpen[sectionId] = true;
+  await tick();
+  revealSection(sectionId);
 }
 function runFix(): void {
   if (!fix) return;
@@ -103,36 +103,9 @@ function openPage(page: "tools" | "skills"): void {
 }
 </script>
 
-<div class="grid gap-5">
-  <header class="flex items-start gap-3">
-    <span
-      class="flex size-8 flex-none items-center justify-center rounded-md border bg-card text-foreground"
-    >
-      <Icon class="size-4" aria-hidden="true" />
-    </span>
-    <div class="grid min-w-0 flex-1 gap-0.5">
-      <h2
-        bind:this={heading}
-        tabindex="-1"
-        class="truncate text-title font-medium text-foreground outline-none"
-      >
-        {extension.metadata.name}
-      </h2>
-      <p class="text-caption text-muted-foreground">
-        {extension.metadata.description}
-      </p>
-    </div>
-    <div class="flex flex-none items-center gap-2">
-      <Switch
-        checked={extension.enabled.value}
-        disabled={busy || locked}
-        aria-label={`Enable ${extension.metadata.name}`}
-        onCheckedChange={(next) =>
-          void extensions.save(id, entryWithEnabled(extension, next))}
-      />
-    </div>
-  </header>
+{#snippet helpersNote()}{note}{/snippet}
 
+<div class="grid gap-5">
   {#if extension.readOnly}
     <Callout
       layout="block"
@@ -180,8 +153,6 @@ function openPage(page: "tools" | "skills"): void {
               entryWithSetting(extension, item.key, value),
             )}
           onReset={() => void extensions.reset(id, [item.key])}
-          onAddAccount={() =>
-            item.field.type === "account" && addAccount(item.field.kind)}
         />
       {/each}
       {#if section.advanced.length > 0}
@@ -214,8 +185,6 @@ function openPage(page: "tools" | "skills"): void {
                     entryWithSetting(extension, item.key, value),
                   )}
                 onReset={() => void extensions.reset(id, [item.key])}
-                onAddAccount={() =>
-                  item.field.type === "account" && addAccount(item.field.kind)}
               />
             {/each}
           </Collapsible.Content>
@@ -224,51 +193,62 @@ function openPage(page: "tools" | "skills"): void {
     </SettingsSection>
   {/each}
 
-  {#if hasAccounts}
-    {#if scope === "user"}
-      {#each extension.accountKinds as kind (kind.kind)}
-        <AccountsSection
-          bind:this={accountSections[kind.kind]}
-          {kind}
-          icon={Icon}
-        />
-      {/each}
-    {:else}
-      <SettingsSection id="accounts" title="Accounts" divided>
-        <SettingsRow
-          label="Managed in user settings"
-          description="Accounts and their credentials are shared by every project."
-        >
-          {#snippet control()}
-            <Button size="sm" variant="outline" onclick={openUserAccounts}
-              >Open user settings</Button
-            >
-          {/snippet}
-        </SettingsRow>
-      </SettingsSection>
-    {/if}
-  {/if}
-
-  {#if hasContributions}
+  {#if hasFeatures}
     <SettingsSection
-      id="contributes"
-      title="Contributes"
-      description="What the agent gets when this extension is on."
+      id="features"
+      footer={note ? helpersNote : undefined}
+      title="Features"
+      description="What the agent can use in quick_script when this extension is on."
       divided
     >
-      {#each namespaces as namespace (namespace.id)}
-        {@const state = namespace.state}
-        <SettingsRow
-          label={namespace.id}
-          mono
-          description={`${namespace.summary} · ${
-            !state || !state.configured
-              ? "Not enabled"
-              : state.available
-                ? "Available"
-                : state.reason
-          }`}
-        />
+      {#each layout.features as row (row.id)}
+        {#if row.control.type === "switch"}
+          {@const item = row.control.item}
+          <ExtensionFieldRow
+            extensionId={id}
+            {item}
+            {scope}
+            {accounts}
+            {models}
+            feature={{ ...row, problem: rowProblem(row.problem) }}
+            change={changes.find((change) => change.key === item.key)}
+            disabled={busy}
+            onChange={(value) =>
+              void extensions.save(
+                id,
+                entryWithSetting(extension, item.key, value),
+              )}
+            onReset={() => void extensions.reset(id, [item.key])}
+          />
+        {:else}
+          {@const mode = row.control}
+          <SettingsRow label={row.id} mono description={row.summary}>
+            {#snippet hint()}
+              {#if row.problem}
+                <span class="inline-flex items-center gap-1 text-warning">
+                  <TriangleAlert class="size-3 flex-none" aria-hidden="true" />
+                  {rowProblem(row.problem)}
+                </span>
+              {/if}
+            {/snippet}
+            {#snippet control()}
+              {#if mode.type === "setting"}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  class="text-muted-foreground"
+                  onclick={() =>
+                    void revealField(mode.sectionId, mode.advanced)}
+                  >{mode.on ? "On" : "Off"} · set in Settings</Button
+                >
+              {:else}
+                <span class="text-ui text-muted-foreground"
+                  >With the extension</span
+                >
+              {/if}
+            {/snippet}
+          </SettingsRow>
+        {/if}
       {/each}
       {#if contributes.tools.length > 0}
         <SettingsRow
@@ -292,5 +272,25 @@ function openPage(page: "tools" | "skills"): void {
         </SettingsRow>
       {/if}
     </SettingsSection>
+  {/if}
+  {#if hasAccounts}
+    {#if scope === "user"}
+      {#each extension.accountKinds as kind (kind.kind)}
+        <AccountsSection {kind} icon={extension.metadata.icon} />
+      {/each}
+    {:else}
+      <SettingsSection id="accounts" title="Accounts" divided>
+        <SettingsRow
+          label="Managed in user settings"
+          description="Accounts and their credentials are shared by every project."
+        >
+          {#snippet control()}
+            <Button size="sm" variant="outline" onclick={openUserAccounts}
+              >Open user settings</Button
+            >
+          {/snippet}
+        </SettingsRow>
+      </SettingsSection>
+    {/if}
   {/if}
 </div>

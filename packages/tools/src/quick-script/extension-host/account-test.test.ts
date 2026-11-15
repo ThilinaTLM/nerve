@@ -37,7 +37,7 @@ const extension = defineExtension({
   apiVersion: 1,
   name: "Probe",
   description: "Test extension.",
-  icon: "box",
+  icon: "blocks",
   enabledByDefault: false,
   settings: {
     version: 1,

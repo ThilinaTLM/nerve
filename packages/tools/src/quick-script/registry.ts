@@ -3,6 +3,7 @@ import type {
   ExtensionDefinition,
   ToolDefinition as ExtensionToolDefinition,
 } from "@nervekit/extension-api";
+import { resolveExtensionIcon } from "./extension-host/icon.js";
 import { fromDefinition } from "./extension-host/from-definition.js";
 import { createSdkNamespace } from "./runtime/discovery.js";
 import { runtimeNamespaces } from "./runtime/runtime-namespaces.js";
@@ -34,10 +35,10 @@ export type QuickScriptRegistry = {
 /** What the host provides besides the definitions. */
 export type QuickScriptRegistryOptions = {
   /**
-   * Reads a doc topic file (`DocTopic.file`, relative to the extension's root) of an extension.
-   * Extensions only declare paths; the host reads them.
+   * Reads a file (a doc topic `DocTopic.file`, an `icon` SVG; relative to the extension's root)
+   * of an extension. Extensions only declare paths; the host reads them.
    */
-  readExtensionDoc?: (extensionId: string, file: string) => string;
+  readExtensionAsset?: (extensionId: string, file: string) => string;
 };
 
 /**
@@ -48,7 +49,12 @@ export function createQuickScriptRegistry(
   input: readonly ExtensionDefinition[],
   options: QuickScriptRegistryOptions = {},
 ): QuickScriptRegistry {
-  const extensions = input.map(fromDefinition);
+  const extensions = input.map((definition) =>
+    fromDefinition(
+      definition,
+      resolveExtensionIcon(definition, options.readExtensionAsset),
+    ),
+  );
   assertUnique(
     extensions.map((extension) => extension.id),
     "extension",
@@ -77,11 +83,11 @@ export function createQuickScriptRegistry(
           extension: extension.name,
           owner: extension.id,
           readDoc: (file) => {
-            if (!options.readExtensionDoc)
+            if (!options.readExtensionAsset)
               throw new Error(
                 `${extension.id}: no docs are bundled (${file}).`,
               );
-            return options.readExtensionDoc(extension.id, file);
+            return options.readExtensionAsset(extension.id, file);
           },
         }),
       ),

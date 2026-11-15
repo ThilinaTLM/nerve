@@ -215,17 +215,164 @@ export function extensionProblem(extension: ExtensionView): string | undefined {
 
 export type ExtensionFix = { label: string; section: string };
 
-/** What the user does about the problem, and the detail section that holds it. */
+/** The first switched-on namespace that cannot be used, helpers included. */
+function failingNamespace(extension: ExtensionView): string | undefined {
+  return unavailable(extension)[0]?.[0];
+}
+
+/**
+ * What the user does about the problem, and the detail section that holds it.
+ * The account kind comes from the failing namespace's `requiresAccount` field.
+ */
 export function extensionFix(
   extension: ExtensionView,
   accounts: AccountChoices,
 ): ExtensionFix | undefined {
   if (!extensionProblem(extension)) return undefined;
-  const kind = extension.accountKinds[0]?.kind;
-  if (!kind) return { label: "Review", section: "settings" };
-  return (accounts[kind]?.length ?? 0) === 0
+  const failing = extension.metadata.contributes.namespaces.find(
+    (namespace) => namespace.id === failingNamespace(extension),
+  );
+  const field = failing?.requiresAccount
+    ? extension.settingsSchema.fields[failing.requiresAccount]
+    : undefined;
+  if (field?.type !== "account")
+    return { label: "Review", section: "settings" };
+  return (accounts[field.kind]?.length ?? 0) === 0
     ? { label: "Add account", section: "accounts" }
     : { label: "Choose account", section: "settings" };
+}
+
+export type FeatureControl =
+  /** The namespace's own switch, moved here from Settings. */
+  | { type: "switch"; item: FieldItem }
+  /** No switch of its own: the namespace loads with the extension. */
+  | { type: "follows" }
+  /** Its switch stays in Settings (placed on purpose); `on` is its state. */
+  | {
+      type: "setting";
+      on: boolean;
+      /** Section holding the field, and whether it is behind Advanced. */
+      sectionId: string;
+      advanced: boolean;
+    };
+
+export type FeatureRow = {
+  id: string;
+  summary: string;
+  control: FeatureControl;
+  /** Why the namespace cannot be used, when it is switched on but cannot. */
+  problem?: string;
+};
+
+export type ExtensionDetailLayout = {
+  /** Settings sections without the switches that moved onto Features. */
+  sections: FieldSection[];
+  features: FeatureRow[];
+  /** Helper namespaces, named once in the Features footer. */
+  helpers: string[];
+};
+
+const enabledByKeys = (enabledBy: string | string[] | undefined): string[] =>
+  enabledBy === undefined
+    ? []
+    : Array.isArray(enabledBy)
+      ? enabledBy
+      : [enabledBy];
+
+/** The reason a namespace cannot be used; nothing while it is available or not switched on. */
+export function featureProblem(
+  state: ExtensionView["availability"][string] | undefined,
+): string | undefined {
+  return state && state.configured && !state.available
+    ? sentence(state.reason)
+    : undefined;
+}
+
+/** "Also loads helper namespaces: atlassian, storage". */
+export function helperNote(helpers: readonly string[]): string | undefined {
+  return helpers.length === 0
+    ? undefined
+    : `Also loads helper ${helpers.length === 1 ? "namespace" : "namespaces"}: ${helpers.join(", ")}`;
+}
+
+/**
+ * The detail view's layout, derived from the schema and what the extension
+ * contributes. A boolean setting moves onto its namespace row as that row's
+ * switch when it is the single `enabledBy` of exactly one listed namespace,
+ * no `enabledBy` of another listed one, and has no `section`, `advanced` or
+ * `visibleWhen` (those mean the author placed it on purpose; it stays in
+ * Settings and the row shows its state).
+ */
+export function detailLayout(
+  extension: ExtensionView,
+  scope: ExtensionsScope,
+): ExtensionDetailLayout {
+  const all = extension.metadata.contributes.namespaces;
+  const listed = all.filter((namespace) => !namespace.helper);
+  const sections = fieldSections(extension, scope);
+  const placed = new Map<string, { sectionId: string; item: FieldItem }>();
+  for (const section of sections)
+    for (const item of [...section.fields, ...section.advanced])
+      placed.set(item.key, { sectionId: section.id, item });
+
+  const moves = new Set<string>();
+  for (const { item } of placed.values()) {
+    const { field, key } = item;
+    if (
+      field.type !== "boolean" ||
+      field.section !== undefined ||
+      field.advanced ||
+      field.visibleWhen !== undefined
+    )
+      continue;
+    const mentions = listed.filter((namespace) =>
+      enabledByKeys(namespace.enabledBy).includes(key),
+    );
+    if (mentions.length === 1 && mentions[0]!.enabledBy === key) moves.add(key);
+  }
+
+  const features = listed.map((namespace): FeatureRow => {
+    const problem = featureProblem(extension.availability[namespace.id]);
+    const base = {
+      id: namespace.id,
+      summary: namespace.summary,
+      ...(problem ? { problem } : {}),
+    };
+    const keys = enabledByKeys(namespace.enabledBy);
+    if (
+      typeof namespace.enabledBy === "string" &&
+      moves.has(namespace.enabledBy)
+    )
+      return {
+        ...base,
+        control: {
+          type: "switch",
+          item: placed.get(namespace.enabledBy)!.item,
+        },
+      };
+    const first = keys.map((key) => placed.get(key)).find((entry) => entry);
+    if (!first) return { ...base, control: { type: "follows" } };
+    return {
+      ...base,
+      control: {
+        type: "setting",
+        on: keys.some((key) => extension.fields[key]?.value === true),
+        sectionId: first.sectionId,
+        advanced: first.item.field.advanced === true,
+      },
+    };
+  });
+
+  return {
+    sections: sections
+      .map((section) => ({
+        ...section,
+        fields: section.fields.filter((item) => !moves.has(item.key)),
+      }))
+      .filter((section) => section.fields.length + section.advanced.length > 0),
+    features,
+    helpers: all.filter((namespace) => namespace.helper).map((n) => n.id),
+  };
 }
 
 /** `quick_script` namespaces of the runtime itself, always present. */

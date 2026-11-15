@@ -1,5 +1,6 @@
 import type {
   AccountKind,
+  ExtensionIcon,
   ExtensionSettingsDefinition,
   SettingsSchema,
 } from "@nervekit/contracts/extensions";
@@ -65,8 +66,8 @@ export type ExtensionManifest = {
   /** One line for the Extensions page. */
   description: string;
   source: "builtin";
-  /** Lucide icon name. */
-  icon: string;
+  /** The extension's mark, resolved (and, for an SVG file, read and checked) by the host. */
+  icon: ExtensionIcon;
   /** Default of the implicit `enabled` switch. */
   enabledByDefault: boolean;
   /** Settings the extension offers; the Extensions page is generated from it. */

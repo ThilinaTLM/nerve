@@ -4,8 +4,8 @@
 -->
 <script lang="ts">
 import Lock from "@lucide/svelte/icons/lock";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import type { ModelInfo } from "$lib/api";
@@ -34,10 +34,14 @@ type Props = {
   /** Differs from the inherited value. */
   change?: ExtensionChange;
   disabled?: boolean;
+  /**
+   * A namespace row of Features that carries this field as its switch: the
+   * namespace names the row, and `problem` is why it cannot be used.
+   */
+  feature?: { id: string; summary: string; problem?: string };
   /** `undefined` clears the value at this scope. */
   onChange: (value: unknown) => void;
   onReset: () => void;
-  onAddAccount: () => void;
 };
 
 let {
@@ -48,9 +52,9 @@ let {
   models = [],
   change,
   disabled = false,
+  feature,
   onChange,
   onReset,
-  onAddAccount,
 }: Props = $props();
 
 const field = $derived(item.field);
@@ -98,9 +102,18 @@ function commit(): void {
 }
 </script>
 
+{#snippet problemHint()}
+  <span class="inline-flex items-center gap-1 text-warning">
+    <TriangleAlert class="size-3 flex-none" aria-hidden="true" />
+    {feature?.problem}
+  </span>
+{/snippet}
+
 <SettingsRow
-  label={field.label}
-  description={field.description}
+  hint={feature?.problem ? problemHint : undefined}
+  label={feature?.id ?? field.label}
+  description={feature?.summary ?? field.description}
+  mono={feature !== undefined}
   htmlFor={locked || kind === "switch" || kind === "model"
     ? undefined
     : inputId}
@@ -147,31 +160,16 @@ function commit(): void {
         onValueChange={(next) => onChange(next)}
       />
     {:else if field.type === "account"}
-      <div class="grid w-full min-w-0 gap-1">
-        <div class="min-w-0">
-          <SelectField
-            items={accountItems}
-            value={typeof item.value === "string" ? item.value : ""}
-            placeholder={accountItems.length > 0
-              ? "Choose account"
-              : "No accounts"}
-            {disabled}
-            ariaLabel={field.label}
-            onValueChange={(next) => onChange(next)}
-          />
-        </div>
-        <!-- Accounts live in user settings; a project cannot add one. -->
-        {#if scope === "user"}
-          <div class="flex justify-end">
-            <Button
-              size="sm"
-              variant="ghost"
-              class="text-muted-foreground"
-              onclick={onAddAccount}>Add account</Button
-            >
-          </div>
-        {/if}
-      </div>
+      <SelectField
+        items={accountItems}
+        value={typeof item.value === "string" ? item.value : ""}
+        placeholder={accountItems.length > 0
+          ? "Choose account"
+          : "No accounts yet"}
+        disabled={disabled || accountItems.length === 0}
+        ariaLabel={field.label}
+        onValueChange={(next) => onChange(next)}
+      />
     {:else if field.type === "model"}
       <ModelPicker
         label={field.label}

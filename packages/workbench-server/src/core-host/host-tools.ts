@@ -1,6 +1,6 @@
 import { registerToolDefinitions } from "@nervekit/tools/catalog";
 import { builtinExtensions } from "@nervekit/extensions";
-import { readBuiltinExtensionDoc } from "@nervekit/extensions/docs";
+import { readBuiltinExtensionAsset } from "@nervekit/extensions/assets";
 import {
   createQuickScriptRegistry,
   extensionSettingsDefinition,
@@ -14,7 +14,7 @@ import {
  * availability.
  */
 export const hostRegistry = createQuickScriptRegistry(builtinExtensions, {
-  readExtensionDoc: readBuiltinExtensionDoc,
+  readExtensionAsset: readBuiltinExtensionAsset,
 });
 
 /** What the settings machinery needs of every registered extension. */

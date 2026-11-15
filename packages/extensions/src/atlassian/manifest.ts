@@ -19,7 +19,7 @@ export const atlassianExtension = defineExtension({
   apiVersion: 1,
   name: "Atlassian",
   description: "Jira and Confluence through one Atlassian account.",
-  icon: "layers",
+  icon: "icon.svg",
   enabledByDefault: false,
   accounts: {
     atlassian: {

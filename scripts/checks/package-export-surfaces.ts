@@ -52,7 +52,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./activity",
     ],
     "@nervekit/conversation-core": ["."],
-    "@nervekit/extensions": [".", "./docs"],
+    "@nervekit/extensions": [".", "./assets"],
     "@nervekit/desktop-shell": [],
     "@nervekit/harness": [
       ".",

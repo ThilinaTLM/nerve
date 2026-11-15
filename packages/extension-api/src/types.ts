@@ -557,7 +557,12 @@ export type ExtensionDefinition = {
   name: string;
   /** One line for the Extensions page. */
   description: string;
-  /** Lucide icon name. */
+  /**
+   * The extension's mark: a lucide icon name (`blocks`, `globe`, `image-plus`, `layers`,
+   * `workflow`) or the path of an SVG file in the extension's folder ending in `.svg`
+   * (`icon.svg`; at most 16 KB, square `viewBox`, no scripts or external references).
+   * The host reads and checks it at registry creation and fails loudly on a bad value.
+   */
   icon: string;
   /** Default of the implicit `enabled` switch. */
   enabledByDefault: boolean;

@@ -5,10 +5,12 @@
 <script lang="ts">
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import type { AccountKind } from "@nervekit/contracts/extensions";
+import type {
+  AccountKind,
+  ExtensionIcon,
+} from "@nervekit/contracts/extensions";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
-import type { Component } from "svelte";
 import { onMount } from "svelte";
 import type { AccountView } from "$lib/api";
 import { deleteAccount, testAccount } from "$lib/api";
@@ -20,11 +22,13 @@ import {
 import { SettingsItem } from "$lib/presentation/settings";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
 import AccountDialog from "./AccountDialog.svelte";
+import ExtensionMark from "./ExtensionMark.svelte";
 import { accountCanTest } from "./account-form";
 
 type Props = {
   kind: AccountKind;
-  icon: Component<{ class?: string }>;
+  /** The owning extension's mark. */
+  icon: ExtensionIcon;
 };
 let { kind, icon }: Props = $props();
 
@@ -123,7 +127,6 @@ function summary(account: AccountView): string | undefined {
       badge.tone === "destructive" || badge.tone === "warning"}
     <SettingsItem
       title={account.name}
-      {icon}
       summary={[
         summary(account),
         kind.test && account.secretConfigured ? badge.label : undefined,
@@ -145,6 +148,9 @@ function summary(account: AccountView): string | undefined {
       onOpen={() => openEdit(account)}
       openLabel={`Edit ${account.name}`}
     >
+      {#snippet leading()}
+        <ExtensionMark {icon} />
+      {/snippet}
       {#snippet actions()}
         {#if testable}
           <IconAction

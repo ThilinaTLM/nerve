@@ -128,6 +128,7 @@ $effect(() => {
           itemId = id;
           sectionId = section;
         }}
+        onCloseItem={() => (itemId = "")}
         {status}
         settingsDraft={settingsState.settingsDraft}
         applicationConfiguration={settingsState.applicationConfiguration}

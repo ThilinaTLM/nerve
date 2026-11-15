@@ -145,12 +145,39 @@ export type ExtensionPermissionsData = z.infer<
   typeof extensionPermissionsSchema
 >;
 
+/** Lucide icons an extension may name; the app maps each, so an addition fails its type check until mapped. */
+export const extensionLucideIconSchema = z.enum([
+  "blocks",
+  "globe",
+  "image-plus",
+  "layers",
+  "workflow",
+]);
+export type ExtensionLucideIcon = z.infer<typeof extensionLucideIconSchema>;
+
+/**
+ * An extension's mark: a lucide icon, or the extension's own SVG as a
+ * `data:image/svg+xml` URI the host built and checked. The app renders SVGs
+ * as `<img>`, never inline.
+ */
+export const extensionIconSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("lucide"),
+    name: extensionLucideIconSchema,
+  }),
+  z.strictObject({
+    type: z.literal("svg"),
+    src: z.string().startsWith("data:image/svg+xml,"),
+  }),
+]);
+export type ExtensionIcon = z.infer<typeof extensionIconSchema>;
+
 /** Serializable extension description for the app. */
 export const extensionMetadataSchema = z.strictObject({
   id: extensionIdSchema,
   name: z.string().min(1),
   description: z.string(),
-  icon: z.string().min(1),
+  icon: extensionIconSchema,
   source: z.enum(["builtin"]),
   settingsVersion: z.number().int().positive(),
   /** Default of the implicit `enabled` switch. */

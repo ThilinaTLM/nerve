@@ -4,6 +4,8 @@ import type { ExtensionView } from "@nervekit/contracts/extensions";
 import {
   activeNamespaces,
   controlFor,
+  detailLayout,
+  helperNote,
   entryWithEnabled,
   entryWithSetting,
   extensionChanges,
@@ -28,12 +30,30 @@ function atlassian(patch: Partial<ExtensionView> = {}): ExtensionView {
       id: "atlassian",
       name: "Atlassian",
       description: "Jira and Confluence through one Atlassian account.",
-      icon: "layers",
+      icon: { type: "lucide", name: "layers" },
       source: "builtin",
       settingsVersion: 1,
       enabledByDefault: false,
       permissions: {},
-      contributes: { namespaces: [], tools: [], skills: [] },
+      contributes: {
+        namespaces: [
+          { id: "atlassian", helper: true, summary: "site" },
+          {
+            id: "jira",
+            enabledBy: "jira",
+            requiresAccount: "account",
+            summary: "Issues",
+          },
+          {
+            id: "confluence",
+            enabledBy: "confluence",
+            requiresAccount: "account",
+            summary: "Pages",
+          },
+        ],
+        tools: [],
+        skills: [],
+      },
     },
     settingsSchema: {
       sections: [{ id: "extra", title: "Extra" }],
@@ -142,6 +162,45 @@ describe("extension summary and availability", () => {
       section: "settings",
     });
     assert.equal(extensionFix(atlassian(), accounts), undefined);
+  });
+
+  it("derives the fix from the failing namespace's account field", () => {
+    const base = atlassian();
+    const two = atlassian({
+      metadata: {
+        ...base.metadata,
+        contributes: {
+          ...base.metadata.contributes,
+          namespaces: [
+            { id: "other", requiresAccount: "other", summary: "x" },
+            ...base.metadata.contributes.namespaces,
+          ],
+        },
+      },
+      settingsSchema: {
+        fields: {
+          ...base.settingsSchema.fields,
+          other: { type: "account", kind: "tavily", label: "Other" },
+        },
+      },
+      availability: {
+        other: {
+          configured: true,
+          available: false,
+          reason: "no account.",
+          fix: "Ask",
+        },
+      },
+    });
+    // The first account kind (atlassian) has accounts; the failing one (tavily) has none.
+    assert.deepEqual(
+      extensionFix(two, { atlassian: [{ id: "a", name: "A" }], tavily: [] }),
+      { label: "Add account", section: "accounts" },
+    );
+    assert.deepEqual(
+      extensionFix(two, { atlassian: [], tavily: [{ id: "t", name: "T" }] }),
+      { label: "Choose account", section: "settings" },
+    );
   });
 
   it("lists active namespaces and finds the first unusable one", () => {
@@ -313,5 +372,128 @@ describe("entry edits", () => {
     assert.equal(parseNumberInput(" 12 "), 12);
     assert.equal(parseNumberInput(""), undefined);
     assert.equal(parseNumberInput("x"), "invalid");
+  });
+});
+
+describe("detail layout", () => {
+  const keys = (view: ExtensionView) =>
+    detailLayout(view, "user").sections.flatMap((section) => [
+      ...section.fields.map((item) => item.key),
+      ...section.advanced.map((item) => item.key),
+    ]);
+  const withSchema = (
+    fields: ExtensionView["settingsSchema"]["fields"],
+    namespaces: ExtensionView["metadata"]["contributes"]["namespaces"],
+    values: Record<string, unknown> = {},
+  ) => {
+    const base = atlassian();
+    return atlassian({
+      metadata: {
+        ...base.metadata,
+        contributes: { namespaces, tools: [], skills: [] },
+      },
+      settingsSchema: { fields },
+      fields: Object.fromEntries(
+        Object.keys(fields).map((key) => [
+          key,
+          { value: values[key] ?? false, source, visible: true },
+        ]),
+      ),
+      availability: {},
+    });
+  };
+
+  it("moves a switch onto its namespace row and leaves Settings", () => {
+    const layout = detailLayout(atlassian(), "user");
+    assert.deepEqual(keys(atlassian()), ["account", "project"]);
+    assert.deepEqual(
+      layout.features.map((row) => [row.id, row.control.type]),
+      [
+        ["jira", "switch"],
+        ["confluence", "switch"],
+      ],
+    );
+    assert.deepEqual(layout.helpers, ["atlassian"]);
+    assert.equal(
+      helperNote(["atlassian", "storage"]),
+      "Also loads helper namespaces: atlassian, storage",
+    );
+    assert.equal(helperNote([]), undefined);
+  });
+
+  it("keeps a switch in Settings when it is shared, listed in an array, or placed on purpose", () => {
+    const shared = withSchema(
+      { a: { type: "boolean", label: "A", default: false } },
+      [
+        { id: "x", enabledBy: "a", summary: "x" },
+        { id: "y", enabledBy: "a", summary: "y" },
+      ],
+    );
+    assert.deepEqual(keys(shared), ["a"]);
+    const array = withSchema(
+      { a: { type: "boolean", label: "A", default: false } },
+      [
+        { id: "x", enabledBy: "a", summary: "x" },
+        { id: "y", enabledBy: ["a", "b"], summary: "y" },
+      ],
+    );
+    assert.deepEqual(keys(array), ["a"]);
+    assert.equal(
+      detailLayout(array, "user").features[1]!.control.type,
+      "setting",
+    );
+    for (const extra of [
+      { section: "s" },
+      { advanced: true },
+      { visibleWhen: { field: "b", equals: true } },
+    ]) {
+      const placed = withSchema(
+        { a: { type: "boolean", label: "A", default: false, ...extra } },
+        [{ id: "x", enabledBy: "a", summary: "x" }],
+      );
+      const row = detailLayout(placed, "user").features[0]!;
+      assert.equal(row.control.type, "setting");
+      assert.ok(keys(placed).includes("a"));
+    }
+  });
+
+  it("shows state for namespaces that follow the extension or keep their switch in Settings", () => {
+    const view = withSchema(
+      { a: { type: "boolean", label: "A", default: false, advanced: true } },
+      [
+        { id: "x", summary: "x" },
+        { id: "y", enabledBy: "a", summary: "y" },
+      ],
+      { a: true },
+    );
+    const [follows, setting] = detailLayout(view, "user").features;
+    assert.deepEqual(follows!.control, { type: "follows" });
+    assert.deepEqual(setting!.control, {
+      type: "setting",
+      on: true,
+      sectionId: "settings",
+      advanced: true,
+    });
+  });
+
+  it("omits helpers from the rows and reports reasons only when configured but unavailable", () => {
+    const view = atlassian({
+      availability: {
+        jira: {
+          configured: true,
+          available: false,
+          reason: "needs an account.",
+          fix: "Ask",
+        },
+        confluence: { configured: true, available: true },
+      },
+    });
+    const features = detailLayout(view, "user").features;
+    assert.deepEqual(
+      features.map((row) => row.id),
+      ["jira", "confluence"],
+    );
+    assert.equal(features[0]!.problem, "Needs an account.");
+    assert.equal(features[1]!.problem, undefined);
   });
 });

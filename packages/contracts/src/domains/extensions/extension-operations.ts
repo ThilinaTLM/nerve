@@ -26,7 +26,8 @@ const sourceSchema = z.strictObject({
 });
 
 const resolvedFieldSchema = z.strictObject({
-  value: z.unknown(),
+  /** Absent when unset (an account field with no account chosen); JSON drops `undefined`. */
+  value: z.unknown().optional(),
   source: sourceSchema,
   /** False when `visibleWhen` hides the field; the stored value is kept. */
   visible: z.boolean(),

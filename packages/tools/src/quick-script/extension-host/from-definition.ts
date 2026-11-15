@@ -8,7 +8,10 @@ import type {
   OwnToolDefinition,
   Risk,
 } from "@nervekit/extension-api";
-import type { AccountKind } from "@nervekit/contracts/extensions";
+import type {
+  AccountKind,
+  ExtensionIcon,
+} from "@nervekit/contracts/extensions";
 import { ToolExecutionError } from "../../execution/index.js";
 import type { ExtensionManifest, SdkNamespace } from "../manifest-types.js";
 import type {
@@ -165,6 +168,7 @@ function toSdkNamespace(
 /** The registry's view of an extension built on the extension API. */
 export function fromDefinition(
   definition: ExtensionDefinition,
+  icon: ExtensionIcon,
 ): ExtensionManifest {
   const accounts: AccountKind[] = Object.entries(definition.accounts ?? {}).map(
     ([kind, { test, ...data }]) => ({
@@ -178,7 +182,7 @@ export function fromDefinition(
     name: definition.name,
     description: definition.description,
     source: "builtin",
-    icon: definition.icon,
+    icon,
     enabledByDefault: definition.enabledByDefault,
     settings: {
       ...(definition.settings.sections

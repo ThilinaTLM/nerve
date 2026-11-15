@@ -55,6 +55,7 @@ let {
   itemId = "",
   sectionId,
   onOpenItem,
+  onCloseItem,
   status,
   settingsDraft,
   applicationConfiguration,
@@ -82,6 +83,8 @@ let {
   sectionId?: string;
   /** Opens a detail item, optionally at one of its sections. */
   onOpenItem?: (id: string, section?: string) => void;
+  /** Leaves the open detail item for the page's list. */
+  onCloseItem?: () => void;
   status?: StatusResponse;
   settingsDraft?: Settings;
   applicationConfiguration?: ApplicationConfigurationSnapshot;
@@ -172,6 +175,7 @@ const projectId = $derived(
       {itemId}
       {sectionId}
       {onOpenItem}
+      {onCloseItem}
     />
   {:else if page.id === "launch"}
     <LaunchSettingsPage

@@ -5,6 +5,7 @@ import { toolSettingsMutation } from "./tool-settings-mutation";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
 import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
+import Blocks from "@lucide/svelte/icons/blocks";
 import Bot from "@lucide/svelte/icons/bot";
 import Eye from "@lucide/svelte/icons/eye";
 import Globe from "@lucide/svelte/icons/globe";
@@ -23,9 +24,10 @@ import {
   type StatusResponse,
 } from "$lib/api";
 import { capabilityToggleToolNameSchema } from "@nervekit/contracts/capabilities";
+import type { ExtensionIcon } from "@nervekit/contracts/extensions";
 import type { ToolDescriptor } from "@nervekit/contracts/tools";
 import { setExtensionToolNames } from "$lib/presentation/tools/lifecycle/extension-tools";
-import { extensionIcon } from "../extensions/extension-icons";
+import ExtensionMark from "../extensions/ExtensionMark.svelte";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import {
@@ -124,7 +126,8 @@ function extensionState(id: ToolId) {
 type ExtensionToolGroup = {
   extensionId: string;
   name: string;
-  icon: string;
+  /** Absent when no loaded extension owns the tools. */
+  icon?: ExtensionIcon;
   tools: ToolDescriptor[];
 };
 const extensionGroups = $derived.by(() => {
@@ -139,7 +142,7 @@ const extensionGroups = $derived.by(() => {
       group = {
         extensionId: tool.extension,
         name: owner?.metadata.name ?? tool.extension,
-        icon: owner?.metadata.icon ?? "puzzle",
+        icon: owner?.metadata.icon,
         tools: [],
       };
       groups.push(group);
@@ -325,9 +328,13 @@ const python = $derived(status?.runtime.python);
             extensions.view?.extensions,
             accounts,
           )}
+          {#snippet mark()}
+            {#if group.icon}<ExtensionMark icon={group.icon} />{/if}
+          {/snippet}
           <SettingsItem
             title={toolLabel(tool.name)}
-            icon={extensionIcon(group.icon)}
+            icon={group.icon ? undefined : Blocks}
+            leading={group.icon ? mark : undefined}
             summary={fromExtension?.summary ?? tool.description}
             problem={fromExtension?.problem}
             problemAction={fromExtension?.fix

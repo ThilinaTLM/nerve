@@ -24,7 +24,7 @@ function extension(
       id,
       name: id,
       description: id,
-      icon: "globe",
+      icon: { type: "lucide", name: "globe" },
       source: "builtin",
       settingsVersion: 1,
       enabledByDefault: false,
