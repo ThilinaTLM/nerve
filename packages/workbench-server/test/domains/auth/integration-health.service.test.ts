@@ -125,9 +125,9 @@ describe("extensionAccountTester", () => {
     );
   });
 
-  it("refuses kinds without a hook", async () => {
+  it("refuses kinds no extension can test", async () => {
     await assert.rejects(
-      test({ ...account, kind: "tavily", fields: {} }),
+      test({ ...account, kind: "unknown", fields: {} }),
       /cannot be tested/,
     );
   });
