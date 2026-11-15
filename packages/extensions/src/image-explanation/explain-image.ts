@@ -75,7 +75,9 @@ export const explainImageTool = defineTool({
     required: ["path"],
     additionalProperties: false,
   },
-  risk: "network",
+  // Reads one file and sends it to the model the user selected, through a
+  // provider already configured for the agent: a read, like the agent's own model calls.
+  risk: "read",
   parse,
   // The file is read under the same rules as the `read` tool.
   authorize: ({ path }: Input) => ({

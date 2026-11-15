@@ -28,8 +28,10 @@ function setup(options: { ready?: boolean; bytes?: number } = {}) {
   return { ...fake, requests };
 }
 
-void test("the extension is off by default and asks for a vision model", () => {
+void test("the extension is off by default and asks for a vision model; its tool is a read", () => {
   assert.equal(imageExplanationExtension.enabledByDefault, false);
+  // Rule sets that allow reads run it without approval.
+  assert.equal(tool.risk, "read");
   assert.deepEqual(imageExplanationExtension.permissions?.capabilities, [
     "models.vision",
   ]);
