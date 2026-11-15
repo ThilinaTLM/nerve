@@ -1,6 +1,5 @@
 import type {
   QuickScriptArtifact,
-  QuickScriptHostCall,
   QuickScriptOperation,
   FileEntry,
   GrepMatch,
@@ -11,6 +10,7 @@ import type {
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts/tools";
 import type { ExtensionViewSectionType } from "@nervekit/contracts/extensions";
+import type { QuickScriptCallRow } from "./quick-script-calls";
 
 /** One section of an extension tool's card. */
 export type ExtensionSectionView = {
@@ -112,14 +112,16 @@ export type ToolView =
       error?: string;
       durationMs?: number;
       outputTruncated?: boolean;
-      hostCalls: QuickScriptHostCall[];
+      /** SDK calls in call order: the stored result, or the live rows while the script runs. */
+      hostCalls: QuickScriptCallRow[];
+      /** Whether `hostCalls` are live rows of a running script. */
+      liveCalls: boolean;
       /** Operations the admission scan found, shown before the script runs and when it never ran. */
       plannedOperations: QuickScriptOperation[];
       /** Files the run wrote to the conversation artifact folder. */
       artifacts: QuickScriptArtifact[];
       /** Entities the run created (`SCRUM-6`, `comment 77 on SCRUM-6`). */
       created: string[];
-      live?: boolean;
     }
   | {
       kind: "bash";

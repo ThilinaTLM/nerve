@@ -25,6 +25,7 @@ import {
   toolArgumentSource,
 } from "../lifecycle/argument-source";
 import { askUserViewFromCall } from "../tool-call/ask-user-state";
+import { liveQuickScriptCalls } from "./quick-script-calls";
 import {
   parseStatusDetail,
   parseStatusListing,
@@ -260,24 +261,26 @@ export function parseToolView(
 
     case "quick_script": {
       const details = quickScriptResultDetailsSchema.safeParse(result?.details);
+      // While running, the live stream carries SDK-call rows, never script output.
+      const liveCalls = result ? [] : liveQuickScriptCalls(liveOutput);
       return {
         kind: "quick_script",
         code: stringField(args.code),
-        output: resultOutputText(result, rawResult, liveOutput),
+        output: resultOutputText(result, rawResult),
         status: details.success ? details.data.status : undefined,
         error: details.success ? details.data.error : undefined,
         durationMs: details.success ? details.data.durationMs : undefined,
         outputTruncated: details.success
           ? details.data.outputTruncated
           : undefined,
-        hostCalls: details.success ? details.data.hostCalls : [],
+        hostCalls: details.success ? details.data.hostCalls : liveCalls,
+        liveCalls: !details.success && liveCalls.length > 0,
         plannedOperations:
           ("supervision" in toolCall
             ? toolCall.supervision?.operations
             : undefined) ?? [],
         artifacts: details.success ? (details.data.artifacts ?? []) : [],
         created: details.success ? (details.data.created ?? []) : [],
-        live: !result && Boolean(liveOutput?.text),
       };
     }
 

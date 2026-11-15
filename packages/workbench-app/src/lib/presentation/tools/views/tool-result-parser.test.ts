@@ -379,6 +379,43 @@ describe("quick_script result", () => {
     assert.equal(view.kind === "quick_script" && view.artifacts.length, 0);
   });
 
+  it("lists live SDK calls in call order while the script runs", () => {
+    const lines = [
+      // A tail-cut first line is skipped.
+      'ed","seq":9}',
+      { phase: "started", seq: 1, method: "jira.issues.get", summary: "A-2" },
+      { phase: "started", seq: 0, method: "jira.issues.get", summary: "A-1" },
+      {
+        phase: "finished",
+        seq: 0,
+        method: "jira.issues.get",
+        summary: "A-1",
+        outcome: "completed",
+        durationMs: 40,
+      },
+    ].map((line) => (typeof line === "string" ? line : JSON.stringify(line)));
+    const running: ToolCallRecord = {
+      ...call("quick_script", { code: "x" }, undefined),
+      status: "running",
+    };
+    const view = parseToolView(running, {
+      toolCallId: "t",
+      chunks: [{ stream: "sdk_calls", text: `${lines.join("\n")}\n`, ts: "" }],
+      text: lines.join("\n"),
+      updatedAt: "1",
+    });
+    if (view.kind !== "quick_script") assert.fail("wrong kind");
+    assert.deepEqual(
+      view.hostCalls.map((row) => [row.summary, row.outcome]),
+      [
+        ["A-1", "completed"],
+        ["A-2", "running"],
+      ],
+    );
+    assert.equal(view.liveCalls, true);
+    assert.equal(view.output, "");
+  });
+
   it("keeps a failed script outcome", () => {
     const view = parseToolView(
       call(

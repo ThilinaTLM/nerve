@@ -34,6 +34,33 @@ export const quickScriptHostCallSchema = z
   .passthrough();
 export type QuickScriptHostCall = z.infer<typeof quickScriptHostCallSchema>;
 
+/** Live stream on which a running script reports its SDK calls, one JSON line per event. */
+export const QUICK_SCRIPT_CALLS_STREAM = "sdk_calls";
+
+/**
+ * One live SDK-call event of a running script. `seq` is the call's 0-based
+ * start index in the run; a `finished` without a `started` is a call that
+ * failed before it could start (unknown method, bad arguments).
+ */
+export const quickScriptLiveCallSchema = z.discriminatedUnion("phase", [
+  z.object({
+    phase: z.literal("started"),
+    seq: z.number().int().nonnegative(),
+    method: z.string(),
+    summary: z.string().optional(),
+  }),
+  z.object({
+    phase: z.literal("finished"),
+    seq: z.number().int().nonnegative(),
+    method: z.string(),
+    summary: z.string().optional(),
+    outcome: z.enum(["completed", "failed", "denied"]),
+    error: z.string().optional(),
+    durationMs: z.number().nonnegative(),
+  }),
+]);
+export type QuickScriptLiveCall = z.infer<typeof quickScriptLiveCallSchema>;
+
 /** A file the script wrote to the conversation's quick-script artifact folder. */
 export const quickScriptArtifactSchema = z.object({
   /** `artifact:<name>`, the handle scripts use. */

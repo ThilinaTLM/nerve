@@ -24,7 +24,10 @@ Separate proposal when phase 2 lands. Scope:
 - Limits and attribution for agent-facing text from third parties: descriptions, rules, doc topics and errors reach the model, so they need size limits and a visible source ([agent-facing content](../../agent-facing.md)).
 - Two trust tiers were sketched: sandbox-only extensions (pure JS, skills, themes; no host authority) and host extensions (trusted daemon code behind the same nested authorization).
 - Trust of project-contributed extensions follows the exact-content trust of project files.
+- The Extensions list has one hard-coded "Built-in" section; group by `metadata.source` once installed extensions exist.
+- The field-type set stays closed and tool views stay declarative (`ToolView`, no UI code); anything beyond that is decided here.
 
-## Follow-ups
+## Open from phase 1
 
-Small gaps, decisions and unverified paths left by phase 1 are in [extension-follow-ups](../extension-follow-ups.md).
+- **Image generation backend.** `imagegen.generate` has never run end to end: the openai-codex backend returns HTTP 403 on dev slots. Confirm whether it is an account restriction (login without image access) or a request problem, then word the error and fix accordingly; the extension stays off by default until then. Blocked on a Codex subscription with image access.
+- **Reopen on demand:** GIF and WebP dimensions and conversion to PNG for Atlassian uploads (SVG is rejected).

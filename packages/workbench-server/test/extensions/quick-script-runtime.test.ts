@@ -1,7 +1,11 @@
 import { executeQuickScript } from "./registry.js";
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
+import {
+  QUICK_SCRIPT_CALLS_STREAM,
+  quickScriptLiveCallSchema,
+  quickScriptResultDetailsSchema,
+} from "@nervekit/contracts/tools";
 import type { Nested } from "@nervekit/tools/quick-script/testing";
 import { atlassianPorts, mockedNetwork } from "./atlassian-context.js";
 
@@ -145,6 +149,45 @@ void test("a 401 stops the whole script with one message and no further requests
   assert.equal(details.status, "failed");
   assert.equal(details.error?.includes("rejected the credential"), true);
   assert.equal(details.hostCalls[0].outcome, "failed");
+});
+
+void test("SDK calls stream as started/finished events and the result lists them in call order", async () => {
+  // The first call answers last, so the calls finish in reverse order.
+  globalThis.fetch = async (input: RequestInfo | URL) => {
+    const key = /issue\/([A-Z]+-\d+)/.exec(String(input))?.[1] ?? "";
+    await new Promise((resolve) => setTimeout(resolve, key === "A-1" ? 60 : 1));
+    return new Response(JSON.stringify({ key, fields: {} }), {
+      headers: { "content-type": "application/json" },
+    });
+  };
+  const updates: { stream: string; chunk: string }[] = [];
+  const result = await run(
+    `await Promise.all([jira.issues.get("A-1"), jira.issues.get("A-2")]);`,
+    {
+      ...context(),
+      onUpdate: (update: { stream: string; chunk: string }) => {
+        updates.push(update);
+      },
+    },
+  );
+  assert.equal(result.exitCode, 0, result.content);
+  const events = updates.map((update) => {
+    assert.equal(update.stream, QUICK_SCRIPT_CALLS_STREAM);
+    return quickScriptLiveCallSchema.parse(JSON.parse(update.chunk));
+  });
+  assert.deepEqual(
+    events.map((event) => `${event.phase} ${event.seq}`),
+    ["started 0", "started 1", "finished 1", "finished 0"],
+  );
+  const details = quickScriptResultDetailsSchema.parse(result.details);
+  assert.deepEqual(
+    details.hostCalls.map((call) => [call.summary, call.outcome]),
+    [
+      [events[0]?.summary, "completed"],
+      [events[1]?.summary, "completed"],
+    ],
+  );
+  assert.match(events[0]?.summary ?? "", /A-1/);
 });
 
 void test("a 403 is a catchable HostError with code FORBIDDEN naming the resource", async () => {
