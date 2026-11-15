@@ -15,13 +15,16 @@ void test("stop waits for in-flight refreshes and rejects later ones", async () 
     } as never,
     events: { publish: async () => {} } as never,
     cacheDir: "/unused",
-    fetchAnthropicUsage: async () => {
-      fetches += 1;
-      await gate;
-      finished += 1;
-      return null as SubscriptionUsage | null;
+    sources: {
+      anthropic: async () => async () => {
+        fetches += 1;
+        await gate;
+        finished += 1;
+        return null as SubscriptionUsage | null;
+      },
+      "openai-codex": async () => undefined,
+      "github-copilot": async () => undefined,
     },
-    fetchCodexUsage: async () => null,
   });
 
   const refresh = service.getSnapshots({ refresh: true });

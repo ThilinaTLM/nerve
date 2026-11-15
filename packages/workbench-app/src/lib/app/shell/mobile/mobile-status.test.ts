@@ -10,7 +10,7 @@ import {
 const calm = [
   {
     provider: "anthropic",
-    usage: { session: { usedPercent: 20 }, weekly: { usedPercent: 40 } },
+    usage: { quotas: [{ usedPercent: 20 }, { usedPercent: 40 }] },
   },
 ];
 
@@ -67,7 +67,7 @@ test("banner names the provider closest to its limit", () => {
     ...calm,
     {
       provider: "openai-codex",
-      usage: { session: { usedPercent: 93.4 }, weekly: { usedPercent: 96 } },
+      usage: { quotas: [{ usedPercent: 93.4 }, { usedPercent: 96 }] },
     },
   ];
   assert.deepEqual(usageAttention(usages), {

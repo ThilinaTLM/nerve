@@ -1,6 +1,11 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SubscriptionUsage } from "@nervekit/contracts/usage";
+import {
+  subscriptionUsageSchema,
+  type SubscriptionQuota,
+  type SubscriptionUsage,
+  type SubscriptionUsageProvider,
+} from "@nervekit/contracts/usage";
 
 export const API_TIMEOUT_MS = 5000;
 export const DEFAULT_RATE_LIMIT_BACKOFF_MS = 30_000;
@@ -72,6 +77,34 @@ async function writeLock(
   }
 }
 
+/** Time-window quota without count fields (Anthropic and Codex windows). */
+export function windowQuota(
+  id: string,
+  label: string,
+  window: Pick<
+    SubscriptionQuota,
+    "usedPercent" | "resetsAt" | "resetAfterSeconds" | "windowMinutes"
+  >,
+): SubscriptionQuota {
+  return { id, label, ...window };
+}
+
+/** Reads a persisted snapshot; outdated or foreign files count as missing. */
+export async function readUsageCacheFile(
+  path: string,
+  provider: SubscriptionUsageProvider,
+): Promise<{ data: SubscriptionUsage; time: number } | null> {
+  try {
+    const parsed = subscriptionUsageSchema.safeParse(
+      JSON.parse(await readFile(path, "utf8")),
+    );
+    if (!parsed.success || parsed.data.provider !== provider) return null;
+    return { data: parsed.data, time: (await stat(path)).mtimeMs };
+  } catch {
+    return null;
+  }
+}
+
 export async function writeUsageCacheFile(
   cacheDir: string,
   path: string,
@@ -90,7 +123,7 @@ export async function writeUsageCacheFile(
  * cross-process lock file for rate-limit backoff. The last good snapshot is
  * served on transient failures.
  */
-export function createCachedUsageFetcher<TBody>(options: {
+export function createCachedUsageFetcher<TBody, TRequest = string>(options: {
   /** Basename of the cross-process lock file inside the cache dir. */
   lockFileName: string;
   readCacheFile: (cacheDir: string) => Promise<{
@@ -98,12 +131,12 @@ export function createCachedUsageFetcher<TBody>(options: {
     time: number;
   } | null>;
   writeCacheFile: (cacheDir: string, data: SubscriptionUsage) => Promise<void>;
-  fetchApi: (token: string) => Promise<UsageApiResponse<TBody>>;
+  fetchApi: (request: TRequest) => Promise<UsageApiResponse<TBody>>;
   parseResponse: (body: TBody) => SubscriptionUsage | null;
-}): (token: string, cacheDir: string) => Promise<SubscriptionUsage | null> {
+}): (request: TRequest, cacheDir: string) => Promise<SubscriptionUsage | null> {
   let cache: CacheEntry | null = null;
 
-  return async (token, cacheDir) => {
+  return async (request, cacheDir) => {
     const now = Date.now();
 
     if (
@@ -141,7 +174,7 @@ export function createCachedUsageFetcher<TBody>(options: {
       return lastKnown;
     };
 
-    const resp = await options.fetchApi(token);
+    const resp = await options.fetchApi(request);
     if (resp.kind === "rate-limited") return backoff(resp.retryAfterMs);
     if (resp.kind === "error") return backoff(DEFAULT_RATE_LIMIT_BACKOFF_MS);
 

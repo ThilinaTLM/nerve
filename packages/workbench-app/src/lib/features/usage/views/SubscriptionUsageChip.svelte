@@ -1,19 +1,25 @@
 <script lang="ts">
-import type { SubscriptionUsage, SubscriptionWindow } from "$lib/api";
+import type { SubscriptionQuota } from "$lib/api";
 import type { SubscriptionUsageEntry } from "$lib/features/usage/usage-types";
 import { selectUsageTriggerEntry } from "./usage-trigger-selection";
+import SubscriptionQuotaList from "./SubscriptionQuotaList.svelte";
 import {
-  formatResetAfterSeconds,
-  formatResetAt,
-  usageTone,
-  usageWindowDisplay,
-} from "@nervekit/ui-kit/display/usage";
+  consumptionChipValue,
+  consumptionQuotas,
+  consumptionValue,
+  meterTone,
+  percentLabel,
+  quotaMeters,
+  quotaResetShort,
+  subscriptionProviderLabel,
+  type DisplayMeter,
+  type MeterTone,
+} from "../usage-display";
 import { cn } from "@nervekit/ui-kit/utils";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import Popover, {
   PopoverBody,
   PopoverHeader,
-  PopoverMeter,
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { STATUS_BAR_CHIP_BUTTON } from "$lib/presentation/shell";
@@ -27,93 +33,22 @@ type Props = {
 
 let { usages = [], compact = false, open = $bindable(false) }: Props = $props();
 
-function windowReset(
-  window: SubscriptionWindow | null | undefined,
-): string | null {
-  if (!window) return null;
-  return (
-    formatResetAt(window.resetsAt) ??
-    formatResetAfterSeconds(window.resetAfterSeconds)
-  );
-}
-
-function percentLabel(value: number | null | undefined): string {
-  return value == null ? "—" : `${Math.round(value)}%`;
-}
-
 function clampPercent(value: number | null | undefined): number {
   if (value == null) return 0;
   return Math.min(100, Math.max(0, value));
 }
 
-function providerLabel(provider: string): string {
-  if (provider === "openai-codex") return "Codex";
-  if (provider === "anthropic") return "Anthropic";
-  return provider;
-}
-
-type DisplayWindow = {
-  slot: "session" | "weekly";
-  window: SubscriptionWindow;
-  label: string;
-  abbreviation: string;
+const TEXT_TONE: Record<MeterTone, string> = {
+  success: "",
+  warning: "text-warning",
+  destructive: "text-destructive",
 };
 
-function displayWindows(
-  usage: SubscriptionUsage | null | undefined,
-): DisplayWindow[] {
-  if (!usage) return [];
-  const windows: DisplayWindow[] = [];
-
-  if (usage.session) {
-    windows.push({
-      slot: "session",
-      window: usage.session,
-      ...usageWindowDisplay(usage.session.windowMinutes, {
-        label: "Session",
-        abbreviation: "S",
-      }),
-    });
-  }
-  if (usage.weekly) {
-    windows.push({
-      slot: "weekly",
-      window: usage.weekly,
-      ...usageWindowDisplay(usage.weekly.windowMinutes, {
-        label: "Weekly",
-        abbreviation: "W",
-      }),
-    });
-  }
-
-  return windows;
-}
-
-/** Tailwind text color for a usage percent (neutral inherits the surrounding tone). */
-function toneTextClass(percent: number | null | undefined): string {
-  const tone = usageTone(percent);
-  if (tone === "error") return "text-destructive";
-  if (tone === "warning") return "text-warning";
-  return "";
-}
-
-/** Tailwind fill color for the trigger's inline usage bar. */
-function toneBarClass(percent: number | null | undefined): string {
-  const tone = usageTone(percent);
-  if (tone === "error") return "bg-destructive-solid";
-  if (tone === "warning") return "bg-warning";
-  return "bg-success";
-}
-
-/** Meter tone for a usage percent. */
-function meterTone(
-  percent: number | null | undefined,
-): "success" | "warning" | "destructive" {
-  const tone = usageTone(percent);
-  if (tone === "error") return "destructive";
-  if (tone === "warning") return "warning";
-  return "success";
-}
+const BAR_TONE: Record<MeterTone, string> = {
+  success: "bg-success",
+  warning: "bg-warning",
+  destructive: "bg-destructive-solid",
+};
 
 function updatedLabel(value: string | undefined): string | null {
   if (!value) return null;
@@ -124,21 +59,29 @@ function updatedLabel(value: string | undefined): string | null {
 
 const entries = $derived(usages);
 const triggerEntry = $derived(selectUsageTriggerEntry(entries));
-const allTriggerWindows = $derived(displayWindows(triggerEntry?.usage));
-// Compact keeps whichever window is closest to its limit, since that is the
-// one worth surfacing when there is only room for a single meter.
-const triggerWindows = $derived.by(() => {
-  if (!compact || allTriggerWindows.length <= 1) return allTriggerWindows;
+const allTriggerMeters = $derived(quotaMeters(triggerEntry?.usage));
+// Time windows all show (session and weekly); count allowances show only the
+// plan's primary allowance. Compact keeps whichever is closest to its limit.
+const triggerMeters = $derived.by((): DisplayMeter[] => {
+  const windows = allTriggerMeters.filter((item) => item.abbreviation);
+  const counts = allTriggerMeters.filter((item) => !item.abbreviation);
+  const meters = [...windows, ...counts.slice(0, 1)];
+  if (!compact || meters.length <= 1) return meters;
   return [
-    allTriggerWindows.reduce((worst, item) =>
-      (item.window.usedPercent ?? 0) > (worst.window.usedPercent ?? 0)
+    meters.reduce((worst, item) =>
+      (item.quota.usedPercent ?? 0) > (worst.quota.usedPercent ?? 0)
         ? item
         : worst,
     ),
   ];
 });
+const triggerConsumption = $derived<SubscriptionQuota | undefined>(
+  triggerMeters.length === 0
+    ? consumptionQuotas(triggerEntry?.usage)[0]
+    : undefined,
+);
 const triggerReset = $derived(
-  compact ? null : windowReset(triggerWindows[0]?.window),
+  compact || !triggerMeters[0] ? null : quotaResetShort(triggerMeters[0].quota),
 );
 
 const lastUpdated = $derived.by(() => {
@@ -152,30 +95,22 @@ const lastUpdated = $derived.by(() => {
 const title = $derived.by(() => {
   const lines: string[] = [];
   for (const entry of entries) {
-    const windows = displayWindows(entry.usage);
-    const details = windows
-      .map(
+    const details = [
+      ...quotaMeters(entry.usage).map(
         (item) =>
-          `${item.label.toLowerCase()} ${percentLabel(item.window.usedPercent)}`,
-      )
-      .join(" / ");
-    lines.push(`${providerLabel(entry.provider)} — ${details || "No data"}`);
+          `${item.label.toLowerCase()} ${percentLabel(item.quota.usedPercent)}`,
+      ),
+      ...consumptionQuotas(entry.usage).map(
+        (quota) => `${quota.label} ${consumptionValue(quota)}`,
+      ),
+    ].join(" / ");
+    lines.push(
+      `${subscriptionProviderLabel(entry.provider)} — ${details || "No data"}`,
+    );
   }
   return lines.join("\n");
 });
 </script>
-
-{#snippet usageRow(item: DisplayWindow)}
-  {@const percent = item.window.usedPercent ?? null}
-  {@const reset = windowReset(item.window)}
-  <PopoverMeter
-    label={item.label}
-    value={percentLabel(percent)}
-    percent={percent ?? undefined}
-    tone={meterTone(percent)}
-    caption={reset ? `resets in ${reset}` : undefined}
-  />
-{/snippet}
 
 {#if triggerEntry}
   <Popover
@@ -188,21 +123,29 @@ const title = $derived.by(() => {
   >
     {#snippet trigger()}
       <span class="inline-flex items-center gap-1.5 whitespace-nowrap" {title}>
-        <span>{providerLabel(triggerEntry.provider)}</span>
-        {#if triggerWindows.length === 0}
+        <span>{subscriptionProviderLabel(triggerEntry.provider)}</span>
+        {#if triggerConsumption}
+          <span
+            class={cn(
+              "tabular-nums",
+              triggerConsumption.exhausted && "text-destructive",
+            )}>{consumptionChipValue(triggerConsumption)}</span
+          >
+        {:else if triggerMeters.length === 0}
           <span aria-label="No data">—</span>
         {/if}
-        {#each triggerWindows as item (item.slot)}
-          {@const percent = item.window.usedPercent}
+        {#each triggerMeters as item (item.quota.id)}
+          {@const percent = item.quota.usedPercent}
+          {@const tone = meterTone(item.quota)}
           <span class="inline-flex items-center gap-1">
-            <span>{item.abbreviation}</span>
+            {#if item.abbreviation}<span>{item.abbreviation}</span>{/if}
             <span class="h-1 w-6 overflow-hidden rounded-full bg-border">
               <span
-                class={cn("block h-full rounded-full", toneBarClass(percent))}
+                class={cn("block h-full rounded-full", BAR_TONE[tone])}
                 style="width: {clampPercent(percent)}%"
               ></span>
             </span>
-            <span class={cn("tabular-nums", toneTextClass(percent))}
+            <span class={cn("tabular-nums", TEXT_TONE[tone])}
               >{percentLabel(percent)}</span
             >
           </span>
@@ -221,7 +164,7 @@ const title = $derived.by(() => {
     <PopoverBody>
       {#each entries as entry, index (entry.provider)}
         <PopoverSection
-          label={`${providerLabel(entry.provider)}${entry.usage?.planType ? ` · ${entry.usage.planType}` : ""}`}
+          label={`${subscriptionProviderLabel(entry.provider)}${entry.usage?.planType ? ` · ${entry.usage.planType}` : ""}`}
           separated={index > 0}
         >
           {#snippet action()}
@@ -230,18 +173,7 @@ const title = $derived.by(() => {
             {/if}
           {/snippet}
 
-          {#if entry.usage}
-            {@const windows = displayWindows(entry.usage)}
-            {#if windows.length > 0}
-              {#each windows as item (item.slot)}
-                {@render usageRow(item)}
-              {/each}
-            {:else}
-              <span class="px-1.5 text-muted-foreground">No data</span>
-            {/if}
-          {:else}
-            <span class="px-1.5 text-muted-foreground">No data</span>
-          {/if}
+          <SubscriptionQuotaList usage={entry.usage} />
         </PopoverSection>
       {/each}
     </PopoverBody>

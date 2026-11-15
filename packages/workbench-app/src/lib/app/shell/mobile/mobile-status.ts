@@ -1,4 +1,5 @@
 import { usageTone } from "@nervekit/ui-kit/display/usage";
+import { subscriptionProviderLabel } from "$lib/features/usage/usage-display";
 
 /**
  * Phone status line: connection and provider quota folded into one header
@@ -11,10 +12,9 @@ export type MobileConnectionState =
   | "connecting"
   | "offline";
 
-type WindowLike = { usedPercent?: number | null } | null | undefined;
 type UsageEntryLike = {
   provider: string;
-  usage?: { session?: WindowLike; weekly?: WindowLike } | null;
+  usage?: { quotas: readonly { usedPercent?: number | null }[] } | null;
 };
 
 export type MobileStatusBanner = {
@@ -46,20 +46,14 @@ export function connectionLabel(state: MobileConnectionState): string {
   }
 }
 
-export function providerLabel(provider: string): string {
-  if (provider === "openai-codex") return "Codex";
-  if (provider === "anthropic") return "Anthropic";
-  return provider;
-}
-
 /** The provider closest to its limit, when any window is past the red line. */
 export function usageAttention(
   usages: readonly UsageEntryLike[],
 ): { provider: string; percent: number } | undefined {
   let worst: { provider: string; percent: number } | undefined;
   for (const entry of usages) {
-    for (const window of [entry.usage?.session, entry.usage?.weekly]) {
-      const percent = window?.usedPercent;
+    for (const quota of entry.usage?.quotas ?? []) {
+      const percent = quota.usedPercent;
       if (percent == null || usageTone(percent) !== "error") continue;
       if (!worst || percent > worst.percent)
         worst = { provider: entry.provider, percent };
@@ -82,7 +76,7 @@ export function mobileStatusBanner(input: {
   if (attention) {
     return {
       tone: "warning",
-      message: `${providerLabel(attention.provider)} usage at ${Math.round(attention.percent)}%`,
+      message: `${subscriptionProviderLabel(attention.provider)} usage at ${Math.round(attention.percent)}%`,
     };
   }
   return undefined;

@@ -2,18 +2,15 @@
 import {
   PopoverBody,
   PopoverHeader,
-  PopoverMeter,
   PopoverProperties,
   PopoverProperty,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import * as Sheet from "@nervekit/ui-kit/components/ui/sheet";
+import { formatDurationMinutes } from "@nervekit/ui-kit/display/usage";
 import {
-  formatDurationMinutes,
-  formatResetAfterSeconds,
-  formatResetAt,
-  usageTone,
-  usageWindowDisplay,
-} from "@nervekit/ui-kit/display/usage";
+  SubscriptionQuotaList,
+  subscriptionProviderLabel,
+} from "$lib/features/usage";
 import { usageSelectors } from "$lib/application/usage/usage-selectors.svelte";
 import { maintenance, workspaceSelectors } from "$lib/application/workspace";
 import MaintenanceStatus from "$lib/app/shell/MaintenanceStatus.svelte";
@@ -21,7 +18,6 @@ import {
   mobileConnectionText,
   mobileStatusSheet,
 } from "./mobile-status.svelte";
-import { providerLabel } from "./mobile-status";
 
 /**
  * Daemon and provider-usage details, opened from the root headers or the
@@ -37,42 +33,6 @@ const uptime = $derived.by(() => {
   if (Number.isNaN(started)) return undefined;
   return formatDurationMinutes((Date.now() - started) / 60_000);
 });
-
-type Row = {
-  key: string;
-  label: string;
-  percent: number | null;
-  reset: string;
-};
-
-function usageRows(entry: (typeof usages)[number]): Row[] {
-  const rows: Row[] = [];
-  for (const [slot, window, fallback] of [
-    ["session", entry.usage?.session, { label: "Session", abbreviation: "S" }],
-    ["weekly", entry.usage?.weekly, { label: "Weekly", abbreviation: "W" }],
-  ] as const) {
-    if (!window) continue;
-    rows.push({
-      key: slot,
-      label: usageWindowDisplay(window.windowMinutes, fallback).label,
-      percent: window.usedPercent ?? null,
-      reset:
-        formatResetAt(window.resetsAt) ??
-        formatResetAfterSeconds(window.resetAfterSeconds) ??
-        "",
-    });
-  }
-  return rows;
-}
-
-function meterTone(percent: number | null) {
-  const tone = usageTone(percent);
-  return tone === "error"
-    ? "destructive"
-    : tone === "warning"
-      ? "warning"
-      : "success";
-}
 </script>
 
 <Sheet.Root
@@ -106,19 +66,11 @@ function meterTone(percent: number | null) {
         </PopoverProperties>
       </PopoverBody>
       {#each usages as entry (entry.provider)}
-        <PopoverHeader title={`${providerLabel(entry.provider)} usage`} />
+        <PopoverHeader
+          title={`${subscriptionProviderLabel(entry.provider)} usage`}
+        />
         <PopoverBody>
-          {#each usageRows(entry) as row (row.key)}
-            <PopoverMeter
-              label={row.label}
-              value={row.percent == null ? "—" : `${Math.round(row.percent)}%`}
-              percent={row.percent ?? undefined}
-              tone={meterTone(row.percent)}
-              caption={row.reset ? `resets in ${row.reset}` : undefined}
-            />
-          {:else}
-            <p class="px-1.5 text-muted-foreground">No data</p>
-          {/each}
+          <SubscriptionQuotaList usage={entry.usage} />
         </PopoverBody>
       {/each}
       {#if maintenance.active && maintenance.operation}

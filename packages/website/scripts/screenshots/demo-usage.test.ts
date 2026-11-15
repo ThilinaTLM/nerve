@@ -23,10 +23,11 @@ test("supplies synthetic quotas correlated to the usage request", () => {
   assert.equal(response.data.method, request.data.method);
   const [usage] = response.data.result.usage;
   assert.equal(usage.provider, "anthropic");
-  assert.equal(usage.session.usedPercent, 32);
-  assert.equal(usage.weekly.usedPercent, 46);
-  assert.equal(usage.session.windowMinutes, 300);
-  assert.equal(usage.weekly.windowMinutes, 10080);
+  const [session, weekly] = usage.quotas;
+  assert.equal(session.usedPercent, 32);
+  assert.equal(weekly.usedPercent, 46);
+  assert.equal(session.windowMinutes, 300);
+  assert.equal(weekly.windowMinutes, 10080);
   assert.equal(usage.updatedAt, request.ts);
 });
 

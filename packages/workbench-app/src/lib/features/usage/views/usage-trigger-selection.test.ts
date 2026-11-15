@@ -14,26 +14,26 @@ function entry(
     usage: {
       provider,
       updatedAt: "2026-10-12T00:00:00.000Z",
-      session: null,
-      weekly: null,
-      ...(slot
-        ? {
-            [slot]: {
+      quotas: slot
+        ? [
+            {
+              id: slot,
+              label: slot,
               usedPercent: 25,
               resetsAt: null,
               resetAfterSeconds: null,
               windowMinutes: null,
             },
-          }
-        : {}),
+          ]
+        : [],
     },
   };
 }
 
-for (const provider of ["anthropic", "openai-codex"] as const) {
+for (const provider of ["anthropic", "github-copilot"] as const) {
   test(`active ${provider} wins over another provider's windows`, () => {
     const other = entry(
-      provider === "anthropic" ? "openai-codex" : "anthropic",
+      provider === "anthropic" ? "github-copilot" : "anthropic",
       false,
       "session",
     );

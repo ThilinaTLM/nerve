@@ -1,8 +1,7 @@
-import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type {
+  SubscriptionQuota,
   SubscriptionUsage,
-  SubscriptionWindow,
 } from "@nervekit/contracts/usage";
 import {
   API_TIMEOUT_MS,
@@ -10,6 +9,8 @@ import {
   createCachedUsageFetcher,
   numberValue,
   parseRetryAfterMs,
+  readUsageCacheFile,
+  windowQuota,
   writeUsageCacheFile,
   type UsageApiResponse,
 } from "./cached-usage-fetch.js";
@@ -22,21 +23,8 @@ function cacheFile(cacheDir: string): string {
   return join(cacheDir, "anthropic-usage.json");
 }
 
-async function readCacheFile(cacheDir: string): Promise<{
-  data: SubscriptionUsage | null;
-  time: number;
-} | null> {
-  const path = cacheFile(cacheDir);
-  try {
-    const raw = await readFile(path, "utf8");
-    const time = (await stat(path)).mtimeMs;
-    return {
-      data: normalizeUsage(JSON.parse(raw), new Date(time).toISOString()),
-      time,
-    };
-  } catch {
-    return null;
-  }
+function readCacheFile(cacheDir: string) {
+  return readUsageCacheFile(cacheFile(cacheDir), "anthropic");
 }
 
 async function writeCacheFile(
@@ -54,59 +42,22 @@ function normalizeIsoDateTime(value: unknown): string | null {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
 }
 
-function normalizeWindow(value: unknown): SubscriptionWindow | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return null;
-  }
-  const raw = value as Record<string, unknown>;
-  const usedPercent = numberValue(raw.usedPercent);
-  const resetsAt = normalizeIsoDateTime(raw.resetsAt);
-  const resetAfterSeconds = numberValue(raw.resetAfterSeconds);
-  const windowMinutes = numberValue(raw.windowMinutes);
-  if (
-    usedPercent == null &&
-    resetsAt == null &&
-    resetAfterSeconds == null &&
-    windowMinutes == null
-  ) {
-    return null;
-  }
-  return { usedPercent, resetsAt, resetAfterSeconds, windowMinutes };
-}
-
-function normalizeUsage(
-  value: unknown,
-  fallbackUpdatedAt: string,
-): SubscriptionUsage | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return null;
-  }
-  const raw = value as Record<string, unknown>;
-  const session = normalizeWindow(raw.session);
-  const weekly = normalizeWindow(raw.weekly);
-  if (!session && !weekly) return null;
-  return {
-    provider: "anthropic",
-    session,
-    weekly,
-    planType: typeof raw.planType === "string" ? raw.planType : null,
-    updatedAt: normalizeIsoDateTime(raw.updatedAt) ?? fallbackUpdatedAt,
-  };
-}
-
-function toWindow(
+function toQuota(
+  id: string,
+  label: string,
+  windowMinutes: number,
   raw: Record<string, unknown> | undefined,
-): SubscriptionWindow | null {
+): SubscriptionQuota | null {
   if (!raw) return null;
   const usedPercent = numberValue(raw.utilization);
   const resetsAt = normalizeIsoDateTime(raw.resets_at);
   if (usedPercent == null && resetsAt == null) return null;
-  return {
+  return windowQuota(id, label, {
     usedPercent,
     resetsAt,
     resetAfterSeconds: null,
-    windowMinutes: null,
-  };
+    windowMinutes,
+  });
 }
 
 export function parseAnthropicUsageResponse(
@@ -120,15 +71,24 @@ export function parseAnthropicUsageResponse(
   }
   if (typeof parsed !== "object" || parsed === null) return null;
   const obj = parsed as Record<string, unknown>;
-  const session = toWindow(
-    obj.five_hour as Record<string, unknown> | undefined,
-  );
-  const weekly = toWindow(obj.seven_day as Record<string, unknown> | undefined);
-  if (!session && !weekly) return null;
+  const quotas = [
+    toQuota(
+      "session",
+      "Session",
+      5 * 60,
+      obj.five_hour as Record<string, unknown> | undefined,
+    ),
+    toQuota(
+      "weekly",
+      "Weekly",
+      7 * 24 * 60,
+      obj.seven_day as Record<string, unknown> | undefined,
+    ),
+  ].filter((quota) => quota !== null);
+  if (quotas.length === 0) return null;
   return {
     provider: "anthropic",
-    session,
-    weekly,
+    quotas,
     planType: null,
     updatedAt: new Date().toISOString(),
   };

@@ -33,18 +33,24 @@ export function demoUsageResponse(request: DemoProtocolRequest | null) {
           {
             provider: "anthropic",
             planType: "Max",
-            session: {
-              usedPercent: 32,
-              resetsAt: null,
-              resetAfterSeconds: 9000,
-              windowMinutes: 300,
-            },
-            weekly: {
-              usedPercent: 46,
-              resetsAt: null,
-              resetAfterSeconds: 259200,
-              windowMinutes: 10080,
-            },
+            quotas: [
+              {
+                id: "session",
+                label: "Session",
+                usedPercent: 32,
+                resetsAt: null,
+                resetAfterSeconds: 9000,
+                windowMinutes: 300,
+              },
+              {
+                id: "weekly",
+                label: "Weekly",
+                usedPercent: 46,
+                resetsAt: null,
+                resetAfterSeconds: 259200,
+                windowMinutes: 10080,
+              },
+            ],
             updatedAt: request.ts,
           },
         ],
