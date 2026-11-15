@@ -6,6 +6,6 @@ export function selectUsageTriggerEntry(
 ): SubscriptionUsageEntry | undefined {
   return (
     entries.find((entry) => entry.active) ??
-    entries.find((entry) => entry.usage?.session || entry.usage?.weekly)
+    entries.find((entry) => (entry.usage?.quotas.length ?? 0) > 0)
   );
 }

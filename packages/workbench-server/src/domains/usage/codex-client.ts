@@ -1,9 +1,7 @@
-import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  subscriptionUsageSchema,
-  type SubscriptionUsage,
-  type SubscriptionWindow,
+import type {
+  SubscriptionQuota,
+  SubscriptionUsage,
 } from "@nervekit/contracts/usage";
 import {
   API_TIMEOUT_MS,
@@ -11,6 +9,8 @@ import {
   createCachedUsageFetcher,
   numberValue,
   parseRetryAfterMs,
+  readUsageCacheFile,
+  windowQuota,
   writeUsageCacheFile,
   type UsageApiResponse,
 } from "./cached-usage-fetch.js";
@@ -22,23 +22,8 @@ function cacheFile(cacheDir: string): string {
   return join(cacheDir, "codex-usage.json");
 }
 
-async function readCacheFile(cacheDir: string): Promise<{
-  data: SubscriptionUsage | null;
-  time: number;
-} | null> {
-  const path = cacheFile(cacheDir);
-  try {
-    const parsed = subscriptionUsageSchema.safeParse(
-      JSON.parse(await readFile(path, "utf8")),
-    );
-    if (!parsed.success || parsed.data.provider !== "openai-codex") return null;
-    return {
-      data: normalizeCodexSnapshot(parsed.data),
-      time: (await stat(path)).mtimeMs,
-    };
-  } catch {
-    return null;
-  }
+function readCacheFile(cacheDir: string) {
+  return readUsageCacheFile(cacheFile(cacheDir), "openai-codex");
 }
 
 async function writeCacheFile(
@@ -69,6 +54,11 @@ function resetAfterFromResetAt(
 }
 
 type ApiWindow = Record<string, unknown> | null | undefined;
+
+type SubscriptionWindow = Pick<
+  SubscriptionQuota,
+  "usedPercent" | "resetsAt" | "resetAfterSeconds" | "windowMinutes"
+>;
 
 function parseApiWindow(
   window: ApiWindow,
@@ -128,7 +118,7 @@ function durationSlot(window: SubscriptionWindow): CodexWindowSlot | null {
 function classifyCodexWindows(
   primary: SubscriptionWindow | null,
   secondary: SubscriptionWindow | null,
-): Pick<SubscriptionUsage, "session" | "weekly"> {
+): { session: SubscriptionWindow | null; weekly: SubscriptionWindow | null } {
   let session: SubscriptionWindow | null = null;
   let weekly: SubscriptionWindow | null = null;
   const unassigned: Array<{
@@ -166,15 +156,6 @@ function classifyCodexWindows(
   return { session, weekly };
 }
 
-function normalizeCodexSnapshot(
-  snapshot: SubscriptionUsage,
-): SubscriptionUsage {
-  return {
-    ...snapshot,
-    ...classifyCodexWindows(snapshot.session, snapshot.weekly),
-  };
-}
-
 /** Parse a Codex usage JSON payload into a normalized snapshot. */
 export function parseCodexUsageResponse(
   payload: unknown,
@@ -207,10 +188,12 @@ export function parseCodexUsageResponse(
   );
   if (!primary && !secondary) return null;
   const { session, weekly } = classifyCodexWindows(primary, secondary);
+  const quotas: SubscriptionQuota[] = [];
+  if (session) quotas.push(windowQuota("session", "Session", session));
+  if (weekly) quotas.push(windowQuota("weekly", "Weekly", weekly));
   return {
     provider: "openai-codex",
-    session,
-    weekly,
+    quotas,
     planType: stringValue(api.plan_type ?? api.planType),
     updatedAt: new Date().toISOString(),
   };

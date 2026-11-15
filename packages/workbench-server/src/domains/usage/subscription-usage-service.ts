@@ -5,33 +5,76 @@ import {
 } from "@nervekit/contracts/usage";
 import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "../auth/index.js";
-import { fetchAnthropicUsage as defaultFetchAnthropicUsage } from "./anthropic-client.js";
-import { fetchCodexUsage as defaultFetchCodexUsage } from "./codex-client.js";
+import { fetchAnthropicUsage } from "./anthropic-client.js";
+import { fetchCodexUsage } from "./codex-client.js";
+import { fetchCopilotUsage } from "./copilot-client.js";
 
 const MIN_REFRESH_INTERVAL_MS = 30_000;
 const GLOBAL_PROVIDERS: readonly SubscriptionUsageProvider[] = [
   "anthropic",
   "openai-codex",
+  "github-copilot",
 ];
 
-type FetchUsage = (
-  token: string,
-  cacheDir: string,
-) => Promise<SubscriptionUsage | null>;
+/**
+ * Resolves the provider's usage credentials. Returns the fetch to run, or
+ * `undefined` when no usable credential is stored.
+ */
+export type SubscriptionUsageSource = (
+  auth: AuthManager,
+) => Promise<
+  ((cacheDir: string) => Promise<SubscriptionUsage | null>) | undefined
+>;
+
+function bearerSource(
+  provider: SubscriptionUsageProvider,
+  fetchUsage: (
+    token: string,
+    cacheDir: string,
+  ) => Promise<SubscriptionUsage | null>,
+): SubscriptionUsageSource {
+  return async (auth) => {
+    const token = await auth.getApiKey(provider);
+    return token ? (cacheDir) => fetchUsage(token, cacheDir) : undefined;
+  };
+}
+
+/** Copilot's quota endpoint takes the stored GitHub token, not the exchanged Copilot token. */
+const copilotSource: SubscriptionUsageSource = async (auth) => {
+  const credential = await auth.getCredential("github-copilot");
+  if (credential?.type !== "oauth") return undefined;
+  const githubToken = credential.refresh;
+  if (typeof githubToken !== "string" || !githubToken) return undefined;
+  const enterpriseUrl =
+    typeof credential.enterpriseUrl === "string"
+      ? credential.enterpriseUrl
+      : undefined;
+  return (cacheDir) =>
+    fetchCopilotUsage({ githubToken, enterpriseUrl }, cacheDir);
+};
+
+const DEFAULT_SOURCES: Record<
+  SubscriptionUsageProvider,
+  SubscriptionUsageSource
+> = {
+  anthropic: bearerSource("anthropic", fetchAnthropicUsage),
+  "openai-codex": bearerSource("openai-codex", fetchCodexUsage),
+  "github-copilot": copilotSource,
+};
 
 export interface SubscriptionUsageServiceDeps {
   auth: AuthManager;
   events: WorkbenchNoticePublisher;
   /** Directory for persisted usage caches (e.g. `<dataDir>/cache/usage`). */
   cacheDir: string;
-  fetchAnthropicUsage?: FetchUsage;
-  fetchCodexUsage?: FetchUsage;
+  /** Overrides per provider; defaults to the live provider endpoints. */
+  sources?: Partial<Record<SubscriptionUsageProvider, SubscriptionUsageSource>>;
   now?: () => number;
 }
 
 /**
- * Manages provider subscription usage (Anthropic 5h/7d and duration-classified
- * Codex windows) for globally supported OAuth providers.
+ * Manages provider subscription usage (Anthropic and Codex time windows,
+ * Copilot monthly allowances) for globally supported OAuth providers.
  *
  * Refreshing is request-driven: clients poll for fresh snapshots and the service
  * debounces upstream provider calls to at most one attempt per provider every
@@ -111,14 +154,12 @@ export class SubscriptionUsageService {
       ) {
         return;
       }
-      const token = await this.#deps.auth.getApiKey(provider);
-      if (!token) return;
+      const source =
+        this.#deps.sources?.[provider] ?? DEFAULT_SOURCES[provider];
+      const fetchUsage = await source(this.#deps.auth);
+      if (!fetchUsage) return;
       this.#lastAttemptAt.set(provider, now);
-      const fetcher =
-        provider === "anthropic"
-          ? (this.#deps.fetchAnthropicUsage ?? defaultFetchAnthropicUsage)
-          : (this.#deps.fetchCodexUsage ?? defaultFetchCodexUsage);
-      const data = await fetcher(token, this.#deps.cacheDir);
+      const data = await fetchUsage(this.#deps.cacheDir);
       if (!data) return;
       const previous = this.#snapshots.get(provider);
       this.#snapshots.set(provider, data);
@@ -137,11 +178,7 @@ export class SubscriptionUsageService {
 
 function hasChanged(a: SubscriptionUsage, b: SubscriptionUsage): boolean {
   return (
-    a.session?.usedPercent !== b.session?.usedPercent ||
-    a.weekly?.usedPercent !== b.weekly?.usedPercent ||
-    a.session?.resetsAt !== b.session?.resetsAt ||
-    a.weekly?.resetsAt !== b.weekly?.resetsAt ||
-    a.session?.resetAfterSeconds !== b.session?.resetAfterSeconds ||
-    a.weekly?.resetAfterSeconds !== b.weekly?.resetAfterSeconds
+    a.planType !== b.planType ||
+    JSON.stringify(a.quotas) !== JSON.stringify(b.quotas)
   );
 }

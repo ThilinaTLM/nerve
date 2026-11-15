@@ -53,8 +53,8 @@ export type {
   StorageUsageResponse,
 } from "@nervekit/contracts/storage";
 export type {
+  SubscriptionQuota,
   SubscriptionUsage,
-  SubscriptionWindow,
 } from "@nervekit/contracts/usage";
 
 export * from "$lib/platform/http/api-client";

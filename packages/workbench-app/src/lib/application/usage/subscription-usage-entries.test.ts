@@ -5,13 +5,16 @@ import { subscriptionUsageEntries } from "./subscription-usage-entries";
 
 const anthropic: SubscriptionUsage = {
   provider: "anthropic",
-  session: {
-    usedPercent: 25,
-    resetsAt: null,
-    resetAfterSeconds: null,
-    windowMinutes: null,
-  },
-  weekly: null,
+  quotas: [
+    {
+      id: "session",
+      label: "Session",
+      usedPercent: 25,
+      resetsAt: null,
+      resetAfterSeconds: null,
+      windowMinutes: 300,
+    },
+  ],
   planType: null,
   updatedAt: "2026-10-12T00:00:00Z",
 };
@@ -39,6 +42,19 @@ test("selected provider remains active when its snapshot has not arrived", () =>
   assert.equal(entries[0].active, true);
   assert.equal(entries[0].usage, undefined);
   assert.equal(entries[1].active, false);
+});
+
+test("providers without a snapshot are listed only while selected", () => {
+  assert.deepEqual(
+    subscriptionUsageEntries({ anthropic }, "openai").map((e) => e.provider),
+    ["anthropic"],
+  );
+  assert.deepEqual(
+    subscriptionUsageEntries({ anthropic }, "github-copilot").map(
+      (e) => e.provider,
+    ),
+    ["anthropic", "github-copilot"],
+  );
 });
 
 test("unsupported or absent selection does not mark a subscription provider active", () => {
