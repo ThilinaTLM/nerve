@@ -29,7 +29,7 @@ export const demoExtension = defineExtension({
   apiVersion: 1,
   name: "Demo",
   description: "Test extension.",
-  icon: "box",
+  icon: "blocks",
   enabledByDefault: true,
   settings: {
     version: 1,

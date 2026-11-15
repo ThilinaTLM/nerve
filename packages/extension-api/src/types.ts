@@ -97,8 +97,11 @@ export type SettingField =
         description?: string;
       }[];
     })
-  /** Id of a user account of this kind. */
-  | (FieldBase & { type: "account"; kind: string })
+  /**
+   * Id of a user account of this kind, or of any of several kinds (one
+   * provider each; read `AccountInfo.kind` to tell them apart).
+   */
+  | (FieldBase & { type: "account"; kind: string | string[] })
   | (FieldBase & { type: "model"; capability?: "image" | "vision" });
 
 export type SettingsSchema = {
@@ -447,6 +450,8 @@ export type Requires = {
 export type NamespaceDefinition<Session = unknown> = {
   /** Global name in the sandbox: `jira`. */
   id: string;
+  /** Title on the Extensions page; the id when absent. */
+  label?: string;
   /** Boolean setting of the extension that switches this namespace, or several (any one enables it). Absent: it follows the extension. */
   enabledBy?: string | readonly string[];
   requires?: Requires;
@@ -557,7 +562,12 @@ export type ExtensionDefinition = {
   name: string;
   /** One line for the Extensions page. */
   description: string;
-  /** Lucide icon name. */
+  /**
+   * The extension's mark: a lucide icon name (`blocks`, `globe`, `image-plus`, `layers`,
+   * `workflow`) or the path of an SVG file in the extension's folder ending in `.svg`
+   * (`icon.svg`; at most 16 KB, square `viewBox`, no scripts or external references).
+   * The host reads and checks it at registry creation and fails loudly on a bad value.
+   */
   icon: string;
   /** Default of the implicit `enabled` switch. */
   enabledByDefault: boolean;

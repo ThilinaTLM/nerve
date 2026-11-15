@@ -24,7 +24,7 @@ function extension(
       id,
       name: id,
       description: id,
-      icon: "globe",
+      icon: { type: "lucide", name: "globe" },
       source: "builtin",
       settingsVersion: 1,
       enabledByDefault: false,
@@ -74,28 +74,25 @@ const web = (
   value?: string,
   toolAvailability?: ExtensionView["toolAvailability"],
 ) =>
-  extension("web", {
+  extension("web-search", {
     enabled,
     field: { key: "searchAccount", kind: "tavily", value },
-    availability: { web: { configured: enabled, available: true } },
+    availability: { search: { configured: enabled, available: true } },
     kind: "tavily",
     toolAvailability,
   });
 
 describe("tool rows backed by extensions", () => {
-  it("links the core tool that follows an extension and nothing else", () => {
-    assert.deepEqual(toolSettingsLink("web_fetch"), { item: "web" });
+  it("links only Quick script: web_fetch follows no extension", () => {
+    assert.equal(toolSettingsLink("web_fetch"), undefined);
     assert.deepEqual(toolSettingsLink("quick_script"), {});
     assert.equal(toolSettingsLink("web_search"), undefined);
     assert.equal(toolSettingsLink("bash"), undefined);
   });
 
-  it("disables Web fetch when the Web extension is off", () => {
-    const state = toolExtensionState("web_fetch", [web(false)], accounts);
-    assert.equal(state?.disabled, true);
-    assert.equal(state?.fix?.extensionId, "web");
+  it("leaves the Web fetch row alone whatever the extensions say", () => {
     assert.equal(
-      toolExtensionState("web_fetch", [web(true)], accounts),
+      toolExtensionState("web_fetch", [web(false)], accounts),
       undefined,
     );
   });
@@ -107,11 +104,11 @@ describe("tool rows backed by extensions", () => {
     assert.deepEqual(
       extensionToolState(
         "web_search",
-        "web",
+        "web-search",
         [web(true, "t1", ready)],
         accounts,
       ),
-      { summary: "web extension · Tavily work" },
+      { summary: "web-search extension · Tavily work" },
     );
     const missing = {
       web_search: {
@@ -123,7 +120,7 @@ describe("tool rows backed by extensions", () => {
     };
     const problem = extensionToolState(
       "web_search",
-      "web",
+      "web-search",
       [web(true, undefined, missing)],
       accounts,
     );
@@ -132,13 +129,18 @@ describe("tool rows backed by extensions", () => {
     assert.equal(
       extensionToolState(
         "web_search",
-        "web",
+        "web-search",
         [web(true, undefined, missing)],
         {},
       )?.fix?.label,
       "Add account",
     );
-    const off = extensionToolState("web_search", "web", [web(false)], accounts);
+    const off = extensionToolState(
+      "web_search",
+      "web-search",
+      [web(false)],
+      accounts,
+    );
     assert.equal(off?.disabled, true);
     assert.equal(
       extensionToolState("web_search", "gone", [web(true)], accounts),

@@ -1,4 +1,4 @@
-import { readBuiltinExtensionDoc } from "@nervekit/extensions/docs";
+import { readBuiltinExtensionAsset } from "@nervekit/extensions/assets";
 import { builtinExtensions } from "@nervekit/extensions";
 import {
   createQuickScriptRegistry,
@@ -7,7 +7,7 @@ import {
 
 /** The registry the host composes from the built-in list; tests that exercise the runtime with the built-ins use it. */
 export const registry = createQuickScriptRegistry(builtinExtensions, {
-  readExtensionDoc: readBuiltinExtensionDoc,
+  readExtensionAsset: readBuiltinExtensionAsset,
 });
 
 export const registeredNamespaces = registry.namespaces;

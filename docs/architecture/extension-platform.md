@@ -29,16 +29,18 @@ The API is built to be isolated: extension code could later run in its own sandb
 ## Availability and accounts
 
 - Availability is **derived** from the manifest: the extension's switch and the namespace's `enabledBy` (one setting or any of a list), then `requires` (the selected account exists and has a saved secret), then the optional `availability(ctx)` hook. Reasons and fixes are generated with the extension's name, so there are no per-extension texts. Details in [code mode](code-mode.md#configuration).
+- The Extensions page reads the manifest's `contributes` from the extension metadata: each namespace with its optional `label` (the id when absent), and each direct tool as `{ name, label, description }` (`label` defaults to the name).
 - **Accounts are generic**: stored by kind, user-only, secrets under `account:<kind>:<id>` ([configuration](configuration.md)). Account ids are local to a home, so a project file naming an account this user lacks leaves the extension unavailable with a fix naming the extension page; it never falls back to another account. Default project and space keys stay on the Atlassian account, because a key is meaningful only on its site.
 - The Settings account list, dialog and "Test" button are generated from the manifest; no app code names a product.
 
 ## Direct tools
 
-A manifest can contribute tools (`defineTool`) for work the agent does often enough that discovery through `sdk.*` is too costly; `web_search` is the case. A tool is usually bound to a namespace method, so it shares `parse`, `authorize`, the operation and one implementation (`parse` receives the tool's arguments object as its single argument; a script passes positional arguments). A tool without `method` declares its own `parse`, `authorize` and `run`, and an optional `present` that splits the result into agent text and transcript value.
+A manifest can contribute tools (`defineTool`) for work the agent does often enough that discovery through `sdk.*` is too costly; `web_search` (extension `web-search`) is the case. A tool is usually bound to a namespace method, so it shares `parse`, `authorize`, the operation and one implementation (`parse` receives the tool's arguments object as its single argument; a script passes positional arguments). A tool without `method` declares its own `parse`, `authorize` and `run`, and an optional `present` that splits the result into agent text and transcript value.
 
 - A tool is offered only while its extension and switch are on and its `requires` are met; unavailable tools are left out of the request.
-- Permission rules match the operation (`web.search`) through `quick_script` operation rules. Exceptions naming the tool itself still validate against core tool names only (see [Not shipped](#not-shipped)).
-- `web_fetch` stays a core tool; the Web extension's `web.fetch` is authorized as `web_fetch`, so URL rules and approvals are unchanged whichever route is used.
+- Permission rules match the operation (`search.web`) through `quick_script` operation rules. Exceptions naming the tool itself still validate against core tool names only (see [Not shipped](#not-shipped)).
+- `web_fetch` stays a core tool; `web.fetch` is a built-in runtime namespace (not an extension) authorized as `web_fetch`, so URL rules and approvals are unchanged whichever route is used.
+- Web search goes through a provider interface ([`providers/`](../../packages/extensions/src/web-search/providers/)): the selected account's kind picks the provider (Tavily first), which normalises results to `{ title, url, content, published? }` plus an optional answer. A provider is an account kind (credential, origins, optional `test`) and a `search` function; its origins are the extension's only network permissions. The `searchAccount` field accepts several kinds as providers are added.
 
 ### Display kinds and projection
 
@@ -49,7 +51,8 @@ The agent projection follows the kind: a `links` result is projected like the co
 ## Other decisions
 
 - **Extension-owned conversions stay in the extension.** Confluence storage-format conversion is Atlassian code. Plain HTML to Markdown is a host utility (`ctx.text.htmlToMarkdown`, run in the tools worker with time and size limits), because one shared implementation is simpler than a second one and is sandbox-friendly.
-- **Docs are declared, not read.** A topic's `file` is relative to the extension's folder and read by the host through `readExtensionDoc`, from source or `dist/extension-docs/`.
+- **Docs are declared, not read.** A topic's `file` is relative to the extension's folder and read by the host through `readExtensionAsset`, from source or `dist/extension-assets/`.
+- **The icon is a lucide name or a file.** `icon` is one of the allowed lucide names or a relative `.svg` path read through the same `readExtensionAsset`. At registry creation the host checks it (at most 16 KB, square `viewBox`, no script, event attributes, `foreignObject`, `image` or non-`#id` references) and fails with the extension id; the manifest holds the resolved `{ type: "lucide", name }` or `{ type: "svg", src }` (a `data:image/svg+xml` URI), which `extensionMetadata` projects as is. The app renders it as an `<img>`.
 - **The registry has no default.** The host builds it once from the built-in list and passes it to every consumer; the executor throws without one. `@nervekit/extensions` exports the definitions list only, and conversion to the registry form is host code in `tools`.
 - **Tests that compose the runtime with built-ins live in the server** (`packages/workbench-server/test/extensions/`), because neither package may import the other. `extension-api/testing` provides a fake `ctx` for unit tests next to extension code.
 - **Image backends stay in the host**; the extension asks through the declared `models.image` capability. A call option that does not depend on settings is validated in `parse`, so a bad call never reaches an approval.

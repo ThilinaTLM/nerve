@@ -3,7 +3,6 @@ import type { Snippet } from "svelte";
 import { tick } from "svelte";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { cn } from "@nervekit/ui-kit/utils";
-import SettingsBreadcrumb from "./SettingsBreadcrumb.svelte";
 import { settingsSectionDomId } from "./section-id";
 import SettingsNav from "./SettingsNav.svelte";
 import SettingsPageHeader from "./SettingsPageHeader.svelte";
@@ -225,13 +224,8 @@ function selectPage(id: string): void {
           : undefined}
       >
         {#if activePage}
-          {#if inDetail}
-            <SettingsBreadcrumb
-              pageLabel={activePage.label}
-              itemLabel={openItem?.label ?? activeItemId}
-              onBack={backToList}
-            />
-          {:else if showHeader}
+          <!-- A detail renders its own header in this slot (breadcrumb, item actions). -->
+          {#if showHeader && !inDetail}
             <SettingsPageHeader
               title={activePage.label}
               description={activePage.description}

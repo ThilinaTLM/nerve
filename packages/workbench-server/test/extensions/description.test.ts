@@ -16,7 +16,10 @@ void test("without extensions the description lists the runtime only", () => {
   const text = quickScriptDescription({}, registry);
   assert.doesNotMatch(text, /jira|confluence|Write to Jira/);
   assert.match(text, /^Run a sandboxed TypeScript script/);
-  assert.match(text, /Namespaces: files \([^)]*\); image \([^)]*\)\./);
+  assert.match(
+    text,
+    /Namespaces: files \([^)]*\); image \(.*\); web \([^)]*\)\./,
+  );
   assert.match(
     text,
     /\nLibraries: XLSX, Papa, docx, mammoth, PptxGenJS, pptxText, JSZip\.\n/,
@@ -28,17 +31,18 @@ void test("without extensions the description lists the runtime only", () => {
 void test("namespaces appear in registry order, only when configured, with their rules", () => {
   const text = quickScriptDescription(
     {
-      namespaces: ["web", "jira", "atlassian"],
+      namespaces: ["search", "jira", "atlassian"],
     },
     registry,
   );
-  assert.match(text, /atlassian \([^)]*\); jira \([^)]*\); web \([^)]*\)\./);
+  assert.match(text, /atlassian \([^)]*\); jira \([^)]*\); search \([^)]*\)\./);
   assert.match(
     text,
     /\natlassian: Write to Jira and Confluence only on explicit user request/,
   );
   assert.doesNotMatch(text, /confluence \(|diagram \(/);
-  assert.match(text, /web: `web\.fetch` content can be up to 8 MiB/);
+  assert.match(text, /\nweb: `web\.fetch` content can be up to 8 MiB/);
+  assert.match(text, /\nsearch: `search\.web` needs a search account/);
 });
 
 void test("the description is stable for one configuration and independent of availability", () => {

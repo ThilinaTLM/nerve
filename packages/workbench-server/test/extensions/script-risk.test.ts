@@ -23,8 +23,8 @@ void test("the scanner reads each method's declared risk", () => {
     "network",
   );
   assert.match(
-    classify(`await web.search("q")`).operations[0] ?? "",
-    /^web\.search/,
+    classify(`await search.web("q")`).operations[0] ?? "",
+    /^search\.web/,
   );
   assert.equal(
     risks(`await confluence.comments.add({ id: "1", body: "x" })`),

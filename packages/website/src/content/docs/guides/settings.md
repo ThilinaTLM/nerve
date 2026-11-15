@@ -29,7 +29,7 @@ Settings has two scopes. **User** settings apply everywhere. **Project** setting
 ### Agent
 
 - **General** holds defaults for new conversations: profile, permission level, model, thinking level, and compaction. Projects and conversations can override them.
-- **Tools** lists core and third-party tools. Controls include enablement, background-command behavior, Python, and image explanation. Web search follows the Web extension. Jira, Confluence, diagrams and image generation are reached through Quick script and configured in their extensions.
+- **Tools** lists core and third-party tools. Controls include enablement, background-command behavior, Python, and image explanation. Web search follows the Web Search extension. Jira, Confluence, diagrams and image generation are reached through Quick script and configured in their extensions.
 - **Skills** lists your, project, built-in, and Agent Browser skills. See [Skills and project resources](/guides/skills-and-resources/).
 - **Extensions** lists the built-in extensions (Atlassian, Web, Image generation, Diagrams). Each row shows how it is set up and has its own switch; open one to change its settings, manage its accounts, and see what it adds to `quick_script`. Projects can override an extension; a project's extension file is ignored until you trust it.
 

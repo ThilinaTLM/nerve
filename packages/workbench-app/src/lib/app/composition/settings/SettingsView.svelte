@@ -55,7 +55,7 @@ type Props = {
   activeSectionId?: string;
   /** Open detail item of the active page; "" shows the list. */
   activeItemId?: string;
-  /** Valid detail items per page id (labels for the breadcrumb). */
+  /** Valid detail items per page id (the detail view names itself). */
   detailItems?: Readonly<Record<string, { id: string; label: string }[]>>;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
@@ -222,6 +222,7 @@ function statusText(): string {
         activeItemId = id;
         if (section) activeSectionId = section;
       }}
+      onCloseItem={() => (activeItemId = "")}
       {target}
       {controllers}
       {status}

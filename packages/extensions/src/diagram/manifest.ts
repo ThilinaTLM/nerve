@@ -30,6 +30,7 @@ export const diagramExtension = defineExtension({
   namespaces: [
     defineNamespace({
       id: "diagram",
+      label: "Diagrams",
       summary: "Kroki: mermaid, d2, plantuml… to PNG",
       methods: diagramMethods,
       types: "",

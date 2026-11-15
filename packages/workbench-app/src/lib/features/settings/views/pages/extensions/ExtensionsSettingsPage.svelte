@@ -25,9 +25,10 @@ import {
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import { accountOptions } from "../tools/tool-settings";
+import ExtensionMark from "./ExtensionMark.svelte";
 import ExtensionDetail from "./ExtensionDetail.svelte";
+import ExtensionDetailHeader from "./ExtensionDetailHeader.svelte";
 import ExtensionsTrustNotice from "./ExtensionsTrustNotice.svelte";
-import { extensionIcon } from "./extension-icons";
 import {
   entryWithEnabled,
   extensionChanges,
@@ -46,6 +47,8 @@ type Props = {
   /** Section a deep link asks for once the item has loaded. */
   sectionId?: string;
   onOpenItem?: (id: string, section?: string) => void;
+  /** Leaves the open extension for the list. */
+  onCloseItem?: () => void;
 };
 
 let {
@@ -56,6 +59,7 @@ let {
   itemId = "",
   sectionId,
   onOpenItem,
+  onCloseItem,
 }: Props = $props();
 
 const extensions = new ScopedExtensionsState();
@@ -161,6 +165,18 @@ function resetAll(): void {
 }
 </script>
 
+{#if itemId && onCloseItem}
+  <!-- The detail's page header; the shell leaves this slot to it. -->
+  <ExtensionDetailHeader
+    parentLabel="Extensions"
+    {itemId}
+    extension={open}
+    busy={busy || open?.readOnly === true}
+    onBack={onCloseItem}
+    onEnabledChange={(next) =>
+      open && void extensions.save(itemId, entryWithEnabled(open, next))}
+  />
+{/if}
 {#if scope === "project"}<ExtensionsTrustNotice {extensions} />{/if}
 {#if extensions.error}
   <Callout layout="block" tone="destructive" text={extensions.error}>
@@ -219,7 +235,6 @@ function resetAll(): void {
           {@const extension = row.extension}
           <SettingsItem
             title={extension.metadata.name}
-            icon={extensionIcon(extension.metadata.icon)}
             summary={extensionSummary(extension, accounts)}
             problem={row.problem}
             problemAction={row.fix
@@ -245,16 +260,18 @@ function resetAll(): void {
               : undefined}
             openLabel={`Open ${extension.metadata.name}`}
           >
+            {#snippet leading()}
+              <ExtensionMark
+                icon={extension.metadata.icon}
+                off={!extension.enabled.value}
+              />
+            {/snippet}
             {#snippet meta()}
               {#if row.changes.length > 0}
                 <SettingsChangeIndicator
-                  compact
                   {scope}
                   from={row.changes
                     .map((change) => `${change.label} ${change.from}`)
-                    .join(", ")}
-                  to={row.changes
-                    .map((change) => `${change.label} ${change.to}`)
                     .join(", ")}
                   onReset={() => void extensions.reset(extension.metadata.id)}
                 />

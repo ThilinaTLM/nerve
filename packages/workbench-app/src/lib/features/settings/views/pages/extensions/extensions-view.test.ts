@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ExtensionView } from "@nervekit/contracts/extensions";
 import {
+  accountChoicesFor,
   activeNamespaces,
+  displayValue,
   controlFor,
+  detailLayout,
+  helperNote,
   entryWithEnabled,
   entryWithSetting,
   extensionChanges,
@@ -28,12 +32,31 @@ function atlassian(patch: Partial<ExtensionView> = {}): ExtensionView {
       id: "atlassian",
       name: "Atlassian",
       description: "Jira and Confluence through one Atlassian account.",
-      icon: "layers",
+      icon: { type: "lucide", name: "layers" },
       source: "builtin",
       settingsVersion: 1,
       enabledByDefault: false,
       permissions: {},
-      contributes: { namespaces: [], tools: [], skills: [] },
+      contributes: {
+        namespaces: [
+          { id: "atlassian", helper: true, summary: "site" },
+          {
+            id: "jira",
+            label: "Jira",
+            enabledBy: "jira",
+            requiresAccount: "account",
+            summary: "Issues",
+          },
+          {
+            id: "confluence",
+            enabledBy: "confluence",
+            requiresAccount: "account",
+            summary: "Pages",
+          },
+        ],
+        tools: [],
+        skills: [],
+      },
     },
     settingsSchema: {
       sections: [{ id: "extra", title: "Extra" }],
@@ -137,11 +160,51 @@ describe("extension summary and availability", () => {
       label: "Add account",
       section: "accounts",
     });
+    // The account field is merged into the Account section.
     assert.deepEqual(extensionFix(broken, accounts), {
       label: "Choose account",
-      section: "settings",
+      section: "accounts",
     });
     assert.equal(extensionFix(atlassian(), accounts), undefined);
+  });
+
+  it("derives the fix from the failing namespace's account field", () => {
+    const base = atlassian();
+    const two = atlassian({
+      metadata: {
+        ...base.metadata,
+        contributes: {
+          ...base.metadata.contributes,
+          namespaces: [
+            { id: "other", requiresAccount: "other", summary: "x" },
+            ...base.metadata.contributes.namespaces,
+          ],
+        },
+      },
+      settingsSchema: {
+        fields: {
+          ...base.settingsSchema.fields,
+          other: { type: "account", kind: "tavily", label: "Other" },
+        },
+      },
+      availability: {
+        other: {
+          configured: true,
+          available: false,
+          reason: "no account.",
+          fix: "Ask",
+        },
+      },
+    });
+    // The first account kind (atlassian) has accounts; the failing one (tavily) has none.
+    assert.deepEqual(
+      extensionFix(two, { atlassian: [{ id: "a", name: "A" }], tavily: [] }),
+      { label: "Add account", section: "accounts" },
+    );
+    assert.deepEqual(
+      extensionFix(two, { atlassian: [], tavily: [{ id: "t", name: "T" }] }),
+      { label: "Choose account", section: "settings" },
+    );
   });
 
   it("lists active namespaces and finds the first unusable one", () => {
@@ -257,7 +320,7 @@ describe("changes against the inherited value", () => {
   it("compares a user value with the schema default", () => {
     assert.deepEqual(
       extensionChanges(stored({ jira: true }), "user", accounts),
-      [{ key: "jira", label: "Jira", from: "Off", to: "On" }],
+      [{ key: "jira", label: "Jira", from: "Off" }],
     );
     assert.deepEqual(
       extensionChanges(stored({ jira: false }), "user", accounts),
@@ -267,7 +330,7 @@ describe("changes against the inherited value", () => {
 
   it("compares the user's enable switch with the extension default", () => {
     assert.deepEqual(extensionChanges(stored({}, true), "user", accounts), [
-      { key: "enabled", label: "Enabled", from: "Off", to: "On" },
+      { key: "enabled", label: "Enabled", from: "Off" },
     ]);
     assert.deepEqual(extensionChanges(stored({}, false), "user", accounts), []);
   });
@@ -281,11 +344,11 @@ describe("changes against the inherited value", () => {
         accounts,
         user,
       ),
-      [{ key: "enabled", label: "Enabled", from: "On", to: "Off" }],
+      [{ key: "enabled", label: "Enabled", from: "On" }],
     );
     assert.deepEqual(
       extensionChanges(stored({ jira: false }), "project", accounts, user),
-      [{ key: "jira", label: "Jira", from: "On", to: "Off" }],
+      [{ key: "jira", label: "Jira", from: "On" }],
     );
   });
 });
@@ -313,5 +376,246 @@ describe("entry edits", () => {
     assert.equal(parseNumberInput(" 12 "), 12);
     assert.equal(parseNumberInput(""), undefined);
     assert.equal(parseNumberInput("x"), "invalid");
+  });
+});
+
+describe("detail layout", () => {
+  const keys = (view: ExtensionView) =>
+    detailLayout(view, "user").sections.flatMap((section) => [
+      ...section.fields.map((item) => item.key),
+      ...section.advanced.map((item) => item.key),
+    ]);
+  const withSchema = (
+    fields: ExtensionView["settingsSchema"]["fields"],
+    namespaces: ExtensionView["metadata"]["contributes"]["namespaces"],
+    values: Record<string, unknown> = {},
+  ) => {
+    const base = atlassian();
+    return atlassian({
+      metadata: {
+        ...base.metadata,
+        contributes: { namespaces, tools: [], skills: [] },
+      },
+      settingsSchema: { fields },
+      fields: Object.fromEntries(
+        Object.keys(fields).map((key) => [
+          key,
+          { value: values[key] ?? false, source, visible: true },
+        ]),
+      ),
+      availability: {},
+    });
+  };
+
+  it("moves a switch onto its namespace row and leaves Settings", () => {
+    const layout = detailLayout(atlassian(), "user");
+    assert.deepEqual(keys(atlassian()), ["project"]);
+    assert.deepEqual(
+      layout.features.map((row) => [row.id, row.control.type]),
+      [
+        ["jira", "switch"],
+        ["confluence", "switch"],
+      ],
+    );
+    assert.deepEqual(layout.helpers, ["atlassian"]);
+    assert.equal(
+      helperNote(["atlassian", "storage"]),
+      "Also loads helper namespaces: atlassian, storage",
+    );
+    assert.equal(helperNote([]), undefined);
+  });
+
+  it("keeps a switch in Settings when it is shared, listed in an array, or placed on purpose", () => {
+    const shared = withSchema(
+      { a: { type: "boolean", label: "A", default: false } },
+      [
+        { id: "x", enabledBy: "a", summary: "x" },
+        { id: "y", enabledBy: "a", summary: "y" },
+      ],
+    );
+    assert.deepEqual(keys(shared), ["a"]);
+    const array = withSchema(
+      { a: { type: "boolean", label: "A", default: false } },
+      [
+        { id: "x", enabledBy: "a", summary: "x" },
+        { id: "y", enabledBy: ["a", "b"], summary: "y" },
+      ],
+    );
+    assert.deepEqual(keys(array), ["a"]);
+    assert.equal(
+      detailLayout(array, "user").features[1]!.control.type,
+      "setting",
+    );
+    for (const extra of [
+      { section: "s" },
+      { advanced: true },
+      { visibleWhen: { field: "b", equals: true } },
+    ]) {
+      const placed = withSchema(
+        { a: { type: "boolean", label: "A", default: false, ...extra } },
+        [{ id: "x", enabledBy: "a", summary: "x" }],
+      );
+      const row = detailLayout(placed, "user").features[0]!;
+      assert.equal(row.control.type, "setting");
+      assert.ok(keys(placed).includes("a"));
+    }
+  });
+
+  it("shows state for namespaces that follow the extension or keep their switch in Settings", () => {
+    const view = withSchema(
+      { a: { type: "boolean", label: "A", default: false, advanced: true } },
+      [
+        { id: "x", summary: "x" },
+        { id: "y", enabledBy: "a", summary: "y" },
+      ],
+      { a: true },
+    );
+    const [follows, setting] = detailLayout(view, "user").features;
+    assert.deepEqual(follows!.control, { type: "follows" });
+    assert.deepEqual(setting!.control, {
+      type: "setting",
+      on: true,
+      sectionId: "settings",
+      advanced: true,
+    });
+  });
+
+  it("omits helpers from the rows and reports reasons only when configured but unavailable", () => {
+    const view = atlassian({
+      availability: {
+        jira: {
+          configured: true,
+          available: false,
+          reason: "needs an account.",
+          fix: "Ask",
+        },
+        confluence: { configured: true, available: true },
+      },
+    });
+    const features = detailLayout(view, "user").features;
+    assert.deepEqual(
+      features.map((row) => row.id),
+      ["jira", "confluence"],
+    );
+    assert.equal(features[0]!.problem, "Needs an account.");
+    assert.equal(features[1]!.problem, undefined);
+  });
+  it("merges an account field with its kind's list unless it was placed on purpose", () => {
+    const account = (extra: object = {}) =>
+      ({
+        type: "account",
+        kind: "atlassian",
+        label: "Account",
+        ...extra,
+      }) as const;
+    const view = (fields: ExtensionView["settingsSchema"]["fields"]) =>
+      withSchema(fields, [], {});
+    const merged = (v: ExtensionView) =>
+      detailLayout(v, "user").accounts.map((entry) => entry.item.key);
+
+    const plain = view({ account: account() });
+    assert.deepEqual(merged(plain), ["account"]);
+    assert.equal(detailLayout(plain, "user").accounts[0]!.kind, "atlassian");
+    assert.deepEqual(keys(plain), []);
+
+    // A one-kind list is the same as the kind; several kinds keep their own lists.
+    assert.deepEqual(
+      merged(view({ account: account({ kind: ["atlassian"] }) })),
+      ["account"],
+    );
+    assert.deepEqual(
+      merged(view({ account: account({ kind: ["atlassian", "other"] }) })),
+      [],
+    );
+
+    const two = view({ a: account(), b: account({ label: "Other" }) });
+    assert.deepEqual(merged(two), []);
+    assert.deepEqual(keys(two), ["a", "b"]);
+
+    for (const extra of [
+      { section: "s" },
+      { advanced: true },
+      { visibleWhen: { field: "b", equals: true } },
+    ]) {
+      const placed = view({
+        account: account(extra),
+        b: { type: "boolean", label: "B", default: false },
+      });
+      assert.deepEqual(merged(placed), []);
+      assert.ok(keys(placed).includes("account"));
+    }
+  });
+
+  it("lists namespaces, then direct tools, then skills, each titled for people", () => {
+    const base = atlassian();
+    const view = atlassian({
+      metadata: {
+        ...base.metadata,
+        contributes: {
+          namespaces: [
+            ...base.metadata.contributes.namespaces,
+            { id: "raw", summary: "No label" },
+          ],
+          tools: [
+            { name: "search", label: "Search", description: "Find things" },
+          ],
+          skills: ["guide"],
+        },
+      },
+      toolAvailability: {
+        search: {
+          configured: true,
+          available: false,
+          reason: "needs an account.",
+          fix: "Ask",
+        },
+      },
+    });
+    const rows = detailLayout(view, "user").features;
+    assert.deepEqual(
+      rows.map((row) => [row.kind, row.id, row.title]),
+      [
+        ["namespace", "jira", "Jira"],
+        ["namespace", "confluence", "confluence"],
+        ["namespace", "raw", "raw"],
+        ["tool", "search", "Search"],
+        ["skill", "guide", "guide"],
+      ],
+    );
+    const tool = rows[3]!;
+    assert.equal(tool.summary, "Find things");
+    assert.equal(tool.problem, "Needs an account.");
+    assert.deepEqual(tool.control, { type: "opens", page: "tools" });
+    assert.deepEqual(rows[4]!.control, { type: "opens", page: "skills" });
+  });
+});
+
+describe("account fields accepting several kinds", () => {
+  const field = {
+    type: "account" as const,
+    kind: ["tavily", "brave"],
+    label: "Search",
+  };
+  const accounts: AccountChoices = {
+    brave: [{ id: "b", name: "Brave one" }],
+    tavily: [{ id: "t", name: "Tavily one", detail: "pro" }],
+  };
+
+  it("lists the accounts of every kind, labelled by kind", () => {
+    assert.deepEqual(
+      accountChoicesFor(field, accounts, { tavily: "Tavily", brave: "Brave" }),
+      [
+        { id: "t", name: "Tavily one", detail: "Tavily · pro" },
+        { id: "b", name: "Brave one", detail: "Brave" },
+      ],
+    );
+    assert.deepEqual(
+      accountChoicesFor({ ...field, kind: "brave" }, accounts),
+      accounts.brave,
+    );
+  });
+
+  it("shows the selected account whichever kind it is", () => {
+    assert.equal(displayValue(field, "b", accounts), "Brave one");
   });
 });

@@ -48,7 +48,7 @@ function deps(over: Partial<HttpHostDeps> = {}): HttpHostDeps {
     extensionName: "Test",
     network: [`${base}`],
     kinds: {},
-    kindOfField: () => undefined,
+    kindsOfField: () => [],
     selected: async () => undefined,
     allSelected: async () => [],
     settings: {},
@@ -171,7 +171,7 @@ void test("a redirect to another allowed origin drops the credential, reports th
             origins: [siteBase],
           },
         },
-        kindOfField: () => "demo",
+        kindsOfField: () => ["demo"],
         selected: async () => ({
           id: "a",
           name: "A",
@@ -229,7 +229,7 @@ void test("an attachment download follows the redirect without the credential an
             origins: [siteBase],
           },
         },
-        kindOfField: () => "demo",
+        kindsOfField: () => ["demo"],
         selected: async () => ({
           id: "a",
           name: "A",

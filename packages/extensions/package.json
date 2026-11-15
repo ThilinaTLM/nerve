@@ -2,7 +2,7 @@
   "name": "@nervekit/extensions",
   "version": "0.40.2",
   "private": true,
-  "description": "Built-in quick_script extensions (Atlassian, web, diagram, image generation) and their docs.",
+  "description": "Built-in quick_script extensions (Atlassian, web search, diagram, image generation) and their docs.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
@@ -22,9 +22,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./docs": {
-      "types": "./dist/docs-source.d.ts",
-      "import": "./dist/docs-source.js"
+    "./assets": {
+      "types": "./dist/assets-source.d.ts",
+      "import": "./dist/assets-source.js"
     }
   },
   "scripts": {

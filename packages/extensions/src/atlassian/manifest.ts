@@ -19,7 +19,7 @@ export const atlassianExtension = defineExtension({
   apiVersion: 1,
   name: "Atlassian",
   description: "Jira and Confluence through one Atlassian account.",
-  icon: "layers",
+  icon: "icon.svg",
   enabledByDefault: false,
   accounts: {
     atlassian: {
@@ -99,6 +99,7 @@ export const atlassianExtension = defineExtension({
     }),
     defineNamespace<JiraSession>({
       id: "jira",
+      label: "Jira",
       session: (ctx) => JiraSession.create(ctx),
       enabledBy: "jira",
       requires: { account: "account" },
@@ -123,6 +124,7 @@ export const atlassianExtension = defineExtension({
     }),
     defineNamespace<ConfluenceSession>({
       id: "confluence",
+      label: "Confluence",
       session: (ctx) => ConfluenceSession.create(ctx),
       enabledBy: "confluence",
       requires: { account: "account" },

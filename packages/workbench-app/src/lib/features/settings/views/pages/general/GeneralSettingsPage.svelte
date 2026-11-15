@@ -198,15 +198,9 @@ function reset(key: Key) {
 }
 </script>
 
-{#snippet dot(key: Key, from: string, to: string)}
+{#snippet changeIndicator(key: Key, from: string)}
   {#if changedKeys[key]}
-    <SettingsChangeIndicator
-      compact
-      {scope}
-      {from}
-      {to}
-      onReset={() => reset(key)}
-    />
+    <SettingsChangeIndicator {scope} {from} onReset={() => reset(key)} />
   {/if}
 {/snippet}
 
@@ -258,10 +252,9 @@ function reset(key: Key) {
       description="The profile applied when a conversation starts. Plan approval switches to the profile set in Tools → Plan review."
     >
       {#snippet badges()}
-        {@render dot(
+        {@render changeIndicator(
           "startProfile",
           `${profileLabelFor(inherited.startProfile ?? DEFAULT_AGENT_PROFILE)}`,
-          `${profileLabelFor(values.startProfile ?? DEFAULT_AGENT_PROFILE)}`,
         )}
       {/snippet}
       {#snippet control()}
@@ -284,11 +277,7 @@ function reset(key: Key) {
       description="The model decides which reasoning levels exist."
     >
       {#snippet badges()}
-        {@render dot(
-          "model",
-          `${modelText(inherited.defaults)}`,
-          `${modelText(values.defaults)}`,
-        )}
+        {@render changeIndicator("model", `${modelText(inherited.defaults)}`)}
       {/snippet}
       {#snippet hint()}
         {#if !project}
@@ -317,10 +306,9 @@ function reset(key: Key) {
       description="Baseline guardrails always apply underneath."
     >
       {#snippet badges()}
-        {@render dot(
+        {@render changeIndicator(
           "permission",
           `${ruleSetText(inherited.defaults.permissionRuleSetId)}`,
-          `${ruleSetText(values.defaults.permissionRuleSetId)}`,
         )}
       {/snippet}
       {#snippet hint()}
@@ -354,10 +342,9 @@ function reset(key: Key) {
   >
     <SettingsRow label="Auto-compact">
       {#snippet badges()}
-        {@render dot(
+        {@render changeIndicator(
           "auto",
           `${inherited.compaction.auto ? "On" : "Off"}`,
-          `${values.compaction.auto ? "On" : "Off"}`,
         )}
       {/snippet}
       {#snippet control()}
@@ -375,10 +362,9 @@ function reset(key: Key) {
         description="Every strategy keeps about 10,000 tokens of recent messages."
       >
         {#snippet badges()}
-          {@render dot(
+          {@render changeIndicator(
             "strategy",
             `${strategyText(inherited.compaction.profile)}`,
-            `${strategyText(values.compaction.profile)}`,
           )}
         {/snippet}
         {#snippet control()}
@@ -404,10 +390,9 @@ function reset(key: Key) {
           description="60–90% of the context used."
         >
           {#snippet badges()}
-            {@render dot(
+            {@render changeIndicator(
               "percent",
               `${inherited.compaction.customTriggerPercent}%`,
-              `${values.compaction.customTriggerPercent}%`,
             )}
           {/snippet}
           {#snippet control()}

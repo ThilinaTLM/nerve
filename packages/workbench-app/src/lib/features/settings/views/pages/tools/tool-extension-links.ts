@@ -14,9 +14,7 @@ export type ToolSettingsLink = { item?: string };
 
 export function toolSettingsLink(id: ToolId): ToolSettingsLink | undefined {
   switch (id) {
-    // A core tool that follows the Web extension; tools extensions contribute link by `ToolDescriptor.extension`.
-    case "web_fetch":
-      return { item: "web" };
+    // Tools extensions contribute link by `ToolDescriptor.extension`.
     case "quick_script":
       return {};
     default:
@@ -45,8 +43,8 @@ function accountName(
 }
 
 /**
- * Core tool rows whose setup lives in an extension: Web fetch follows the Web
- * extension, and Quick script lists the namespaces that are on. `undefined`
+ * Core tool rows whose setup lives in an extension: Quick script lists the
+ * namespaces that are on. `undefined`
  * leaves the row alone. Tools an extension contributes use
  * {@link extensionToolState}.
  */
@@ -59,11 +57,6 @@ export function toolExtensionState(
   const find = (extensionId: string) =>
     extensions.find((extension) => extension.metadata.id === extensionId);
   switch (id) {
-    case "web_fetch": {
-      const web = find("web");
-      if (!web || web.enabled.value) return undefined;
-      return turnedOff(web);
-    }
     case "quick_script": {
       const problem = namespaceProblem(extensions);
       if (problem) {
@@ -114,8 +107,9 @@ export function extensionToolState(
   if (!owner.enabled.value) return turnedOff(owner);
   const state = owner.toolAvailability?.[toolName];
   if (state && !state.available) {
-    const kind = owner.accountKinds[0]?.kind;
-    const hasAccounts = kind ? (accounts[kind]?.length ?? 0) > 0 : false;
+    const kinds = owner.accountKinds.map((account) => account.kind);
+    const kind = kinds.length > 0;
+    const hasAccounts = kinds.some((id) => (accounts[id]?.length ?? 0) > 0);
     return {
       problem: sentence(state.reason),
       fix: {

@@ -72,7 +72,7 @@ const field = (
 void test("saves are revisioned, replace one entry and keep the others", async (t) => {
   const f = await fixture(t);
   const first = await f.service.save(f.user, await f.expected(f.user), {
-    id: "web",
+    id: "web-search",
     entry: { enabled: true, settings: { searchAccount: "tav" } },
   });
   assert.equal(first.status, "saved");
@@ -83,7 +83,7 @@ void test("saves are revisioned, replace one entry and keep the others", async (
       await f.service.save(
         f.user,
         { revision: 0, digest: "missing" },
-        { id: "web", entry: { enabled: false } },
+        { id: "web-search", entry: { enabled: false } },
       )
     ).status,
     "conflict",
@@ -96,22 +96,28 @@ void test("saves are revisioned, replace one entry and keep the others", async (
     await readFile(f.paths.extensions(f.user), "utf8"),
   );
   assert.equal(written.revision, 2);
-  assert.deepEqual(Object.keys(written.extensions).sort(), ["diagram", "web"]);
+  assert.deepEqual(Object.keys(written.extensions).sort(), [
+    "diagram",
+    "web-search",
+  ]);
   assert.equal(
     written.extensions.diagram.settings.server,
     "https://kroki.internal/",
   );
   // Resetting a field keeps the rest; an emptied entry disappears.
-  await f.service.reset(f.user, await f.expected(f.user), "web", ["enabled"]);
+  await f.service.reset(f.user, await f.expected(f.user), "web-search", [
+    "enabled",
+  ]);
   const reset = await f.service.resolve({ role: "lead" }, "user");
-  assert.equal(reset.extensions.web.enabled.value, false);
-  assert.equal(field(reset, "web", "searchAccount").value, "tav");
-  await f.service.reset(f.user, await f.expected(f.user), "web", [
+  assert.equal(reset.extensions["web-search"].enabled.value, false);
+  assert.equal(field(reset, "web-search", "searchAccount").value, "tav");
+  await f.service.reset(f.user, await f.expected(f.user), "web-search", [
     "searchAccount",
   ]);
   assert.equal(
-    JSON.parse(await readFile(f.paths.extensions(f.user), "utf8")).extensions
-      .web,
+    JSON.parse(await readFile(f.paths.extensions(f.user), "utf8")).extensions[
+      "web-search"
+    ],
     undefined,
   );
 });
@@ -136,7 +142,7 @@ void test("invalid entries are refused with issues; field scopes and locks apply
     f.conversation,
     { revision: 0, digest: "missing" },
     {
-      id: "web",
+      id: "web-search",
       entry: { settings: { searchAccount: "mine" } },
       locked: ["searchAccount"],
     },
@@ -196,7 +202,7 @@ void test("profiles recommend below the conversation and require above it", asyn
     schemaVersion: 1,
     revision: 1,
     extensions: {
-      web: { version: 1, settings: { searchAccount: "chosen" } },
+      "web-search": { version: 1, settings: { searchAccount: "chosen" } },
       atlassian: { version: 1, settings: { account: "chosen" } },
     },
   });
@@ -208,7 +214,10 @@ void test("profiles recommend below the conversation and require above it", asyn
       name: "planning",
       extensions: {
         recommendations: {
-          web: { version: 1, settings: { searchAccount: "recommended" } },
+          "web-search": {
+            version: 1,
+            settings: { searchAccount: "recommended" },
+          },
           diagram: { version: 1, settings: { server: "https://kroki.rec/" } },
         },
         requirements: {
@@ -217,7 +226,10 @@ void test("profiles recommend below the conversation and require above it", asyn
       },
     },
   });
-  assert.equal(field(resolution, "web", "searchAccount").value, "chosen");
+  assert.equal(
+    field(resolution, "web-search", "searchAccount").value,
+    "chosen",
+  );
   assert.equal(
     field(resolution, "diagram", "server").value,
     "https://kroki.rec/",
@@ -253,14 +265,18 @@ void test("sub-agents resolve from their frozen file alone, written once", async
     schemaVersion: 1,
     revision: 1,
     extensions: {
-      web: { version: 1, enabled: true, settings: { searchAccount: "u" } },
+      "web-search": {
+        version: 1,
+        enabled: true,
+        settings: { searchAccount: "u" },
+      },
     },
   });
   const parent = await f.service.resolve({ projectId: "p", role: "lead" });
   await f.service.freezeForChild("child", f.service.freezeEntries(parent));
   // The user's settings change afterwards; the child keeps its frozen values.
   await f.service.save(f.user, await f.expected(f.user), {
-    id: "web",
+    id: "web-search",
     entry: { enabled: true, settings: { searchAccount: "changed" } },
   });
   const child = await f.service.resolve({
@@ -268,10 +284,10 @@ void test("sub-agents resolve from their frozen file alone, written once", async
     conversationId: "child",
     role: "child",
   });
-  assert.equal(field(child, "web", "searchAccount").value, "u");
-  assert.equal(child.extensions.web.enabled.value, true);
+  assert.equal(field(child, "web-search", "searchAccount").value, "u");
+  assert.equal(child.extensions["web-search"].enabled.value, true);
   await assert.rejects(
-    f.service.freezeForChild("child", { web: { version: 1 } }),
+    f.service.freezeForChild("child", { "web-search": { version: 1 } }),
   );
 });
 
@@ -281,12 +297,12 @@ void test("newer entries are read-only and never overwritten; unknown extensions
     schemaVersion: 1,
     revision: 1,
     extensions: {
-      web: { version: 9, settings: { searchAccount: "future" } },
+      "web-search": { version: 9, settings: { searchAccount: "future" } },
       installed: { version: 1, settings: { anything: true } },
     },
   });
   const read = await f.service.save(f.user, await f.expected(f.user), {
-    id: "web",
+    id: "web-search",
     entry: { settings: { searchAccount: "mine" } },
   });
   assert.equal(read.status, "read-only");
@@ -297,7 +313,7 @@ void test("newer entries are read-only and never overwritten; unknown extensions
   const written = JSON.parse(
     await readFile(f.paths.extensions(f.user), "utf8"),
   );
-  assert.equal(written.extensions.web.version, 9);
+  assert.equal(written.extensions["web-search"].version, 9);
   assert.deepEqual(written.extensions.installed, {
     version: 1,
     settings: { anything: true },

@@ -55,7 +55,7 @@ export const bundleAssets: [source: string, destination: string][] = [
     "packages/tools/dist/quick-script/quick-script-docs",
     "dist/quick-script-docs",
   ],
-  ["packages/extensions/dist/extension-docs", "dist/extension-docs"],
+  ["packages/extensions/dist/extension-assets", "dist/extension-assets"],
 ];
 
 /** Files every bundled desktop dist must contain (relative to the package root). */
@@ -71,7 +71,8 @@ export const bundleOutputFiles = [
   "dist/sandbox-libraries/pptxgen.bundle.js",
   "dist/sandbox-libraries/jszip.min.js",
   "dist/quick-script-docs/runtime/files.md",
-  "dist/extension-docs/atlassian/docs/jira-workflows.md",
+  "dist/extension-assets/atlassian/docs/jira-workflows.md",
+  "dist/extension-assets/atlassian/icon.svg",
   "build/README.md",
   "THIRD-PARTY-LICENSES.txt",
 ];

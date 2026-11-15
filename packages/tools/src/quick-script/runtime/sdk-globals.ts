@@ -11,6 +11,7 @@ export function sdkGlobals(registry: QuickScriptRegistry): ReadonlySet<string> {
     globals = new Set([
       "files",
       "image",
+      "web",
       ...registry.namespaces
         .filter(
           (namespace) =>

@@ -1,3 +1,4 @@
+import { accountFieldKinds } from "@nervekit/contracts/extensions";
 import type {
   AccountInfo,
   Availability,
@@ -93,18 +94,24 @@ async function stateOf(
   const field = gate.requires?.account;
   if (field) {
     const declared = extension.settings.fields[field];
-    const kind =
+    const kinds =
       declared?.type === "account"
-        ? extension.accounts?.find(
-            (candidate) => candidate.kind === declared.kind,
+        ? accountFieldKinds(declared).flatMap(
+            (id) => extension.accounts?.find((c) => c.kind === id) ?? [],
           )
-        : undefined;
-    const label = kind?.label ?? "account";
+        : [];
     const id = state.settings[field];
-    const account =
-      kind && typeof id === "string" && id
-        ? await input.accounts.get(kind.kind, id)
-        : undefined;
+    let kind = kinds[0];
+    let account: AccountInfo | undefined;
+    if (typeof id === "string" && id)
+      for (const candidate of kinds) {
+        account = await input.accounts.get(candidate.kind, id);
+        if (account) {
+          kind = candidate;
+          break;
+        }
+      }
+    const label = kinds.map((c) => c.label).join(" or ") || "account";
     if (!kind || !account)
       return {
         configured: true,
@@ -119,7 +126,7 @@ async function stateOf(
       return {
         configured: true,
         available: false,
-        reason: `the selected ${label} has no ${kind.secret.label} saved.`,
+        reason: `the selected ${kind.label} has no ${kind.secret.label} saved.`,
         fix: `Ask the user to check the account and its ${kind.secret.label} in ${where}.`,
       };
   }

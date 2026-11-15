@@ -1,6 +1,8 @@
 import { FILES_DTS_TYPES, IMAGE_CHAIN_OPS } from "./files/dts-types.js";
 import { filesMethods } from "./files/files-methods.js";
 import { imageMethods } from "./files/image-methods.js";
+import { WEB_DTS_TYPES } from "./web/dts-types.js";
+import { webMethods } from "./web/web-methods.js";
 import type { SdkNamespace } from "../manifest-types.js";
 
 /**
@@ -51,6 +53,14 @@ export const runtimeNamespaces: SdkNamespace[] = [
         file: "images.md",
       },
     ],
+  },
+  {
+    id: "web",
+    summary: "fetch a URL as markdown, text, JSON or a file",
+    rules: ["`web.fetch` content can be up to 8 MiB: slice before printing."],
+    methods: webMethods,
+    types: WEB_DTS_TYPES,
+    docs: [],
   },
   {
     id: "libraries",

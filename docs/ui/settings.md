@@ -27,6 +27,7 @@ Put controls directly in the row's `control` snippet: Select, Input with suffix,
 Entity lists and catalogs (tools, skills, extensions, providers, accounts) are a single `SettingsList` (bordered `card` surface, hairline-divided rows) holding `SettingsItem` rows, never a stack of individually tinted cards. The anatomy is fixed:
 
 - **Left:** an identity icon tile (or a custom mark such as a provider logo), then the title with badges for exceptional states only (Experimental, Default, Shadowed, a version), and one status line under it.
+- **Selectable rows:** a list that chooses one of its items (the account an extension uses) puts a radio (`select` snippet of `SettingsItem`, inside a ui-kit `RadioGroup`) in the icon's slot. The row keeps everything else: it still opens the item, and its actions stay. `iconLabel` adds a kind tooltip to an icon tile (Features rows).
 - **Status line:** the summary of how the item is set up, or what it does when it has no settings. A problem replaces it in warning tone, followed by its fix action, so every row keeps its height. Never write "Off" there; the switch says it.
 - **Right:** change indicator and other quiet meta, icon actions (entity lists), lock, then the switch or "Always on", then a chevron when the row opens something.
 - **Opening:** the whole row opens the item's detail view or dialog. Never add a per-row Configure or Edit button; the row is that button. Lists that open nothing keep the chevron slot empty so switches align.
@@ -40,7 +41,7 @@ Row actions are `IconAction`s, which require a label and supply the tooltip and 
 
 ## Provenance
 
-Show provenance only when it differs. A setting that matches where it would otherwise come from shows nothing: no per-row source badges. One that differs (a user value that differs from the built-in default, a project value that differs from the user's, a conversation value that differs from its profile) gets `SettingsChangeIndicator` (a `bg-info` dot opening a popover, plus ↺ to reset) in the row's `badges` slot. Project pages summarise them in the page header ("N differ · Reset all"). Fixed values say who fixed them in a tooltip ("Locked by Planning"), not a disabled-looking input.
+Show provenance only when it differs. A setting that matches where it would otherwise come from shows nothing: no per-row source badges. One that differs (a user value that differs from the built-in default, a project value that differs from the user's, a conversation value that differs from its profile) gets `SettingsChangeIndicator`: a single ↺ that marks the change and resets it, with the inherited value in its tooltip ("Reset to default (Balanced)"). It goes in the row's `badges` slot, or `meta` for a `SettingsItem`. Project pages summarise them in the page header ("N differ · Reset all"). Fixed values say who fixed them in a tooltip ("Locked by Planning"), not a disabled-looking input.
 
 ## Model choice
 

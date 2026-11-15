@@ -76,11 +76,11 @@ export const settingFieldSchema = z.discriminatedUnion("type", [
       )
       .min(1),
   }),
-  /** Id of a user account of this kind (`accounts.json`). */
+  /** Id of a user account of this kind, or any of several (`accounts.json`). */
   z.strictObject({
     ...fieldBase,
     type: z.literal("account"),
-    kind: z.string().min(1),
+    kind: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
   }),
   z.strictObject({
     ...fieldBase,
@@ -89,6 +89,13 @@ export const settingFieldSchema = z.discriminatedUnion("type", [
   }),
 ]) satisfies z.ZodType<ApiSettingField>;
 export type SettingField = z.infer<typeof settingFieldSchema>;
+
+/** The account kinds an `account` field accepts, in declared order. */
+export function accountFieldKinds(field: {
+  kind: string | readonly string[];
+}): readonly string[] {
+  return typeof field.kind === "string" ? [field.kind] : field.kind;
+}
 
 export const settingsSchemaSchema = z.strictObject({
   sections: z
@@ -145,12 +152,39 @@ export type ExtensionPermissionsData = z.infer<
   typeof extensionPermissionsSchema
 >;
 
+/** Lucide icons an extension may name; the app maps each, so an addition fails its type check until mapped. */
+export const extensionLucideIconSchema = z.enum([
+  "blocks",
+  "globe",
+  "image-plus",
+  "layers",
+  "workflow",
+]);
+export type ExtensionLucideIcon = z.infer<typeof extensionLucideIconSchema>;
+
+/**
+ * An extension's mark: a lucide icon, or the extension's own SVG as a
+ * `data:image/svg+xml` URI the host built and checked. The app renders SVGs
+ * as `<img>`, never inline.
+ */
+export const extensionIconSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    type: z.literal("lucide"),
+    name: extensionLucideIconSchema,
+  }),
+  z.strictObject({
+    type: z.literal("svg"),
+    src: z.string().startsWith("data:image/svg+xml,"),
+  }),
+]);
+export type ExtensionIcon = z.infer<typeof extensionIconSchema>;
+
 /** Serializable extension description for the app. */
 export const extensionMetadataSchema = z.strictObject({
   id: extensionIdSchema,
   name: z.string().min(1),
   description: z.string(),
-  icon: z.string().min(1),
+  icon: extensionIconSchema,
   source: z.enum(["builtin"]),
   settingsVersion: z.number().int().positive(),
   /** Default of the implicit `enabled` switch. */
@@ -163,6 +197,8 @@ export const extensionMetadataSchema = z.strictObject({
     namespaces: z.array(
       z.strictObject({
         id: z.string().min(1),
+        /** Title on the Extensions page; the id when absent. */
+        label: z.string().min(1).optional(),
         /** Boolean setting that switches the namespace; absent when it follows the extension. */
         enabledBy: z.union([z.string(), z.array(z.string())]).optional(),
         /** Account setting that must select an account with a saved secret. */
@@ -172,8 +208,14 @@ export const extensionMetadataSchema = z.strictObject({
         summary: z.string(),
       }),
     ),
-    /** Direct tool names. */
-    tools: z.array(z.string()),
+    /** Direct tools: name, Tools-page label (the name when the tool has none) and description. */
+    tools: z.array(
+      z.strictObject({
+        name: z.string().min(1),
+        label: z.string().min(1),
+        description: z.string(),
+      }),
+    ),
     /** Skill names. */
     skills: z.array(z.string()),
   }),

@@ -4,7 +4,7 @@ import type {
   QuickScriptRegistry,
 } from "@nervekit/tools/quick-script";
 import type { AccountsReader } from "../domains/accounts/accounts.service.js";
-import { fieldValue } from "@nervekit/contracts/extensions";
+import { accountFieldKinds, fieldValue } from "@nervekit/contracts/extensions";
 import type { ExtensionState } from "@nervekit/tools/quick-script";
 
 /** What the resolved settings say about each extension: its switch and field values. */
@@ -72,7 +72,11 @@ export async function selectedAccountsTarget(
       if (declared.type !== "account") continue;
       const id = state.settings[field];
       if (typeof id !== "string" || !id) continue;
-      const account = await accounts.get(declared.kind, id);
+      let account: Awaited<ReturnType<AccountsReader["get"]>>;
+      for (const kind of accountFieldKinds(declared)) {
+        account = await accounts.get(kind, id);
+        if (account) break;
+      }
       selected[field] = account
         ? {
             id: account.id,

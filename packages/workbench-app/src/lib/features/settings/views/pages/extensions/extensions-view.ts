@@ -1,4 +1,5 @@
 import {
+  accountFieldKinds,
   fieldScopes,
   type ExtensionView,
   type SettingField,
@@ -10,6 +11,31 @@ export type ExtensionsScope = "user" | "project";
 export type AccountChoice = { id: string; name: string; detail?: string };
 /** The user's accounts by extension account kind (`atlassian`, `tavily`). */
 export type AccountChoices = Readonly<Record<string, readonly AccountChoice[]>>;
+
+/**
+ * The accounts an `account` field offers: those of every kind it accepts, in
+ * declared order. With several kinds each choice's detail leads with its
+ * kind's label (`kindLabels`, falling back to the kind).
+ */
+export function accountChoicesFor(
+  field: { kind: string | readonly string[] },
+  accounts: AccountChoices,
+  kindLabels: Readonly<Record<string, string>> = {},
+): AccountChoice[] {
+  const kinds = accountFieldKinds(field);
+  return kinds.flatMap((kind) =>
+    (accounts[kind] ?? []).map((account) =>
+      kinds.length > 1
+        ? {
+            ...account,
+            detail: [kindLabels[kind] ?? kind, account.detail]
+              .filter(Boolean)
+              .join(" · "),
+          }
+        : account,
+    ),
+  );
+}
 
 export type FieldControl =
   | "switch"
@@ -148,8 +174,9 @@ export function displayValue(
       );
     case "account":
       return (
-        accounts[field.kind]?.find((account) => account.id === value)?.name ??
-        undefined
+        accountChoicesFor(field, accounts).find(
+          (account) => account.id === value,
+        )?.name ?? undefined
       );
     case "model": {
       const selection = value as { provider?: string; modelId?: string };
@@ -215,29 +242,253 @@ export function extensionProblem(extension: ExtensionView): string | undefined {
 
 export type ExtensionFix = { label: string; section: string };
 
-/** What the user does about the problem, and the detail section that holds it. */
+/** The first switched-on namespace that cannot be used, helpers included. */
+function failingNamespace(extension: ExtensionView): string | undefined {
+  return unavailable(extension)[0]?.[0];
+}
+
+/**
+ * What the user does about the problem, and the detail section that holds it.
+ * The account kind comes from the failing namespace's `requiresAccount` field.
+ */
 export function extensionFix(
   extension: ExtensionView,
   accounts: AccountChoices,
 ): ExtensionFix | undefined {
   if (!extensionProblem(extension)) return undefined;
-  const kind = extension.accountKinds[0]?.kind;
-  if (!kind) return { label: "Review", section: "settings" };
-  return (accounts[kind]?.length ?? 0) === 0
+  const failing = extension.metadata.contributes.namespaces.find(
+    (namespace) => namespace.id === failingNamespace(extension),
+  );
+  const field = failing?.requiresAccount
+    ? extension.settingsSchema.fields[failing.requiresAccount]
+    : undefined;
+  if (field?.type !== "account")
+    return { label: "Review", section: "settings" };
+  const merged = mergedAccountFields(extension).has(failing!.requiresAccount!);
+  return accountChoicesFor(field, accounts).length === 0
     ? { label: "Add account", section: "accounts" }
-    : { label: "Choose account", section: "settings" };
+    : { label: "Choose account", section: merged ? "accounts" : "settings" };
+}
+
+export type FeatureControl =
+  /** The namespace's own switch, moved here from Settings. */
+  | { type: "switch"; item: FieldItem }
+  /** No switch of its own: the namespace loads with the extension. */
+  | { type: "follows" }
+  /** A tool or skill: the row opens its page. */
+  | { type: "opens"; page: "tools" | "skills" }
+  /** Its switch stays in Settings (placed on purpose); `on` is its state. */
+  | {
+      type: "setting";
+      on: boolean;
+      /** Section holding the field, and whether it is behind Advanced. */
+      sectionId: string;
+      advanced: boolean;
+    };
+
+export type FeatureRow = {
+  kind: "namespace" | "tool" | "skill";
+  /** The namespace id, tool name or skill name. */
+  id: string;
+  /** Row title: a namespace's `label ?? id`, a tool's `label`, a skill's name. */
+  title: string;
+  summary?: string;
+  control: FeatureControl;
+  /** Why the namespace or tool cannot be used, when it is switched on but cannot. */
+  problem?: string;
+};
+
+/** An account field shown as the Account section, merged with its kind's list. */
+export type MergedAccount = { item: FieldItem; kind: string };
+
+export type ExtensionDetailLayout = {
+  /** Account fields merged with their kind's account list; they leave Settings. */
+  accounts: MergedAccount[];
+  /** Settings sections without the merged account fields and the switches that moved onto Features. */
+  sections: FieldSection[];
+  features: FeatureRow[];
+  /** Helper namespaces, named once in the Features footer. */
+  helpers: string[];
+};
+
+const enabledByKeys = (enabledBy: string | string[] | undefined): string[] =>
+  enabledBy === undefined
+    ? []
+    : Array.isArray(enabledBy)
+      ? enabledBy
+      : [enabledBy];
+
+/**
+ * Keys of the account fields that merge with their kind's list: the only
+ * account field of the kind, with no `section`, `advanced` or `visibleWhen`
+ * (the author placed those on purpose), and whose kind the extension defines.
+ * A field accepting several kinds never merges: each kind keeps its own list.
+ */
+export function mergedAccountFields(extension: ExtensionView): Set<string> {
+  const fields = Object.entries(extension.settingsSchema.fields).flatMap(
+    ([key, field]) => {
+      if (field.type !== "account") return [];
+      const kinds = accountFieldKinds(field);
+      return [[key, field, kinds.length === 1 ? kinds[0] : undefined] as const];
+    },
+  );
+  return new Set(
+    fields
+      .filter(
+        ([, field, kind]) =>
+          kind !== undefined &&
+          extension.accountKinds.some((declared) => declared.kind === kind) &&
+          field.section === undefined &&
+          !field.advanced &&
+          field.visibleWhen === undefined &&
+          fields.filter(([, , other]) => other === kind).length === 1,
+      )
+      .map(([key]) => key),
+  );
+}
+
+/** The reason a namespace cannot be used; nothing while it is available or not switched on. */
+export function featureProblem(
+  state: ExtensionView["availability"][string] | undefined,
+): string | undefined {
+  return state && state.configured && !state.available
+    ? sentence(state.reason)
+    : undefined;
+}
+
+/** Who fixed a field, from its read-only reason ("Locked by Planning" → "Planning"). */
+export function lockOwner(item: FieldItem): string | undefined {
+  const prefix = "Locked by ";
+  return item.readOnlyReason?.startsWith(prefix)
+    ? item.readOnlyReason.slice(prefix.length)
+    : undefined;
+}
+
+/** "Also loads helper namespaces: atlassian, storage". */
+export function helperNote(helpers: readonly string[]): string | undefined {
+  return helpers.length === 0
+    ? undefined
+    : `Also loads helper ${helpers.length === 1 ? "namespace" : "namespaces"}: ${helpers.join(", ")}`;
+}
+
+/**
+ * The detail view's layout, derived from the schema and what the extension
+ * contributes. A boolean setting moves onto its namespace row as that row's
+ * switch when it is the single `enabledBy` of exactly one listed namespace,
+ * no `enabledBy` of another listed one, and has no `section`, `advanced` or
+ * `visibleWhen` (those mean the author placed it on purpose; it stays in
+ * Settings and the row shows its state). Account fields merge with their
+ * kind's list (see {@link mergedAccountFields}). Features list namespaces,
+ * then direct tools, then skills.
+ */
+export function detailLayout(
+  extension: ExtensionView,
+  scope: ExtensionsScope,
+): ExtensionDetailLayout {
+  const all = extension.metadata.contributes.namespaces;
+  const listed = all.filter((namespace) => !namespace.helper);
+  const sections = fieldSections(extension, scope);
+  const placed = new Map<string, { sectionId: string; item: FieldItem }>();
+  for (const section of sections)
+    for (const item of [...section.fields, ...section.advanced])
+      placed.set(item.key, { sectionId: section.id, item });
+
+  const moves = new Set<string>();
+  for (const { item } of placed.values()) {
+    const { field, key } = item;
+    if (
+      field.type !== "boolean" ||
+      field.section !== undefined ||
+      field.advanced ||
+      field.visibleWhen !== undefined
+    )
+      continue;
+    const mentions = listed.filter((namespace) =>
+      enabledByKeys(namespace.enabledBy).includes(key),
+    );
+    if (mentions.length === 1 && mentions[0]!.enabledBy === key) moves.add(key);
+  }
+
+  const merged = mergedAccountFields(extension);
+  const accounts: MergedAccount[] = [];
+  for (const { item } of placed.values())
+    if (merged.has(item.key) && item.field.type === "account")
+      accounts.push({ item, kind: accountFieldKinds(item.field)[0]! });
+  const hidden = new Set([...moves, ...merged]);
+
+  const namespaces = listed.map((namespace): FeatureRow => {
+    const problem = featureProblem(extension.availability[namespace.id]);
+    const base = {
+      kind: "namespace" as const,
+      id: namespace.id,
+      title: namespace.label ?? namespace.id,
+      summary: namespace.summary,
+      ...(problem ? { problem } : {}),
+    };
+    const keys = enabledByKeys(namespace.enabledBy);
+    if (
+      typeof namespace.enabledBy === "string" &&
+      moves.has(namespace.enabledBy)
+    )
+      return {
+        ...base,
+        control: {
+          type: "switch",
+          item: placed.get(namespace.enabledBy)!.item,
+        },
+      };
+    const first = keys.map((key) => placed.get(key)).find((entry) => entry);
+    if (!first) return { ...base, control: { type: "follows" } };
+    return {
+      ...base,
+      control: {
+        type: "setting",
+        on: keys.some((key) => extension.fields[key]?.value === true),
+        sectionId: first.sectionId,
+        advanced: first.item.field.advanced === true,
+      },
+    };
+  });
+
+  const { tools, skills } = extension.metadata.contributes;
+  const features: FeatureRow[] = [
+    ...namespaces,
+    ...tools.map((tool): FeatureRow => {
+      const problem = featureProblem(extension.toolAvailability?.[tool.name]);
+      return {
+        kind: "tool",
+        id: tool.name,
+        title: tool.label,
+        summary: tool.description,
+        control: { type: "opens", page: "tools" },
+        ...(problem ? { problem } : {}),
+      };
+    }),
+    ...skills.map(
+      (skill): FeatureRow => ({
+        kind: "skill",
+        id: skill,
+        title: skill,
+        control: { type: "opens", page: "skills" },
+      }),
+    ),
+  ];
+
+  return {
+    accounts,
+    sections: sections
+      .map((section) => ({
+        ...section,
+        fields: section.fields.filter((item) => !hidden.has(item.key)),
+      }))
+      .filter((section) => section.fields.length + section.advanced.length > 0),
+    features,
+    helpers: all.filter((namespace) => namespace.helper).map((n) => n.id),
+  };
 }
 
 /** `quick_script` namespaces of the runtime itself, always present. */
 export const RUNTIME_NAMESPACES = ["files", "image"] as const;
-
-/** Every namespace the extension contributes with its availability, helpers included. */
-export function contributedNamespaces(extension: ExtensionView) {
-  return extension.metadata.contributes.namespaces.map((namespace) => ({
-    ...namespace,
-    state: extension.availability[namespace.id],
-  }));
-}
 
 /** Names the Quick script row lists: the runtime's plus every switched-on extension namespace. */
 export function activeNamespaces(
@@ -288,7 +539,6 @@ export type ExtensionChange = {
   key: string;
   label: string;
   from: string;
-  to: string;
 };
 
 const same = (a: unknown, b: unknown) =>
@@ -319,7 +569,6 @@ export function extensionChanges(
         key: "enabled",
         label: "Enabled",
         from: base ? "On" : "Off",
-        to: stored.enabled ? "On" : "Off",
       });
   }
   for (const [key, field] of Object.entries(extension.settingsSchema.fields)) {
@@ -336,7 +585,6 @@ export function extensionChanges(
       key,
       label: field.label,
       from: displayValue(field, base, accounts, modelLabel) ?? "Not set",
-      to: displayValue(field, value, accounts, modelLabel) ?? "Not set",
     });
   }
   return changes;

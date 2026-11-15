@@ -75,6 +75,7 @@ export const imagegenExtension = defineExtension({
   namespaces: [
     defineNamespace({
       id: "imagegen",
+      label: "Image generation",
       summary: "generate an image from a prompt (spends the user's credit)",
       configuration: (ctx) => describeBackend(imagegenSettingsOf(ctx)),
       methods: imagegenMethods,
