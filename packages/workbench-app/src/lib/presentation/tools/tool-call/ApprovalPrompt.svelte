@@ -86,7 +86,7 @@ function riskTone(risk: string | undefined): StatusTone {
     return "destructive";
   if (
     risk === "command" ||
-    risk === "network" ||
+    risk === "external_read" ||
     risk === "workspace_write" ||
     risk === "external_write"
   )

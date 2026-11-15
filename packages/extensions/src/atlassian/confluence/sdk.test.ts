@@ -155,7 +155,7 @@ void test("pages.get by title authorizes the space searched and misses are NOT_F
   assert.deepEqual(authorized[0], {
     operation: "confluence.pages.get",
     targets: ["confluence:space/DOC"],
-    risk: "network",
+    risk: "external_read",
   });
   assert.match(result.content ?? "", /^NOT_FOUND/);
 });

@@ -15,13 +15,13 @@ import { escapeGlobLiteral } from "./path-glob.js";
 export type OperationRisk =
   | "none"
   | "read"
-  | "network"
+  | "external_read"
   | "write"
   | "external_write"
   | "destructive";
 
 /**
- * Base risk rules match for an operation. Reads and network reads keep the
+ * Base risk rules match for an operation. Reads and external reads keep the
  * direct tools' category; external writes use `unknown`, the category of
  * commands (effective risk `command`), and never `write`, which rule sets may
  * allow for workspace files.
@@ -31,8 +31,8 @@ export function operationBaseRisk(risk: OperationRisk): StaticToolRisk {
     case "none":
     case "read":
       return "read";
-    case "network":
-      return "network";
+    case "external_read":
+      return "external_read";
     case "write":
       return "write";
     case "external_write":

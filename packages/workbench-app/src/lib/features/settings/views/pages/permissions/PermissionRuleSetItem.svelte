@@ -9,11 +9,7 @@ import type {
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
-import {
-  SettingsDisclosureItem,
-  SettingsList,
-  SettingsListItem,
-} from "$lib/presentation/settings";
+import { SettingsItem, SettingsList } from "$lib/presentation/settings";
 import {
   overlaySummary,
   overridesFor,
@@ -57,10 +53,12 @@ const roleNote = $derived(
 );
 </script>
 
-<SettingsDisclosureItem
+<SettingsItem
   title={ruleSet.name}
-  description={summary.label}
-  bind:open
+  summary={open ? undefined : summary.label}
+  expanded={open}
+  onOpen={() => (open = !open)}
+  openLabel={`${open ? "Collapse" : "Expand"} ${ruleSet.name}`}
 >
   {#snippet badges()}
     <Badge variant="neutral"
@@ -69,9 +67,10 @@ const roleNote = $derived(
     {#if isDefault}<Badge variant="brand">Default</Badge>{/if}
     {#if !ruleSet.enabled}<Badge variant="neutral">Disabled</Badge>{/if}
   {/snippet}
-  {#snippet detail()}
-    <div class="grid gap-4 pt-1">
+  {#if open}
+    <div class="grid gap-4 pt-1 text-ui text-muted-foreground">
       <div class="grid gap-0.5">
+        <p>{summary.label}</p>
         {#if ruleSet.description}
           <p class="text-ui text-foreground">{ruleSet.description}</p>
         {/if}
@@ -130,19 +129,19 @@ const roleNote = $derived(
           {#if rules.length > 0}
             <SettingsList ariaLabel={`${scope} overrides for ${ruleSet.name}`}>
               {#each rules as rule (rule.id)}
-                <SettingsListItem title={ruleTitle(rule)}>
-                  {#snippet detail()}(priority {rule.priority}){/snippet}
-                  {#snippet status()}
+                <SettingsItem
+                  title={ruleTitle(rule)}
+                  summary={[
+                    `priority ${rule.priority}`,
+                    ...ruleMetadata(rule),
+                  ].join(" · ")}
+                >
+                  {#snippet badges()}
                     {#if rule.enforcement === "guardrail"}<Badge
                         variant="neutral">Guardrail</Badge
                       >{/if}
                     {#if !rule.enabled}<Badge variant="neutral">Disabled</Badge
                       >{/if}
-                  {/snippet}
-                  {#snippet supporting()}
-                    <p class="text-ui text-muted-foreground">
-                      {ruleMetadata(rule).join(" · ")}
-                    </p>
                   {/snippet}
                   {#snippet actions()}
                     <IconAction
@@ -153,7 +152,7 @@ const roleNote = $derived(
                       onclick={() => onEdit(scope, rule)}
                     />
                   {/snippet}
-                </SettingsListItem>
+                </SettingsItem>
               {/each}
             </SettingsList>
           {:else}
@@ -164,5 +163,5 @@ const roleNote = $derived(
         </div>
       {/each}
     </div>
-  {/snippet}
-</SettingsDisclosureItem>
+  {/if}
+</SettingsItem>

@@ -38,7 +38,7 @@ export function withMermaidDefaults(type: string, source: string): string {
 
 export const diagramMethods = {
   render: method({
-    risk: "network",
+    risk: "external_read",
     signature:
       "/** Kroki engine such as mermaid, d2 or plantuml; returns a PNG artifact handle. */ render(options: { type: string; source: string; name?: string }): Promise<FileHandle>",
     parse: (args) => {

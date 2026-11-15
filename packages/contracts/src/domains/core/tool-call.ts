@@ -68,7 +68,13 @@ export const supervisionSchema = z.strictObject({
   /** Written only when approval is granted, never merely when requested. */
   approval: toolApprovalBindingSchema.optional(),
   reason: z.string().optional(),
-  effectiveRisk: toolRiskSchema.optional(),
+  /** Records stored before the `network` → `external_read` rename hold `network`. */
+  effectiveRisk: z
+    .preprocess(
+      (risk) => (risk === "network" ? "external_read" : risk),
+      toolRiskSchema,
+    )
+    .optional(),
   matchedRule: z.json().optional(),
   suggestedRules: z.array(z.json()),
   /** quick_script: the operations the admission scan found, with normalized targets. */

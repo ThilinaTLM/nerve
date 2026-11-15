@@ -239,3 +239,23 @@ test("resource targets and quick_script operation exceptions validate", () => {
   ])
     assert.throws(() => permissionExceptionSchema.parse(exception(rule)), rule);
 });
+
+test("an exception naming a non-core tool says extension tools are targeted by operation", () => {
+  const exception = {
+    id: "exception_1",
+    effect: "allow" as const,
+    rule: "search.web",
+  };
+  assert.equal(
+    permissionExceptionSchema.safeParse({ ...exception, tool: "quick_script" })
+      .success,
+    true,
+  );
+  const result = permissionExceptionSchema.safeParse({
+    ...exception,
+    tool: "web_search",
+  });
+  assert.equal(result.success, false);
+  assert.match(result.error!.issues[0]!.message, /Not a core tool/);
+  assert.match(result.error!.issues[0]!.message, /quick_script/);
+});

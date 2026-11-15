@@ -16,7 +16,9 @@ import { convertConversationAgent, extractFromTools } from "./convert.js";
 import { hostRegistry } from "../../../../core-host/host-tools.js";
 import {
   REMOVED_TOOL_OPERATIONS,
+  convertPermissionOverlayDocument,
   convertRemovedToolException,
+  convertRuleSetDocument,
 } from "./removed-tools.js";
 import { EncryptedFileSecretProvider } from "../../../secrets/index.js";
 import step from "./step.js";
@@ -653,6 +655,52 @@ void test("permission rules and rule sets naming removed tools are rewritten; wh
   const snapshot = readFileSync(paths.permissionsConfigPath, "utf8");
   await step.run(ctx);
   assert.equal(readFileSync(paths.permissionsConfigPath, "utf8"), snapshot);
+});
+
+void test("the network risk category becomes external_read in overlays and rule sets", () => {
+  const rule = (id: string, baseRisks: string[]) => ({
+    id,
+    enabled: true,
+    priority: 1,
+    enforcement: "overridable",
+    when: { baseRisks },
+    decision: "allow",
+  });
+  const lost: string[] = [];
+  const overlay = convertPermissionOverlayDocument(
+    {
+      schemaVersion: 2,
+      overlays: [
+        {
+          ruleSetId: "x",
+          rules: [rule("a", ["network", "read"]), rule("b", ["write"])],
+        },
+      ],
+    },
+    (reason) => lost.push(reason),
+  );
+  assert.equal(overlay.changed, true);
+  const rules = (
+    overlay.document as {
+      overlays: { rules: { when: { baseRisks: string[] } }[] }[];
+    }
+  ).overlays[0].rules;
+  assert.deepEqual(rules[0].when.baseRisks, ["external_read", "read"]);
+  assert.deepEqual(rules[1].when.baseRisks, ["write"]);
+  const set = convertRuleSetDocument(
+    { schemaVersion: 1, rules: [rule("c", ["network", "external_read"])] },
+    (reason) => lost.push(reason),
+  );
+  assert.deepEqual(
+    (set.document as { rules: { when: { baseRisks: string[] } }[] }).rules[0]
+      .when.baseRisks,
+    ["external_read"],
+  );
+  assert.equal(
+    convertRuleSetDocument({ rules: [rule("d", ["read"])] }, () => {}).changed,
+    false,
+  );
+  assert.deepEqual(lost, []);
 });
 
 void test("the removed-tool table names real SDK methods for every removed tool", () => {

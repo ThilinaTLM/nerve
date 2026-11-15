@@ -25,9 +25,9 @@ void test("an extension's direct tool joins the catalog, grouped by its extensio
   );
   assert.equal(descriptor?.extension, "demo");
   assert.equal(descriptor?.group, "extension");
-  assert.equal(descriptor?.baseRisk, "network");
+  assert.equal(descriptor?.baseRisk, "external_read");
   assert.deepEqual(descriptor?.targetKinds, ["whole_tool"]);
-  assert.equal(classifyToolRisk("demo_item"), "network");
+  assert.equal(classifyToolRisk("demo_item"), "external_read");
   assert.ok(activeToolNameSchema.safeParse("demo_item").success);
   assert.ok(!activeToolNameSchema.safeParse("Not A Name").success);
 

@@ -1,10 +1,11 @@
 <script lang="ts">
+import { SvelteSet } from "svelte/reactivity";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { onMount } from "svelte";
 import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenanceProgressView.svelte";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import {
-  SettingsDisclosureItem,
+  SettingsItem,
   SettingsSection,
   SettingsList,
 } from "$lib/presentation/settings";
@@ -17,6 +18,12 @@ type Props = {
 };
 
 let { controller }: Props = $props();
+
+const expanded = new SvelteSet<string>();
+
+function toggleExpanded(key: string): void {
+  if (!expanded.delete(key)) expanded.add(key);
+}
 
 const categoryTones = [
   { bg: "bg-chart-1", stroke: "stroke-chart-1" },
@@ -151,66 +158,75 @@ onMount(() => {
   >
     <SettingsList ariaLabel="Storage categories">
       {#each categories as category, index (category.key)}
-        <SettingsDisclosureItem
+        {@const isOpen = expanded.has(category.key)}
+        <SettingsItem
           title={category.label}
-          description={category.description}
+          summary={isOpen ? undefined : category.description}
+          expanded={isOpen}
+          onOpen={() => toggleExpanded(category.key)}
+          openLabel={`${isOpen ? "Collapse" : "Expand"} ${category.label}`}
         >
-          {#snippet titleSuffix()}
+          {#snippet leading()}
             <span
               class={`size-2 flex-none rounded-full ${categoryTones[index % categoryTones.length].bg}`}
               aria-hidden="true"
             ></span>
           {/snippet}
-          {#snippet titleDetail()}
-            <span class="font-mono">{formatBytes(category.bytes)}</span>
-            <span>· {percentOfTotal(category.bytes, totalBytes)}%</span>
-            {#if category.protected}
-              <span class="text-muted-foreground">· Protected</span>
-            {/if}
-            {#if category.cleanable}
-              <span class="text-muted-foreground">· Cleanable</span>
-            {/if}
-          {/snippet}
-          {#snippet detail()}
-            <p>
-              {category.fileCount.toLocaleString()} files ·
-              <span class="font-mono">{category.bytes.toLocaleString()}</span>
-              bytes
-            </p>
-            {#if category.key === "database"}
-              <p>
-                Canonical database total <span class="font-mono"
-                  >{formatBytes(databaseBytes)}</span
-                > across the database, write-ahead log, and shared memory files. This
-                authoritative state is never removed by cleanup.
-              </p>
-            {/if}
-            {#if category.key === "payloads"}
-              <p>
-                Retained payload footprints for
-                {usage.conversations.total.toLocaleString()} conversations.
-              </p>
-              {#if usage.conversations.largest.length > 0}
-                <ul class="grid gap-1">
-                  {#each usage.conversations.largest.slice(0, 3) as conversation (conversation.conversationId)}
-                    <li class="flex min-w-0 justify-between gap-3">
-                      <span
-                        class="truncate"
-                        title={conversation.title ??
-                          conversation.conversationId}
-                        >{conversation.title ??
-                          conversation.conversationId}</span
-                      >
-                      <span class="flex-none font-mono"
-                        >{formatBytes(conversation.bytes)}</span
-                      >
-                    </li>
-                  {/each}
-                </ul>
+          {#snippet meta()}
+            <span class="text-caption text-muted-foreground">
+              <span class="font-mono">{formatBytes(category.bytes)}</span>
+              · {percentOfTotal(category.bytes, totalBytes)}%
+              {#if category.protected}
+                · Protected
               {/if}
-            {/if}
+              {#if category.cleanable}
+                · Cleanable
+              {/if}
+            </span>
           {/snippet}
-        </SettingsDisclosureItem>
+          {#if isOpen}
+            <div class="grid gap-1.5 pt-1 text-ui text-muted-foreground">
+              <p>{category.description}</p>
+              <p>
+                {category.fileCount.toLocaleString()} files ·
+                <span class="font-mono">{category.bytes.toLocaleString()}</span>
+                bytes
+              </p>
+              {#if category.key === "database"}
+                <p>
+                  Canonical database total <span class="font-mono"
+                    >{formatBytes(databaseBytes)}</span
+                  > across the database, write-ahead log, and shared memory files.
+                  This authoritative state is never removed by cleanup.
+                </p>
+              {/if}
+              {#if category.key === "payloads"}
+                <p>
+                  Retained payload footprints for
+                  {usage.conversations.total.toLocaleString()} conversations.
+                </p>
+                {#if usage.conversations.largest.length > 0}
+                  <ul class="grid gap-1">
+                    {#each usage.conversations.largest.slice(0, 3) as conversation (conversation.conversationId)}
+                      <li class="flex min-w-0 justify-between gap-3">
+                        <span
+                          class="truncate"
+                          title={conversation.title ??
+                            conversation.conversationId}
+                          >{conversation.title ??
+                            conversation.conversationId}</span
+                        >
+                        <span class="flex-none font-mono"
+                          >{formatBytes(conversation.bytes)}</span
+                        >
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              {/if}
+            </div>
+          {/if}
+        </SettingsItem>
       {/each}
     </SettingsList>
   </SettingsSection>

@@ -237,7 +237,7 @@ export const confluenceCommentMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "comments.list",
-    risk: "network",
+    risk: "external_read",
     bare: "id",
     options: ["id", "inline", "resolved"],
     signature:

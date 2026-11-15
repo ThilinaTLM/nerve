@@ -389,6 +389,10 @@ void test("a direct tool bound to a method runs the same parse → authorize →
   assert.match(String(result.details.sections[0].value), /"name": "Widget"/);
   assert.equal(seen[0].authorization, "Bearer secret-1");
   assert.deepEqual(authorized, [
-    { operation: "demo.items.get", targets: ["demo:item/Z9"], risk: "network" },
+    {
+      operation: "demo.items.get",
+      targets: ["demo:item/Z9"],
+      risk: "external_read",
+    },
   ]);
 });

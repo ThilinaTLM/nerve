@@ -11,6 +11,7 @@ export function isWorkbenchEvent(type: string): boolean {
     "applicationConfiguration.",
     "auth.",
     "accounts.",
+    "extensions.",
     "access.",
     "providers.",
     "secrets.",

@@ -102,7 +102,7 @@ void test("diagram.render posts to the configured server and saves a PNG artifac
   assert.deepEqual(authorized[0], {
     operation: "diagram.render",
     targets: [],
-    risk: "network",
+    risk: "external_read",
   });
   assert.deepEqual(JSON.parse(seen.at(-1)!.body), {
     diagram_source: "graph TD; A-->B",

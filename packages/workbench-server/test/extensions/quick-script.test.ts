@@ -90,7 +90,7 @@ void test("paginates search to the limit, resolves field names, and authorizes b
     Color: "Blue",
   });
   assert.deepEqual(authorized, [
-    { operation: "jira.issues.search", targets: [], risk: "network" },
+    { operation: "jira.issues.search", targets: [], risk: "external_read" },
   ]);
   assert.equal(events[0], "authorize jira.issues.search");
   assert.equal(bodies.length, 2);

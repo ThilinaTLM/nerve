@@ -60,7 +60,7 @@ export const webSearchExtension = defineExtension({
         required: ["query"],
         additionalProperties: false,
       },
-      risk: "network",
+      risk: "external_read",
       ...webSearchTool,
       view: {
         header: { argument: "query" },

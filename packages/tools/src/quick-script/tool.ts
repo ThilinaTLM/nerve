@@ -32,7 +32,7 @@ export function createQuickScriptToolDefinition(
   return {
     name: "quick_script",
     group: "quickScript",
-    baseRisk: "network",
+    baseRisk: "external_read",
     traits: ["write_capable", "credentialed", "long_running"],
     executionKind: "local",
     executor: (args, context) =>

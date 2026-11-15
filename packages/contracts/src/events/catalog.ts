@@ -7,6 +7,7 @@ import { z } from "zod";
 import { scratchNoteEventDefinitions } from "../domains/scratch-notes/events.js";
 import { accessEventDefinitions } from "../domains/access/events.js";
 import { authEventDefinitions } from "../domains/auth/events.js";
+import { extensionEventDefinitions } from "../domains/extensions/events.js";
 import { filesystemEventDefinitions } from "../domains/filesystem/events.js";
 import { gitEventDefinitions } from "../domains/git/events.js";
 import { projectEventDefinitions } from "../domains/projects/events.js";
@@ -43,6 +44,7 @@ const definitions: PublicEventDefinition[] = [
   ...settingsEventDefinitions,
   ...accessEventDefinitions,
   ...authEventDefinitions,
+  ...extensionEventDefinitions,
   ...daemonEventDefinitions,
   ...maintenanceEventDefinitions,
   ...activityEventDefinitions,

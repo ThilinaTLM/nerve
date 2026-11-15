@@ -171,6 +171,7 @@ function freePriority(rules: readonly Json[], rule: Json): number {
  *   matching the replacing operations; names of tools that remain stay in
  *   the original rule and the conversion becomes a sibling rule.
  * - `toolGroups` of removed groups move to the namespace that replaced them.
+ * - `baseRisks` naming the retired `network` category use `external_read`.
  * - A rule that depends on the removed tool's schema (argument, target or
  *   risk-category filters) or has nothing to allow is disabled and reported,
  *   never dropped.
@@ -187,6 +188,17 @@ export function convertRemovedToolRules(
   for (const rule of result) {
     if (!isRecord(rule) || !isRecord(rule.when)) continue;
     const when = rule.when;
+    // The `network` risk category is now `external_read`.
+    if (Array.isArray(when.baseRisks) && when.baseRisks.includes("network")) {
+      when.baseRisks = [
+        ...new Set(
+          (when.baseRisks as unknown[]).map((risk) =>
+            risk === "network" ? "external_read" : risk,
+          ),
+        ),
+      ];
+      changed = true;
+    }
     if (Array.isArray(when.toolGroups)) {
       const groups = (when.toolGroups as unknown[]).map((group) =>
         typeof group === "string" && GROUP_RENAMES[group]

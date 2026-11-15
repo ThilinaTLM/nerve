@@ -47,11 +47,11 @@ const metadata = {
   ),
   todos_set: m("interaction", "todos", "interaction", [], ["whole_tool"], true),
   todos_get: m("interaction", "todos", "read", [], ["whole_tool"], true),
-  web_fetch: m("network", "web", "network", ["url"], ["url"], true),
+  web_fetch: m("external_read", "web", "external_read", ["url"], ["url"], true),
   quick_script: m(
     "integration",
     "quickScript",
-    "network",
+    "external_read",
     ["code"],
     ["whole_tool"],
     true,

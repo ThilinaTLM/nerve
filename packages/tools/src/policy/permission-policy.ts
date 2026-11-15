@@ -464,8 +464,8 @@ function requestMetadata(request: NormalizedPermissionRequest) {
       baseRisk:
         risk === "read"
           ? ("read" as const)
-          : risk === "network"
-            ? ("network" as const)
+          : risk === "external_read"
+            ? ("external_read" as const)
             : risk === "workspace_write" || risk === "external_write"
               ? ("write" as const)
               : risk === "destructive"

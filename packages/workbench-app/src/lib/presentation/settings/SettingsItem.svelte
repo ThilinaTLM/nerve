@@ -7,7 +7,9 @@
     Everything else stays: the row still opens its item.
   - `iconLabel` names the icon's kind in a tooltip (Tool · name).
   - The whole row opens the item when `onOpen` is set (hover fill, chevron).
-    There is no separate Configure button.
+    There is no separate Configure button. A row whose detail is small and
+    read-mostly may expand in place instead: `onOpen` toggles, `expanded` turns
+    the chevron, and the detail goes in `children`.
   - The status line is the summary, or the problem with its fix. A problem
     replaces the summary, so every row keeps the same height.
   - Off is shown by the switch and a muted title and icon, never in the text.
@@ -54,6 +56,8 @@ type Props = {
   /** Opens the item's detail view or dialog from anywhere on the row. */
   onOpen?: () => void;
   openLabel?: string;
+  /** For a row that expands in place instead of opening a detail view: whether `children` is shown. The chevron turns down. */
+  expanded?: boolean;
   /** Exceptional states only (Experimental, Shadowed, Default, version). */
   badges?: Snippet;
   /** Quiet trailing content before the switch: change indicator, counts. */
@@ -85,6 +89,7 @@ let {
   lockedBy,
   onOpen,
   openLabel,
+  expanded,
   badges,
   meta,
   actions,
@@ -112,6 +117,7 @@ const hasSwitch = $derived(checked !== undefined && !always);
       type="button"
       class="absolute inset-0 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
       aria-label={openLabel ?? `Open ${title}`}
+      aria-expanded={expanded}
       onclick={onOpen}
     ></button>
   {/if}
@@ -231,7 +237,8 @@ const hasSwitch = $derived(checked !== undefined && !always);
       <!-- Reserved even without onOpen so switches align down the list. -->
       <ChevronRight
         class={cn(
-          "size-4 text-muted-foreground transition-transform group-hover/item:translate-x-0.5",
+          "size-4 text-muted-foreground transition-transform",
+          expanded ? "rotate-90" : "group-hover/item:translate-x-0.5",
           !onOpen && "invisible",
         )}
         aria-hidden="true"

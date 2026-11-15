@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { toolNameSchema } from "../tools/tool-name.js";
+import { toolNameSchema, type ToolName } from "../tools/tool-name.js";
 import type { StaticToolRisk } from "./permission-rule-sets.js";
 
 /**
@@ -12,7 +12,7 @@ export const toolRiskSchema = z.enum([
   "workspace_write",
   "external_write",
   "command",
-  "network",
+  "external_read",
   "secret",
   "destructive",
   "agent_spawn",
@@ -42,10 +42,16 @@ const operationGlobPattern =
 
 const pathRuleTools = new Set(["read", "edit", "write", "grep", "find", "ls"]);
 
+/** An exception names a core tool; extension tools are targeted by operation. */
+const exceptionToolSchema = z.custom<ToolName>(
+  (value) => toolNameSchema.safeParse(value).success,
+  'Not a core tool. Extension tools are targeted by operation: use tool "quick_script" with the operation as the rule, for example "search.web".',
+);
+
 export const permissionExceptionSchema = z
   .object({
     id: z.string().startsWith("exception_").max(128),
-    tool: toolNameSchema,
+    tool: exceptionToolSchema,
     effect: permissionExceptionEffectSchema,
     rule: z.string().trim().min(1).max(1_024),
   })

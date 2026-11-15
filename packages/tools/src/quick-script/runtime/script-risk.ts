@@ -23,7 +23,7 @@ import {
  */
 export type QuickScriptRisk =
   | "read"
-  | "network"
+  | "external_read"
   | "workspace_write"
   | "external_write"
   | "destructive";
@@ -31,7 +31,7 @@ export type QuickScriptRisk =
 /** Workspace and external writes share a rank: either ceiling admits the other. */
 const RANK: Record<QuickScriptRisk, number> = {
   read: 0,
-  network: 1,
+  external_read: 1,
   workspace_write: 2,
   external_write: 2,
   destructive: 3,
@@ -41,7 +41,7 @@ const RANK: Record<QuickScriptRisk, number> = {
 export type ScannedCall = {
   /** `<namespace>.<path>`, e.g. `jira.comments.add`. */
   operation: string;
-  /** The call's own risk: the method's, or for raw requests GET `network` and anything else `destructive`. */
+  /** The call's own risk: the method's, or for raw requests GET `external_read` and anything else `destructive`. */
   risk: MethodRisk;
   /** Normalized resources (`jira:issue/SCRUM-1`); undefined when the arguments are not literal, so they are known only when the call runs. */
   targets: string[] | undefined;
@@ -109,8 +109,8 @@ export function quickScriptRiskOfToolRisk(risk: ToolRisk): QuickScriptRisk {
     case "read":
     case "interaction":
       return "read";
-    case "network":
-      return "network";
+    case "external_read":
+      return "external_read";
     case "workspace_write":
       return "workspace_write";
     case "command":
@@ -134,8 +134,8 @@ export function quickScriptRiskOfMethod(risk: MethodRisk): QuickScriptRisk {
     case "none":
     case "read":
       return "read";
-    case "network":
-      return "network";
+    case "external_read":
+      return "external_read";
     case "write":
       return "workspace_write";
     case "external_write":
@@ -736,7 +736,7 @@ function classifyTokens(
     else if (DIRECT_PRODUCTS.has(method.product))
       record(name, methodRisk, targets);
     else {
-      // Literal arguments: the method's own authorization decides the risk (a raw request is a network read for GET, destructive otherwise).
+      // Literal arguments: the method's own authorization decides the risk (a raw request is an external read for GET, destructive otherwise).
       const checks = literalChecks(method, args, registry);
       if (method.riskFromArgs && !checks) {
         record(`${name} (computed method)`, "destructive");

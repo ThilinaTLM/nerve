@@ -5,6 +5,8 @@ import type {
 } from "@nervekit/contracts/extensions";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { publishUserExtensions } from "./selected-accounts.svelte";
+import { onEvent } from "$lib/application/events/workbench-event-bus";
+import { extensionChangeAffects } from "./extension-scope";
 import { observeConversationChannel } from "$lib/application/startup/conversation-connection";
 
 /** The settings entry of one extension at a scope; omitted keys are removed. */
@@ -157,13 +159,23 @@ export class ScopedExtensionsState {
     }
   }
 
+  /** Reloads on recovery and when another client changes a scope this view shows. */
   observe(): () => void {
-    return observeConversationChannel({
+    const stopChannel = observeConversationChannel({
       recover: () => this.reload(),
       disconnected() {},
       event() {},
       notice() {},
     });
+    const stopChanged = onEvent("extensions.changed", (event) => {
+      const changed = event.data.scope as ExtensionTarget;
+      if (this.target && extensionChangeAffects(changed, this.target))
+        void this.reload();
+    });
+    return () => {
+      stopChannel();
+      stopChanged();
+    };
   }
 }
 

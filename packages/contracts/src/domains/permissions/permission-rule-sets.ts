@@ -24,7 +24,7 @@ export const toolKindSchema = z.enum([
   "filesystem",
   "command",
   "code",
-  "network",
+  "external_read",
   "interaction",
   "orchestration",
   "deployment",
@@ -40,7 +40,7 @@ export type ToolKind = z.infer<typeof toolKindSchema>;
 export const staticToolRiskSchema = z.enum([
   "read",
   "write",
-  "network",
+  "external_read",
   "secret",
   "destructive",
   "deployment",

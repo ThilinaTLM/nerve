@@ -510,6 +510,6 @@ function operationEffectiveRisk(risk: unknown): ToolRisk {
     case "destructive":
       return "destructive";
     default:
-      return "network";
+      return "external_read";
   }
 }

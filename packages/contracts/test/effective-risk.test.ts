@@ -10,7 +10,7 @@ describe("effectiveRiskForCategory", () => {
   const expected = {
     read: "read",
     write: "workspace_write",
-    network: "network",
+    external_read: "external_read",
     secret: "secret",
     destructive: "destructive",
     deployment: "deployment",
@@ -24,5 +24,18 @@ describe("effectiveRiskForCategory", () => {
       assert.equal(effectiveRiskForCategory(risk), expected[risk]);
       assert.ok(toolRiskSchema.safeParse(expected[risk]).success);
     }
+  });
+});
+
+describe("supervision.effectiveRisk", () => {
+  it("reads a recorded legacy `network` as external_read", async () => {
+    const { supervisionSchema } = await import("../src/domains/core/index.js");
+    const parsed = supervisionSchema.parse({
+      decision: "allow",
+      effectiveRisk: "network",
+      suggestedRules: [],
+      authority: null,
+    });
+    assert.equal(parsed.effectiveRisk, "external_read");
   });
 });

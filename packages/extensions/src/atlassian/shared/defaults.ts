@@ -77,7 +77,7 @@ export const atlassianMethods: PathedMethod<AtlassianSession>[] = [
   defineMethod({
     product: "atlassian",
     path: "defaults",
-    risk: "network",
+    risk: "external_read",
     options: [],
     signature:
       "/** Configured sites, default project/space and current user; only configured products appear. Cached per run. */ defaults(): Promise<AtlassianDefaults>",

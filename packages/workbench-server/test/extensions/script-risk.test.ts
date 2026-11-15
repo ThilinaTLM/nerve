@@ -15,12 +15,12 @@ const classify = (code: string) => classifyQuickScriptScript(code, registry);
 
 void test("the scanner reads each method's declared risk", () => {
   const risks = (code: string) => classify(code).risk;
-  assert.equal(risks(`await jira.issues.get("A-1")`), "network");
+  assert.equal(risks(`await jira.issues.get("A-1")`), "external_read");
   assert.equal(risks(`await files.list()`), "read");
-  assert.equal(risks(`await web.fetch("https://x.test")`), "network");
+  assert.equal(risks(`await web.fetch("https://x.test")`), "external_read");
   assert.equal(
     risks(`await files.list(); await web.fetch("https://x.test")`),
-    "network",
+    "external_read",
   );
   assert.match(
     classify(`await search.web("q")`).operations[0] ?? "",
@@ -39,7 +39,7 @@ void test("the scanner reads each method's declared risk", () => {
       [
         "none",
         "read",
-        "network",
+        "external_read",
         "write",
         "external_write",
         "destructive",
@@ -48,13 +48,13 @@ void test("the scanner reads each method's declared risk", () => {
     );
 });
 
-void test("integration-read scripts are network and list their operations", () => {
+void test("integration-read scripts are external_read and list their operations", () => {
   const result = classify(`
     const a = await jira.issues.search({ jql: "project = X" });
     const b = await jira.issues.search({ jql: "project = Y" });
     return await confluence.pages.get({ id: "98506" });
   `);
-  assert.equal(result.risk, "network");
+  assert.equal(result.risk, "external_read");
   assert.deepEqual(result.operations, [
     "jira.issues.search ×2",
     "confluence.pages.get (98506)",
@@ -89,7 +89,7 @@ void test("writes and destructive calls raise the risk", () => {
 void test("request is judged by its literal method", () => {
   assert.equal(
     classify(`await jira.request("get", "/rest/api/3/myself")`).risk,
-    "network",
+    "external_read",
   );
   const post = classify(`await jira.request('POST', "/rest/api/3/issue", {})`);
   assert.equal(post.risk, "destructive");
@@ -123,7 +123,7 @@ void test("comments, strings and property names do not count", () => {
     const re = /jira\\.request\\("POST"/;
     console.log(label.files, \`\${await jira.issues.get("A-1")}\`);
   `);
-  assert.equal(result.risk, "network");
+  assert.equal(result.risk, "external_read");
   assert.deepEqual(result.operations, ["jira.issues.get (A-1)"]);
 });
 
@@ -138,7 +138,7 @@ void test("a slash after ) or } cannot hide calls behind a bogus string or regex
   const division = classify(
     `const r = (a) / 2; const s = "x"; await jira.issues.get("A-1");`,
   );
-  assert.equal(division.risk, "network");
+  assert.equal(division.risk, "external_read");
   assert.deepEqual(division.operations, ["jira.issues.get (A-1)"]);
 });
 
@@ -175,7 +175,7 @@ void test("escaped identifiers, constructor chains and host.call cannot hide cal
   // An escaped method name is read as the method it names.
   assert.equal(
     classify(`await jira.request("\\u0047ET", "/rest/api/3/myself")`).risk,
-    "network",
+    "external_read",
   );
 });
 

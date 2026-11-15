@@ -51,7 +51,7 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "spaces.search",
-    risk: "network",
+    risk: "external_read",
     bare: "query",
     options: ["query"],
     signature:
@@ -71,7 +71,7 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "pages.search",
-    risk: "network",
+    risk: "external_read",
     bare: "cql",
     options: ["cql", "space", "title", "limit"],
     signature:
@@ -140,7 +140,7 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "pages.get",
-    risk: "network",
+    risk: "external_read",
     bare: "id",
     options: ["id", "space", "title", "body", "children"],
     signature:
@@ -293,10 +293,10 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
       }
       return { method: verb, path, body, query };
     },
-    // GET is a network read. Anything else cannot be analysed and counts as
+    // GET is an external read. Anything else cannot be analysed and counts as
     // destructive; a rule matching the method and path can still allow it.
     authorize: ({ method, path }) => ({
-      risk: method === "GET" ? "network" : "destructive",
+      risk: method === "GET" ? "external_read" : "destructive",
       targets: [rawRequest("confluence", `${method} ${String(path)}`)],
       summary: `${method} ${String(path)}`,
     }),

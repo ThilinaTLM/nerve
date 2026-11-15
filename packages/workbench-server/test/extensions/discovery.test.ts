@@ -88,7 +88,7 @@ void test("search ranks path before doc matches and pages", async () => {
   const lines = text.split("\n");
   assert.match(lines[0], /matches for "sprint"/);
   assert.match(lines[1], /^jira\.sprints?\./);
-  assert.match(text, /\[(?:network|external_write)\]/);
+  assert.match(text, /\[(?:external_read|external_write)\]/);
   assert.doesNotMatch(text, /confluence\./);
   const paged = await call("sdk.search", "a", { in: "jira" });
   assert.match(paged, /next: sdk\.search\("a", \{ in: "jira", offset: 20 \}\)/);

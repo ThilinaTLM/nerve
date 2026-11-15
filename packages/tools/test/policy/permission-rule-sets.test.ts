@@ -95,7 +95,10 @@ test("catalog has complete static policy metadata", () => {
   }
   assert.equal(permissionMetadataForTool("bash").baseRisk, "unknown");
   assert.equal(permissionMetadataForTool("python_exec").baseRisk, "unknown");
-  assert.equal(permissionMetadataForTool("quick_script").baseRisk, "network");
+  assert.equal(
+    permissionMetadataForTool("quick_script").baseRisk,
+    "external_read",
+  );
 });
 
 test("built-in coding rule sets implement their complete behavior", () => {
@@ -254,7 +257,7 @@ test("planning separates research, prompted analysis, and mutations", () => {
 test("planning allows SDK reads of Jira and Confluence and denies their writes", () => {
   const operation = (
     name: string,
-    risk: "network" | "external_write" | "destructive",
+    risk: "external_read" | "external_write" | "destructive",
   ) =>
     evaluatePermissionRequest({
       request: normalizeOperationRequest({
@@ -267,11 +270,12 @@ test("planning allows SDK reads of Jira and Confluence and denies their writes",
         selectedRuleSet: builtInPermissionRuleSet("planning"),
       }),
     }).decision;
-  assert.equal(operation("jira.issues.get", "network"), "allow");
-  assert.equal(operation("confluence.pages.get", "network"), "allow");
+  assert.equal(operation("jira.issues.get", "external_read"), "allow");
+  assert.equal(operation("confluence.pages.get", "external_read"), "allow");
   assert.equal(operation("jira.issues.update", "external_write"), "deny");
   assert.equal(operation("confluence.pages.create", "external_write"), "deny");
-  assert.equal(operation("imagegen.generate", "network"), "deny");
+  assert.equal(operation("imagegen.generate", "external_write"), "deny");
+  assert.equal(operation("diagram.render", "external_read"), "allow");
 });
 
 test("process read actions do not ask for approval; launch grants bind action and name", () => {

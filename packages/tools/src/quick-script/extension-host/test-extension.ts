@@ -68,7 +68,7 @@ export const demoExtension = defineExtension({
           : { available: true },
       methods: {
         "items.get": method({
-          risk: "network",
+          risk: "external_read",
           signature: "get(id: string): Promise<Item>",
           // A bound tool passes its arguments object; a script passes the id.
           parse: ([first]) =>
@@ -117,7 +117,7 @@ export const demoExtension = defineExtension({
           },
         }),
         "items.export": method({
-          risk: "network",
+          risk: "external_read",
           signature: "export(id: string): Promise<string>",
           parse: (args) => text(args[0], "id"),
           authorize: (id) => ({ targets: [`demo:item/${id}`], summary: id }),
@@ -131,7 +131,7 @@ export const demoExtension = defineExtension({
           },
         }),
         probe: method({
-          risk: "network",
+          risk: "external_read",
           signature: "probe(url: string): Promise<number>",
           parse: (args) => text(args[0], "url"),
           authorize: (url) => ({ targets: [`demo:url/${url}`], summary: url }),

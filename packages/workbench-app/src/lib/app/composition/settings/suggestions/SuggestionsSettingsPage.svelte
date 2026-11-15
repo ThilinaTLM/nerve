@@ -1,4 +1,5 @@
 <script lang="ts">
+import { SvelteSet } from "svelte/reactivity";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { ProjectRecord } from "$lib/presentation/view-models/conversation";
 import Copy from "@lucide/svelte/icons/copy";
@@ -11,10 +12,9 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import {
-  SettingsDisclosureItem,
   SettingsEmptyState,
+  SettingsItem,
   SettingsSection,
   SettingsList,
   SettingsToolbar,
@@ -120,6 +120,12 @@ function trustLabel(status: PromptSuggestionStatus): string {
   );
 }
 
+const expanded = new SvelteSet<string>();
+
+function toggleExpanded(key: string): void {
+  if (!expanded.delete(key)) expanded.add(key);
+}
+
 function copyPath(path: string): void {
   void navigator.clipboard?.writeText(path);
 }
@@ -137,9 +143,18 @@ function copyPath(path: string): void {
   {:else}
     <SettingsList>
       {#each items as status (status.definitionKey)}
-        <SettingsDisclosureItem
+        <SettingsItem
           title={status.label}
-          description={status.description}
+          summary={expanded.has(status.definitionKey)
+            ? undefined
+            : status.description}
+          expanded={expanded.has(status.definitionKey)}
+          checked={status.stale ? undefined : status.enabled}
+          disabled={savingKey === status.definitionKey}
+          switchLabel={`Enable ${status.label} prompt suggestion`}
+          onCheckedChange={(checked) => toggle(status, checked)}
+          onOpen={() => toggleExpanded(status.definitionKey)}
+          openLabel={`${expanded.has(status.definitionKey) ? "Collapse" : "Expand"} ${status.label}`}
         >
           {#snippet badges()}
             {#if status.overriddenBy}
@@ -157,74 +172,69 @@ function copyPath(path: string): void {
               >
             {/if}
           {/snippet}
-          {#snippet actions()}
-            {#if !status.stale}
-              <Switch
-                checked={status.enabled}
-                disabled={savingKey === status.definitionKey}
-                aria-label={`Enable ${status.label} prompt suggestion`}
-                onCheckedChange={(checked) => toggle(status, checked)}
-              />
-            {/if}
-          {/snippet}
-          {#snippet detail()}
-            {#if status.conditionSummary}
-              <p class="text-muted-foreground">{status.conditionSummary}</p>
-            {/if}
-            {#if status.promptPreview}
-              <!-- Scrollable region must be keyboard-focusable to scroll. -->
-              <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-              <div
-                class="max-h-40 overflow-y-auto rounded-md border bg-well px-2.5 py-2 whitespace-pre-wrap break-words text-foreground"
-                role="region"
-                tabindex="0"
-                aria-label={`${status.label} prompt preview`}
-              >
-                {status.promptPreview}
-              </div>
-            {/if}
-            {#if status.sourceKind !== "builtin"}
-              <div class="flex min-w-0 items-center gap-2">
-                <span class="truncate font-mono" title={status.path}
-                  >{status.path}</span
+          {#if expanded.has(status.definitionKey)}
+            <div class="grid gap-1.5 pt-1 text-ui text-muted-foreground">
+              {#if status.description}
+                <p>{status.description}</p>
+              {/if}
+              {#if status.conditionSummary}
+                <p class="text-muted-foreground">{status.conditionSummary}</p>
+              {/if}
+              {#if status.promptPreview}
+                <!-- Scrollable region must be keyboard-focusable to scroll. -->
+                <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                <div
+                  class="max-h-40 overflow-y-auto rounded-md border bg-well px-2.5 py-2 whitespace-pre-wrap break-words text-foreground"
+                  role="region"
+                  tabindex="0"
+                  aria-label={`${status.label} prompt preview`}
                 >
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  ariaLabel="Copy suggestion path"
-                  onclick={() => copyPath(status.path)}
-                >
-                  <Copy class="size-3.5" aria-hidden="true" />
-                </Button>
-              </div>
-            {/if}
-            {#if status.requiresTrust && status.trustId}
-              <div class="flex flex-wrap gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={savingTrustId === status.trustId}
-                  onclick={() => updateTrust(status.trustId, "allowed")}
-                  >Allow</Button
-                >
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={savingTrustId === status.trustId}
-                  onclick={() => updateTrust(status.trustId, "denied")}
-                  >Deny</Button
-                >
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={savingTrustId === status.trustId}
-                  onclick={() => updateTrust(status.trustId, "unset")}
-                  >Reset</Button
-                >
-              </div>
-            {/if}
-          {/snippet}
-        </SettingsDisclosureItem>
+                  {status.promptPreview}
+                </div>
+              {/if}
+              {#if status.sourceKind !== "builtin"}
+                <div class="flex min-w-0 items-center gap-2">
+                  <span class="truncate font-mono" title={status.path}
+                    >{status.path}</span
+                  >
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    ariaLabel="Copy suggestion path"
+                    onclick={() => copyPath(status.path)}
+                  >
+                    <Copy class="size-3.5" aria-hidden="true" />
+                  </Button>
+                </div>
+              {/if}
+              {#if status.requiresTrust && status.trustId}
+                <div class="flex flex-wrap gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={savingTrustId === status.trustId}
+                    onclick={() => updateTrust(status.trustId, "allowed")}
+                    >Allow</Button
+                  >
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={savingTrustId === status.trustId}
+                    onclick={() => updateTrust(status.trustId, "denied")}
+                    >Deny</Button
+                  >
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={savingTrustId === status.trustId}
+                    onclick={() => updateTrust(status.trustId, "unset")}
+                    >Reset</Button
+                  >
+                </div>
+              {/if}
+            </div>
+          {/if}
+        </SettingsItem>
       {/each}
     </SettingsList>
   {/if}

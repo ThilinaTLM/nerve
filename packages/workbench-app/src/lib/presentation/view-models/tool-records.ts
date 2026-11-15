@@ -17,7 +17,7 @@ export type ToolCallStatus =
 export type ToolRisk =
   | "read"
   | "command"
-  | "network"
+  | "external_read"
   | "interaction"
   | "deployment"
   | "secret"

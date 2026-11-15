@@ -33,7 +33,7 @@ Entity lists and catalogs (tools, skills, extensions, providers, accounts) are a
 - **Opening:** the whole row opens the item's detail view or dialog. Never add a per-row Configure or Edit button; the row is that button. Lists that open nothing keep the chevron slot empty so switches align.
 - **Off:** the title and icon turn muted; the row stays readable and openable.
 
-Row actions are `IconAction`s, which require a label and supply the tooltip and accessible name; keep them to actions other than opening (Test, Copy, Delete). Detail editing belongs in a dialog or detail view, not inline on the page. `SettingsListItem` remains for compact lists without identity (shortcuts, devices) and `SettingsDisclosureItem` for rows that expand in place.
+Row actions are `IconAction`s, which require a label and supply the tooltip and accessible name; keep them to actions other than opening (Test, Copy, Delete). Detail editing belongs in a dialog or detail view, not inline on the page. Compact lists without identity (shortcuts, devices, activity) use `SettingsItem` without an icon. Rows with small read-mostly detail may expand in place: `onOpen` toggles, `expanded` turns the chevron, and the detail goes in `children` (the summary moves into it while open).
 
 ## Entity cards
 

@@ -73,7 +73,7 @@ const readMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "issues.search",
-    risk: "network",
+    risk: "external_read",
     bare: "jql",
     options: ["jql", "fields", "limit"],
     signature:
@@ -118,7 +118,7 @@ const readMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "issues.get",
-    risk: "network",
+    risk: "external_read",
     bare: "key",
     options: ["key", "fields", "comments", "transitions"],
     signature:
@@ -151,7 +151,7 @@ const readMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "projects.get",
-    risk: "network",
+    risk: "external_read",
     bare: "key",
     options: ["key", "include", "issueType"],
     signature:
@@ -198,7 +198,7 @@ const readMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "users.search",
-    risk: "network",
+    risk: "external_read",
     bare: "query",
     options: ["query"],
     signature:
@@ -225,7 +225,7 @@ const readMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "fields.list",
-    risk: "network",
+    risk: "external_read",
     options: [],
     signature: "list(): Promise<JiraField[]>",
     parse: () => undefined,
@@ -253,10 +253,10 @@ const readMethods: PathedMethod<JiraSession>[] = [
       body,
       query,
     }),
-    // GET is a network read. Anything else cannot be analysed and counts as
+    // GET is an external read. Anything else cannot be analysed and counts as
     // destructive; a rule matching the method and path can still allow it.
     authorize: ({ method, path }) => ({
-      risk: method === "GET" ? "network" : "destructive",
+      risk: method === "GET" ? "external_read" : "destructive",
       targets: [rawRequest("jira", `${method} ${String(path)}`)],
       summary: `${method} ${String(path)}`,
     }),

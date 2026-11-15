@@ -36,14 +36,11 @@
       "decision": "allow"
     },
     {
-      "id": "allow-network-research",
+      "id": "allow-external-reads",
       "enabled": true,
       "priority": 175,
       "enforcement": "overridable",
-      "when": {
-        "toolGroups": ["web", "jira", "confluence", "quickScript"],
-        "baseRisks": ["network"]
-      },
+      "when": { "baseRisks": ["external_read"] },
       "decision": "allow"
     },
     {

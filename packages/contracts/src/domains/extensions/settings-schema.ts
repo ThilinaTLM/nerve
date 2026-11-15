@@ -130,7 +130,17 @@ export const accountKindSchema = z.strictObject({
   kind: z.string().min(1),
   label: z.string().min(1),
   /** Non-secret fields stored in `accounts.json`. */
-  fields: z.record(fieldKeySchema, settingFieldSchema),
+  fields: z
+    .record(fieldKeySchema, settingFieldSchema)
+    .superRefine((fields, context) => {
+      for (const [key, field] of Object.entries(fields))
+        if (field.type === "account" || field.type === "model")
+          context.addIssue({
+            code: "custom",
+            path: [key, "type"],
+            message: `Account kinds cannot have ${field.type} fields: the account dialog cannot show them. Use string, number, boolean or enum.`,
+          });
+    }),
   secret: z.strictObject({
     label: z.string().min(1),
     help: z.string().optional(),

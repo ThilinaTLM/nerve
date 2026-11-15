@@ -18,7 +18,7 @@ type Props<T> = {
   items: T[];
   listAriaLabel: string;
   itemKey: (item: T) => string;
-  /** Renders a single `SettingsListItem` row for each item. */
+  /** Renders a single `SettingsItem` row for each item. */
   row: Snippet<[T]>;
   /** Extra content below the list/empty state (e.g. inline warnings). */
   below?: Snippet;

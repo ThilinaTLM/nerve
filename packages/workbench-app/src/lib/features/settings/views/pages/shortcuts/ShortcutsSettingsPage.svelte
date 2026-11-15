@@ -4,7 +4,7 @@ import {
   SettingsEmptyState,
   SettingsSection,
   SettingsList,
-  SettingsListItem,
+  SettingsItem,
   SettingsToolbar,
 } from "$lib/presentation/settings";
 import {
@@ -65,13 +65,14 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
   <SettingsSection surface={false} title={group.category}>
     <SettingsList ariaLabel={`${group.category} shortcuts`}>
       {#each group.commands as command (command.id)}
-        <SettingsListItem title={command.label}>
-          {#snippet detail()}
-            <span class="whitespace-nowrap font-mono"
+        <SettingsItem title={command.label}>
+          {#snippet meta()}
+            <span
+              class="whitespace-nowrap font-mono text-caption text-muted-foreground"
               >{formatShortcut(command.defaultBinding)}</span
             >
           {/snippet}
-        </SettingsListItem>
+        </SettingsItem>
       {/each}
     </SettingsList>
   </SettingsSection>

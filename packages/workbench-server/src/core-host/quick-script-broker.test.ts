@@ -49,7 +49,7 @@ const call: QuickScriptCall = {
 
 const op = (
   operation: string,
-  risk: "network" | "external_write" | "destructive",
+  risk: "external_read" | "external_write" | "destructive",
   targets: string[] = [],
 ) => ({ operation, targets, risk });
 
@@ -60,13 +60,16 @@ const as = (
 
 void test("an operation is evaluated as a quick_script request with operation, targets and risk", async () => {
   const { authorize, inputs } = authorizer(["stale", "allow"]);
-  await authorize(call, op("jira.issues.get", "network", ["jira:issue/APP-1"]));
+  await authorize(
+    call,
+    op("jira.issues.get", "external_read", ["jira:issue/APP-1"]),
+  );
   assert.equal(inputs.length, 2);
   assert.equal(inputs[1]?.toolName, "quick_script");
   assert.deepEqual(inputs[1]?.args, {
     operation: "jira.issues.get",
     targets: ["jira:issue/APP-1"],
-    risk: "network",
+    risk: "external_read",
   });
   assert.equal(
     (inputs[1]?.target as { kind: string }).kind,
@@ -82,9 +85,9 @@ void test("any operation of a registered namespace is accepted; unknown namespac
     "diagram.render",
     "jira.request",
   ])
-    await authorize(call, op(operation, "network"));
+    await authorize(call, op(operation, "external_read"));
   assert.equal(inputs.length, 4);
-  await assert.rejects(authorize(call, op("bash.run", "network")), {
+  await assert.rejects(authorize(call, op("bash.run", "external_read")), {
     code: "NESTED_DENIED",
   });
   assert.equal(inputs.length, 4);
@@ -93,7 +96,10 @@ void test("any operation of a registered namespace is accepted; unknown namespac
 void test("deny refuses the call with the operation, targets and policy reason", async () => {
   const { authorize } = authorizer(["deny"]);
   await assert.rejects(
-    authorize(call, op("jira.issues.get", "network", ["jira:issue/APP-1"])),
+    authorize(
+      call,
+      op("jira.issues.get", "external_read", ["jira:issue/APP-1"]),
+    ),
     {
       code: "NESTED_DENIED",
       message: "jira.issues.get · jira:issue/APP-1: denied (read-only mode)",
@@ -103,20 +109,26 @@ void test("deny refuses the call with the operation, targets and policy reason",
 
 void test("approval inside the approved risk runs; above it is refused", async () => {
   const { authorize } = authorizer(["approval", "approval", "approval"]);
-  await assert.rejects(authorize(call, op("jira.issues.get", "network")), {
-    code: "NESTED_APPROVAL_REQUIRED",
-    message: /approved for read/,
-  });
-  await authorize(as("user", "network"), op("jira.issues.get", "network"));
+  await assert.rejects(
+    authorize(call, op("jira.issues.get", "external_read")),
+    {
+      code: "NESTED_APPROVAL_REQUIRED",
+      message: /approved for read/,
+    },
+  );
+  await authorize(
+    as("user", "external_read"),
+    op("jira.issues.get", "external_read"),
+  );
   await assert.rejects(
     authorize(
-      as("user", "network"),
+      as("user", "external_read"),
       op("jira.issues.create", "external_write", ["jira:project/APP"]),
     ),
     {
       code: "NESTED_APPROVAL_REQUIRED",
       message:
-        "jira.issues.create · jira:project/APP: script was approved for network operations; this call needs external write approval (read-only mode)",
+        "jira.issues.create · jira:project/APP: script was approved for external read operations; this call needs external write approval (read-only mode)",
     },
   );
 });
@@ -132,7 +144,10 @@ void test("a workspace_write ceiling admits Atlassian (external) writes: equal r
 void test("deny wins over the approved risk", async () => {
   const { authorize } = authorizer(["deny"]);
   await assert.rejects(
-    authorize(as("user", "destructive"), op("jira.issues.get", "network")),
+    authorize(
+      as("user", "destructive"),
+      op("jira.issues.get", "external_read"),
+    ),
     { code: "NESTED_DENIED" },
   );
 });
@@ -184,25 +199,25 @@ void test("the ceiling uses the operation's own risk: adding is a write, deletin
   );
 });
 
-void test("a script approved at network level runs nested network calls but not writes", async () => {
-  const approved = as("user", "network");
+void test("a script approved at external read level runs nested external reads but not writes", async () => {
+  const approved = as("user", "external_read");
   const { authorize } = authorizer(["approval", "approval", "approval"]);
   await authorize(approved, { toolName: "web_fetch", args: {} });
-  await authorize(approved, op("jira.issues.get", "network"));
+  await authorize(approved, op("jira.issues.get", "external_read"));
   await assert.rejects(
     authorize(approved, op("jira.comments.add", "external_write")),
-    { code: "NESTED_APPROVAL_REQUIRED", message: /approved for network/ },
+    { code: "NESTED_APPROVAL_REQUIRED", message: /approved for external read/ },
   );
 });
 
 void test("a script allowed by a rule has no ceiling: a nested approval is refused", async () => {
   const { authorize } = authorizer(["approval"]);
   await assert.rejects(
-    authorize(as("rule", "read"), op("jira.issues.get", "network")),
+    authorize(as("rule", "read"), op("jira.issues.get", "external_read")),
     {
       code: "NESTED_APPROVAL_REQUIRED",
       message:
-        "jira.issues.get: needs network approval, but the script was allowed by a rule rather than approved (read-only mode)",
+        "jira.issues.get: needs external read approval, but the script was allowed by a rule rather than approved (read-only mode)",
     },
   );
 });
@@ -210,10 +225,13 @@ void test("a script allowed by a rule has no ceiling: a nested approval is refus
 void test("a rule-allowed script still runs nested calls that policy allows and refuses denied ones", async () => {
   const { authorize } = authorizer(["allow", "deny"]);
   const allowed = as("rule", "read");
-  await authorize(allowed, op("jira.issues.get", "network"));
-  await assert.rejects(authorize(allowed, op("jira.issues.get", "network")), {
-    code: "NESTED_DENIED",
-  });
+  await authorize(allowed, op("jira.issues.get", "external_read"));
+  await assert.rejects(
+    authorize(allowed, op("jira.issues.get", "external_read")),
+    {
+      code: "NESTED_DENIED",
+    },
+  );
 });
 
 void test("a raw request is an ordinary destructive operation: an allow rule admits it, otherwise it needs a destructive approval", async () => {

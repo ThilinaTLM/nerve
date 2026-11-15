@@ -154,7 +154,7 @@ export const jiraEditMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "worklogs.list",
-    risk: "network",
+    risk: "external_read",
     bare: "key",
     options: ["key"],
     signature:
@@ -247,7 +247,7 @@ export const jiraEditMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "attachments.list",
-    risk: "network",
+    risk: "external_read",
     bare: "key",
     options: ["key"],
     signature:

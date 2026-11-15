@@ -18,7 +18,7 @@ export const confluenceAttachmentMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "attachments.download",
-    risk: "network",
+    risk: "external_read",
     options: ["id", "page", "filename"],
     signature:
       "/** By attachment id, or by page id and exact filename. Max 100 MB. */ download(options: { id: string } | { page: string; filename: string }): Promise<FileHandle>",

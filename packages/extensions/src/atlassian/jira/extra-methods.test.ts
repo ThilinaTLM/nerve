@@ -31,7 +31,7 @@ void test("attachments.download writes exact bytes to a fresh artifact and autho
   assert.deepEqual(authorized[0], {
     operation: "jira.attachments.download",
     targets: ["jira:attachment/9"],
-    risk: "network",
+    risk: "external_read",
   });
 });
 

@@ -16,7 +16,7 @@ import { onMount } from "svelte";
 import {
   SettingsEmptyState,
   SettingsList,
-  SettingsListItem,
+  SettingsItem,
   SettingsSection,
 } from "$lib/presentation/settings";
 import { DevicesPageController } from "../state/devices-page.svelte";
@@ -101,15 +101,15 @@ const now = Date.now();
   {:else}
     <SettingsList ariaLabel="Devices">
       {#each controller.devices as device (device.id)}
-        <SettingsListItem
+        <SettingsItem
           title={device.name}
-          description={`${kindLabel(device.kind)} · ${methodLabel(device.method)} · ${
+          summary={`${kindLabel(device.kind)} · ${methodLabel(device.method)} · ${
             device.current
               ? "active now"
               : `seen ${formatLastSeen(device.lastSeenAt, now)}`
           }`}
         >
-          {#snippet status()}
+          {#snippet badges()}
             {#if device.current}<Badge variant="brand">This device</Badge>{/if}
             {#if device.status === "expired"}
               <Badge variant="warning">Expired</Badge>
@@ -142,7 +142,7 @@ const now = Date.now();
               />
             {/if}
           {/snippet}
-        </SettingsListItem>
+        </SettingsItem>
       {/each}
     </SettingsList>
   {/if}
@@ -171,9 +171,9 @@ const now = Date.now();
   {:else}
     <SettingsList ariaLabel="Passkeys">
       {#each controller.passkeys as passkey (passkey.id)}
-        <SettingsListItem
+        <SettingsItem
           title={passkey.name}
-          description={passkey.lastUsedAt
+          summary={passkey.lastUsedAt
             ? `Last used ${formatLastSeen(passkey.lastUsedAt, now)}`
             : `Added ${new Date(passkey.createdAt).toLocaleDateString()}`}
         >
@@ -188,7 +188,7 @@ const now = Date.now();
               }}
             />
           {/snippet}
-        </SettingsListItem>
+        </SettingsItem>
       {/each}
     </SettingsList>
   {/if}
@@ -205,22 +205,18 @@ const now = Date.now();
   {:else}
     <SettingsList ariaLabel="Recent access activity">
       {#each controller.audit as event (`${event.at}-${event.type}-${event.deviceId ?? ""}`)}
-        <SettingsListItem
+        <SettingsItem
           title={auditEventLabel(event)}
-          description={[
-            new Date(event.at).toLocaleString(),
-            event.ip,
-            event.detail,
-          ]
+          summary={[new Date(event.at).toLocaleString(), event.ip, event.detail]
             .filter(Boolean)
             .join(" · ")}
         >
-          {#snippet status()}
+          {#snippet badges()}
             {#if auditEventTone(event) === "warning"}
               <Badge variant="warning">Attention</Badge>
             {/if}
           {/snippet}
-        </SettingsListItem>
+        </SettingsItem>
       {/each}
     </SettingsList>
   {/if}

@@ -15,10 +15,6 @@ export const EXTENSION_NAMING_EXCEPTIONS: ReadonlyMap<string, string> = new Map(
   [
     ["packages/extensions/src/index.ts", "the built-in registry list"],
     [
-      "packages/tools/src/policy/rule-sets/planning.json",
-      "the planning rule set is product policy: a quick_script operation's tool group is its namespace, and planning allows network reads in the Atlassian namespaces only (not diagram or image generation). Extensions do not declare read-only research namespaces",
-    ],
-    [
       "packages/workbench-server/src/core-host/project-permission-migrations.ts",
       "migrates project permission files that name the retired direct tools (an old migration; its notice names the tools it converted)",
     ],
