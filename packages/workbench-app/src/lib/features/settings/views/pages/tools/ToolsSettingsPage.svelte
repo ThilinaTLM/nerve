@@ -25,6 +25,7 @@ import {
   setExtensionTools,
 } from "$lib/presentation/tools/lifecycle/extension-tools";
 import ExtensionMark from "../extensions/ExtensionMark.svelte";
+import { entryWithEnabled } from "../extensions/extensions-view";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import {
@@ -296,6 +297,9 @@ const python = $derived(status?.runtime.python);
       <SettingsList ariaLabel={`${group.name} tools`}>
         {#each group.tools as tool (tool.name)}
           {@const switchId = toolSwitch(tool.name)}
+          {@const owner = extensions.view?.extensions.find(
+            (extension) => extension.metadata.id === group.extensionId,
+          )}
           {@const fromExtension = extensionToolState(
             tool.name,
             group.extensionId,
@@ -321,11 +325,26 @@ const python = $derived(status?.runtime.python);
                     ),
                 }
               : undefined}
-            always={switchId === undefined}
-            checked={switchId ? payload(switchId).enabled === true : undefined}
-            disabled={locked || fromExtension?.disabled === true}
+            checked={switchId
+              ? payload(switchId).enabled === true
+              : owner?.enabled.value === true}
+            switchLabel={switchId
+              ? undefined
+              : `Enable the ${group.name} extension`}
+            disabled={switchId
+              ? locked || fromExtension?.disabled === true
+              : !owner || owner.readOnly || extensions.saving}
+            lockedBy={!switchId && owner?.enabled.source.locked
+              ? (owner.enabled.source.profile ?? "profile")
+              : undefined}
             onCheckedChange={(next) => {
+              // A tool without its own switch follows its extension's switch.
               if (switchId) toggle(switchId, next);
+              else if (owner)
+                void extensions.save(
+                  owner.metadata.id,
+                  entryWithEnabled(owner, next),
+                );
             }}
             onOpen={() => openExtension(group.extensionId)}
             openLabel={`Open ${group.name} extension settings`}
