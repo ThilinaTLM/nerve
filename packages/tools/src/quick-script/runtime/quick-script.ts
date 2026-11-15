@@ -1,6 +1,10 @@
 import { dirname, join } from "node:path";
 import { sandbox } from "@nervekit/native";
-import type { QuickScriptHostCall } from "@nervekit/contracts/tools";
+import {
+  QUICK_SCRIPT_CALLS_STREAM,
+  type QuickScriptHostCall,
+  type QuickScriptLiveCall,
+} from "@nervekit/contracts/tools";
 import type { ToolExecutionResult } from "../../execution/index.js";
 import type {
   SdkMethod,
@@ -75,7 +79,20 @@ export async function executeQuickScript(
     registry,
     signal: stop.signal,
   });
+  // Indexed by call start order (`seq`), so the result lists calls as the script made them.
   const hostCalls: QuickScriptHostCall[] = [];
+  let nextSeq = 0;
+  // Live call rows for the tool card; fire-and-forget so a slow observer never delays a call.
+  const emit = (event: QuickScriptLiveCall) => {
+    if (sealed || !context.onUpdate) return;
+    void Promise.resolve(
+      context.onUpdate({
+        kind: "output",
+        stream: QUICK_SCRIPT_CALLS_STREAM,
+        chunk: `${JSON.stringify(event)}\n`,
+      }),
+    ).catch(() => undefined);
+  };
   const paths: DisplayPaths = {
     cwd: context.cwd,
     artifactDir: context.conversationDir
@@ -112,16 +129,27 @@ export async function executeQuickScript(
   async function hostCall(method: string, rawArgs: unknown): Promise<unknown> {
     const started = performance.now();
     if (sealed) throw new Error("[BAD_REQUEST] the script has finished");
+    const seq = nextSeq++;
     const record = (
       fields: Pick<QuickScriptHostCall, "outcome"> &
         Partial<QuickScriptHostCall>,
     ) => {
-      if (!sealed)
-        hostCalls.push({
-          method,
-          ...fields,
-          durationMs: Math.round(performance.now() - started),
-        });
+      if (sealed) return;
+      const call: QuickScriptHostCall = {
+        method,
+        ...fields,
+        durationMs: Math.round(performance.now() - started),
+      };
+      hostCalls[seq] = call;
+      emit({
+        phase: "finished",
+        seq,
+        method,
+        ...(call.summary ? { summary: call.summary } : {}),
+        outcome: call.outcome,
+        ...(call.error ? { error: truncate(call.error, 300) } : {}),
+        durationMs: call.durationMs,
+      });
     };
     if (authFailure) {
       record({ outcome: "failed", error: authFailure });
@@ -165,6 +193,12 @@ export async function executeQuickScript(
         200,
       ),
     };
+    emit({
+      phase: "started",
+      seq,
+      method,
+      ...(base.summary ? { summary: base.summary } : {}),
+    });
     try {
       if (checks.length > 0 && !context.authorizeNested) {
         throw new Error(
@@ -253,7 +287,8 @@ export async function executeQuickScript(
     raw: env.report.raw,
   });
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
-  const calls = hostCalls.map((call) => ({ ...call }));
+  // Calls that never settled within the grace period leave holes.
+  const calls = hostCalls.flatMap((call) => (call ? [{ ...call }] : []));
   const footer = quickScriptFooter({
     hostCalls: calls,
     status,

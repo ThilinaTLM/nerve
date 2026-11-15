@@ -2,6 +2,7 @@
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleX from "@lucide/svelte/icons/circle-x";
 import ShieldAlert from "@lucide/svelte/icons/shield-alert";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import type { ToolView } from "../views/tool-result-view";
 import type { QuickScriptArtifact } from "@nervekit/contracts/tools";
@@ -20,11 +21,17 @@ type Props = {
 };
 let { view, expanded = false, onOpenFile }: Props = $props();
 
-// The script itself is the card's persistent argument section.
+// The script itself is the card's persistent argument section. While the
+// script runs, a collapsed card keeps the newest calls in view.
 const hostCalls = $derived(
-  expanded ? view.hostCalls : view.hostCalls.slice(0, COLLAPSED_LINES),
+  expanded
+    ? view.hostCalls
+    : view.liveCalls
+      ? view.hostCalls.slice(-COLLAPSED_LINES)
+      : view.hostCalls.slice(0, COLLAPSED_LINES),
 );
 const hiddenCalls = $derived(view.hostCalls.length - hostCalls.length);
+const firstShown = $derived(view.liveCalls && !expanded ? hiddenCalls : 0);
 const scriptFailed = $derived(
   view.status !== undefined && view.status !== "completed",
 );
@@ -94,14 +101,26 @@ const unnamedArtifacts = $derived(
 
     {#if view.hostCalls.length > 0}
       <ul class="m-0 list-none p-0 py-1" aria-label="SDK calls">
-        {#each hostCalls as call, index (index)}
+        {#if firstShown > 0}
+          <li class="px-2.5 py-0.5 text-caption text-muted-foreground">
+            +{firstShown} earlier
+          </li>
+        {/if}
+        {#each hostCalls as call, index (firstShown + index)}
           <li
             class="flex min-w-0 items-baseline gap-2 px-2.5 py-0.5 text-ui"
-            title={[call.targets?.join(", "), call.error]
-              .filter(Boolean)
-              .join(" — ") || undefined}
+            title={call.outcome === "running"
+              ? undefined
+              : [call.targets?.join(", "), call.error]
+                  .filter(Boolean)
+                  .join(" — ") || undefined}
           >
-            {#if call.outcome === "completed"}
+            {#if call.outcome === "running"}
+              <Spinner
+                class="size-3.5 flex-none translate-y-0.5 text-muted-foreground"
+                aria-label="Running"
+              />
+            {:else if call.outcome === "completed"}
               <CircleCheck
                 class="size-3.5 flex-none translate-y-0.5 text-success"
                 aria-label="Completed"
@@ -121,7 +140,7 @@ const unnamedArtifacts = $derived(
               >{call.method}</span
             >
             <span class="min-w-0 flex-1 truncate text-muted-foreground">
-              {#if call.outcome === "completed"}
+              {#if call.outcome === "completed" || call.outcome === "running"}
                 {#each summaryParts(call.summary ?? "") as part, partIndex (partIndex)}
                   {#if part.artifact}
                     {@render artifactLink(part.artifact)}
@@ -129,13 +148,15 @@ const unnamedArtifacts = $derived(
                 {/each}
               {:else}{call.error ?? call.summary ?? ""}{/if}
             </span>
-            <span
-              class="flex-none text-caption text-muted-foreground tabular-nums"
-              >{formatDuration(call.durationMs)}</span
-            >
+            {#if call.outcome !== "running"}
+              <span
+                class="flex-none text-caption text-muted-foreground tabular-nums"
+                >{formatDuration(call.durationMs)}</span
+              >
+            {/if}
           </li>
         {/each}
-        {#if hiddenCalls > 0}
+        {#if hiddenCalls > 0 && firstShown === 0}
           <li class="px-2.5 py-0.5 text-caption text-muted-foreground">
             +{hiddenCalls} more
           </li>
