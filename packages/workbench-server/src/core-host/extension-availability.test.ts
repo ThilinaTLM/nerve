@@ -98,7 +98,9 @@ void test("the extension switch gates its products, the product switch the names
   ).namespaces;
   assert.equal(off.jira.configured, false);
   const jiraOnly = (
-    await derive(resolve(atlassian({ account: "acme", jira: true })))
+    await derive(
+      resolve(atlassian({ account: "acme", jira: true, confluence: false })),
+    )
   ).namespaces;
   assert.equal(jiraOnly.confluence.configured, false);
   assert.equal(jiraOnly.storage.configured, false);

@@ -4,10 +4,7 @@ import type { ScopedPermissionPolicySource } from "./scoped-permission-source.js
 import { join } from "node:path";
 import type { CoreStorage, PermissionPort } from "@nervekit/conversation-core";
 import { permissionRuleSchema } from "@nervekit/contracts/permissions";
-import {
-  mutatePermissionOverlay,
-  trustProjectPermissions,
-} from "./permission-overlays.js";
+import { mutatePermissionOverlay } from "./permission-overlays.js";
 import {
   ConfigurationScopePaths,
   userConfigurationRoot,
@@ -81,13 +78,6 @@ export function createPermissionPort(
           ? { context: { projectId, directory: input.projectDir }, migrations }
           : undefined,
       );
-      if (input.scope === "project") {
-        const projectId = storage.conversations.get(
-          input.conversationId,
-        )?.projectId;
-        if (!projectId) throw new Error("Conversation not found");
-        await trustProjectPermissions(storage, projectId, path);
-      }
       await admissionPolicy.reload([path]);
     },
   };

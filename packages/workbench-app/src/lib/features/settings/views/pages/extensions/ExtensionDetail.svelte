@@ -8,10 +8,10 @@
 -->
 <script lang="ts">
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
-import Code from "@lucide/svelte/icons/code";
 import Library from "@lucide/svelte/icons/library";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Wrench from "@lucide/svelte/icons/wrench";
+import Zap from "@lucide/svelte/icons/zap";
 import type { ExtensionView } from "@nervekit/contracts/extensions";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -88,12 +88,17 @@ const kindLabels = $derived(
 const listKinds = $derived(
   extension.accountKinds.filter((kind) => !mergedKinds.has(kind.kind)),
 );
-const featureIcons = { namespace: Code, tool: Wrench, skill: Library } as const;
+const featureIcons = { namespace: Zap, tool: Wrench, skill: Library } as const;
 const featureKindLabels = {
-  namespace: "Quick script namespace",
-  tool: "Direct tool",
+  namespace: "Quick script",
+  tool: "Tool",
   skill: "Skill",
 } as const;
+/** Names the row's kind first, so an extension reads as more than Quick script. */
+function featureSummary(row: FeatureRow): string {
+  const kind = featureKindLabels[row.kind];
+  return row.summary ? `${kind} · ${row.summary}` : kind;
+}
 
 let advancedOpen = $state<Record<string, boolean>>({});
 
@@ -237,7 +242,7 @@ function openPage(page: "tools" | "skills"): void {
       id="features"
       footer={note ? helpersNote : undefined}
       title="Features"
-      description="What the agent gets when this extension is on."
+      description="The tools, Quick script namespaces and skills the agent gets when this extension is on."
     >
       <SettingsList ariaLabel="Features">
         {#each layout.features as row (`${row.kind}:${row.id}`)}
@@ -245,7 +250,7 @@ function openPage(page: "tools" | "skills"): void {
           {@const item = control.type === "switch" ? control.item : undefined}
           <SettingsItem
             title={row.title}
-            summary={row.summary}
+            summary={featureSummary(row)}
             icon={featureIcons[row.kind]}
             iconLabel={`${featureKindLabels[row.kind]} · ${row.id}`}
             muted={!extension.enabled.value}
@@ -290,8 +295,7 @@ function openPage(page: "tools" | "skills"): void {
                   >{control.on ? "On" : "Off"} · set in Settings</Button
                 >
               {:else if control.type === "follows"}
-                <span class="text-caption text-muted-foreground"
-                  >With the extension</span
+                <span class="text-caption text-muted-foreground">Always on</span
                 >
               {/if}
             {/snippet}

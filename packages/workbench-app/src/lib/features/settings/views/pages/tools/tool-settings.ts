@@ -34,22 +34,22 @@ export const toolRows: readonly ToolRowDef[] = [
     configurable: true,
   },
   {
+    id: "quick_script",
+    label: "Quick script",
+    description:
+      "Run short TypeScript scripts that call the enabled extensions and document utilities.",
+    configurable: false,
+  },
+  {
     id: "web_fetch",
     label: "Web fetch",
     description: "Fetch a URL as readable markdown.",
     configurable: false,
   },
   {
-    id: "explain_image",
-    label: "Image explanation",
-    description: "A vision model explains images to text-only agents.",
-    configurable: true,
-  },
-  {
-    id: "quick_script",
-    label: "Quick script",
-    description:
-      "Run short TypeScript scripts that call the enabled extensions and document utilities.",
+    id: "subagents",
+    label: "Sub-agents",
+    description: "Let the main agent delegate to sub-agent profiles.",
     configurable: false,
   },
   {
@@ -59,10 +59,10 @@ export const toolRows: readonly ToolRowDef[] = [
     configurable: true,
   },
   {
-    id: "subagents",
-    label: "Sub-agents",
-    description: "Let the main agent delegate to sub-agent profiles.",
-    configurable: false,
+    id: "explain_image",
+    label: "Image explanation",
+    description: "A vision model explains images to text-only agents.",
+    configurable: true,
   },
 ];
 

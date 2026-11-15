@@ -81,3 +81,39 @@ for (const kind of ["project_permissions", "project_capabilities"] as const)
     });
     assert.equal(record, undefined);
   });
+
+void test("a file created through Nerve is trusted unless the binding changed; prompt suggestions never are", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "migration-trust-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, "extensions.json");
+  const output = Buffer.from("created bytes");
+  let record: TrustedResource | undefined;
+  const storage = {
+    transaction: (fn: () => void) => fn(),
+    trustedResources: {
+      find: () => (record ? { ...record } : null),
+      insert: (value: TrustedResource) => {
+        record = value;
+      },
+    },
+  } as unknown as CoreStorage;
+  const trust = projectMigrationTrust(() => storage, {
+    extensions: "project_capabilities",
+    "prompt-suggestion": "prompt_suggestion",
+  });
+  const input = { projectId: "proj_one", path, source: undefined };
+  assert.equal(
+    await trust.capture({ ...input, type: "prompt-suggestion:a.md" }),
+    undefined,
+  );
+  const create = (await trust.capture({ ...input, type: "extensions" }))!;
+  await writeFile(path, output);
+  await create(path, output);
+  assert.equal(record?.status, "trusted");
+  assert.equal(record?.contentDigest, digest(output).slice("sha256:".length));
+  // A decision recorded while the write was in flight wins.
+  const stale = (await trust.capture({ ...input, type: "extensions" }))!;
+  record = { ...record, status: "rejected" };
+  await stale(path, output);
+  assert.equal(record.status, "rejected");
+});

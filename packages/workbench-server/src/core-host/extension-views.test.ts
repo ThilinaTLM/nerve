@@ -60,10 +60,12 @@ void test("the user view lists every built-in extension with sources, availabili
   const view = await views.view({ scope: "user" });
   assert.deepEqual(
     view.extensions.map((extension) => extension.metadata.id),
-    ["atlassian", "web-search", "imagegen", "diagram"],
+    ["web-search", "atlassian", "diagram", "imagegen"],
   );
   assert.equal(view.file.revision, 3);
-  const atlassian = view.extensions[0];
+  const byId = (id: string) =>
+    view.extensions.find((extension) => extension.metadata.id === id)!;
+  const atlassian = byId("atlassian");
   assert.deepEqual(atlassian.fields.account?.source, { layer: "user" });
   assert.deepEqual(atlassian.stored, {
     enabled: true,
@@ -75,15 +77,16 @@ void test("the user view lists every built-in extension with sources, availabili
     JSON.stringify(atlassian.availability.jira),
     /Settings → Extensions → Atlassian/,
   );
-  assert.equal(atlassian.availability.confluence?.configured, false);
-  const web = view.extensions[1];
+  // Confluence is on by default.
+  assert.equal(atlassian.availability.confluence?.configured, true);
+  const web = byId("web-search");
   assert.equal(web.readOnly, true);
   assert.equal(web.stored, null);
   assert.deepEqual(
     view.diagnostics.map((diagnostic) => diagnostic.code),
     ["newer-version"],
   );
-  assert.equal(view.extensions[3].enabled.value, true);
+  assert.equal(byId("diagram").enabled.value, true);
 });
 
 void test("a fresh home's view survives JSON and parses: unset fields have no value", async (t) => {

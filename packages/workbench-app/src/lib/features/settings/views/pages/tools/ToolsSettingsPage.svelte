@@ -10,10 +10,10 @@ import Bot from "@lucide/svelte/icons/bot";
 import Eye from "@lucide/svelte/icons/eye";
 import Globe from "@lucide/svelte/icons/globe";
 import ListChecks from "@lucide/svelte/icons/list-checks";
-import ScrollText from "@lucide/svelte/icons/scroll-text";
 import SquareTerminal from "@lucide/svelte/icons/square-terminal";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Code from "@lucide/svelte/icons/code";
+import Zap from "@lucide/svelte/icons/zap";
 import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
@@ -229,7 +229,7 @@ const toolIcons: Partial<Record<ToolId, typeof Wrench>> = {
   python_exec: Code,
   web_fetch: Globe,
   explain_image: Eye,
-  quick_script: ScrollText,
+  quick_script: Zap,
   plan_present: ListChecks,
   subagents: Bot,
 };

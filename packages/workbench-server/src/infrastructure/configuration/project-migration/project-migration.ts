@@ -49,13 +49,14 @@ export interface ProjectMigrationTrust {
     projectId: string;
     paths: string[];
   }): Promise<void>;
-  /** Return a closure only if the exact original bytes are trusted. The closure
+  /** Return a closure only if the exact original bytes are trusted, or, for a
+   * feature write, if there was no original (`source` undefined). The closure
    * must recheck that binding before carrying trust to the written bytes. */
   capture(input: {
     type: string;
     projectId: string;
     path: string;
-    source: Buffer;
+    source: Buffer | undefined;
   }): Promise<((path: string, bytes: Buffer) => Promise<void>) | undefined>;
 }
 export interface ProjectConfigurationResult<T> {
@@ -273,11 +274,7 @@ export class ProjectMigrationService {
             if (!(await bytes(path))?.equals(source)) continue;
             await this.write(type, path, validated);
             // Use the deterministic bytes we wrote, never an external replacement.
-            const written = Buffer.from(
-              type.encode
-                ? type.encode(validated)
-                : `${JSON.stringify(validated, null, 2)}\n`,
-            );
+            const written = Buffer.from(encoded(type, validated));
             if (!(await bytes(path))?.equals(written)) continue;
             try {
               await carry?.(path, written);
@@ -292,11 +289,7 @@ export class ProjectMigrationService {
             value: validated,
             path,
             classification: "migrated",
-            sourceDigest: digest(
-              type.encode
-                ? type.encode(validated)
-                : `${JSON.stringify(validated, null, 2)}\n`,
-            ),
+            sourceDigest: digest(encoded(type, validated)),
           };
         }
         this.record(context, type, path, "healthy");
@@ -325,7 +318,11 @@ export class ProjectMigrationService {
     );
     return { value: type.fallback(), path, classification: "corrupted" };
   }
-  /** The only feature-write entrypoint: fallback values are never writable. */
+  /**
+   * The only feature-write entrypoint: fallback values are never writable.
+   * Writes are made through Nerve on the user's behalf, so trusted bytes stay
+   * trusted and a newly created file is trusted; untrusted bytes stay untrusted.
+   */
   async transact<T, R>(
     context: ProjectConfigurationContext,
     type: ProjectConfigurationType<T>,
@@ -334,6 +331,7 @@ export class ProjectMigrationService {
     ) =>
       | { result: R; changed: boolean; value?: T; remove?: boolean }
       | Promise<{ result: R; changed: boolean; value?: T; remove?: boolean }>,
+    trust: "carry" | "none" = "carry",
   ): Promise<R> {
     const first = await this.load(context, type);
     this.assertWritable(type, first.classification);
@@ -368,12 +366,22 @@ export class ProjectMigrationService {
             paths: [path],
           });
           if (before) await unlink(path);
-        } else
-          await this.write(
-            type,
-            path,
-            type.schema.parse(mutation.value ?? current.value),
-          );
+        } else {
+          const value = type.schema.parse(mutation.value ?? current.value);
+          const carry =
+            trust === "carry"
+              ? await this.options.trust?.capture({
+                  type: type.id,
+                  projectId: context.projectId,
+                  path,
+                  source: before,
+                })
+              : undefined;
+          await this.write(type, path, value);
+          const written = Buffer.from(encoded(type, value));
+          if (carry && (await bytes(path))?.equals(written))
+            await carry(path, written);
+        }
       }
       return mutation.result;
     } finally {
@@ -421,11 +429,13 @@ export class ProjectMigrationService {
     const source = await bytes(loaded.path);
     if (!source) {
       if (repair && repair.sourceDigest === "missing") {
-        await this.transact(context, type, () => ({
-          value: repair.value,
-          changed: true,
-          result: undefined,
-        }));
+        // Repair consent does not grant trust to the new bytes.
+        await this.transact(
+          context,
+          type,
+          () => ({ value: repair.value, changed: true, result: undefined }),
+          "none",
+        );
       } else if (repair)
         throw new Error("Configuration changed; reload before repairing");
       return this.reload(context, type);
@@ -533,6 +543,7 @@ export class ProjectMigrationService {
       await atomicWriteFile(path, type.encode(value), { mode: 0o600 });
     else await (this.options.write ?? atomicWriteJson)(path, value, 0o600);
   }
+
   private async lock(path: string): Promise<() => Promise<void>> {
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     const lockPath = `${path}.lock`;
@@ -563,4 +574,11 @@ export class ProjectMigrationService {
       }
     };
   }
+}
+
+/** The exact bytes `write` produces for a value. */
+function encoded<T>(type: ProjectConfigurationType<T>, value: T): string {
+  return type.encode
+    ? type.encode(value)
+    : `${JSON.stringify(value, null, 2)}\n`;
 }

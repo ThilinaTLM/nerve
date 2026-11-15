@@ -218,8 +218,6 @@ export function createPermissionConfigurationService(options: {
     target: PermissionRuleTarget,
     path: string,
   ): Promise<PermissionPolicyConfiguration> {
-    if (target.scope === "project" && target.projectId)
-      await trustProjectPermissions(storage, target.projectId, path);
     await options.published?.(path);
     return get(target.projectId);
   }

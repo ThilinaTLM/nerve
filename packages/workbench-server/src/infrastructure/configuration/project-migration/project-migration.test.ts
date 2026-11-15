@@ -141,7 +141,7 @@ void test("migration carries only captured trust; reset never captures trust", a
     home: f.home,
     trust: {
       capture: async ({ source }) => {
-        calls.push(source.toString());
+        calls.push(String(source));
         return async (_path, bytes) => {
           calls.push(bytes.toString());
         };
@@ -271,4 +271,43 @@ void test("transactions preserve concurrent invalid edits and issues expose abso
   assert.equal(await readFile(f.path, "utf8"), "invalid external edit");
   await f.service.load(context, type);
   assert.ok(isAbsolute(f.service.health(context.projectId).issues[0].path));
+});
+
+void test("feature transactions keep trusted and new files trusted, never on repair", async (t) => {
+  const f = await fixture(t);
+  const sources: (string | undefined)[] = [];
+  const carried: string[] = [];
+  const service = new ProjectMigrationService({
+    home: f.home,
+    trust: {
+      capture: async ({ source }) => {
+        sources.push(source?.toString());
+        return async (_path, bytes) => {
+          carried.push(bytes.toString());
+        };
+      },
+    },
+  });
+  const edit = (value: string) =>
+    service.transact(f.context, type, () => ({
+      value: { version: 2, value },
+      result: undefined,
+      changed: true,
+    }));
+  await edit("created");
+  await edit("edited");
+  assert.deepEqual(sources, [
+    undefined,
+    `${JSON.stringify({ version: 2, value: "created" }, null, 2)}\n`,
+  ]);
+  assert.deepEqual(carried, [
+    ...sources.slice(1),
+    await readFile(f.path, "utf8"),
+  ]);
+  await rm(f.path);
+  await service.reset(f.context, type, true, {
+    value: { version: 2, value: "repaired" },
+    sourceDigest: "missing",
+  });
+  assert.equal(sources.length, 2);
 });

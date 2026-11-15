@@ -5,7 +5,7 @@
   - A selectable row (the chosen account among several) passes `select` in
     place of the icon: an interactive control, e.g. a radio, in the icon's slot.
     Everything else stays: the row still opens its item.
-  - `iconLabel` names the icon's kind in a tooltip (Direct tool · name).
+  - `iconLabel` names the icon's kind in a tooltip (Tool · name).
   - The whole row opens the item when `onOpen` is set (hover fill, chevron).
     There is no separate Configure button.
   - The status line is the summary, or the problem with its fix. A problem

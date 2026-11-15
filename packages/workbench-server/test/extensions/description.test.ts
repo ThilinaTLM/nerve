@@ -35,7 +35,7 @@ void test("namespaces appear in registry order, only when configured, with their
     },
     registry,
   );
-  assert.match(text, /atlassian \([^)]*\); jira \([^)]*\); search \([^)]*\)\./);
+  assert.match(text, /search \([^)]*\); atlassian \([^)]*\); jira \([^)]*\)\./);
   assert.match(
     text,
     /\natlassian: Write to Jira and Confluence only on explicit user request/,
