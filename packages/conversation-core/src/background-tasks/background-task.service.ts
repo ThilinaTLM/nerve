@@ -50,6 +50,13 @@ export class BackgroundTaskService {
     this.watchers.set(ref.id, watcher);
   }
 
+  /** Whether startup recovery has persisted running tasks to reattach or settle. */
+  hasRunning(parentConversationId: string): boolean {
+    for (const runner of this.runners.values())
+      if (runner.running(parentConversationId).length) return true;
+    return false;
+  }
+
   async recover(parentConversationId?: string): Promise<void> {
     for (const runner of this.runners.values())
       for (const ref of runner.running(parentConversationId)) {
