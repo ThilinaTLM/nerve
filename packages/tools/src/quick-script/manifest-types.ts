@@ -24,6 +24,8 @@ export type DocTopic = { id: string; whenToRead: string; file: string };
 export type SdkNamespace = {
   /** Global name in the sandbox: `jira`. */
   id: string;
+  /** Title on the Extensions page; the id when absent. */
+  label?: string;
   /** Boolean setting key (or any of several) of the extension that switches this namespace (`jira` in Atlassian's settings). Absent: the namespace follows its extension. */
   enabledBy?: string | string[];
   /** Account setting that must select an existing account with a saved secret for the namespace to be available. */

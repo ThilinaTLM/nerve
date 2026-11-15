@@ -29,6 +29,7 @@ The API is built to be isolated: extension code could later run in its own sandb
 ## Availability and accounts
 
 - Availability is **derived** from the manifest: the extension's switch and the namespace's `enabledBy` (one setting or any of a list), then `requires` (the selected account exists and has a saved secret), then the optional `availability(ctx)` hook. Reasons and fixes are generated with the extension's name, so there are no per-extension texts. Details in [code mode](code-mode.md#configuration).
+- The Extensions page reads the manifest's `contributes` from the extension metadata: each namespace with its optional `label` (the id when absent), and each direct tool as `{ name, label, description }` (`label` defaults to the name).
 - **Accounts are generic**: stored by kind, user-only, secrets under `account:<kind>:<id>` ([configuration](configuration.md)). Account ids are local to a home, so a project file naming an account this user lacks leaves the extension unavailable with a fix naming the extension page; it never falls back to another account. Default project and space keys stay on the Atlassian account, because a key is meaningful only on its site.
 - The Settings account list, dialog and "Test" button are generated from the manifest; no app code names a product.
 

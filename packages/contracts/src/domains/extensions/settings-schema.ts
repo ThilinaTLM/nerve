@@ -190,6 +190,8 @@ export const extensionMetadataSchema = z.strictObject({
     namespaces: z.array(
       z.strictObject({
         id: z.string().min(1),
+        /** Title on the Extensions page; the id when absent. */
+        label: z.string().min(1).optional(),
         /** Boolean setting that switches the namespace; absent when it follows the extension. */
         enabledBy: z.union([z.string(), z.array(z.string())]).optional(),
         /** Account setting that must select an account with a saved secret. */
@@ -199,8 +201,14 @@ export const extensionMetadataSchema = z.strictObject({
         summary: z.string(),
       }),
     ),
-    /** Direct tool names. */
-    tools: z.array(z.string()),
+    /** Direct tools: name, Tools-page label (the name when the tool has none) and description. */
+    tools: z.array(
+      z.strictObject({
+        name: z.string().min(1),
+        label: z.string().min(1),
+        description: z.string(),
+      }),
+    ),
     /** Skill names. */
     skills: z.array(z.string()),
   }),

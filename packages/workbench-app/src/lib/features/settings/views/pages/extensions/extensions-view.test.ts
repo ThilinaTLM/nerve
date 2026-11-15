@@ -40,6 +40,7 @@ function atlassian(patch: Partial<ExtensionView> = {}): ExtensionView {
           { id: "atlassian", helper: true, summary: "site" },
           {
             id: "jira",
+            label: "Jira",
             enabledBy: "jira",
             requiresAccount: "account",
             summary: "Issues",
@@ -157,9 +158,10 @@ describe("extension summary and availability", () => {
       label: "Add account",
       section: "accounts",
     });
+    // The account field is merged into the Account section.
     assert.deepEqual(extensionFix(broken, accounts), {
       label: "Choose account",
-      section: "settings",
+      section: "accounts",
     });
     assert.equal(extensionFix(atlassian(), accounts), undefined);
   });
@@ -405,7 +407,7 @@ describe("detail layout", () => {
 
   it("moves a switch onto its namespace row and leaves Settings", () => {
     const layout = detailLayout(atlassian(), "user");
-    assert.deepEqual(keys(atlassian()), ["account", "project"]);
+    assert.deepEqual(keys(atlassian()), ["project"]);
     assert.deepEqual(
       layout.features.map((row) => [row.id, row.control.type]),
       [
@@ -495,5 +497,83 @@ describe("detail layout", () => {
     );
     assert.equal(features[0]!.problem, "Needs an account.");
     assert.equal(features[1]!.problem, undefined);
+  });
+  it("merges an account field with its kind's list unless it was placed on purpose", () => {
+    const account = (extra: object = {}) =>
+      ({
+        type: "account",
+        kind: "atlassian",
+        label: "Account",
+        ...extra,
+      }) as const;
+    const view = (fields: ExtensionView["settingsSchema"]["fields"]) =>
+      withSchema(fields, [], {});
+    const merged = (v: ExtensionView) =>
+      detailLayout(v, "user").accounts.map((entry) => entry.item.key);
+
+    const plain = view({ account: account() });
+    assert.deepEqual(merged(plain), ["account"]);
+    assert.equal(detailLayout(plain, "user").accounts[0]!.kind, "atlassian");
+    assert.deepEqual(keys(plain), []);
+
+    const two = view({ a: account(), b: account({ label: "Other" }) });
+    assert.deepEqual(merged(two), []);
+    assert.deepEqual(keys(two), ["a", "b"]);
+
+    for (const extra of [
+      { section: "s" },
+      { advanced: true },
+      { visibleWhen: { field: "b", equals: true } },
+    ]) {
+      const placed = view({
+        account: account(extra),
+        b: { type: "boolean", label: "B", default: false },
+      });
+      assert.deepEqual(merged(placed), []);
+      assert.ok(keys(placed).includes("account"));
+    }
+  });
+
+  it("lists namespaces, then direct tools, then skills, each titled for people", () => {
+    const base = atlassian();
+    const view = atlassian({
+      metadata: {
+        ...base.metadata,
+        contributes: {
+          namespaces: [
+            ...base.metadata.contributes.namespaces,
+            { id: "raw", summary: "No label" },
+          ],
+          tools: [
+            { name: "search", label: "Search", description: "Find things" },
+          ],
+          skills: ["guide"],
+        },
+      },
+      toolAvailability: {
+        search: {
+          configured: true,
+          available: false,
+          reason: "needs an account.",
+          fix: "Ask",
+        },
+      },
+    });
+    const rows = detailLayout(view, "user").features;
+    assert.deepEqual(
+      rows.map((row) => [row.kind, row.id, row.title]),
+      [
+        ["namespace", "jira", "Jira"],
+        ["namespace", "confluence", "confluence"],
+        ["namespace", "raw", "raw"],
+        ["tool", "search", "Search"],
+        ["skill", "guide", "guide"],
+      ],
+    );
+    const tool = rows[3]!;
+    assert.equal(tool.summary, "Find things");
+    assert.equal(tool.problem, "Needs an account.");
+    assert.deepEqual(tool.control, { type: "opens", page: "tools" });
+    assert.deepEqual(rows[4]!.control, { type: "opens", page: "skills" });
   });
 });

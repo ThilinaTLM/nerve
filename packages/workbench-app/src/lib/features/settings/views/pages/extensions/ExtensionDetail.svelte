@@ -1,12 +1,17 @@
 <!--
   One extension's detail view, below its page header
-  (`ExtensionDetailHeader`): the problem callout, the settings its schema
+  (`ExtensionDetailHeader`): the problem callout, Account, the settings its schema
   declares, Features (what the agent can use, with the switches that belong to
-  one namespace moved onto its row), then Accounts.
+  one namespace moved onto its row), then the account lists that did not merge.
+  An account field that is its kind's only one is the Account section instead:
+  the list of accounts with a radio each, before Settings.
 -->
 <script lang="ts">
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import Code from "@lucide/svelte/icons/code";
+import Library from "@lucide/svelte/icons/library";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import Wrench from "@lucide/svelte/icons/wrench";
 import type { ExtensionView } from "@nervekit/contracts/extensions";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -18,7 +23,13 @@ import {
   openProjectSettingsPane,
   openSettingsPane,
 } from "$lib/application/settings";
-import { SettingsRow, SettingsSection } from "$lib/presentation/settings";
+import {
+  SettingsChangeIndicator,
+  SettingsItem,
+  SettingsList,
+  SettingsRow,
+  SettingsSection,
+} from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
 import AccountsSection from "./AccountsSection.svelte";
 import ExtensionFieldRow from "./ExtensionFieldRow.svelte";
@@ -29,6 +40,8 @@ import {
   extensionFix,
   extensionProblem,
   helperNote,
+  lockOwner,
+  type FeatureRow,
   type AccountChoices,
   type ExtensionsScope,
 } from "./extensions-view";
@@ -66,15 +79,20 @@ const rowProblem = (reason: string | undefined) =>
   reason !== undefined && reason === problem ? "Unavailable" : reason;
 const fix = $derived(extensionFix(extension, accounts));
 const note = $derived(helperNote(layout.helpers));
-const contributes = $derived(extension.metadata.contributes);
-const hasFeatures = $derived(
-  layout.features.length +
-    contributes.tools.length +
-    contributes.skills.length >
-    0,
-);
+const hasFeatures = $derived(layout.features.length > 0);
 const busy = $derived(extensions.saving || extension.readOnly);
-const hasAccounts = $derived(extension.accountKinds.length > 0);
+const mergedKinds = $derived(
+  new Set(layout.accounts.map((entry) => entry.kind)),
+);
+const listKinds = $derived(
+  extension.accountKinds.filter((kind) => !mergedKinds.has(kind.kind)),
+);
+const featureIcons = { namespace: Code, tool: Wrench, skill: Library } as const;
+const featureKindLabels = {
+  namespace: "Quick script namespace",
+  tool: "Direct tool",
+  skill: "Skill",
+} as const;
 
 let advancedOpen = $state<Record<string, boolean>>({});
 
@@ -96,6 +114,9 @@ function runFix(): void {
   if (!fix) return;
   if (fix.section === "accounts" && scope === "project") openUserAccounts();
   else revealSection(fix.section);
+}
+function featureProblem(row: FeatureRow): string | undefined {
+  return rowProblem(row.problem);
 }
 function openPage(page: "tools" | "skills"): void {
   if (projectId) void openProjectSettingsPane(projectId, page);
@@ -130,6 +151,34 @@ function openPage(page: "tools" | "skills"): void {
       {/snippet}
     </Callout>
   {/if}
+
+  {#each layout.accounts as entry (entry.item.key)}
+    {@const kind = extension.accountKinds.find((k) => k.kind === entry.kind)}
+    {#if kind}
+      <AccountsSection
+        {kind}
+        icon={extension.metadata.icon}
+        readonly={scope === "project"}
+        onManage={openUserAccounts}
+        choice={{
+          title: entry.item.field.label,
+          description: entry.item.field.description,
+          scope,
+          value:
+            typeof entry.item.value === "string" ? entry.item.value : undefined,
+          disabled: busy || !entry.item.editable,
+          lockedReason: entry.item.readOnlyReason,
+          change: changes.find((change) => change.key === entry.item.key),
+          onSelect: (account) =>
+            void extensions.save(
+              id,
+              entryWithSetting(extension, entry.item.key, account),
+            ),
+          onReset: () => void extensions.reset(id, [entry.item.key]),
+        }}
+      />
+    {/if}
+  {/each}
 
   {#each sections as section (section.id)}
     <SettingsSection
@@ -198,84 +247,72 @@ function openPage(page: "tools" | "skills"): void {
       id="features"
       footer={note ? helpersNote : undefined}
       title="Features"
-      description="What the agent can use in quick_script when this extension is on."
-      divided
+      description="What the agent gets when this extension is on."
     >
-      {#each layout.features as row (row.id)}
-        {#if row.control.type === "switch"}
-          {@const item = row.control.item}
-          <ExtensionFieldRow
-            extensionId={id}
-            {item}
-            {scope}
-            {accounts}
-            {models}
-            feature={{ ...row, problem: rowProblem(row.problem) }}
-            change={changes.find((change) => change.key === item.key)}
-            disabled={busy}
-            onChange={(value) =>
-              void extensions.save(
-                id,
-                entryWithSetting(extension, item.key, value),
-              )}
-            onReset={() => void extensions.reset(id, [item.key])}
-          />
-        {:else}
-          {@const mode = row.control}
-          <SettingsRow label={row.id} mono description={row.summary}>
-            {#snippet hint()}
-              {#if row.problem}
-                <span class="inline-flex items-center gap-1 text-warning">
-                  <TriangleAlert class="size-3 flex-none" aria-hidden="true" />
-                  {rowProblem(row.problem)}
-                </span>
-              {/if}
-            {/snippet}
-            {#snippet control()}
-              {#if mode.type === "setting"}
+      <SettingsList ariaLabel="Features">
+        {#each layout.features as row (`${row.kind}:${row.id}`)}
+          {@const control = row.control}
+          {@const item = control.type === "switch" ? control.item : undefined}
+          <SettingsItem
+            title={row.title}
+            summary={row.summary}
+            icon={featureIcons[row.kind]}
+            iconLabel={`${featureKindLabels[row.kind]} · ${row.id}`}
+            muted={!extension.enabled.value}
+            problem={featureProblem(row)}
+            onOpen={control.type === "opens"
+              ? () => openPage(control.page)
+              : undefined}
+            openLabel={control.type === "opens"
+              ? `Open ${row.title} in ${control.page === "tools" ? "Tools" : "Skills"}`
+              : undefined}
+            checked={item ? item.value === true : undefined}
+            switchLabel={item?.field.label}
+            disabled={busy || (item ? !item.editable : false)}
+            lockedBy={item ? lockOwner(item) : undefined}
+            onCheckedChange={item
+              ? (next) =>
+                  void extensions.save(
+                    id,
+                    entryWithSetting(extension, item.key, next),
+                  )
+              : undefined}
+          >
+            {#snippet meta()}
+              {#if item}
+                {@const change = changes.find(
+                  (entry) => entry.key === item.key,
+                )}
+                {#if change}
+                  <SettingsChangeIndicator
+                    {scope}
+                    from={change.from}
+                    onReset={() => void extensions.reset(id, [item.key])}
+                  />
+                {/if}
+              {:else if control.type === "setting"}
                 <Button
                   size="sm"
                   variant="ghost"
                   class="text-muted-foreground"
                   onclick={() =>
-                    void revealField(mode.sectionId, mode.advanced)}
-                  >{mode.on ? "On" : "Off"} · set in Settings</Button
+                    void revealField(control.sectionId, control.advanced)}
+                  >{control.on ? "On" : "Off"} · set in Settings</Button
                 >
-              {:else}
-                <span class="text-ui text-muted-foreground"
+              {:else if control.type === "follows"}
+                <span class="text-caption text-muted-foreground"
                   >With the extension</span
                 >
               {/if}
             {/snippet}
-          </SettingsRow>
-        {/if}
-      {/each}
-      {#if contributes.tools.length > 0}
-        <SettingsRow
-          label="Direct tools"
-          description={contributes.tools.join(", ")}
-        >
-          {#snippet control()}
-            <Button size="sm" variant="ghost" onclick={() => openPage("tools")}
-              >Open Tools</Button
-            >
-          {/snippet}
-        </SettingsRow>
-      {/if}
-      {#if contributes.skills.length > 0}
-        <SettingsRow label="Skills" description={contributes.skills.join(", ")}>
-          {#snippet control()}
-            <Button size="sm" variant="ghost" onclick={() => openPage("skills")}
-              >Open Skills</Button
-            >
-          {/snippet}
-        </SettingsRow>
-      {/if}
+          </SettingsItem>
+        {/each}
+      </SettingsList>
     </SettingsSection>
   {/if}
-  {#if hasAccounts}
+  {#if listKinds.length > 0}
     {#if scope === "user"}
-      {#each extension.accountKinds as kind (kind.kind)}
+      {#each listKinds as kind (kind.kind)}
         <AccountsSection {kind} icon={extension.metadata.icon} />
       {/each}
     {:else}

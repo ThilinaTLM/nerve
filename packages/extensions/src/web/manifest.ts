@@ -43,6 +43,7 @@ export const webExtension = defineExtension({
   namespaces: [
     defineNamespace({
       id: "web",
+      label: "Web",
       summary: "fetch, search",
       rules: [
         "`web.fetch` content can be up to {{limit:web.fetch}}: slice before printing. `web.search` needs a Tavily account, else `DENIED`.",
@@ -54,7 +55,7 @@ export const webExtension = defineExtension({
   tools: [
     defineTool({
       name: "web_search",
-      label: "Web Search",
+      label: "Web search",
       description: "Search the web.",
       parameters: {
         type: "object",

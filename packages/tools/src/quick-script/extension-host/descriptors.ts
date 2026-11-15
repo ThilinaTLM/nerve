@@ -40,6 +40,7 @@ export function extensionMetadata(
     contributes: {
       namespaces: (extension.contributes.sdk ?? []).map((namespace) => ({
         id: namespace.id,
+        ...(namespace.label ? { label: namespace.label } : {}),
         ...(namespace.enabledBy ? { enabledBy: namespace.enabledBy } : {}),
         ...(namespace.requires?.account
           ? { requiresAccount: namespace.requires.account }
@@ -47,7 +48,11 @@ export function extensionMetadata(
         ...(namespace.helper ? { helper: true } : {}),
         summary: namespace.summary,
       })),
-      tools: extension.contributes.tools ?? [],
+      tools: (extension.tools ?? []).map((tool) => ({
+        name: tool.name,
+        label: tool.label ?? tool.name,
+        description: tool.description,
+      })),
       skills: extension.contributes.skills ?? [],
     },
   };

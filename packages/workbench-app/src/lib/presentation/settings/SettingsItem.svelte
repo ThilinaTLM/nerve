@@ -2,6 +2,10 @@
   One item in a settings catalog or entity list (tools, skills, extensions,
   providers, accounts). Fixed anatomy, all on one row:
     icon · title + exceptional badges / one status line · meta, actions, switch, chevron
+  - A selectable row (the chosen account among several) passes `select` in
+    place of the icon: an interactive control, e.g. a radio, in the icon's slot.
+    Everything else stays: the row still opens its item.
+  - `iconLabel` names the icon's kind in a tooltip (Direct tool · name).
   - The whole row opens the item when `onOpen` is set (hover fill, chevron).
     There is no separate Configure button.
   - The status line is the summary, or the problem with its fix. A problem
@@ -14,6 +18,7 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Lock from "@lucide/svelte/icons/lock";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { Component, Snippet } from "svelte";
 
@@ -24,6 +29,12 @@ type Props = {
   /** Identity glyph in a tile. Use `leading` instead for a custom mark (provider logo). */
   icon?: Icon;
   leading?: Snippet;
+  /** Names the icon's kind in a tooltip; hovering the tile still opens the item. */
+  iconLabel?: string;
+  /** Interactive control (e.g. a radio) in the icon's slot; takes precedence over `icon`. */
+  select?: Snippet;
+  /** Turns title and icon muted without a switch (the owner is off). */
+  muted?: boolean;
   /** How the item is set up, or what it does when it has no settings. One line. */
   summary?: string;
   /** The summary is a path or command. */
@@ -59,6 +70,9 @@ let {
   title,
   icon: Icon,
   leading,
+  iconLabel,
+  select,
+  muted = false,
   summary,
   mono = false,
   problem,
@@ -79,7 +93,7 @@ let {
   class: className,
 }: Props = $props();
 
-const off = $derived(checked === false);
+const off = $derived(muted || checked === false);
 const hasSwitch = $derived(checked !== undefined && !always);
 </script>
 
@@ -102,21 +116,47 @@ const hasSwitch = $derived(checked !== undefined && !always);
     ></button>
   {/if}
 
-  {#if leading}
+  {#if select}
+    <span
+      class="pointer-events-none flex size-8 flex-none items-center justify-center"
+    >
+      <span class="pointer-events-auto relative flex">{@render select()}</span>
+    </span>
+  {:else if leading}
     <span
       class="pointer-events-none flex size-8 flex-none items-center justify-center"
     >
       {@render leading()}
     </span>
   {:else if Icon}
-    <span
-      class={cn(
-        "pointer-events-none flex size-8 flex-none items-center justify-center rounded-md border bg-card",
-        off ? "text-muted-foreground" : "text-foreground",
-      )}
-    >
-      <Icon class="size-4" aria-hidden="true" />
-    </span>
+    {@const tile = cn(
+      "flex size-8 flex-none items-center justify-center rounded-md border bg-card",
+      off ? "text-muted-foreground" : "text-foreground",
+    )}
+    {#if iconLabel}
+      <Tooltip.Provider delayDuration={300}>
+        <Tooltip.Root>
+          <Tooltip.Trigger>
+            {#snippet child({ props })}
+              <!-- Above the full-row target, so a click forwards to it. -->
+              <span
+                {...props}
+                class={cn(tile, "relative")}
+                role="presentation"
+                onclick={onOpen}
+              >
+                <Icon class="size-4" aria-hidden="true" />
+              </span>
+            {/snippet}
+          </Tooltip.Trigger>
+          <Tooltip.Content>{iconLabel}</Tooltip.Content>
+        </Tooltip.Root>
+      </Tooltip.Provider>
+    {:else}
+      <span class={cn(tile, "pointer-events-none")}>
+        <Icon class="size-4" aria-hidden="true" />
+      </span>
+    {/if}
   {/if}
 
   <div class="pointer-events-none grid min-w-0 flex-1 gap-0.5">

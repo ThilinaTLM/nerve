@@ -135,6 +135,7 @@ function toSdkNamespace(
 ): SdkNamespace {
   return {
     id: namespace.id,
+    ...(namespace.label ? { label: namespace.label } : {}),
     ...(namespace.enabledBy
       ? {
           enabledBy:

@@ -447,6 +447,8 @@ export type Requires = {
 export type NamespaceDefinition<Session = unknown> = {
   /** Global name in the sandbox: `jira`. */
   id: string;
+  /** Title on the Extensions page; the id when absent. */
+  label?: string;
   /** Boolean setting of the extension that switches this namespace, or several (any one enables it). Absent: it follows the extension. */
   enabledBy?: string | readonly string[];
   requires?: Requires;

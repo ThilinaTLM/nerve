@@ -237,9 +237,10 @@ export function extensionFix(
     : undefined;
   if (field?.type !== "account")
     return { label: "Review", section: "settings" };
+  const merged = mergedAccountFields(extension).has(failing!.requiresAccount!);
   return (accounts[field.kind]?.length ?? 0) === 0
     ? { label: "Add account", section: "accounts" }
-    : { label: "Choose account", section: "settings" };
+    : { label: "Choose account", section: merged ? "accounts" : "settings" };
 }
 
 export type FeatureControl =
@@ -247,6 +248,8 @@ export type FeatureControl =
   | { type: "switch"; item: FieldItem }
   /** No switch of its own: the namespace loads with the extension. */
   | { type: "follows" }
+  /** A tool or skill: the row opens its page. */
+  | { type: "opens"; page: "tools" | "skills" }
   /** Its switch stays in Settings (placed on purpose); `on` is its state. */
   | {
       type: "setting";
@@ -257,15 +260,24 @@ export type FeatureControl =
     };
 
 export type FeatureRow = {
+  kind: "namespace" | "tool" | "skill";
+  /** The namespace id, tool name or skill name. */
   id: string;
-  summary: string;
+  /** Row title: a namespace's `label ?? id`, a tool's `label`, a skill's name. */
+  title: string;
+  summary?: string;
   control: FeatureControl;
-  /** Why the namespace cannot be used, when it is switched on but cannot. */
+  /** Why the namespace or tool cannot be used, when it is switched on but cannot. */
   problem?: string;
 };
 
+/** An account field shown as the Account section, merged with its kind's list. */
+export type MergedAccount = { item: FieldItem; kind: string };
+
 export type ExtensionDetailLayout = {
-  /** Settings sections without the switches that moved onto Features. */
+  /** Account fields merged with their kind's account list; they leave Settings. */
+  accounts: MergedAccount[];
+  /** Settings sections without the merged account fields and the switches that moved onto Features. */
   sections: FieldSection[];
   features: FeatureRow[];
   /** Helper namespaces, named once in the Features footer. */
@@ -279,12 +291,43 @@ const enabledByKeys = (enabledBy: string | string[] | undefined): string[] =>
       ? enabledBy
       : [enabledBy];
 
+/**
+ * Keys of the account fields that merge with their kind's list: the only
+ * account field of the kind, with no `section`, `advanced` or `visibleWhen`
+ * (the author placed those on purpose), and whose kind the extension defines.
+ */
+export function mergedAccountFields(extension: ExtensionView): Set<string> {
+  const fields = Object.entries(extension.settingsSchema.fields).flatMap(
+    ([key, field]) => (field.type === "account" ? [[key, field] as const] : []),
+  );
+  return new Set(
+    fields
+      .filter(
+        ([, field]) =>
+          extension.accountKinds.some((kind) => kind.kind === field.kind) &&
+          field.section === undefined &&
+          !field.advanced &&
+          field.visibleWhen === undefined &&
+          fields.filter(([, other]) => other.kind === field.kind).length === 1,
+      )
+      .map(([key]) => key),
+  );
+}
+
 /** The reason a namespace cannot be used; nothing while it is available or not switched on. */
 export function featureProblem(
   state: ExtensionView["availability"][string] | undefined,
 ): string | undefined {
   return state && state.configured && !state.available
     ? sentence(state.reason)
+    : undefined;
+}
+
+/** Who fixed a field, from its read-only reason ("Locked by Planning" → "Planning"). */
+export function lockOwner(item: FieldItem): string | undefined {
+  const prefix = "Locked by ";
+  return item.readOnlyReason?.startsWith(prefix)
+    ? item.readOnlyReason.slice(prefix.length)
     : undefined;
 }
 
@@ -301,7 +344,9 @@ export function helperNote(helpers: readonly string[]): string | undefined {
  * switch when it is the single `enabledBy` of exactly one listed namespace,
  * no `enabledBy` of another listed one, and has no `section`, `advanced` or
  * `visibleWhen` (those mean the author placed it on purpose; it stays in
- * Settings and the row shows its state).
+ * Settings and the row shows its state). Account fields merge with their
+ * kind's list (see {@link mergedAccountFields}). Features list namespaces,
+ * then direct tools, then skills.
  */
 export function detailLayout(
   extension: ExtensionView,
@@ -331,10 +376,19 @@ export function detailLayout(
     if (mentions.length === 1 && mentions[0]!.enabledBy === key) moves.add(key);
   }
 
-  const features = listed.map((namespace): FeatureRow => {
+  const merged = mergedAccountFields(extension);
+  const accounts: MergedAccount[] = [];
+  for (const { item } of placed.values())
+    if (merged.has(item.key) && item.field.type === "account")
+      accounts.push({ item, kind: item.field.kind });
+  const hidden = new Set([...moves, ...merged]);
+
+  const namespaces = listed.map((namespace): FeatureRow => {
     const problem = featureProblem(extension.availability[namespace.id]);
     const base = {
+      kind: "namespace" as const,
       id: namespace.id,
+      title: namespace.label ?? namespace.id,
       summary: namespace.summary,
       ...(problem ? { problem } : {}),
     };
@@ -363,11 +417,36 @@ export function detailLayout(
     };
   });
 
+  const { tools, skills } = extension.metadata.contributes;
+  const features: FeatureRow[] = [
+    ...namespaces,
+    ...tools.map((tool): FeatureRow => {
+      const problem = featureProblem(extension.toolAvailability?.[tool.name]);
+      return {
+        kind: "tool",
+        id: tool.name,
+        title: tool.label,
+        summary: tool.description,
+        control: { type: "opens", page: "tools" },
+        ...(problem ? { problem } : {}),
+      };
+    }),
+    ...skills.map(
+      (skill): FeatureRow => ({
+        kind: "skill",
+        id: skill,
+        title: skill,
+        control: { type: "opens", page: "skills" },
+      }),
+    ),
+  ];
+
   return {
+    accounts,
     sections: sections
       .map((section) => ({
         ...section,
-        fields: section.fields.filter((item) => !moves.has(item.key)),
+        fields: section.fields.filter((item) => !hidden.has(item.key)),
       }))
       .filter((section) => section.fields.length + section.advanced.length > 0),
     features,

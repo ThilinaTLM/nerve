@@ -29,7 +29,7 @@ Phase 1 of the extension platform shipped ([architecture/extension-platform](../
 
 ### Extension detail view
 
-The list and the detail are already generic: settings rows come from `settingsSchema` (sections, advanced, scopes, locks, `visibleWhen`), the account list and dialog from `accountKinds`, Contributes from `metadata.contributes` plus `availability`, and the list summary and problem from the same data. A new extension that uses the existing field types needs no UI change. Items 10–12 tighten what it shows and close the remaining gaps.
+The list and the detail are already generic: settings rows come from `settingsSchema` (sections, advanced, scopes, locks, `visibleWhen`), the account list and dialog from `accountKinds`, Contributes from `metadata.contributes` plus `availability`, and the list summary and problem from the same data. A new extension that uses the existing field types needs no UI change. Items 10–13 tighten what it shows and close the remaining gaps.
 
 10. **Detail header in the page-header slot (implemented).** Opening an extension now swaps the page header for a breadcrumb row, then an icon tile, name and description below it, so the title moves down about 50 px and its typography changes (description `text-caption` instead of `text-ui`). Instead, keep `SettingsPageHeader`'s box and make its title the breadcrumb: `Extensions › [mark] Atlassian` in `text-title`, "Extensions" muted and the back link, the item's description in place of the page's, and the enable switch in the page-actions slot. Nothing moves vertically when a detail opens or closes; Escape and focus-on-open stay. This replaces `SettingsBreadcrumb` and the header inside `ExtensionDetail.svelte` and applies to every page with a `detail` declaration.
 11. **Detail layout derived from the schema (implemented).** Today the Jira and Confluence switches in Settings repeat the `jira` and `confluence` rows in Contributes, every Contributes row ends in "· Available", helper namespaces are listed although `helper` means "not listed to the user", and there are three "Add account" buttons when no account exists. Proposed, with no contract change:
@@ -40,13 +40,18 @@ The list and the detail are already generic: settings rows come from `settingsSc
     - Order: problem callout, Settings (remaining fields, Advanced), Features, Accounts. Accounts move last because they are managed rarely; the account choice stays in Settings.
     - One Add account: in the Accounts section header (and the problem callout's fix). The account select no longer carries its own ghost button; with no accounts it shows a disabled "No accounts yet".
     - Nothing is removed: every control, change indicator, reset and link of today's view keeps a place.
-12. **Gaps before third-party extensions.** Only these still assume the built-ins:
+12. **Account and Features refinements.** After item 11 the account is chosen in a Settings dropdown and managed in a separate list below; every Features row titles itself with a monospace namespace id; the description ties Features to quick_script although extensions also contribute direct tools and skills; and account health is a word at the end of the URL line.
+    - **One Account section.** An account field merges with its kind's list when it is the only account field of that kind and has no `section`, `advanced` or `visibleWhen` (the item 11 rule). Each account row has a radio in place of the brand tile (the mark is the same on every row and already in the header); the radio chooses, the row still opens Edit, and Test and Delete stay as row actions. The field's change indicator and reset sit in the section header beside Add account. The title is the field's label ("Account", "Search account") and its description the field's. Order: problem callout, Account, Settings (whatever is left; omitted when empty), Features. At project scope the radios still choose (a project can use another account); Add, Edit, Test and Delete give way to "Managed in user settings". A field that does not merge keeps its select, and the kind's list stays a separate section.
+    - **Health on the name.** A status icon follows the account name: verified `circle-check` (success), restricted or couldn't check `triangle-alert` (warning), rejected `circle-x` (destructive), nothing when not checked or the kind has no test. Its tooltip names the status and when it was checked. The second line keeps only the account summary (site, email). A missing secret or a check that failed still replaces that line with the warning and its fix.
+    - **Features by kind.** Description: "What the agent gets when this extension is on." One row per contribution, each led by a tile with its kind's icon, the same icon as that kind's settings page: quick_script namespace `code`, direct tool `wrench`, skill `library`. The tile's tooltip names the kind and identifier ("Quick script namespace · jira"). Titles use the regular font. Namespace rows keep the item 11 controls; a tool row shows its availability and opens the tool on the Tools page; a skill row opens the skill. Helper namespaces stay in the footer.
+    - **Contract.** Namespaces gain an optional `label` (title on the Extensions page; the id when absent), like tools. Metadata `contributes.tools` becomes `{ name, label, description }[]`, so a tool row needs no second request. Built-in labels: Jira, Confluence, Web, Image generation, Diagrams.
+13. **Gaps before third-party extensions.** Only these still assume the built-ins:
     - The list has one hard-coded "Built-in" section. Group by `metadata.source` once phase 3 adds installed extensions.
     - ~~`extensionFix` uses the first account kind.~~ Done: it follows the failing namespace's `requiresAccount` field.
     - The field-type set is closed by design (a type is added when a built-in needs it); a new type means contracts, `controlFor`, `displayValue` and `ExtensionFieldRow`. The account dialog has no control for `account` or `model` fields and silently drops them; registration should reject them in account kinds.
     - Extensions cannot supply their own UI. That is intended; anything beyond the schema stays a proposal for phase 3.
 
-Wireframe: `/dev/wireframes/extension-detail-streamlined` (local, gitignored) shows the list and detail with Current and Proposed variants, the brand icon, and an "Atlassian: no account" scenario. Its `layoutDetail` is the derivation rule from item 11.
+Wireframe: `/dev/wireframes/extension-detail-streamlined` (local, gitignored) shows the list and detail with Current and Proposed variants, the brand icon, and an "Atlassian: no account" scenario. Its `layoutDetail` is the derivation rule from item 11; the Proposed variant shows item 12.
 
 ### Verification
 
@@ -59,8 +64,8 @@ Wireframe: `/dev/wireframes/extension-detail-streamlined` (local, gitignored) sh
 
 ## Recommendation
 
-Order: 1 (one-line default) → 8 (unknown risk) → 2 and 4 (policy shape, before third parties write rules) → 5, 6, 3 → 10, 11 → 12, 7 and 9 when convenient. Surfacing extension changes to the user is phase 3 scope ([extension-platform](extension-platform/README.md#phase-3-installable-extensions)). Items 1–6 are small enough for one branch; 5, 10 and 11 are one UI branch (icon contract plus detail view); 7 is UI cleanup and can go separately.
+Order: 1 (one-line default) → 8 (unknown risk) → 2 and 4 (policy shape, before third parties write rules) → 5, 6, 3 → 10, 11, 12 → 13, 7 and 9 when convenient. Surfacing extension changes to the user is phase 3 scope ([extension-platform](extension-platform/README.md#phase-3-installable-extensions)). Items 1–6 are small enough for one branch; 5, 10 and 11 are one UI branch (icon contract plus detail view); 7 is UI cleanup and can go separately.
 
 ## Open questions
 
-None for items 5, 10 and 11.
+None for items 5 and 10–12.
