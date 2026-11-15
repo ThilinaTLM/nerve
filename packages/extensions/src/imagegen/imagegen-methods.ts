@@ -50,7 +50,7 @@ function artifactNameOf(value: unknown): string {
 
 export const imagegenMethods = {
   generate: method({
-    risk: "network",
+    risk: "external_write",
     signature:
       '/** Generates one image with the configured backend and returns it as an artifact handle (PNG, JPEG or WebP; the extension follows the data). size: "auto" or "<width>x<height>". Spends the user\'s credit: do not call it in loops. */ generate(options: { prompt: string; size?: string; name?: string; inputs?: FileHandle[]; backendOptions?: Record<string, string> }): Promise<FileHandle>',
     parse: (args) => {

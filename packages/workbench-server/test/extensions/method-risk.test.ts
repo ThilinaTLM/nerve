@@ -103,9 +103,9 @@ void test("the guard refuses a declaration below the authorization's risk", () =
     risk,
     summary: "",
   });
-  assertDeclaredRisk("m", "destructive", [operation("network")]);
+  assertDeclaredRisk("m", "destructive", [operation("external_read")]);
   assert.throws(
-    () => assertDeclaredRisk("m", "network", [operation("destructive")]),
+    () => assertDeclaredRisk("m", "external_read", [operation("destructive")]),
     /authorized as jira\.x\.y with destructive risk/,
   );
 });
@@ -113,7 +113,7 @@ void test("the guard refuses a declaration below the authorization's risk", () =
 void test("effective tool risks map conservatively onto the quick-script scale", () => {
   for (const [risk, expected] of [
     ["read", "read"],
-    ["network", "network"],
+    ["external_read", "external_read"],
     ["interaction", "read"],
     ["workspace_write", "workspace_write"],
     ["command", "external_write"],
@@ -142,17 +142,17 @@ void test("scripts are classified from the method table: adding is a write, dele
   );
   assert.equal(
     risk(`await jira.projects.get({ key: "A", include: ["epics"] })`),
-    "network",
+    "external_read",
   );
 });
 
-void test("raw requests are checked as the request operation: GET is a network read, anything else destructive, with method and path as the target", () => {
+void test("raw requests are checked as the request operation: GET is an external read, anything else destructive, with method and path as the target", () => {
   for (const product of ["jira", "confluence"]) {
     const request = findSdkMethod(`${product}.request`, registry)!;
     assert.deepEqual(request.prepare(["get", "/x"], env).authorization, {
       operation: `${product}.request`,
       targets: [{ kind: "resource", value: `${product}:request/GET /x` }],
-      risk: "network",
+      risk: "external_read",
       summary: "GET /x",
     });
     for (const verb of ["POST", "PUT", "PATCH", "DELETE"]) {

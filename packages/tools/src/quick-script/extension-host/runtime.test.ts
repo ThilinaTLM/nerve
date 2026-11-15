@@ -48,7 +48,7 @@ void test("ctx.authorize goes through the nested approval path, within the call'
   await ctx.authorize({
     operation: "demo.items.update",
     targets: ["demo:item/1"],
-    risk: "network",
+    risk: "external_read",
   });
   assert.deepEqual(nested, [
     {
@@ -59,7 +59,7 @@ void test("ctx.authorize goes through the nested approval path, within the call'
     {
       operation: "demo.items.update",
       targets: ["demo:item/1"],
-      risk: "network",
+      risk: "external_read",
     },
   ]);
 });
@@ -68,7 +68,7 @@ void test("ctx.authorize refuses a check above the declared risk, before any app
   const { runtime, nested } = setup();
   const ctx = runtime.context(demoExtension, {
     name: "demo.items.get",
-    risk: "network",
+    risk: "external_read",
   });
   await assert.rejects(
     ctx.authorize({
@@ -76,7 +76,7 @@ void test("ctx.authorize refuses a check above the declared risk, before any app
       targets: ["demo:item/1"],
       risk: "destructive",
     }),
-    /declares risk "network" but is authorized as demo\.items\.delete/,
+    /declares risk "external_read" but is authorized as demo\.items\.delete/,
   );
   assert.deepEqual(nested, []);
   const read = runtime.context(demoExtension, {

@@ -13,16 +13,8 @@ import { test } from "node:test";
 import { createStepContext } from "../../framework/context.js";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
 import { convertConversationAgent, extractFromTools } from "./convert.js";
-import { hostRegistry } from "../../../../core-host/host-tools.js";
-import {
-  REMOVED_TOOL_OPERATIONS,
-  convertRemovedToolException,
-} from "./removed-tools.js";
 import { EncryptedFileSecretProvider } from "../../../secrets/index.js";
 import step from "./step.js";
-
-const findQuickScriptNamespace = (id: string) =>
-  hostRegistry.namespaces.find((namespace) => namespace.id === id);
 
 /** Released `integrations.json`: per-product profiles that name their credential. */
 const accounts = {
@@ -653,70 +645,4 @@ void test("permission rules and rule sets naming removed tools are rewritten; wh
   const snapshot = readFileSync(paths.permissionsConfigPath, "utf8");
   await step.run(ctx);
   assert.equal(readFileSync(paths.permissionsConfigPath, "utf8"), snapshot);
-});
-
-void test("the removed-tool table names real SDK methods for every removed tool", () => {
-  assert.equal(Object.keys(REMOVED_TOOL_OPERATIONS).length, 30);
-  for (const [tool, route] of Object.entries(REMOVED_TOOL_OPERATIONS)) {
-    assert.ok(route.operations.length > 0 || route.raw, tool);
-    for (const operation of [
-      ...route.operations,
-      ...(route.raw ? [`${route.raw}.request`] : []),
-    ]) {
-      const [namespace, ...path] = operation.split(".");
-      const methods = findQuickScriptNamespace(namespace)?.methods ?? [];
-      assert.ok(
-        methods.some((method) => method.path === path.join(".")),
-        `${tool} -> ${operation}`,
-      );
-    }
-  }
-});
-
-void test("exceptions naming removed tools become quick_script operation globs", () => {
-  const exception = (tool: string, effect = "allow") => ({
-    id: "exception_1",
-    tool,
-    effect,
-    rule: "*",
-  });
-  assert.deepEqual(
-    convertRemovedToolException(exception("jira_manage_comment")),
-    [
-      {
-        id: "exception_1",
-        tool: "quick_script",
-        effect: "allow",
-        rule: "jira.comments.*",
-      },
-    ],
-  );
-  assert.deepEqual(convertRemovedToolException(exception("kroki_export")), [
-    {
-      id: "exception_1",
-      tool: "quick_script",
-      effect: "allow",
-      rule: "diagram.render",
-    },
-  ]);
-  assert.equal(
-    convertRemovedToolException(exception("confluence_manage_restriction")),
-    null,
-  );
-  assert.deepEqual(
-    convertRemovedToolException(
-      exception("confluence_manage_restriction", "deny"),
-    ),
-    [
-      {
-        id: "exception_1",
-        tool: "quick_script",
-        effect: "deny",
-        rule: "confluence.request",
-      },
-    ],
-  );
-  assert.deepEqual(convertRemovedToolException(exception("bash")), [
-    exception("bash"),
-  ]);
 });

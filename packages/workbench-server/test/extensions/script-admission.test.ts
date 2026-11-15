@@ -163,7 +163,7 @@ void test("operation rules cannot outrank a guardrail script-level deny, and bui
     enabled: true,
     priority: 1,
     enforcement: "guardrail",
-    when: { toolNames: ["quick_script"], baseRisks: ["write"] },
+    when: { toolNames: ["quick_script"], baseRisks: ["external_write"] },
     decision: "deny",
   };
   const admitted = scriptAdmission(calls, [guard, allowOps()]);
@@ -184,7 +184,7 @@ void test("the scan hands operation rules normalized targets, and marks scripts 
     },
     {
       operation: "confluence.pages.get",
-      risk: "network",
+      risk: "external_read",
       targets: ["confluence:page/12"],
     },
     {
@@ -207,7 +207,7 @@ void test("the scan hands operation rules normalized targets, and marks scripts 
   assert.equal(get.admissible, true);
   assert.deepEqual(
     get.calls.map(({ operation, risk }) => ({ operation, risk })),
-    [{ operation: "jira.request", risk: "network" }],
+    [{ operation: "jira.request", risk: "external_read" }],
   );
   // Incomplete scans never reach operation rules.
   for (const code of [

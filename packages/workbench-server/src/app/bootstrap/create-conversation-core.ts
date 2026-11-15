@@ -526,6 +526,13 @@ export function createConversationCore(
     // A conversation's own file is written while that conversation is created
     // (a child's frozen settings), so it cannot invalidate that creation.
     if (scope.scope !== "conversation") extensionEpoch++;
+    // Conversation scopes are published too: a conversation's extension view
+    // can be open, and a client only reloads views of the scope it shows.
+    void deps.events.publish("extensions.changed", { scope }).catch((error) => {
+      void deps.logger.warn("Extension change notification failed", {
+        error,
+      });
+    });
   });
   const conversationExtensionSettings = conversationExtensions({
     agents: agentConfiguration,

@@ -76,7 +76,7 @@ export const confluenceExtraMethods: PathedMethod<ConfluenceSession>[] = [
   defineMethod({
     product: "confluence",
     path: "attachments.list",
-    risk: "network",
+    risk: "external_read",
     bare: "id",
     options: ["id"],
     signature:

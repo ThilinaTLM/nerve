@@ -464,13 +464,15 @@ function requestMetadata(request: NormalizedPermissionRequest) {
       baseRisk:
         risk === "read"
           ? ("read" as const)
-          : risk === "network"
-            ? ("network" as const)
-            : risk === "workspace_write" || risk === "external_write"
+          : risk === "external_read"
+            ? ("external_read" as const)
+            : risk === "workspace_write"
               ? ("write" as const)
-              : risk === "destructive"
-                ? ("destructive" as const)
-                : ("unknown" as const),
+              : risk === "external_write"
+                ? ("external_write" as const)
+                : risk === "destructive"
+                  ? ("destructive" as const)
+                  : ("unknown" as const),
     };
   }
   return metadata;

@@ -4,7 +4,7 @@ import { onMount } from "svelte";
 import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenanceProgressView.svelte";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import {
-  SettingsDisclosureItem,
+  SettingsItem,
   SettingsSection,
   SettingsList,
 } from "$lib/presentation/settings";
@@ -58,11 +58,15 @@ const chartLabel = $derived(
     )
     .join(", ")}.`,
 );
-const databaseBytes = $derived(
-  usage
-    ? usage.database.dbBytes + usage.database.walBytes + usage.database.shmBytes
-    : 0,
-);
+/** File count first, so a long description truncates instead of it. */
+function categorySummary(category: (typeof categories)[number]): string {
+  const files = `${category.fileCount.toLocaleString()} ${category.fileCount === 1 ? "file" : "files"}`;
+  const conversations =
+    category.key === "payloads" && usage
+      ? ` · ${usage.conversations.total.toLocaleString()} conversations`
+      : "";
+  return `${files}${conversations} · ${category.description}`;
+}
 
 onMount(() => {
   controller.start();
@@ -151,66 +155,29 @@ onMount(() => {
   >
     <SettingsList ariaLabel="Storage categories">
       {#each categories as category, index (category.key)}
-        <SettingsDisclosureItem
+        <SettingsItem
           title={category.label}
-          description={category.description}
+          summary={categorySummary(category)}
         >
-          {#snippet titleSuffix()}
+          {#snippet leading()}
             <span
               class={`size-2 flex-none rounded-full ${categoryTones[index % categoryTones.length].bg}`}
               aria-hidden="true"
             ></span>
           {/snippet}
-          {#snippet titleDetail()}
-            <span class="font-mono">{formatBytes(category.bytes)}</span>
-            <span>· {percentOfTotal(category.bytes, totalBytes)}%</span>
-            {#if category.protected}
-              <span class="text-muted-foreground">· Protected</span>
-            {/if}
-            {#if category.cleanable}
-              <span class="text-muted-foreground">· Cleanable</span>
-            {/if}
-          {/snippet}
-          {#snippet detail()}
-            <p>
-              {category.fileCount.toLocaleString()} files ·
-              <span class="font-mono">{category.bytes.toLocaleString()}</span>
-              bytes
-            </p>
-            {#if category.key === "database"}
-              <p>
-                Canonical database total <span class="font-mono"
-                  >{formatBytes(databaseBytes)}</span
-                > across the database, write-ahead log, and shared memory files. This
-                authoritative state is never removed by cleanup.
-              </p>
-            {/if}
-            {#if category.key === "payloads"}
-              <p>
-                Retained payload footprints for
-                {usage.conversations.total.toLocaleString()} conversations.
-              </p>
-              {#if usage.conversations.largest.length > 0}
-                <ul class="grid gap-1">
-                  {#each usage.conversations.largest.slice(0, 3) as conversation (conversation.conversationId)}
-                    <li class="flex min-w-0 justify-between gap-3">
-                      <span
-                        class="truncate"
-                        title={conversation.title ??
-                          conversation.conversationId}
-                        >{conversation.title ??
-                          conversation.conversationId}</span
-                      >
-                      <span class="flex-none font-mono"
-                        >{formatBytes(conversation.bytes)}</span
-                      >
-                    </li>
-                  {/each}
-                </ul>
+          {#snippet meta()}
+            <span class="text-caption text-muted-foreground">
+              <span class="font-mono">{formatBytes(category.bytes)}</span>
+              · {percentOfTotal(category.bytes, totalBytes)}%
+              {#if category.protected}
+                · Protected
               {/if}
-            {/if}
+              {#if category.cleanable}
+                · Cleanable
+              {/if}
+            </span>
           {/snippet}
-        </SettingsDisclosureItem>
+        </SettingsItem>
       {/each}
     </SettingsList>
   </SettingsSection>

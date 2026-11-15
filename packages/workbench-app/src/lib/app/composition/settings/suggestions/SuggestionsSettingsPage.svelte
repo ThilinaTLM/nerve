@@ -13,8 +13,9 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import {
-  SettingsDisclosureItem,
   SettingsEmptyState,
+  SettingsItem,
+  SettingsPageHeader,
   SettingsSection,
   SettingsList,
   SettingsToolbar,
@@ -32,9 +33,20 @@ import type { SuggestionsPageState } from "./suggestions-page-state.svelte";
 type Props = {
   pageState: SuggestionsPageState;
   activeProject?: ProjectRecord;
+  /** The open suggestion's definition key; "" shows the list. */
+  itemId?: string;
+  onOpenItem?: (id: string) => void;
+  /** Leaves the open suggestion for the list. */
+  onCloseItem?: () => void;
 };
 
-let { pageState, activeProject }: Props = $props();
+let {
+  pageState,
+  activeProject,
+  itemId = "",
+  onOpenItem,
+  onCloseItem,
+}: Props = $props();
 
 let savingKey = $state<string | undefined>(undefined);
 let savingTrustId = $state<string | undefined>(undefined);
@@ -44,6 +56,11 @@ let query = $state("");
 const statuses = $derived(promptSuggestionsState.statuses);
 const loading = $derived(
   promptSuggestionsState.loading && statuses.length === 0,
+);
+const open = $derived(
+  itemId
+    ? statuses.find((status) => status.definitionKey === itemId)
+    : undefined,
 );
 const builtins = $derived(sourceStatuses("builtin"));
 const user = $derived(sourceStatuses("user"));
@@ -125,6 +142,85 @@ function copyPath(path: string): void {
 }
 </script>
 
+{#snippet statusBadges(status: PromptSuggestionStatus)}
+  {#if status.overriddenBy}
+    <Badge variant="neutral">
+      {status.overriddenBy === "project" ? "Project" : "User"} overrides
+    </Badge>
+  {/if}
+  {#if status.requiresTrust}
+    <Badge
+      variant={status.status === "allowed"
+        ? "success"
+        : status.status === "denied"
+          ? "destructive"
+          : "neutral"}>{trustLabel(status)}</Badge
+    >
+  {/if}
+{/snippet}
+
+{#snippet detail(status: PromptSuggestionStatus)}
+  <div class="flex flex-wrap items-center gap-2">
+    {@render statusBadges(status)}
+    <Badge variant="neutral"
+      >{status.sourceKind === "builtin"
+        ? "Built-in"
+        : status.sourceKind === "project"
+          ? "Project"
+          : "User"}</Badge
+    >
+  </div>
+  {#if status.conditionSummary}
+    <SettingsSection title="Conditions">
+      <p class="text-ui text-muted-foreground">{status.conditionSummary}</p>
+    </SettingsSection>
+  {/if}
+  {#if status.promptPreview}
+    <SettingsSection title="Prompt" surface={false}>
+      <div
+        class="rounded-md border bg-well px-2.5 py-2 text-ui whitespace-pre-wrap break-words text-foreground"
+      >
+        {status.promptPreview}
+      </div>
+    </SettingsSection>
+  {/if}
+  {#if status.sourceKind !== "builtin"}
+    <div class="flex min-w-0 items-center gap-2 text-ui text-muted-foreground">
+      <span class="truncate font-mono" title={status.path}>{status.path}</span>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        ariaLabel="Copy suggestion path"
+        onclick={() => copyPath(status.path)}
+      >
+        <Copy class="size-3.5" aria-hidden="true" />
+      </Button>
+    </div>
+  {/if}
+  {#if status.requiresTrust && status.trustId}
+    <div class="flex flex-wrap gap-1">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={savingTrustId === status.trustId}
+        onclick={() => updateTrust(status.trustId, "allowed")}>Allow</Button
+      >
+      <Button
+        size="sm"
+        variant="destructive"
+        disabled={savingTrustId === status.trustId}
+        onclick={() => updateTrust(status.trustId, "denied")}>Deny</Button
+      >
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={savingTrustId === status.trustId}
+        onclick={() => updateTrust(status.trustId, "unset")}>Reset</Button
+      >
+    </div>
+  {/if}
+{/snippet}
+
 {#snippet suggestionList(items: PromptSuggestionStatus[], emptyMessage: string)}
   {#if loading}
     <div class="grid gap-1.5">
@@ -137,146 +233,111 @@ function copyPath(path: string): void {
   {:else}
     <SettingsList>
       {#each items as status (status.definitionKey)}
-        <SettingsDisclosureItem
+        <SettingsItem
           title={status.label}
-          description={status.description}
+          summary={status.description}
+          checked={status.stale ? undefined : status.enabled}
+          disabled={savingKey === status.definitionKey}
+          switchLabel={`Enable ${status.label} prompt suggestion`}
+          onCheckedChange={(checked) => toggle(status, checked)}
+          onOpen={() => onOpenItem?.(status.definitionKey)}
+          openLabel={`Open ${status.label}`}
         >
           {#snippet badges()}
-            {#if status.overriddenBy}
-              <Badge variant="neutral">
-                {status.overriddenBy === "project" ? "Project" : "User"} overrides
-              </Badge>
-            {/if}
-            {#if status.requiresTrust}
-              <Badge
-                variant={status.status === "allowed"
-                  ? "success"
-                  : status.status === "denied"
-                    ? "destructive"
-                    : "neutral"}>{trustLabel(status)}</Badge
-              >
-            {/if}
+            {@render statusBadges(status)}
           {/snippet}
-          {#snippet actions()}
-            {#if !status.stale}
-              <Switch
-                checked={status.enabled}
-                disabled={savingKey === status.definitionKey}
-                aria-label={`Enable ${status.label} prompt suggestion`}
-                onCheckedChange={(checked) => toggle(status, checked)}
-              />
-            {/if}
-          {/snippet}
-          {#snippet detail()}
-            {#if status.conditionSummary}
-              <p class="text-muted-foreground">{status.conditionSummary}</p>
-            {/if}
-            {#if status.promptPreview}
-              <!-- Scrollable region must be keyboard-focusable to scroll. -->
-              <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-              <div
-                class="max-h-40 overflow-y-auto rounded-md border bg-well px-2.5 py-2 whitespace-pre-wrap break-words text-foreground"
-                role="region"
-                tabindex="0"
-                aria-label={`${status.label} prompt preview`}
-              >
-                {status.promptPreview}
-              </div>
-            {/if}
-            {#if status.sourceKind !== "builtin"}
-              <div class="flex min-w-0 items-center gap-2">
-                <span class="truncate font-mono" title={status.path}
-                  >{status.path}</span
-                >
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  ariaLabel="Copy suggestion path"
-                  onclick={() => copyPath(status.path)}
-                >
-                  <Copy class="size-3.5" aria-hidden="true" />
-                </Button>
-              </div>
-            {/if}
-            {#if status.requiresTrust && status.trustId}
-              <div class="flex flex-wrap gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={savingTrustId === status.trustId}
-                  onclick={() => updateTrust(status.trustId, "allowed")}
-                  >Allow</Button
-                >
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={savingTrustId === status.trustId}
-                  onclick={() => updateTrust(status.trustId, "denied")}
-                  >Deny</Button
-                >
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={savingTrustId === status.trustId}
-                  onclick={() => updateTrust(status.trustId, "unset")}
-                  >Reset</Button
-                >
-              </div>
-            {/if}
-          {/snippet}
-        </SettingsDisclosureItem>
+        </SettingsItem>
       {/each}
     </SettingsList>
   {/if}
 {/snippet}
 
-<SettingsToolbar>
-  {#snippet start()}
-    <SearchInput
-      bind:value={query}
-      placeholder="Search suggestions"
-      ariaLabel="Search prompt suggestions"
-      class="max-w-xs"
+{#snippet notices()}
+  {#if promptSuggestionsState.error || mutationError}
+    <Callout
+      layout="block"
+      tone="destructive"
+      text={mutationError ?? promptSuggestionsState.error}
+    >
+      {#snippet actions()}
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={() => refreshPromptSuggestionStatuses(activeProject?.id)}
+          >Retry</Button
+        >
+      {/snippet}
+    </Callout>
+  {/if}
+
+  {#each promptSuggestionsState.diagnostics as diagnostic (`${diagnostic.path}:${diagnostic.code}:${diagnostic.message}`)}
+    <Callout layout="block" tone="warning" text={diagnostic.message} />
+  {/each}
+{/snippet}
+
+{#if itemId}
+  {#if onCloseItem}
+    <!-- The detail's page header; the shell leaves this slot to it. -->
+    <SettingsPageHeader
+      title={open?.label ?? itemId}
+      description={open?.description}
+      parent={{ label: "Suggestions", onBack: onCloseItem }}
+      class="mb-1"
+    >
+      {#snippet actions()}
+        {#if open && !open.stale}
+          <Switch
+            checked={open.enabled}
+            disabled={savingKey === open.definitionKey}
+            aria-label={`Enable ${open.label} prompt suggestion`}
+            onCheckedChange={(checked) => toggle(open, checked)}
+          />
+        {/if}
+      {/snippet}
+    </SettingsPageHeader>
+  {/if}
+  {@render notices()}
+  {#if open}
+    {@render detail(open)}
+  {:else if loading}
+    <Skeleton class="h-10 w-full" />
+  {:else}
+    <SettingsEmptyState
+      variant="card"
+      title="Suggestion not found"
+      description={`No prompt suggestion is registered as “${itemId}”.`}
     />
-  {/snippet}
-</SettingsToolbar>
-
-{#if promptSuggestionsState.error || mutationError}
-  <Callout
-    layout="block"
-    tone="destructive"
-    text={mutationError ?? promptSuggestionsState.error}
-  >
-    {#snippet actions()}
-      <Button
-        variant="outline"
-        size="sm"
-        onclick={() => refreshPromptSuggestionStatuses(activeProject?.id)}
-        >Retry</Button
-      >
+  {/if}
+{:else}
+  <SettingsToolbar>
+    {#snippet start()}
+      <SearchInput
+        bind:value={query}
+        placeholder="Search suggestions"
+        ariaLabel="Search prompt suggestions"
+        class="max-w-xs"
+      />
     {/snippet}
-  </Callout>
-{/if}
+  </SettingsToolbar>
 
-{#each promptSuggestionsState.diagnostics as diagnostic (`${diagnostic.path}:${diagnostic.code}:${diagnostic.message}`)}
-  <Callout layout="block" tone="warning" text={diagnostic.message} />
-{/each}
+  {@render notices()}
 
-<SettingsSection id="suggestions" title="Built-in">
-  {@render suggestionList(builtins, "No built-in suggestions are available.")}
-</SettingsSection>
-
-<SettingsSection title="User">
-  {@render suggestionList(user, "No user suggestions have been created.")}
-</SettingsSection>
-
-{#if activeProject}
-  <SettingsSection title={`Project · ${activeProject.name}`}>
-    {@render suggestionList(
-      project,
-      "No suggestions have been created for this project.",
-    )}
+  <SettingsSection id="suggestions" title="Built-in">
+    {@render suggestionList(builtins, "No built-in suggestions are available.")}
   </SettingsSection>
+
+  <SettingsSection title="User">
+    {@render suggestionList(user, "No user suggestions have been created.")}
+  </SettingsSection>
+
+  {#if activeProject}
+    <SettingsSection title={`Project · ${activeProject.name}`}>
+      {@render suggestionList(
+        project,
+        "No suggestions have been created for this project.",
+      )}
+    </SettingsSection>
+  {/if}
 {/if}
 
 <CreatePromptSuggestionDialog

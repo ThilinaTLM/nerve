@@ -72,7 +72,7 @@ test("one argument: a bare string only where the method names it, unknown option
   const { definition } = defineMethod({
     product: "jira",
     path: "issues.get",
-    risk: "network",
+    risk: "external_read",
     signature: "",
     bare: "key",
     options: ["key", "fields"],

@@ -331,7 +331,7 @@ void test("projects.get include returns create fields, statuses, releases, board
   assert.deepEqual(authorized[0], {
     operation: "jira.projects.get",
     targets: ["jira:project/APP"],
-    risk: "network",
+    risk: "external_read",
   });
   assert.ok(sent.length > 0);
 });

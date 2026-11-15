@@ -39,7 +39,7 @@ const search = defineExtension({
       description: "Search.",
       parameters: { type: "object", properties: {} },
       view: { sections: [{ id: "results", type: "links" }] },
-      risk: "network",
+      risk: "external_read",
       parse: () => ({}),
       run: () => ({ answer, hits }),
       present: (output: { answer: string; hits: Hit[] }) => ({

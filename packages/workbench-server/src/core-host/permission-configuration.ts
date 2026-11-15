@@ -188,6 +188,7 @@ export function createPermissionConfigurationService(options: {
         source: ruleSet.source,
         enabled: ruleSet.enabled,
         available: true,
+        rules: ruleSet.rules,
       })),
       userOverlays,
       projectOverlays: project?.document ?? emptyOverlayDocument(),

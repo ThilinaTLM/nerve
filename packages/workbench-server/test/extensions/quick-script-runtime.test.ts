@@ -271,12 +271,12 @@ void test("request() is authorized by method and rejects URLs outside the produc
       "DELETE /wiki/rest/api/content/1/label?name=x",
     ],
   );
-  // GET is a network read; any other method is destructive. The target names method and path.
+  // GET is an external read; any other method is destructive. The target names method and path.
   assert.deepEqual(authorized.slice(0, 4), [
     {
       operation: "jira.request",
       targets: ["jira:request/GET /rest/api/3/myself"],
-      risk: "network",
+      risk: "external_read",
     },
     {
       operation: "jira.request",
@@ -286,7 +286,7 @@ void test("request() is authorized by method and rejects URLs outside the produc
     {
       operation: "confluence.request",
       targets: ["confluence:request/GET /wiki/api/v2/spaces?limit=1"],
-      risk: "network",
+      risk: "external_read",
     },
     {
       operation: "confluence.request",

@@ -213,11 +213,8 @@ export function createExtensionToolDefinitions(
     const { definition: tool, extension } = entry;
     const method = methodOf(registry, entry);
     const baseRisk = quickScriptRiskOfMethod(method.risk);
-    const readOnly = baseRisk === "read" || baseRisk === "network";
-    const staticRisk =
-      baseRisk === "workspace_write" || baseRisk === "external_write"
-        ? "write"
-        : baseRisk;
+    const readOnly = baseRisk === "read" || baseRisk === "external_read";
+    const staticRisk = baseRisk === "workspace_write" ? "write" : baseRisk;
     return {
       name: tool.name as ToolName,
       label: tool.label ?? tool.name,

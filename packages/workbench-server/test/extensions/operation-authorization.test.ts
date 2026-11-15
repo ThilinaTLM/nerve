@@ -45,7 +45,7 @@ void test("methods keep the direct-tool route only for web.fetch, files and imag
   }
 });
 
-void test("raw requests are operations: GET is network, anything else destructive", () => {
+void test("raw requests are operations: GET is external_read, anything else destructive", () => {
   for (const product of ["jira", "confluence"]) {
     const name = `${product}.request`;
     const calls = SAMPLES[name] as unknown[][];
@@ -57,23 +57,26 @@ void test("raw requests are operations: GET is network, anything else destructiv
       const [check] = checksOf(name, args);
       assert.ok(check && isOperationCheck(check));
       assert.equal(check.operation, name);
-      assert.equal(check.risk, args[0] === "GET" ? "network" : "destructive");
+      assert.equal(
+        check.risk,
+        args[0] === "GET" ? "external_read" : "destructive",
+      );
     }
   }
 });
 
-void test("search.web is a network operation named after the method, without targets", () => {
+void test("search.web is an external read named after the method, without targets", () => {
   const [check] = checksOf("search.web", ["nerve"]);
   assert.ok(check && isOperationCheck(check));
   assert.equal(check.operation, "search.web");
-  assert.equal(check.risk, "network");
+  assert.equal(check.risk, "external_read");
   assert.deepEqual(check.targets, []);
 });
 
-void test("imagegen.generate is a network operation without targets", () => {
+void test("imagegen.generate is an external write without targets", () => {
   const [check] = checksOf("imagegen.generate", [{ prompt: "a red square" }]);
   assert.ok(check && isOperationCheck(check));
   assert.equal(check.operation, "imagegen.generate");
-  assert.equal(check.risk, "network");
+  assert.equal(check.risk, "external_write");
   assert.deepEqual(check.targets, []);
 });

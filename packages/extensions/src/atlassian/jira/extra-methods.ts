@@ -56,7 +56,7 @@ export const jiraExtraMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "attachments.download",
-    risk: "network",
+    risk: "external_read",
     bare: "id",
     options: ["id", "name"],
     signature:
@@ -137,7 +137,7 @@ export const jiraExtraMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "projects.list",
-    risk: "network",
+    risk: "external_read",
     options: [],
     signature: "list(): Promise<{ key: string; name: string; type: string }[]>",
     parse: () => undefined,
@@ -177,7 +177,7 @@ export const jiraExtraMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "users.me",
-    risk: "network",
+    risk: "external_read",
     options: [],
     signature:
       "me(): Promise<{ accountId: string; name: string; email: string | null; timeZone: string | null }>",

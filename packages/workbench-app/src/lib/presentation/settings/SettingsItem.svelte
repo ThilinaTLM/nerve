@@ -7,10 +7,13 @@
     Everything else stays: the row still opens its item.
   - `iconLabel` names the icon's kind in a tooltip (Tool · name).
   - The whole row opens the item when `onOpen` is set (hover fill, chevron).
-    There is no separate Configure button.
+    There is no separate Configure button; detail is an inner page or dialog,
+    never an in-place expansion.
   - The status line is the summary, or the problem with its fix. A problem
     replaces the summary, so every row keeps the same height.
   - Off is shown by the switch and a muted title and icon, never in the text.
+  - `compact` is for reference lists whose rows never have a second line
+    (shortcuts): `min-h-10`, and `summary`/`problem` are not shown.
   Place items in a `SettingsList`.
 -->
 <script lang="ts">
@@ -37,6 +40,8 @@ type Props = {
   muted?: boolean;
   /** How the item is set up, or what it does when it has no settings. One line. */
   summary?: string;
+  /** Single-line row (`min-h-10`) for reference lists; ignores `summary` and `problem`. */
+  compact?: boolean;
   /** The summary is a path or command. */
   mono?: boolean;
   /** Replaces the summary in warning tone; `action` is its fix. */
@@ -73,6 +78,7 @@ let {
   iconLabel,
   select,
   muted = false,
+  compact = false,
   summary,
   mono = false,
   problem,
@@ -101,7 +107,8 @@ const hasSwitch = $derived(checked !== undefined && !always);
   role="listitem"
   data-tour-id={tourId}
   class={cn(
-    "group/item relative flex min-h-14 items-center gap-3 px-3 py-2 transition-colors",
+    "group/item relative flex items-center gap-3 px-3 transition-colors",
+    compact ? "min-h-10 py-1" : "min-h-14 py-2",
     onOpen && "hover:bg-hover",
     className,
   )}
@@ -175,7 +182,9 @@ const hasSwitch = $derived(checked !== undefined && !always);
         </span>
       {/if}
     </div>
-    {#if problem && !off}
+    {#if compact}
+      <!-- Single line: no status line. -->
+    {:else if problem && !off}
       <span class="flex min-w-0 items-center gap-1 text-caption text-warning">
         <TriangleAlert class="size-3 flex-none" aria-hidden="true" />
         <span class="truncate" title={problem}>{problem}</span>

@@ -24,8 +24,8 @@ export function createAccountsActivity(): void {
         refreshSelected();
       }),
       onEvent("accounts.health_changed", refreshHealth),
-      // Selections can be changed or cleared in settings.
-      onEvent("settings.updated", refreshSelected),
+      // Selections can be changed or cleared in extension settings.
+      onEvent("extensions.changed", refreshSelected),
     ];
     return () => stop.forEach((off) => off());
   });

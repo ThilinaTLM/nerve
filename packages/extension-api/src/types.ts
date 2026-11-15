@@ -13,14 +13,14 @@
 
 /**
  * What a method can do at most: `none` has no external effect, `read` reads
- * local data, `network` reads through an integration, `write` changes
+ * local data, `external_read` reads through an integration, `write` changes
  * workspace files, `external_write` changes things in an integration,
  * `destructive` deletes or cannot be analysed.
  */
 export type Risk =
   | "none"
   | "read"
-  | "network"
+  | "external_read"
   | "write"
   | "external_write"
   | "destructive";

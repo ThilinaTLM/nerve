@@ -361,7 +361,7 @@ export const jiraSprintMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
     path: "sprints.issues",
-    risk: "network",
+    risk: "external_read",
     bare: "id",
     options: ["id", "fields", "jql", "limit"],
     signature:

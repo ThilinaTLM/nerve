@@ -353,6 +353,7 @@ const pitfallTransitionField: TaskDefinition = {
     const { transitions } = await ctx.atlassian.jira<{
       transitions: {
         name: string;
+        to: { name: string };
         fields?: Record<string, { required: boolean; name: string }>;
       }[];
     }>({
@@ -369,8 +370,9 @@ const pitfallTransitionField: TaskDefinition = {
     const required = Object.values(target.fields!)
       .filter((field) => field.required)
       .map((field) => field.name);
-    Object.assign(ctx.data, { key, target: target.name });
-    return `Move ${key} to "${target.name}". The transition requires: ${required.join(", ")}; choose sensible values yourself.`;
+    // The check compares statuses: a transition ("Resolve Issue") is named apart from its target status ("Resolved").
+    Object.assign(ctx.data, { key, target: target.to.name });
+    return `Move ${key} to "${target.to.name}". The transition requires: ${required.join(", ")}; choose sensible values yourself.`;
   },
   scope: (ctx) => ({ issueKeys: [String(ctx.data.key)] }),
   async check(ctx) {

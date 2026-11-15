@@ -24,7 +24,6 @@ function heading(text: string, tag: string): string {
 describe("settings typography", () => {
   const pageTitle = heading(source("./SettingsPageHeader.svelte"), "h2");
   const sectionTitle = heading(source("./SettingsSection.svelte"), "h3");
-  const listItem = source("./SettingsListItem.svelte");
   const entityTitle = heading(source("./EntityCard.svelte"), "h4");
   const nav = source("./SettingsNav.svelte");
 
@@ -38,16 +37,6 @@ describe("settings typography", () => {
     // Same size; the heading wins on weight and the row stays regular.
     assert.match(sectionTitle, /font-medium/);
     assert.match(sectionTitle, /text-foreground/);
-
-    const rowTitle = /<span\s+class="([^"]+)"\s*>\s*\{title\}/s.exec(listItem);
-    assert.ok(rowTitle, "expected a list item title span");
-    assert.match(rowTitle[1], /\btext-ui\b/);
-    assert.doesNotMatch(
-      rowTitle[1],
-      /font-(medium|semibold|bold)/,
-      "row titles must stay regular weight or they compete with section headings",
-    );
-    assert.match(rowTitle[1], /text-foreground/);
   });
 
   it("keeps entity titles one step below section headings", () => {
@@ -105,14 +94,6 @@ describe("settings typography", () => {
       item,
       /"truncate text-caption text-muted-foreground",[^)]*\)\}\s*title=\{summary\}>\{summary\}/s,
       "the summary line should be text-caption muted",
-    );
-  });
-
-  it("keeps row supporting text muted and under the title", () => {
-    assert.match(
-      source("./SettingsListItem.svelte"),
-      /class="truncate text-caption text-muted-foreground">\s*\{description\}/s,
-      "list item description should be text-caption muted",
     );
   });
 

@@ -79,6 +79,7 @@ $effect(() => extensions.observe());
 // Availability follows accounts and their credentials.
 $effect(() => {
   const stop = [
+    // Other settings (models, providers) feed availability too.
     onEvent("settings.updated", () => void extensions.reload()),
     onEvent("accounts.changed", () => void extensions.reload()),
     onEvent("accounts.health_changed", () => void extensions.reload()),

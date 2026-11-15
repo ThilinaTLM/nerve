@@ -36,7 +36,7 @@ void test("quick_script operations match by operation, namespace group and resou
   const operation = (
     name: string,
     targets: string[],
-    risk: "network" | "external_write" | "destructive",
+    risk: "external_read" | "external_write" | "destructive",
   ) =>
     evaluatePermissionRequest({
       request: normalizeOperationRequest({
@@ -85,8 +85,8 @@ void test("quick_script operations match by operation, namespace group and resou
 void test("operations never get the write base risk, and the namespace is the tool group", () => {
   const baseRisk = (risk: Parameters<typeof operationBaseRisk>[0]) =>
     operationBaseRisk(risk);
-  assert.equal(baseRisk("network"), "network");
-  assert.equal(baseRisk("external_write"), "unknown");
+  assert.equal(baseRisk("external_read"), "external_read");
+  assert.equal(baseRisk("external_write"), "external_write");
   assert.equal(baseRisk("destructive"), "destructive");
   const request = normalizeOperationRequest({
     operation: "confluence.pages.update",
@@ -106,7 +106,7 @@ void test("operations never get the write base risk, and the namespace is the to
       request: normalizeOperationRequest({
         operation: "confluence.pages.get",
         targets: ["confluence:page/1"],
-        risk: "network",
+        risk: "external_read",
         conversationId: "conv_test",
       }),
       policy: planning,

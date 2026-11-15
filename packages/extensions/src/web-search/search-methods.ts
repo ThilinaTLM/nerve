@@ -54,7 +54,7 @@ async function runSearch(
 
 export const searchMethods = {
   web: method({
-    risk: "network",
+    risk: "external_read",
     signature:
       "/** Web search; default 5 results (max 20). */ web(query: string | { query: string; limit?: number }): Promise<WebHit[]>",
     // A bound tool passes `max_results`; a script passes `limit`.

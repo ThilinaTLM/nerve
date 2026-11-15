@@ -74,7 +74,7 @@ export const webMethods: SdkMethod[] = [
   defineMethod({
     product: "web",
     path: "fetch",
-    risk: "network",
+    risk: "external_read",
     bare: "url",
     options: ["url", "as", "name"],
     signature:

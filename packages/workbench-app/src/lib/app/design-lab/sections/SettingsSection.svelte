@@ -5,16 +5,12 @@ import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
 import EntityRow from "$lib/presentation/settings/EntityRow.svelte";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
-import FolderIcon from "@lucide/svelte/icons/folder";
 import KeyRoundIcon from "@lucide/svelte/icons/key-round";
 import KeyboardIcon from "@lucide/svelte/icons/keyboard";
 import MonitorIcon from "@lucide/svelte/icons/monitor";
-import PencilIcon from "@lucide/svelte/icons/pencil";
 import PlusIcon from "@lucide/svelte/icons/plus";
 import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
-import ServerIcon from "@lucide/svelte/icons/server";
 import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
-import StarIcon from "@lucide/svelte/icons/star";
 import Trash2Icon from "@lucide/svelte/icons/trash-2";
 import WrenchIcon from "@lucide/svelte/icons/wrench";
 import BookOpenIcon from "@lucide/svelte/icons/book-open";
@@ -28,13 +24,11 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import {
-  SettingsDisclosureItem,
   SettingsEmptyState,
   SettingsFieldRow,
   SettingsInfoHint,
   SettingsItem,
   SettingsList,
-  SettingsListItem,
   SettingsPageHeader,
   SettingsRow,
   SettingsSection,
@@ -86,11 +80,9 @@ let fieldNumber = $state("43967");
 // Local only: picking a card here never changes the lab or app theme.
 let theme = $state<string>(defaultColorTheme);
 let specimenTheme = $state("melange-light");
-let discA = $state(false);
 let itemPython = $state(false);
 let itemImage = $state(true);
 let itemSkill = $state(true);
-let discB = $state(true);
 
 // ── In context: SettingsShell (screenshots 29 Workbench, 34 Tools) ────────
 const pages: SettingsPageDef[] = [
@@ -550,102 +542,23 @@ let headerStyle = $state("auto");
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="SettingsList + SettingsListItem"
-      source="settings/SettingsList"
-      usage="9 files · settings, shell"
+      title="SettingsItem (compact)"
+      source="settings/SettingsItem"
+      usage="shortcuts"
       layout="stack"
-      description="title → detail → status badges → description. Includes a disabled-action row and a long-text row."
+      description="compact: single-line rows (min-h-10, no status line) for reference lists whose rows never have a second line."
     >
-      <SettingsList ariaLabel="Providers">
-        <SettingsListItem
-          title="Anthropic"
-          description="Claude models via the Messages API"
-        >
-          {#snippet detail()}
-            api.anthropic.com
-          {/snippet}
-          {#snippet status()}
-            <Badge variant="success">Connected</Badge>
-            <Badge variant="neutral">Default</Badge>
-          {/snippet}
-          {#snippet actions()}
-            <IconAction icon={StarIcon} label="Make default" active />
-            <IconAction icon={PencilIcon} label="Edit" />
-            <IconAction icon={Trash2Icon} label="Delete" tone="destructive" />
-          {/snippet}
-        </SettingsListItem>
-        <SettingsListItem
-          title="OpenAI-compatible"
-          description="Self-hosted endpoint"
-        >
-          {#snippet leading()}
-            <ServerIcon
-              class="size-4 flex-none text-muted-foreground"
-              aria-hidden="true"
-            />
-          {/snippet}
-          {#snippet status()}
-            <Badge variant="warning">Needs key</Badge>
-          {/snippet}
-          {#snippet actions()}
-            <IconAction icon={KeyRoundIcon} label="Add API key" />
-            <IconAction icon={RefreshCwIcon} label="Refresh models" busy />
-            <IconAction
-              icon={Trash2Icon}
-              label="Delete"
-              tone="destructive"
-              disabled
-            />
-          {/snippet}
-        </SettingsListItem>
-        <SettingsListItem title={longText} description={longText}>
-          {#snippet actions()}
-            <IconAction icon={PencilIcon} label="Edit" />
-          {/snippet}
-        </SettingsListItem>
-      </SettingsList>
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="SettingsDisclosureItem"
-      source="settings/SettingsDisclosureItem"
-      usage="4 files · settings, shell"
-      layout="stack"
-      description="Expandable list row (plain variant, as used by Tools and Skills): chevron rotates, description unclamps when open."
-    >
-      <SettingsList ariaLabel="Disclosures">
-        <SettingsDisclosureItem
-          title="Closed"
-          description="A long description that is clamped to a single line while the item is collapsed and expands in place when it is opened by the user."
-          bind:open={discA}
-        >
-          {#snippet badges()}
-            <Badge variant="success">Enabled</Badge>
-          {/snippet}
-          {#snippet actions()}
-            <IconAction icon={PencilIcon} label="Edit" />
-          {/snippet}
-          {#snippet detail()}
-            <span class="font-mono">{longText}</span>
-          {/snippet}
-        </SettingsDisclosureItem>
-        <SettingsDisclosureItem
-          title="Open"
-          description="Description unclamps when open."
-          bind:open={discB}
-        >
-          {#snippet leading()}
-            <FolderIcon
-              class="size-4 flex-none text-muted-foreground"
-              aria-hidden="true"
-            />
-          {/snippet}
-          {#snippet detail()}
-            <span
-              >Supplemental content only — paths, nested lists or controls.</span
-            >
-          {/snippet}
-        </SettingsDisclosureItem>
+      <SettingsList ariaLabel="Compact rows">
+        {#each ["New conversation", "Open command palette", "Toggle sidebar"] as label, i (label)}
+          <SettingsItem compact title={label}>
+            {#snippet meta()}
+              <span
+                class="whitespace-nowrap font-mono text-caption text-muted-foreground"
+                >{["Ctrl+N", "Ctrl+K", "Ctrl+B"][i]}</span
+              >
+            {/snippet}
+          </SettingsItem>
+        {/each}
       </SettingsList>
     </GallerySpecimen>
 

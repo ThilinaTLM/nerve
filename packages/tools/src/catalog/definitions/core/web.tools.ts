@@ -14,7 +14,7 @@ export const webToolDefinitions = [
   {
     name: "web_fetch",
     group: "web",
-    baseRisk: "network",
+    baseRisk: "external_read",
     permission: {
       durableAllow: "target",
       targets: [{ kind: "web_host", argument: "url" }],

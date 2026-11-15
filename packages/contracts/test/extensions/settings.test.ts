@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   compileSettingsValidator,
   extensionsDocumentSchema,
+  accountKindSchema,
   fieldValue,
   resolveExtensions,
   upgradeEntry,
@@ -228,5 +229,36 @@ describe("resolution", () => {
     assert.equal(resolved.fields.proLevel!.value, 3);
     assert.equal(resolved.fields.proLevel!.visible, false);
     assert.equal(fieldValue(resolved, "proLevel"), undefined);
+  });
+});
+
+describe("accountKindSchema", () => {
+  const kind = (fields: Record<string, unknown>) => ({
+    kind: "demo",
+    label: "Demo",
+    fields,
+    secret: { label: "Token" },
+  });
+
+  it("accepts plain fields", () => {
+    assert.ok(
+      accountKindSchema.safeParse(
+        kind({ site: { type: "string", label: "Site" } }),
+      ).success,
+    );
+  });
+
+  it("rejects account and model fields, which the account dialog cannot show", () => {
+    for (const field of [
+      { type: "account", kind: "demo", label: "Other" },
+      { type: "model", label: "Model", capability: "image" },
+    ]) {
+      const result = accountKindSchema.safeParse(kind({ x: field }));
+      assert.equal(result.success, false);
+      assert.match(
+        result.error!.issues[0]!.message,
+        new RegExp(`cannot have ${field.type} fields`),
+      );
+    }
   });
 });
