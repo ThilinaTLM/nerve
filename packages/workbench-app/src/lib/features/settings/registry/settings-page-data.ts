@@ -30,7 +30,7 @@ const providers: PageData = {
 const extensions: PageData = {
   label: "Extensions",
   description:
-    "What the agent's quick_script can use. Open one to set it up and manage its accounts.",
+    "Add capabilities to the agent: tools, Quick script namespaces and skills. Open one to set it up and manage its accounts.",
   sections: [{ id: "builtin", label: "Built-in" }],
   detail: { param: "extension" },
 };

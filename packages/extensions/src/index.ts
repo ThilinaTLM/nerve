@@ -6,8 +6,8 @@ import { webSearchExtension } from "./web-search/manifest.js";
 
 /** The built-in extensions, in display order. The host registers them; nothing else outside this package names one. */
 export const builtinExtensions: readonly ExtensionDefinition[] = [
-  atlassianExtension,
   webSearchExtension,
-  imagegenExtension,
+  atlassianExtension,
   diagramExtension,
+  imagegenExtension,
 ];

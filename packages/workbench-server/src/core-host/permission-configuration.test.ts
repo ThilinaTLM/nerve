@@ -36,6 +36,7 @@ async function fixture() {
   await mkdir(join(project, ".nerve", "config"), { recursive: true });
   const records: Trust[] = [];
   const storage = {
+    transaction: (fn: () => void) => fn(),
     trustedResources: {
       find: (_kind: string, _projectId: string, path: string) =>
         records.find((record) => record.path === path),

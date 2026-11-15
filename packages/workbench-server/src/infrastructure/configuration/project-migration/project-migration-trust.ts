@@ -1,13 +1,20 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
+import { createId } from "@nervekit/contracts";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import type { TrustedResourceKind } from "@nervekit/contracts/core";
 import type { ProjectMigrationTrust } from "./project-migration.js";
 
 const digest = (bytes: Buffer) =>
   createHash("sha256").update(bytes).digest("hex");
-/** Preserve an existing exact-byte approval for a same-file bump only. */
+const approval = (kind: TrustedResourceKind, bytes: Buffer) =>
+  `${kind === "project_permissions" ? "sha256:" : ""}${digest(bytes)}`;
+
+/**
+ * Carries an exact-byte approval to bytes Nerve writes to the same file: a
+ * trusted original stays trusted, and a file Nerve creates is trusted.
+ */
 export function projectMigrationTrust(
   getStorage: () => Pick<CoreStorage, "trustedResources" | "transaction">,
   kinds: Readonly<Record<string, TrustedResourceKind>>,
@@ -27,11 +34,13 @@ export function projectMigrationTrust(
     async capture({ type, projectId, path, source }) {
       const storage = getStorage();
       const kind = kinds[type] ?? kinds[type.split(":")[0]];
-      if (!kind) return undefined;
+      // Prompt suggestion trust binds the predicate, not the file bytes.
+      if (!kind || kind === "prompt_suggestion") return undefined;
       const before = storage.trustedResources.find(kind, projectId, path);
       if (
-        before?.status !== "trusted" ||
-        before.contentDigest.replace(/^sha256:/, "") !== digest(source)
+        source !== undefined &&
+        (before?.status !== "trusted" ||
+          before.contentDigest.replace(/^sha256:/, "") !== digest(source))
       )
         return undefined;
       return async (targetPath, output) => {
@@ -45,10 +54,25 @@ export function projectMigrationTrust(
             )
           )
             return;
-          storage.trustedResources.update(before.id, {
-            contentDigest: `${kind === "project_permissions" ? "sha256:" : ""}${digest(output)}`,
-            updatedAt: new Date().toISOString(),
-          });
+          const now = new Date().toISOString();
+          if (before)
+            storage.trustedResources.update(before.id, {
+              contentDigest: approval(kind, output),
+              status: "trusted",
+              updatedAt: now,
+            });
+          else
+            storage.trustedResources.insert({
+              id: createId("trust"),
+              kind,
+              projectId,
+              path,
+              name: null,
+              contentDigest: approval(kind, output),
+              status: "trusted",
+              createdAt: now,
+              updatedAt: now,
+            });
         });
       };
     },
