@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { activeToolNameSchema } from "./tool-name.js";
+import { extensionToolViewSchema } from "../extensions/tool-display.js";
 export * from "./tool-name.js";
 import {
   durablePermissionSchema,
@@ -17,7 +18,6 @@ export const toolGroupNameSchema = z.enum([
   "shell",
   "python",
   "web",
-  "vision",
   "quickScript",
   "extension",
   "input",
@@ -51,6 +51,8 @@ export const toolDescriptorSchema = z.object({
   group: toolGroupNameSchema,
   /** Id of the extension that contributes the tool; absent for core tools. */
   extension: z.string().optional(),
+  /** How the transcript card shows an extension tool; absent for core tools. */
+  view: extensionToolViewSchema.optional(),
   executionKind: toolExecutionKindSchema,
   traits: z.array(toolTraitSchema),
   permission: z.object({

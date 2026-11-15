@@ -1,7 +1,6 @@
 <!-- Configure one tool at the current level, with the shared canonical form. -->
 <script lang="ts">
 import { canonicalSettingRequired } from "$lib/presentation/composer/capability-tool-locks";
-import type { ModelInfo } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import ToolConfigForm from "./ToolConfigForm.svelte";
@@ -14,7 +13,6 @@ type Props = {
   /** The value being edited; the dialog works on a copy until Save. */
   value: ToolPayload;
   description?: string;
-  models?: ModelInfo[];
   leadProfiles?: { name: string; label: string }[];
   resolvedPython?: string;
   onSave: (value: ToolPayload) => void;
@@ -26,7 +24,6 @@ let {
   requiredPointers = [],
   value,
   description,
-  models,
   leadProfiles,
   resolvedPython,
   onSave,
@@ -61,7 +58,6 @@ function save(): void {
     {requiredPointers}
     bind:payload={draft}
     bind:valid
-    {models}
     {leadProfiles}
     {resolvedPython}
   />

@@ -7,7 +7,6 @@ import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrust
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
 import Blocks from "@lucide/svelte/icons/blocks";
 import Bot from "@lucide/svelte/icons/bot";
-import Eye from "@lucide/svelte/icons/eye";
 import Globe from "@lucide/svelte/icons/globe";
 import ListChecks from "@lucide/svelte/icons/list-checks";
 import SquareTerminal from "@lucide/svelte/icons/square-terminal";
@@ -17,16 +16,14 @@ import Zap from "@lucide/svelte/icons/zap";
 import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import {
-  listTools,
-  type AuthProviderMetadata,
-  type ModelInfo,
-  type StatusResponse,
-} from "$lib/api";
+import { listTools, type ModelInfo, type StatusResponse } from "$lib/api";
 import { capabilityToggleToolNameSchema } from "@nervekit/contracts/capabilities";
 import type { ExtensionIcon } from "@nervekit/contracts/extensions";
 import type { ToolDescriptor } from "@nervekit/contracts/tools";
-import { setExtensionToolNames } from "$lib/presentation/tools/lifecycle/extension-tools";
+import {
+  extensionToolsOf,
+  setExtensionTools,
+} from "$lib/presentation/tools/lifecycle/extension-tools";
 import ExtensionMark from "../extensions/ExtensionMark.svelte";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
@@ -41,11 +38,7 @@ import {
   SettingsList,
   SettingsSection,
 } from "$lib/presentation/settings";
-import {
-  authenticatedRealModelOptions,
-  modelDisplayName,
-  modelKey,
-} from "$lib/presentation/utils/model";
+import { modelKey } from "$lib/presentation/utils/model";
 import {
   ensureProfilesFor,
   leadProfileOptions,
@@ -71,13 +64,11 @@ let {
   projectId,
   status,
   models = [],
-  authProviders = [],
 }: {
   scope: "user" | "project";
   projectId?: string;
   status?: StatusResponse;
   models?: ModelInfo[];
-  authProviders?: AuthProviderMetadata[];
 } = $props();
 const project = $derived(scope === "project");
 const editor = new ScopedAgentState((model, level) => {
@@ -94,16 +85,14 @@ $effect(() => {
   ensureProfilesFor(scope, projectId);
 });
 $effect(() => editor.observe());
-// The direct tools extensions contribute, grouped under their extension below the core tools.
+// The direct tools of enabled extensions, grouped under their extension below the core tools.
 let toolDescriptors = $state<ToolDescriptor[]>([]);
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
   void listTools()
     .then((tools) => {
       toolDescriptors = tools;
-      setExtensionToolNames(
-        tools.flatMap((tool) => (tool.extension ? [tool.name] : [])),
-      );
+      setExtensionTools(extensionToolsOf(tools));
     })
     .catch(() => undefined);
 });
@@ -134,11 +123,13 @@ const extensionGroups = $derived.by(() => {
   const groups: ExtensionToolGroup[] = [];
   for (const tool of toolDescriptors) {
     if (!tool.extension) continue;
+    const owner = extensions.view?.extensions.find(
+      (extension) => extension.metadata.id === tool.extension,
+    );
+    // A disabled extension contributes no tools; it is turned on in Extensions.
+    if (!owner?.enabled.value) continue;
     let group = groups.find((entry) => entry.extensionId === tool.extension);
     if (!group) {
-      const owner = extensions.view?.extensions.find(
-        (extension) => extension.metadata.id === tool.extension,
-      );
       group = {
         extensionId: tool.extension,
         name: owner?.metadata.name ?? tool.extension,
@@ -173,9 +164,6 @@ function openExtension(item?: string, section?: string) {
 const error = $derived(editor.error);
 const loading = $derived(!editor.resolution && !error);
 const locked = $derived(editor.saving || !editor.resolution);
-const usableModels = $derived(
-  authenticatedRealModelOptions(models, authProviders),
-);
 function payload(id: ToolId): ToolPayload {
   return editor.resolution?.settings.tools?.[id] ?? {};
 }
@@ -185,16 +173,7 @@ function inheritedPayload(id: ToolId): ToolPayload {
 function changed(id: ToolId) {
   return editor.overrides.tools?.[id] !== undefined;
 }
-function modelLabel(selection: unknown) {
-  const v = selection as { provider: string; modelId: string } | undefined;
-  if (!v) return undefined;
-  const m = models.find((m) => modelKey(m) === modelKey(v));
-  return m ? modelDisplayName(m) : v.modelId;
-}
-const displayContext = $derived({
-  profileLabel: profileLabelFor,
-  modelLabel,
-});
+const displayContext = $derived({ profileLabel: profileLabelFor });
 /** On/off plus settings: what the change indicator compares. */
 function summary(id: ToolId, value: ToolPayload) {
   return toolSummary(id, value, displayContext);
@@ -228,7 +207,6 @@ const toolIcons: Partial<Record<ToolId, typeof Wrench>> = {
   bash: SquareTerminal,
   python_exec: Code,
   web_fetch: Globe,
-  explain_image: Eye,
   quick_script: Zap,
   plan_present: ListChecks,
   subagents: Bot,
@@ -376,7 +354,6 @@ const python = $derived(status?.runtime.python);
     description={project
       ? "Changes apply to this project only."
       : "Applies to every project unless it changes this."}
-    models={usableModels}
     leadProfiles={leadProfileOptions()}
     resolvedPython={python?.executable}
     onSave={(next) => save(dialogTool.id, next)}

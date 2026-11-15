@@ -10,7 +10,6 @@ import { interactionToolDefinitions } from "./definitions/core/interaction.tools
 import { pythonToolDefinitions } from "./definitions/core/python.tools.js";
 import { shellToolDefinitions } from "./definitions/core/shell.tools.js";
 import { webToolDefinitions } from "./definitions/core/web.tools.js";
-import { visionToolDefinitions } from "./definitions/core/vision.tools.js";
 import { planPresentToolDefinitions } from "./definitions/orchestration/plan-present.tools.js";
 import { processToolDefinitions } from "./definitions/orchestration/process.tools.js";
 import { agentResultPolicyForTool } from "../result-projection/policies/index.js";
@@ -36,7 +35,6 @@ const rawCoreToolDefinitions: readonly ToolDefinition[] = [
   ...remainingFilesystemToolDefinitions,
   ...interactionToolDefinitions,
   ...webToolDefinitions,
-  ...visionToolDefinitions,
 ];
 
 // Live lists: `registerToolDefinitions` appends definitions that live in other

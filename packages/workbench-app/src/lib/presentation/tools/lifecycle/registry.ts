@@ -7,7 +7,7 @@ import {
 import { coreToolLifecycleSpecs } from "./core-specs";
 import { orchestrationToolLifecycleSpecs } from "./orchestration-specs";
 import { extensionToolLifecycleSpec } from "./extension-spec";
-import { isExtensionToolName } from "./extension-tools";
+import { extensionToolView, isExtensionToolName } from "./extension-tools";
 import {
   argumentPresentation,
   type ExtensionToolLifecycleSpec,
@@ -68,7 +68,7 @@ export function toolLifecycleSpec(
 ): ToolLifecycleSpec | ExtensionToolLifecycleSpec | UnknownToolLifecycleSpec {
   if (isCoreToolName(name)) return toolLifecycleRegistry[name];
   return isExtensionToolName(name)
-    ? extensionToolLifecycleSpec
+    ? extensionToolLifecycleSpec(extensionToolView(name))
     : unknownToolLifecycleSpec;
 }
 

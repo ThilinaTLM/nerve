@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ToolCallRecord } from "../../state/tool-types";
 import { toolLifecycleSpec } from "../lifecycle/registry";
+import { setExtensionTools } from "../lifecycle/extension-tools";
 import {
   displayArtifactHandles,
   displayLinks,
@@ -402,7 +403,7 @@ describe("quick_script result", () => {
 });
 
 describe("extension tool result", () => {
-  it("is rendered by the display kind the extension names, for any tool", () => {
+  it("renders the sections its result lists, for any tool", () => {
     const view = parseToolView(
       call(
         "any_extension_tool",
@@ -412,10 +413,13 @@ describe("extension tool result", () => {
           details: {
             extension: "demo",
             tool: "any_extension_tool",
-            display: {
-              kind: "links",
-              value: [{ title: "T", url: "https://x.test" }],
-            },
+            sections: [
+              {
+                id: "results",
+                type: "links",
+                value: [{ title: "T", url: "https://x.test" }],
+              },
+            ],
             artifacts: [
               {
                 handle: "artifact:a.png",
@@ -430,11 +434,75 @@ describe("extension tool result", () => {
     );
     assert.ok(view.kind === "extension");
     assert.equal(view.extension, "demo");
-    assert.equal(view.display.kind, "links");
+    assert.deepEqual(
+      view.sections.map((section) => [section.id, section.type]),
+      [["results", "links"]],
+    );
     assert.equal(view.artifacts[0]?.handle, "artifact:a.png");
   });
 
-  it("falls back to the generic view without display details", () => {
+  it("streams live sections of a running declared tool; transient ones end with the call", () => {
+    setExtensionTools([
+      {
+        name: "viewer",
+        view: {
+          sections: [
+            { id: "thinking", type: "text", live: "transient" },
+            { id: "explanation", type: "markdown", live: "stream" },
+          ],
+        },
+      },
+    ]);
+    try {
+      const running = parseToolView(
+        { ...call("viewer", { path: "a.png" }, undefined), status: "running" },
+        {
+          toolCallId: "tool",
+          text: "hmA cat",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          chunks: [
+            { stream: "thinking", text: "hm", ts: "" },
+            { stream: "explanation", text: "A cat", ts: "" },
+          ],
+        },
+      );
+      assert.ok(running.kind === "extension");
+      assert.equal(running.live, true);
+      assert.deepEqual(
+        running.sections.map((section) => [section.id, section.value]),
+        [
+          ["thinking", "hm"],
+          ["explanation", "A cat"],
+        ],
+      );
+      const done = parseToolView(
+        call(
+          "viewer",
+          { path: "a.png" },
+          {
+            content: "A cat.",
+            details: {
+              extension: "x",
+              tool: "viewer",
+              sections: [
+                { id: "explanation", type: "markdown", value: "A cat." },
+              ],
+            },
+          },
+        ),
+      );
+      assert.ok(done.kind === "extension");
+      assert.equal(done.live, false);
+      assert.deepEqual(
+        done.sections.map((section) => section.id),
+        ["explanation"],
+      );
+    } finally {
+      setExtensionTools([]);
+    }
+  });
+
+  it("falls back to the generic view without section details", () => {
     const view = parseToolView(
       call("any_extension_tool", {}, { content: "plain" }),
     );

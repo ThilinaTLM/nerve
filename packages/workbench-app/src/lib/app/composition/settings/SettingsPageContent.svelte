@@ -195,7 +195,7 @@ const projectId = $derived(
   {:else if page.id === "providers"}
     <ProvidersSettingsPage {models} {authProviders} />
   {:else if page.id === "tools"}
-    <ToolsSettingsPage {scope} {projectId} {models} {authProviders} {status} />
+    <ToolsSettingsPage {scope} {projectId} {models} {status} />
   {:else if page.id === "skills"}
     <SkillsSettingsPage
       {scope}

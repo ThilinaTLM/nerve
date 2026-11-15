@@ -60,7 +60,7 @@ void test("the user view lists every built-in extension with sources, availabili
   const view = await views.view({ scope: "user" });
   assert.deepEqual(
     view.extensions.map((extension) => extension.metadata.id),
-    ["web-search", "atlassian", "diagram", "imagegen"],
+    ["web-search", "atlassian", "diagram", "imagegen", "image-explanation"],
   );
   assert.equal(view.file.revision, 3);
   const byId = (id: string) =>

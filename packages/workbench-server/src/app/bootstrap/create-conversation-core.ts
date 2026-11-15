@@ -59,9 +59,9 @@ import {
   quickScriptToolRisk,
 } from "@nervekit/tools/quick-script";
 import type { ToolName } from "@nervekit/contracts/tools";
-import { explainImageWithModel } from "@nervekit/harness/models";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
+import { createVisionHost } from "../../core-host/vision-models.js";
 import { createPermissionPort } from "../../core-host/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
 import { createToolHostPort } from "../../core-host/tool-host.adapter.js";
@@ -108,6 +108,11 @@ export function createConversationCore(
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(deps.auth),
   ]);
+  const vision = createVisionHost({
+    resolve: async (selection, configuration) =>
+      await models.resolve(selection, configuration),
+    configuration: () => deps.storage.configuration.providers,
+  });
   const launchTool = new LaunchTool({
     ...launchServices,
     project: (conversationId) => {
@@ -145,9 +150,6 @@ export function createConversationCore(
       conversation.id,
       conversation.projectId,
     );
-    const modelConfiguration = structuredClone(
-      deps.storage.configuration.providers,
-    );
     const python =
       settings.tools?.python_exec?.enabled || forcePython
         ? await resolvePythonRuntime({
@@ -168,7 +170,7 @@ export function createConversationCore(
     } catch {
       shell = { available: false };
     }
-    return { extensions, modelConfiguration, python, shell };
+    return { extensions, python, shell };
   };
   let credentialEpoch = 0;
   let extensionEpoch = 0;
@@ -247,7 +249,7 @@ export function createConversationCore(
             "TOOL_NOT_ENABLED",
             `${input.toolName}: not enabled for this conversation`,
           );
-        const { extensions, modelConfiguration, python, shell } = resources;
+        const { extensions, python, shell } = resources;
         const bash = structuredClone(
           settings.tools!.bash!.settings as BashToolSettings,
         );
@@ -270,6 +272,7 @@ export function createConversationCore(
           resolution: extensions,
           accounts,
           generateImage: (request) => imageGeneration.generate(request),
+          vision,
           warn: (extensionId, message, data) =>
             void deps.logger.warn("Extension warning", {
               context: { extension: extensionId, message, data },
@@ -284,23 +287,12 @@ export function createConversationCore(
           input.toolName,
           extensions,
           accounts,
+          vision,
         );
         if (input.toolName === "python_exec" && (!python || !python.available))
           throw new ToolExecutionError(
             "PYTHON_UNAVAILABLE",
             "python_exec: no usable Python interpreter is configured. Ask the user to set one in Settings → Tools → python_exec.",
-          );
-        const explanation = settings.tools?.explain_image?.settings;
-        const explanationModel =
-          input.toolName === "explain_image" && explanation?.model
-            ? await models
-                .resolve(explanation.model, modelConfiguration)
-                .catch(() => undefined)
-            : undefined;
-        if (input.toolName === "explain_image" && !explanationModel)
-          throw new ToolExecutionError(
-            "MODEL_REQUIRED",
-            "explain_image: no usable image model is configured. Ask the user to choose one in Settings → Tools → explain_image.",
           );
         const context: ToolExecutionContext & QuickScriptContext = {
           cwd: input.cwd,
@@ -352,39 +344,9 @@ export function createConversationCore(
                   ),
               }
             : {}),
-          explainImage: async (request) => {
-            if (!explanationModel || !explanation?.model)
-              throw new Error("Image explanation model was not prepared");
-            const text = await explainImageWithModel({
-              model: explanationModel.model,
-              auth: explanationModel,
-              image: {
-                type: "image",
-                data: Buffer.from(request.data).toString("base64"),
-                mimeType: request.mimeType,
-              },
-              prompt: request.prompt,
-              thinkingLevel: explanation.thinkingLevel!,
-              signal: request.signal,
-            });
-            return { explanation: text, model: explanation.model };
-          },
         };
         if (!isCurrent() || credentialVersion !== credentialEpoch) continue;
         const selectedTool = capabilityToolNameSchema.safeParse(input.toolName);
-        const modelTarget =
-          input.toolName === "explain_image" && explanation?.model
-            ? {
-                model: modelConfiguration.models.find(
-                  (model) =>
-                    model.provider === explanation.model!.provider &&
-                    model.modelId === explanation.model!.modelId,
-                ),
-                provider: modelConfiguration.providers.find(
-                  (provider) => provider.id === explanation.model!.provider,
-                ),
-              }
-            : null;
         return {
           context,
           bash,
@@ -394,7 +356,6 @@ export function createConversationCore(
               toolConfiguration: selectedTool.success
                 ? (settings.tools?.[selectedTool.data] ?? null)
                 : null,
-              modelConfiguration: modelTarget,
               // Only quick_script and extension tools read extension settings; other
               // approvals must not be invalidated by unrelated extension edits.
               ...(quickScript || isExtensionTool
@@ -601,6 +562,7 @@ export function createConversationCore(
       hasChildren: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
       registry: hostRegistry,
+      vision,
       extensions: async (id, projectId) => ({
         resolution: await conversationExtensionSettings(id, projectId),
         accounts,
@@ -759,6 +721,7 @@ export function createConversationCore(
     storage,
     agentConfiguration,
     extensionSettings,
+    vision,
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,

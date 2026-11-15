@@ -282,6 +282,30 @@ export type ImageResult = {
 export type ImageGenerateRequest = ImageRequest & { signal?: AbortSignal };
 export type ImageGenerateResponse = ImageResult;
 
+/**
+ * An image explained by the vision model the extension's settings select
+ * (`model` and `thinkingLevel` fields): the host reads them, so a caller
+ * cannot pick another model.
+ */
+export type VisionRequest = {
+  /** JPEG, PNG, GIF or WebP; the host detects the format from the bytes. */
+  image: Uint8Array;
+  /** What to focus on. */
+  prompt?: string;
+  /** Live sections of the running direct tool the model's thinking and text stream into. */
+  progress?: { thinking?: string; text?: string };
+};
+export type VisionResult = { text: string; model: string };
+
+/** `VisionRequest` as the host receives it. */
+export type VisionExplainRequest = {
+  extensionId: string;
+  image: Uint8Array;
+  prompt?: string;
+  onDelta?: (update: { kind: "thinking" | "text"; delta: string }) => void;
+  signal?: AbortSignal;
+};
+
 export interface ExtensionContext {
   /** Resolved values of this extension's own settings (user → project → conversation). */
   settings: { get<T = unknown>(key: string): T | undefined };
@@ -337,7 +361,18 @@ export interface ExtensionContext {
   /** Only capabilities the manifest declares. */
   models: {
     image?: { generate(request: ImageRequest): Promise<ImageResult> };
+    vision?: {
+      explain(request: VisionRequest): Promise<VisionResult>;
+      /** Whether the selected model resolves, with credentials, and accepts images. */
+      ready(): Promise<boolean>;
+    };
   };
+
+  /**
+   * Streams text into a `live` section of the running direct tool's card
+   * (`ToolView`). Ignored outside a direct tool call and for other sections.
+   */
+  progress(section: string, chunk: string): void;
 
   signal: AbortSignal;
 
@@ -475,15 +510,62 @@ export type NamespaceDefinition<Session = unknown> = {
   ) => Promise<Availability> | Availability;
 };
 
-/** How the transcript renders a direct tool's result; the app has one renderer per kind. */
-export type DisplayKind = "text" | "markdown" | "links" | "table" | "artifact";
-export const DISPLAY_KINDS: readonly DisplayKind[] = [
+/**
+ * How a section of a direct tool's card renders its value; the app has one
+ * renderer per type. `text` and `markdown`: a string. `links`:
+ * `{ title, url, snippet? }[]`. `table`: rows of records, or
+ * `{ columns, rows }`. `artifacts`: artifact handles or references (absent:
+ * every artifact the call wrote).
+ */
+export type ViewSectionType =
+  | "text"
+  | "markdown"
+  | "links"
+  | "table"
+  | "artifacts";
+export const VIEW_SECTION_TYPES: readonly ViewSectionType[] = [
   "text",
   "markdown",
   "links",
   "table",
-  "artifact",
+  "artifacts",
 ];
+
+/** Section ids: also the stream ids `ctx.progress` writes to. */
+export const VIEW_SECTION_ID = /^[a-z][a-z0-9_-]{0,31}$/;
+
+export type ViewSection = {
+  /** Unique per tool; matches `VIEW_SECTION_ID`. */
+  id: string;
+  type: ViewSectionType;
+  /** Small title, shown when the card has more than one visible section. */
+  label?: string;
+  /**
+   * Text a running call streams into the section with `ctx.progress` (`text`
+   * and `markdown` only): `stream` is replaced by the final value, `transient`
+   * is shown only while the call runs (thinking).
+   */
+  live?: "stream" | "transient";
+};
+
+/**
+ * How the transcript card shows a direct tool, in every state: the header and
+ * facts come from the arguments (drafting, approval, running, done), the
+ * sections from live progress and the result. The app renders it with its own
+ * components; an extension ships no UI code.
+ */
+export type ToolView = {
+  /** The argument the card header shows; `path` resolves it against the working directory and makes it openable. */
+  header?: { argument: string; format?: "text" | "path" };
+  /** Arguments shown as small facts after the header (at most 3). */
+  meta?: readonly string[];
+  sections: readonly ViewSection[];
+};
+
+/** The view of a tool that declares none: the first argument as header, the output as text. */
+export const DEFAULT_TOOL_VIEW: ToolView = {
+  sections: [{ id: "result", type: "text" }],
+};
 
 /** JSON Schema object for a tool's arguments, as the model sees it. */
 export type JsonSchemaObject = {
@@ -502,7 +584,8 @@ type ToolBase = {
   /** Agent-facing description. */
   description: string;
   parameters: JsonSchemaObject;
-  display: DisplayKind;
+  /** How the transcript shows the call; `DEFAULT_TOOL_VIEW` when absent. */
+  view?: ToolView;
   /** Boolean setting of the extension that switches this tool, in addition to the extension. */
   enabledBy?: string;
   requires?: Requires;
@@ -521,14 +604,15 @@ export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
   authorize?(input: Input): AuthorizeResult;
   run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
   /**
-   * Splits the output into what the agent reads (`text`) and what the
-   * transcript renders (`value`, per `display`). Without it, both are the output.
-   * `details` adds fields to the result's details; the agent projection of a
-   * `links` tool reads `query` and `answer` from them (a header above the results).
+   * Splits the output into what the agent reads (`text`) and what each view
+   * section renders (`sections`, by section id). Without it, or without
+   * `sections`, both are the output (the first section gets it). `details`
+   * adds fields to the result's details; the agent projection of a tool with a
+   * `links` section reads `query` and `answer` from them (a header above the results).
    */
   present?(output: Output): {
     text: string;
-    value?: unknown;
+    sections?: Record<string, unknown>;
     details?: { query?: string; answer?: string };
   };
 };
@@ -541,7 +625,7 @@ export function isMethodTool(
   return "method" in tool;
 }
 
-export type Capability = "models.image";
+export type Capability = "models.image" | "models.vision";
 
 export type ExtensionPermissions = {
   /**

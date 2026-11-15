@@ -120,7 +120,11 @@ void test("web_search is a direct tool sharing search.web's authorization, shown
   const [tool] = webSearchExtension.tools ?? [];
   assert.equal(tool.name, "web_search");
   assert.ok("run" in tool && !("method" in tool));
-  assert.equal(tool.display, "links");
+  assert.deepEqual(tool.view, {
+    header: { argument: "query" },
+    meta: ["max_results"],
+    sections: [{ id: "results", type: "links" }],
+  });
   assert.deepEqual(tool.requires, { account: "searchAccount" });
   const input = webSearchTool.parse({ query: "nerve", max_results: 3 });
   assert.deepEqual(webSearchTool.authorize(input), {
@@ -162,7 +166,7 @@ void test("web_search gives the agent the answer and full result content, the tr
     query: "nerve",
     answer: "The answer.",
   });
-  const links = presented.value as { snippet?: string }[];
+  const links = presented.sections.results as { snippet?: string }[];
   assert.equal(links[0].snippet?.length, 300);
   assert.equal(links[1].snippet, "more");
 });

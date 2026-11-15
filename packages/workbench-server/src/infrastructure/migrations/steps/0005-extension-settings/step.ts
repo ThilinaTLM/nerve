@@ -35,7 +35,9 @@ import {
  * `confluence_*`, `generate_image`, `kroki_export`) leave tool entries, and
  * permission rules that name them (user and conversation overlays, custom
  * rule sets) are rewritten to `quick_script` operations; a rule that cannot
- * be converted is disabled and reported.
+ * be converted is disabled and reported. `tools.explain_image` (enabled, model,
+ * thinking level) becomes the `image-explanation` extension entry; the tool
+ * keeps its name, so permission rules naming it stay as they are.
  *
  * Project files are not touched: project chains convert lazily.
  */

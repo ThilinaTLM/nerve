@@ -123,6 +123,50 @@ void test("quick_script wins over direct tools; differing accounts keep Jira", (
   });
 });
 
+void test("tools.explain_image becomes the image-explanation entry and leaves the tools", () => {
+  const run = (tool: unknown, complete = false) =>
+    extractFromTools(
+      { explain_image: tool, python_exec: { enabled: true } },
+      () => {},
+      complete,
+    );
+  const model = { provider: "openai", modelId: "gpt-5" };
+  // User/project overrides with the tool enabled and a model.
+  const on = run({ enabled: true, settings: { model, thinkingLevel: "off" } });
+  assert.deepEqual(on.entries["image-explanation"], {
+    version: 1,
+    enabled: true,
+    settings: { model, thinkingLevel: "off" },
+  });
+  assert.deepEqual(on.tools, { python_exec: { enabled: true } });
+  // Disabled tool; an incomplete model is dropped.
+  assert.deepEqual(
+    run({
+      enabled: false,
+      settings: {
+        model: { provider: "openai", modelId: " " },
+        thinkingLevel: "high",
+      },
+    }).entries["image-explanation"],
+    { version: 1, enabled: false, settings: { thinkingLevel: "high" } },
+  );
+  // A frozen full configuration repeating defaults carries only the switch.
+  const frozen = run(
+    { enabled: false, settings: { thinkingLevel: "off" } },
+    true,
+  );
+  assert.deepEqual(frozen.entries["image-explanation"], {
+    version: 1,
+    enabled: false,
+  });
+  assert.deepEqual(frozen.tools, { python_exec: { enabled: true } });
+  // Nothing to carry: only the tool entry goes.
+  assert.deepEqual(run({ settings: {} }).entries, {});
+  // Idempotent: a second run sees nothing to move.
+  const again = extractFromTools(on.tools, () => {});
+  assert.deepEqual(again, { tools: on.tools, entries: {} });
+});
+
 void test("a selected search account keeps web_search available: Web Search is enabled unless it was set or the tool was off", () => {
   const web = (tools: Record<string, unknown>) =>
     extractFromTools(tools, () => {}).entries["web-search"];
@@ -335,6 +379,78 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   await step.run(context);
   assert.equal(
     readFileSync(join(paths.configPath, "extensions.json"), "utf8"),
+    snapshot,
+  );
+});
+
+void test("explain_image options move into image-explanation entries in user, profile and conversation documents", async (t) => {
+  const { root, paths, put, read, context } = home();
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const model = { provider: "openai", modelId: "gpt-5" };
+  put(join(paths.configPath, "agent.json"), {
+    schemaVersion: 1,
+    revision: 2,
+    overrides: {
+      tools: {
+        explain_image: { enabled: true, settings: { model } },
+        python_exec: { enabled: true },
+      },
+    },
+  });
+  put(join(paths.agentProfilesConfigPath, "look.json"), {
+    schemaVersion: 1,
+    name: "look",
+    whenToUse: "x",
+    usableBy: "lead",
+    instructions: "i",
+    recommendations: {
+      tools: { explain_image: { settings: { thinkingLevel: "low" } } },
+    },
+  });
+  const conversation = join(paths.conversationsPath, "conv_1", "config");
+  put(join(conversation, "agent.json"), {
+    schemaVersion: 1,
+    revision: 1,
+    overrides: {},
+    appliedProfile: null,
+    frozenDefaults: {
+      tools: {
+        explain_image: { enabled: false, settings: { thinkingLevel: "off" } },
+        python_exec: { enabled: true },
+      },
+    },
+  });
+  context.ownPaths(await step.ownedPaths!(context));
+  await step.run(context);
+  await step.verify!(context);
+
+  assert.deepEqual(read(join(paths.configPath, "agent.json")).overrides.tools, {
+    python_exec: { enabled: true },
+  });
+  assert.deepEqual(
+    read(join(paths.configPath, "extensions.json")).extensions[
+      "image-explanation"
+    ],
+    { version: 1, enabled: true, settings: { model } },
+  );
+  const profile = read(join(paths.agentProfilesConfigPath, "look.json"));
+  assert.deepEqual(profile.extensions, {
+    recommendations: {
+      "image-explanation": { version: 1, settings: { thinkingLevel: "low" } },
+    },
+  });
+  assert.deepEqual(profile.recommendations, {});
+  assert.deepEqual(
+    read(join(conversation, "agent.json")).frozenDefaults.tools,
+    { python_exec: { enabled: true } },
+  );
+  assert.deepEqual(read(join(conversation, "extensions.json")).extensions, {
+    "image-explanation": { version: 1, enabled: false },
+  });
+  const snapshot = readFileSync(join(conversation, "extensions.json"), "utf8");
+  await step.run(context);
+  assert.equal(
+    readFileSync(join(conversation, "extensions.json"), "utf8"),
     snapshot,
   );
 });

@@ -1,5 +1,9 @@
 import { Type, type TObject } from "typebox";
-import { isMethodTool, type DisplayKind } from "@nervekit/extension-api";
+import {
+  DEFAULT_TOOL_VIEW,
+  isMethodTool,
+  type ToolView,
+} from "@nervekit/extension-api";
 import type { ToolName } from "@nervekit/contracts/tools";
 import type { ToolDefinition } from "../../catalog/contracts.js";
 import { policy } from "../../result-projection/policies/define-policy.js";
@@ -29,16 +33,23 @@ import {
   sdkMethodForOwnTool,
 } from "./from-definition.js";
 
-/** Largest result value carried to the app as data (`details.display.value`). */
-const MAX_DISPLAY_VALUE_CHARS = 64_000;
+/** Largest result data carried to the app (`details.sections`, all sections together). */
+const MAX_SECTIONS_CHARS = 64_000;
 
 type RegisteredTool = QuickScriptRegistry["tools"][number];
 
 const proseResultPolicy = policy("network_prose", "head", textCandidate);
 
-/** How the agent sees a tool's result follows the display kind it declares: lists of links are summarised per item, everything else is prose. */
-const resultPolicyFor = (display: DisplayKind) =>
-  display === "links" ? searchResultPolicy : proseResultPolicy;
+const hasLinks = (view: ToolView) =>
+  view.sections.some((section) => section.type === "links");
+
+/** How the agent sees a tool's result follows its view: a list of links is summarised per item, everything else is prose. */
+const resultPolicyFor = (view: ToolView) =>
+  hasLinks(view) ? searchResultPolicy : proseResultPolicy;
+
+/** The view a tool declares, or the default (output as text). */
+export const toolViewOf = (tool: { view?: ToolView }): ToolView =>
+  tool.view ?? DEFAULT_TOOL_VIEW;
 
 function render(value: unknown): string {
   if (value === undefined || value === null) return "(no result)";
@@ -74,7 +85,23 @@ async function executeExtensionTool(
   context: QuickScriptContext,
 ): Promise<ToolExecutionResult> {
   const { definition: tool, extension } = entry;
-  const env = createSdkEnvironment({ ...context, registry });
+  const view = toolViewOf(tool);
+  const liveSections = new Set(
+    view.sections
+      .filter((section) => section.live)
+      .map((section) => section.id),
+  );
+  const env = createSdkEnvironment({
+    ...context,
+    registry,
+    toolProgress: (section, chunk) => {
+      if (!liveSections.has(section) || !chunk) return false;
+      void Promise.resolve(
+        context.onUpdate?.({ kind: "output", stream: section, chunk }),
+      ).catch(() => undefined);
+      return true;
+    },
+  });
   const method = methodOf(registry, entry);
   const namespace = isMethodTool(tool) ? tool.method.split(".")[0] : undefined;
   if (namespace) assertNamespaceAvailable(namespace, env);
@@ -123,19 +150,37 @@ async function executeExtensionTool(
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
   const presented: {
     text: string;
-    value?: unknown;
+    sections?: Record<string, unknown>;
     details?: { query?: string; answer?: string };
   } =
     value !== undefined && !isMethodTool(tool) && tool.present
       ? tool.present(value)
-      : { text: render(value), value };
+      : { text: render(value) };
   const text = presented.text;
-  const shown = presented.value;
+  const first = view.sections[0];
+  // Without values per section, the first section shows the output (text sections its text).
+  const shown: Record<string, unknown> = presented.sections ?? {
+    [first.id]:
+      first.type === "text" || first.type === "markdown" ? text : value,
+  };
+  const declared = view.sections.flatMap((section) =>
+    shown[section.id] !== undefined
+      ? [
+          {
+            id: section.id,
+            type: section.type,
+            ...(section.label ? { label: section.label } : {}),
+            value: shown[section.id],
+          },
+        ]
+      : [],
+  );
   const carried =
-    shown !== undefined &&
-    JSON.stringify(shown)?.length <= MAX_DISPLAY_VALUE_CHARS
-      ? shown
-      : undefined;
+    (JSON.stringify(declared)?.length ?? 0) <= MAX_SECTIONS_CHARS
+      ? declared
+      : [];
+  const links = view.sections.find((section) => section.type === "links");
+  const linkValue = links ? shown[links.id] : undefined;
   return {
     content: [text, ...reportLines(artifacts, changes, env.report.notes)].join(
       "\n",
@@ -143,13 +188,10 @@ async function executeExtensionTool(
     details: {
       extension: extension.id,
       tool: tool.name,
-      display: {
-        kind: tool.display satisfies DisplayKind,
-        ...(carried !== undefined ? { value: carried } : {}),
-      },
+      sections: carried,
       // What the item-aware agent projection of a `links` tool reads.
-      ...(tool.display === "links" && Array.isArray(shown)
-        ? { results: shown, ...presented.details }
+      ...(Array.isArray(linkValue)
+        ? { results: linkValue, ...presented.details }
         : {}),
       artifacts,
       created: changes.created,
@@ -183,7 +225,11 @@ export function createExtensionToolDefinitions(
       // The model sees the extension's JSON Schema as is; arguments are validated against it.
       parameters: Type.Unsafe(tool.parameters) as unknown as TObject,
       group: "extension",
-      extension: { id: extension.id, name: extension.name },
+      extension: {
+        id: extension.id,
+        name: extension.name,
+        view: toolViewOf(tool),
+      },
       baseRisk,
       traits: [
         "credentialed",
@@ -202,7 +248,7 @@ export function createExtensionToolDefinitions(
         targetKinds: ["whole_tool"],
         primaryTargetComplete: true,
       },
-      agentResult: resultPolicyFor(tool.display),
+      agentResult: resultPolicyFor(toolViewOf(tool)),
       executionKind: "local",
       executionMode: "parallel",
       executor: (args, context: ToolExecutionContext) =>

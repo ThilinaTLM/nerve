@@ -77,20 +77,20 @@ export const bashToolSettingsSchema = z.object({
 
 export type BashToolSettings = z.infer<typeof bashToolSettingsSchema>;
 
+/**
+ * Settings of the former core `explain_image` tool (now the Image explanation
+ * extension). Only the released 0002 migration step still validates them.
+ */
 export const imageExplanationToolSettingsSchema = z.object({
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema,
 });
-export type ImageExplanationToolSettings = z.infer<
-  typeof imageExplanationToolSettingsSchema
->;
 
 const toolSettingsSchema = z.object({
   disabled: disabledToolListSchema,
   bash: bashToolSettingsSchema,
   pythonExec: pythonExecToolSettingsSchema,
   planPresent: planPresentToolSettingsSchema,
-  imageExplanation: imageExplanationToolSettingsSchema,
 });
 
 export const compactionProfileSchema = z.enum([
@@ -263,14 +263,13 @@ export const defaultSettings: Settings = {
   },
   permissions: { exceptions: [] },
   tools: {
-    disabled: ["plan_present", "explain_image", ...subagentToolNames],
+    disabled: ["plan_present", ...subagentToolNames],
     bash: {
       autoPromotion: { enabled: true, afterMs: 120_000 },
       maxTimeoutMs: 900_000,
     },
     pythonExec: {},
     planPresent: { approvalProfile: "coding" },
-    imageExplanation: { thinkingLevel: "off" },
   },
   skills: {
     disabled: [],

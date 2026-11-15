@@ -13,7 +13,6 @@ export const coreToolNameSchema = z.enum([
   "todos_set",
   "todos_get",
   "web_fetch",
-  "explain_image",
   "quick_script",
 ]);
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
@@ -29,7 +28,6 @@ export const userConfigurableToolNameSchema = z.enum([
   "subagent_stop",
   "web_search",
   "web_fetch",
-  "explain_image",
   "python_exec",
 ]);
 export type UserConfigurableToolName = z.infer<

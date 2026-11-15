@@ -134,3 +134,16 @@ test("tool call drafts keep the latest cumulative arguments", () => {
   h.frame();
   assert.equal(h.blocks()[0].toolCall?.partialArgsText, "{}");
 });
+
+test("named streams accumulate per tool call apart from process output", () => {
+  const h = harness();
+  h.buffer.progress("tool", "out", "stdout");
+  h.buffer.progress("tool", "hm", "thinking");
+  h.buffer.progress("tool", "A ", "explanation");
+  h.buffer.progress("tool", "cat", "explanation");
+  h.frame();
+  assert.deepEqual(h.commits[0].toolOutput, { tool: "out" });
+  assert.deepEqual(h.commits[0].toolStreams, {
+    tool: { thinking: "hm", explanation: "A cat" },
+  });
+});

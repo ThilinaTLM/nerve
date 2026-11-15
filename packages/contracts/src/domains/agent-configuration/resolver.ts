@@ -50,10 +50,6 @@ const builtin: LeadSettingsOverrides = {
     web_search: { enabled: true },
     web_fetch: { enabled: true },
     quick_script: { enabled: true },
-    explain_image: {
-      enabled: false,
-      settings: defaultSettings.tools.imageExplanation,
-    },
     bash: { settings: defaultSettings.tools.bash },
     plan_present: {
       enabled: false,
@@ -352,9 +348,7 @@ export function applySettingsMutation(
     const atomicAncestor =
       ["/model", "/tools/bash/settings/autoPromotion"].some((p) =>
         relative.startsWith(p + "/"),
-      ) ||
-      /^\/subagents\/[^/]+\/model\//.test(relative) ||
-      relative.startsWith("/tools/explain_image/settings/model/");
+      ) || /^\/subagents\/[^/]+\/model\//.test(relative);
     if (atomicAncestor)
       throw new Error("Reset must target a canonical merge unit");
     let cursor: z.ZodType = schema;

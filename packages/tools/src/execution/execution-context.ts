@@ -14,20 +14,6 @@ export type ToolExecutionOutputUpdate = {
   chunk: string;
 };
 
-export type ExplainImageRequest = {
-  path: string;
-  data: Uint8Array;
-  mimeType: string;
-  prompt?: string;
-  signal?: AbortSignal;
-  onUpdate?: (update: ToolExecutionOutputUpdate) => void | Promise<void>;
-};
-
-export type ExplainImageResponse = {
-  explanation: string;
-  model: { provider: string; modelId: string };
-};
-
 export interface BaseExecutionContext {
   cwd: string;
   signal?: AbortSignal;
@@ -48,12 +34,6 @@ export interface PythonExecutionContext extends BaseExecutionContext {
 export interface WebExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
   webFetchPolicy?: { allowPrivateNetwork?: boolean };
-}
-export interface VisionExecutionContext extends BaseExecutionContext {
-  artifactDir?: string;
-  explainImage?: (
-    request: ExplainImageRequest,
-  ) => Promise<ExplainImageResponse>;
 }
 /** Whether a configured quick_script namespace can be used now; the same text reaches the agent and, later, the Extensions page. */
 export type NamespaceAvailability =
@@ -93,7 +73,6 @@ export type ToolExecutionContext = FilesystemExecutionContext &
   ShellExecutionContext &
   PythonExecutionContext &
   WebExecutionContext &
-  VisionExecutionContext &
   IntegrationExecutionContext;
 
 // Result contracts live in `@nervekit/contracts` (single source of truth shared with the web UI).
@@ -162,10 +141,6 @@ export type WebSearchToolArgs = {
 export type WebFetchToolArgs = {
   url?: unknown;
   raw?: unknown;
-};
-
-export type ExplainImageToolArgs = ToolPathArgs & {
-  prompt?: unknown;
 };
 
 /**

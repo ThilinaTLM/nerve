@@ -1,6 +1,7 @@
 // Tool keys that moved into extension settings (`extensions.json`) and tools
 // that were removed in favour of `quick_script` namespaces (Jira, Confluence,
-// Diagram export, Image generation). Project files are not converted across
+// Diagram export, Image generation), plus `explain_image`, which moved to the
+// Image explanation extension. Project files are not converted across
 // files; the same-file version bump drops these entries and the upgrade
 // notice asks the user to set them again.
 type Tools = Record<string, unknown>;
@@ -16,6 +17,7 @@ const REMOVED: ReadonlySet<string> = new Set([
   "confluence",
   "generate_image",
   "kroki_export",
+  "explain_image",
 ]);
 
 const omit = (value: Record<string, unknown>, key: string) =>
@@ -84,4 +86,4 @@ export function dropMovedFromProfile(value: unknown): {
 }
 
 export const movedKeysNotice =
-  "Settings for Jira, Confluence, Image generation, Diagram export and Web search moved to Extensions (Jira, Confluence, diagrams and images are now reached through quick_script); they were removed from this file. Set them again in project settings.";
+  "Settings for Jira, Confluence, Image generation, Image explanation, Diagram export and Web search moved to Extensions (Jira, Confluence, diagrams and images are now reached through quick_script); they were removed from this file. Set them again in project settings.";

@@ -15,7 +15,7 @@ The copy is temporary, not a project attachment. To refer to a file that already
 
 ## Use images with a text-only model
 
-If your main model can't read images, turn on the **Image explanation** tool in **Settings → Tools** and choose an image-capable model for it. The agent can then ask that model to describe a JPEG, PNG, GIF, or WebP image and use the answer. The tool stays hidden while it's off, and when the main model already accepts images.
+If your main model can't read images, turn on the **Image explanation** extension in **Settings → Extensions** (it is off by default). Choose an image-capable model and a thinking level, then enable it for your user, a project or one conversation. The agent can then use `explain_image` to ask that model to describe a JPEG, PNG, GIF, or WebP image (up to 20 MiB, with an optional focus prompt) and use the answer. If the model or its credentials are removed, the tool is unavailable until you choose another.
 
 The image is sent to the model you choose for this tool. To keep images on your machine, point it at a local vision model through a compatible custom provider. Its usage and billing are separate from your main model's.
 

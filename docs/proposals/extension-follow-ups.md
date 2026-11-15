@@ -49,7 +49,7 @@ The list and the detail are already generic: settings rows come from `settingsSc
     - The list has one hard-coded "Built-in" section. Group by `metadata.source` once phase 3 adds installed extensions.
     - ~~`extensionFix` uses the first account kind.~~ Done: it follows the failing namespace's `requiresAccount` field.
     - The field-type set is closed by design (a type is added when a built-in needs it); a new type means contracts, `controlFor`, `displayValue` and `ExtensionFieldRow`. The account dialog has no control for `account` or `model` fields and silently drops them; registration should reject them in account kinds.
-    - Extensions cannot supply their own UI. That is intended; anything beyond the schema stays a proposal for phase 3.
+    - Extensions supply declarative tool views only (`ToolView`); there is no extension UI code. That is intended; anything beyond the schema and views stays a proposal for phase 3.
 
 Wireframe: `/dev/wireframes/extension-detail-streamlined` (local, gitignored) shows the list and detail with Current and Proposed variants, the brand icon, and an "Atlassian: no account" scenario. Its `layoutDetail` is the derivation rule from item 11; the Proposed variant shows item 12.
 

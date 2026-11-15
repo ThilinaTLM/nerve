@@ -22,7 +22,8 @@ export function isSubagentTool(name: string): name is SubagentToolName {
 
 /** Tool names removed by sub-agent profiles; stored disabled lists may still carry them. */
 const legacySubagentToolNames = ["subagent_new", "subagent_list"] as const;
-const legacyRemovedToolNames = ["explore"] as const;
+/** `explain_image` moved to the Image explanation extension. */
+const legacyRemovedToolNames = ["explore", "explain_image"] as const;
 
 /**
  * Disabled-tool list as stored or submitted. Accepts removed legacy names and

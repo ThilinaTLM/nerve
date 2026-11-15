@@ -642,8 +642,11 @@ export function liveTranscript(input: {
   queuedPrompts: QueuedPromptRecord[];
   liveBlocks: readonly LiveAssistantBlock[];
   toolOutput: Readonly<Record<string, string>>;
+  /** Live view sections of extension tools, by tool call and section. */
+  toolStreams?: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }): ConversationActiveRunSnapshot | undefined {
   const { run, queuedPrompts, liveBlocks, toolOutput } = input;
+  const toolStreams = input.toolStreams ?? {};
   if (!run.running) return undefined;
   const runId = run.runId ?? liveBlocks[0]?.turnId ?? run.conversationId;
   const startedAt = run.startedAt;
@@ -696,10 +699,23 @@ export function liveTranscript(input: {
       }),
     ),
     toolOutputsByToolCallId: Object.fromEntries(
-      Object.entries(toolOutput).map(([id, text]) => [
-        id,
-        { toolCallId: id, text, chunks: [], updatedAt: run.updatedAt },
-      ]),
+      [
+        ...new Set([...Object.keys(toolOutput), ...Object.keys(toolStreams)]),
+      ].map((id) => {
+        const chunks = Object.entries(toolStreams[id] ?? {}).map(
+          ([stream, text]) => ({ stream, text, ts: run.updatedAt }),
+        );
+        return [
+          id,
+          {
+            toolCallId: id,
+            // Changes with every streamed chunk, so cached views refresh.
+            text: toolOutput[id] ?? chunks.map((chunk) => chunk.text).join(""),
+            chunks,
+            updatedAt: run.updatedAt,
+          },
+        ];
+      }),
     ),
     queuedPrompts,
   };
@@ -711,6 +727,7 @@ export function conversationTranscript(input: {
   events: readonly TransferredConversationEvent[];
   liveBlocks: readonly LiveAssistantBlock[];
   toolOutput: Readonly<Record<string, string>>;
+  toolStreams?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   tree?: readonly EventTreeNode[];
 }) {
   const committed = committedTranscript(input);
@@ -721,6 +738,7 @@ export function conversationTranscript(input: {
       queuedPrompts: committed.queuedPrompts,
       liveBlocks: input.liveBlocks,
       toolOutput: input.toolOutput,
+      ...(input.toolStreams ? { toolStreams: input.toolStreams } : {}),
     }),
   };
 }

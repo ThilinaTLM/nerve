@@ -52,6 +52,8 @@ export interface ExtensionExecutionContext {
   registry?: QuickScriptRegistry;
   /** How the runtime reaches settings, accounts and model backends for extensions built on the extension API. */
   extensionPorts?: ExtensionHostPorts;
+  /** Set while an extension's direct tool runs: streams into a live view section; false when the section is not live. */
+  toolProgress?: (section: string, chunk: string) => boolean;
 }
 
 /** Context type of the quick-script executor: integrations plus the extensions' settings and host adapters. */

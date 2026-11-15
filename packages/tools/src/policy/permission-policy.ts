@@ -283,7 +283,7 @@ export function normalizePermissionRequest(input: {
   return request;
 }
 
-const exactReadPathTools = new Set<ToolName>(["read", "explain_image"]);
+const exactReadPathTools = new Set<ToolName>(["read"]);
 const exactWritePathTools = new Set<ToolName>(["edit", "write"]);
 const treeReadPathTools = new Set<ToolName>(["grep", "find", "ls"]);
 

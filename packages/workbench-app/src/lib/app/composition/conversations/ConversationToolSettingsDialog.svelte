@@ -9,13 +9,11 @@ import { requiredCanonicalPointers } from "$lib/presentation/composer/capability
 import { toolSettingsMutation } from "$lib/features/settings/views/pages/tools/tool-settings-mutation";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
-import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import {
   agentProfileCatalog,
   leadAgentProfiles,
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import ToolConfigDialog from "$lib/features/settings/views/pages/tools/ToolConfigDialog.svelte";
 import {
   toolRow,
@@ -43,12 +41,6 @@ const toolId = $derived<ToolId | undefined>(
 );
 const value = $derived<ToolPayload>(
   toolId ? (configuration?.resolution.settings.tools?.[toolId] ?? {}) : {},
-);
-const usableModels = $derived(
-  authenticatedRealModelOptions(
-    settingsState.models,
-    settingsState.authProviders,
-  ),
 );
 const leadProfiles = $derived(
   leadAgentProfiles(agentProfileCatalog.profiles(projectId)).map((profile) => ({
@@ -97,7 +89,6 @@ $effect(() => {
     {value}
     {requiredPointers}
     description={scopeNote}
-    models={usableModels}
     {leadProfiles}
     onSave={(next) => {
       const mutation = toolSettingsMutation(

@@ -12,11 +12,6 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
   { key: "subagents", label: "Sub-agents", names: ["subagents"] },
   { key: "web_search", label: "Web search", names: ["web_search"] },
   { key: "web_fetch", label: "Web fetch", names: ["web_fetch"] },
-  {
-    key: "explain_image",
-    label: "Image explanation",
-    names: ["explain_image"],
-  },
   { key: "bash", label: "Shell", names: ["bash"] },
   { key: "python_exec", label: "Python", names: ["python_exec"] },
   { key: "plan_present", label: "Plan review", names: ["plan_present"] },

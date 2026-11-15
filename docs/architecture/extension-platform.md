@@ -1,6 +1,6 @@
 # Extension platform
 
-An **extension** is a unit of capability with its own settings, accounts and permissions. It contributes `quick_script` namespaces and optionally direct tools. The four built-ins (Atlassian, Web, Diagrams, Image generation) are written against `@nervekit/extension-api` and run in-process; the host knows none of them by name. This page owns the API contract and the security rules the host enforces on it. The runtime and permission model are in [code mode](code-mode.md) and [permissions](permissions.md), settings and accounts storage in [configuration](configuration.md#extension-settings), and packages in [codebase](codebase.md).
+An **extension** is a unit of capability with its own settings, accounts and permissions. It contributes `quick_script` namespaces and optionally direct tools. The built-ins (Atlassian, Web, Diagrams, Image generation, Image explanation) are written against `@nervekit/extension-api` and run in-process; the host knows none of them by name. This page owns the API contract and the security rules the host enforces on it. The runtime and permission model are in [code mode](code-mode.md) and [permissions](permissions.md), settings and accounts storage in [configuration](configuration.md#extension-settings), and packages in [codebase](codebase.md).
 
 The API is built to be isolated: extension code could later run in its own sandbox. Installable third-party extensions are not shipped (see [Not shipped](#not-shipped)).
 
@@ -35,18 +35,35 @@ The API is built to be isolated: extension code could later run in its own sandb
 
 ## Direct tools
 
-A manifest can contribute tools (`defineTool`) for work the agent does often enough that discovery through `sdk.*` is too costly; `web_search` (extension `web-search`) is the case. A tool is usually bound to a namespace method, so it shares `parse`, `authorize`, the operation and one implementation (`parse` receives the tool's arguments object as its single argument; a script passes positional arguments). A tool without `method` declares its own `parse`, `authorize` and `run`, and an optional `present` that splits the result into agent text and transcript value.
+A manifest can contribute tools (`defineTool`) for work the agent does often enough that discovery through `sdk.*` is too costly; `web_search` (extension `web-search`) is the case. A tool is usually bound to a namespace method, so it shares `parse`, `authorize`, the operation and one implementation (`parse` receives the tool's arguments object as its single argument; a script passes positional arguments). A tool without `method` declares its own `parse`, `authorize` and `run`, and an optional `present` that splits the result into agent text and transcript sections (see [Tool views](#tool-views)).
 
 - A tool is offered only while its extension and switch are on and its `requires` are met; unavailable tools are left out of the request.
 - Permission rules match the operation (`search.web`) through `quick_script` operation rules. Exceptions naming the tool itself still validate against core tool names only (see [Not shipped](#not-shipped)).
 - `web_fetch` stays a core tool; `web.fetch` is a built-in runtime namespace (not an extension) authorized as `web_fetch`, so URL rules and approvals are unchanged whichever route is used.
 - Web search goes through a provider interface ([`providers/`](../../packages/extensions/src/web-search/providers/)): the selected account's kind picks the provider (Tavily first), which normalises results to `{ title, url, content, published? }` plus an optional answer. A provider is an account kind (credential, origins, optional `test`) and a `search` function; its origins are the extension's only network permissions. The `searchAccount` field accepts several kinds as providers are added.
 
-### Display kinds and projection
+### Tool views
 
-A tool's result renders with one of a small platform set, `DisplayKind` (`text`, `markdown`, `links`, `table`, `artifact`), so the app needs no per-tool view: one transcript view renders `details.display` by kind, and the Tools page groups extension tools under their extension from the tool list. Adding a kind means a renderer, a projection rule and a contract change, so it needs a reason an existing kind cannot meet.
+A direct tool describes how it looks with a declarative `view` (`ToolView`), not UI code. _Why:_ extension code stays free of UI and sandbox-ready, and the app renders every view with its own primitives across all states (drafting, approval, running, completed, failed, cancelled). The shell owns approval, errors and cancel, so an extension cannot restyle or hide them.
 
-The agent projection follows the kind: a `links` result is projected like the core search tool (item-aware, `details.results` holds the displayed items), every other kind uses the prose projection ([tool-result projection](tool-result-projection.md)). The transcript value and the agent text may differ (`present`); keep the agent text complete and the transcript compact.
+- `header: { argument, format }`: the argument name shown in the header and its format (`text` or `path`).
+- `meta`: up to three argument names shown as secondary facts.
+- `sections`: `[{ id, type, label?, live? }]`. `id` is a lowercase id and doubles as the live stream id. `type` is `text`, `markdown`, `links`, `table` or `artifacts`. `live` is `stream` (chunks accumulate) or `transient` (shown only while running).
+- The default view is one `text` section `result`.
+- `present(output)` returns `{ text, sections?: Record<id, value>, details? }`: `text` is what the agent reads, `sections` are the values the transcript renders, keyed by section id. Keep the agent text complete and the transcript compact.
+- The registry validates views when it is built: argument names must be tool parameters, `meta` has at most three entries, section ids are lowercase and unique, `live` is allowed only on sections that can stream, and `present` may only fill declared sections. A violation fails registry creation with the extension id.
+
+The agent result policy follows the view: with a `links` section the result is projected like the core search tool (item-aware, `details.results` holds the displayed items); otherwise it uses the prose projection ([tool-result projection](tool-result-projection.md)).
+
+`ctx.progress(section, chunk)` streams text into a live section of the running direct tool. Outside a running direct tool, or for a section that is not live, the call is ignored with a warning. The host transports it as the `stream` of the `tool_progress` live delta. Adding a section type means a renderer, a projection rule and a contract change, so it needs a reason an existing type cannot meet.
+
+### Vision capability
+
+`ctx.models.vision` is the host capability behind the Image explanation extension (`explain_image`):
+
+- `explain({ image, prompt?, progress?: { thinking?, text? } })` returns the explanation text; `progress` names the live sections that receive thinking and answer chunks. `ready()` reports whether a usable model is configured, so `availability` can hide the tool with a fix.
+- The host reads the model and thinking level from the calling extension's own `model` (capability `vision`) and `thinkingLevel` settings. Callers cannot pick a model, so an extension cannot spend credit on, or send images to, a model the user did not choose for it.
+- The host detects JPEG, PNG, GIF and WebP from the bytes. The file is read under the `read` rules its `authorize` declared.
 
 ## Other decisions
 
@@ -66,7 +83,7 @@ The agent projection follows the kind: a `links` result is projected like the co
 | Credential injection, origin matching, redirects | Credential leak. Test each hop.                                                                |
 | Declared risk, `ctx.authorize`, `riskFromArgs`   | Silent permission widening. The script scan and declared-risk guard depend on them.            |
 | Account kind or secret id format                 | Needs a home migration step (files and secret store).                                          |
-| New display kind                                 | Contracts, transcript renderer and projection rule.                                            |
+| New view section type                            | Contracts, transcript renderer and projection rule.                                            |
 | Naming an extension outside its folder           | Fails the `extension-naming` rule; derive from the registry instead.                           |
 
 ## Not shipped

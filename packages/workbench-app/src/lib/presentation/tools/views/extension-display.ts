@@ -1,9 +1,9 @@
-import type { ExtensionDisplayKind } from "@nervekit/contracts/extensions";
+import type { ExtensionViewSectionType } from "@nervekit/contracts/extensions";
 
 /*
- * What the display kinds of an extension's direct tool expect of the result
- * value (`details.display.value`). Readers are tolerant: a value that does not
- * fit the kind yields nothing and the card falls back to the result text.
+ * What the view section types of an extension's direct tool expect of their
+ * values (`details.sections[].value`). Readers are tolerant: a value that does
+ * not fit the type yields nothing and the card falls back to the result text.
  */
 
 export type DisplayLink = { title: string; url: string; snippet?: string };
@@ -89,7 +89,7 @@ export function displayTable(value: unknown): DisplayTable | undefined {
   };
 }
 
-/** `artifact`: a handle, `{ handle }` or a list of either. */
+/** `artifacts`: a handle, `{ handle }` or a list of either. */
 export function displayArtifactHandles(value: unknown): string[] {
   const items = Array.isArray(value) ? value : [value];
   return items.flatMap((item) => {
@@ -98,20 +98,18 @@ export function displayArtifactHandles(value: unknown): string[] {
   });
 }
 
-/** How many items the card lists, with the noun for its footer. */
-export function displayItemCount(display: {
-  kind: ExtensionDisplayKind;
-  value?: unknown;
-}): { count: number; noun: string } | undefined {
-  switch (display.kind) {
-    case "links":
-      return { count: displayLinks(display.value).length, noun: "result" };
-    case "table":
+/** How many items the card's first list or table shows, with the noun for its footer. */
+export function sectionsItemCount(
+  sections: readonly { type: ExtensionViewSectionType; value?: unknown }[],
+): { count: number; noun: string } | undefined {
+  for (const section of sections) {
+    if (section.type === "links")
+      return { count: displayLinks(section.value).length, noun: "result" };
+    if (section.type === "table")
       return {
-        count: displayTable(display.value)?.rows.length ?? 0,
+        count: displayTable(section.value)?.rows.length ?? 0,
         noun: "row",
       };
-    default:
-      return undefined;
   }
+  return undefined;
 }

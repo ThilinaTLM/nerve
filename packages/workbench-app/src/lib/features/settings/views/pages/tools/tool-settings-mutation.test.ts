@@ -18,27 +18,23 @@ test("clearing a scalar tool setting removes only the local choice, never inheri
   );
 });
 
-test("saving editable reasoning excludes Required enabled/model and preserves hidden choices", () => {
-  const model = { provider: "openai", modelId: "vision" };
+test("saving editable settings excludes a Required switch and preserves hidden choices", () => {
   const result = toolSettingsMutation(
-    "explain_image",
-    {
-      enabled: true,
-      settings: { model, thinkingLevel: "high" },
-    },
+    "plan_present",
+    { enabled: true, settings: { approvalProfile: "coding" } },
     {
       tools: {
-        explain_image: {
+        plan_present: {
           enabled: false,
-          settings: { model, thinkingLevel: "low" },
+          settings: { approvalProfile: "planning" },
         },
       },
     },
-    ["/tools/explain_image/enabled", "/tools/explain_image/settings/model"],
+    ["/tools/plan_present/enabled"],
   );
   assert.deepEqual(result, {
     changes: {
-      tools: { explain_image: { settings: { thinkingLevel: "high" } } },
+      tools: { plan_present: { settings: { approvalProfile: "coding" } } },
     },
     resets: [],
   });

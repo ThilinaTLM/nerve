@@ -224,16 +224,10 @@ test("planning separates research, prompted analysis, and mutations", () => {
     "allow",
   );
 
-  for (const [toolName, args] of [
-    ["web_fetch", { url: "https://example.com" }],
-    ["explain_image", { path: "/workspace/screenshot.png" }],
-  ] as const) {
-    assert.equal(
-      decision("planning", toolName, args).decision,
-      "allow",
-      toolName,
-    );
-  }
+  assert.equal(
+    decision("planning", "web_fetch", { url: "https://example.com" }).decision,
+    "allow",
+  );
 
   assert.equal(
     decision("planning", "bash", { command: "pwd" }).decision,

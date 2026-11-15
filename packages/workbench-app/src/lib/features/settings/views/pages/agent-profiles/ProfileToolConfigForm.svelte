@@ -40,7 +40,6 @@ const payload = $derived((draft.value ?? {}) as ToolPayload);
       name={tool}
       bind:payload={() => payload, (value) => (draft = { ...draft, value })}
       bind:valid
-      models={context.models}
       leadProfiles={context.leadProfiles}
     />
   {/if}

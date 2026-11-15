@@ -48,7 +48,6 @@ async function expectedTarget(
   // This is the production host identity: no credentials or environment values are hashed.
   const target = {
     toolConfiguration: null,
-    modelConfiguration: null,
     python: null,
     shellPath,
     ...prepared.target,

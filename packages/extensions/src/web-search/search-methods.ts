@@ -115,7 +115,7 @@ export const webSearchTool = {
   /** The text the agent reads, and the links the transcript lists (snippets bounded). */
   present(output: WebSearchOutput): {
     text: string;
-    value: unknown;
+    sections: { results: unknown };
     details: { query: string; answer?: string };
   } {
     const lines: string[] = [];
@@ -128,13 +128,15 @@ export const webSearchTool = {
         query: output.query,
         ...(output.answer ? { answer: output.answer } : {}),
       },
-      value: output.results.map((result) => ({
-        title: result.title,
-        url: result.url,
-        ...(snippet(result.content)
-          ? { snippet: snippet(result.content) }
-          : {}),
-      })),
+      sections: {
+        results: output.results.map((result) => ({
+          title: result.title,
+          url: result.url,
+          ...(snippet(result.content)
+            ? { snippet: snippet(result.content) }
+            : {}),
+        })),
+      },
     };
   },
 };

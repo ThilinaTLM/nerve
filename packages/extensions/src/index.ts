@@ -1,6 +1,7 @@
 import type { ExtensionDefinition } from "@nervekit/extension-api";
 import { atlassianExtension } from "./atlassian/manifest.js";
 import { diagramExtension } from "./diagram/manifest.js";
+import { imageExplanationExtension } from "./image-explanation/manifest.js";
 import { imagegenExtension } from "./imagegen/manifest.js";
 import { webSearchExtension } from "./web-search/manifest.js";
 
@@ -10,4 +11,5 @@ export const builtinExtensions: readonly ExtensionDefinition[] = [
   atlassianExtension,
   diagramExtension,
   imagegenExtension,
+  imageExplanationExtension,
 ];

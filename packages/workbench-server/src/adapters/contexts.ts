@@ -2,6 +2,7 @@ import type {
   CoreStorage,
   ConversationCore,
 } from "@nervekit/conversation-core";
+import type { VisionHost } from "../core-host/vision-models.js";
 import type { GitOperationService, GitService } from "@nervekit/tools/git";
 import type { UnreadableConversationActivity } from "../domains/activity/unreadable-conversation-activity.js";
 import type { UnifiedCompletionService } from "../domains/completions/unified-completion-service.js";
@@ -81,6 +82,8 @@ export interface AdapterServices {
   conversationCore: ConversationCore;
   agentConfiguration: AgentConfigurationService;
   extensionSettings: ExtensionSettingsService;
+  /** The vision model behind extensions' `ctx.models.vision`. */
+  vision: VisionHost;
   configurationOperations: ReturnType<typeof agentConfigurationOperations>;
   admissionPolicy: ScopedPermissionPolicySource;
   coreStorage: CoreStorage;
@@ -117,6 +120,7 @@ export function createServerAdapterContexts(
     agents: services.agentConfiguration,
     registry: hostRegistry,
     accounts: services.accounts,
+    vision: services.vision,
   });
   const protocol = {
     activity: {

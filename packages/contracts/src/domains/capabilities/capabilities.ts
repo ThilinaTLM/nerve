@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { subagentToolNames } from "../tools/subagent-tools.js";
 import {
-  imageExplanationToolSettingsSchema,
   pythonExecToolSettingsSchema,
   bashToolSettingsSchema,
   planPresentToolSettingsSchema,
@@ -45,7 +44,6 @@ export const capabilityToolPayloadSchemas = {
   python_exec: payload(pythonExecToolSettingsSchema),
   web_search: basicPayload,
   web_fetch: basicPayload,
-  explain_image: payload(imageExplanationToolSettingsSchema),
   plan_present: payload(planPresentToolSettingsSchema),
   subagents: basicPayload,
   quick_script: basicPayload,

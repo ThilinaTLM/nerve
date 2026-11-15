@@ -11,7 +11,12 @@ export interface LiveBlockShape {
 export interface LiveBatch {
   blocks: LiveBlockShape[];
   toolOutput: Record<string, string>;
+  /** Text of named streams (an extension tool's live view sections), by tool call and stream. */
+  toolStreams: Record<string, Record<string, string>>;
 }
+
+/** Process streams; any other stream is a live view section of an extension tool. */
+const PROCESS_STREAMS = new Set(["stdout", "stderr", "combined"]);
 
 export type LiveScheduler = (callback: () => void) => () => void;
 
@@ -29,6 +34,7 @@ export const defaultLiveScheduler: LiveScheduler = (callback) => {
 export class LiveDeltaBuffer {
   private blocks = new Map<string, LiveBlockShape>();
   private toolOutput: Record<string, string> = {};
+  private toolStreams: Record<string, Record<string, string>> = {};
   private hasToolOutput = false;
   private cancel: (() => void) | undefined;
   private disposed = false;
@@ -61,8 +67,12 @@ export class LiveDeltaBuffer {
     this.arm();
   }
 
-  progress(toolCallId: string, chunk: string): void {
-    this.toolOutput[toolCallId] = (this.toolOutput[toolCallId] ?? "") + chunk;
+  progress(toolCallId: string, chunk: string, stream?: string): void {
+    if (stream && !PROCESS_STREAMS.has(stream)) {
+      const streams = (this.toolStreams[toolCallId] ??= {});
+      streams[stream] = (streams[stream] ?? "") + chunk;
+    } else
+      this.toolOutput[toolCallId] = (this.toolOutput[toolCallId] ?? "") + chunk;
     this.hasToolOutput = true;
     this.arm();
   }
@@ -74,9 +84,11 @@ export class LiveDeltaBuffer {
     const batch: LiveBatch = {
       blocks: [...this.blocks.values()],
       toolOutput: this.toolOutput,
+      toolStreams: this.toolStreams,
     };
     this.blocks = new Map();
     this.toolOutput = {};
+    this.toolStreams = {};
     this.hasToolOutput = false;
     this.commit(batch);
   }
@@ -89,13 +101,17 @@ export class LiveDeltaBuffer {
 
   dropToolOutput(toolCallId: string): void {
     delete this.toolOutput[toolCallId];
-    this.hasToolOutput = Object.keys(this.toolOutput).length > 0;
+    delete this.toolStreams[toolCallId];
+    this.hasToolOutput =
+      Object.keys(this.toolOutput).length > 0 ||
+      Object.keys(this.toolStreams).length > 0;
     this.settle();
   }
 
   clear(): void {
     this.blocks = new Map();
     this.toolOutput = {};
+    this.toolStreams = {};
     this.hasToolOutput = false;
     this.disarm();
   }

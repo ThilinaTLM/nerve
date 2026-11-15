@@ -358,7 +358,7 @@ void test("an unavailable namespace fails at call time with its reason and fix",
   );
 });
 
-void test("a direct tool bound to a method runs the same parse → authorize → run and carries its display kind", async () => {
+void test("a direct tool bound to a method runs the same parse → authorize → run and carries its view", async () => {
   seen.length = 0;
   const [definition] = createExtensionToolDefinitions(registry);
   assert.equal(definition.name, "demo_item");
@@ -374,15 +374,19 @@ void test("a direct tool bound to a method runs the same parse → authorize →
         content: string;
         details: {
           extension: string;
-          display: { kind: string; value: unknown };
+          sections: { id: string; value: unknown }[];
         };
       }>;
     }
   ).executor({ id: "Z9" }, context);
   assert.match(result.content ?? "", /"id": "Z9"/);
   assert.equal(result.details.extension, "demo");
-  assert.equal(result.details.display.kind, "markdown");
-  assert.deepEqual(result.details.display.value, { id: "Z9", name: "Widget" });
+  assert.deepEqual(definition.extension?.view.sections, [
+    { id: "item", type: "markdown" },
+  ]);
+  // A text section without `present` shows the agent's text.
+  assert.equal(result.details.sections[0].id, "item");
+  assert.match(String(result.details.sections[0].value), /"name": "Widget"/);
   assert.equal(seen[0].authorization, "Bearer secret-1");
   assert.deepEqual(authorized, [
     { operation: "demo.items.get", targets: ["demo:item/Z9"], risk: "network" },

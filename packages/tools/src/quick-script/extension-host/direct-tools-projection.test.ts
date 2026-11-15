@@ -38,7 +38,7 @@ const search = defineExtension({
       name: "finder_search",
       description: "Search.",
       parameters: { type: "object", properties: {} },
-      display: "links",
+      view: { sections: [{ id: "results", type: "links" }] },
       risk: "network",
       parse: () => ({}),
       run: () => ({ answer, hits }),
@@ -54,11 +54,13 @@ const search = defineExtension({
             "",
           ]),
         ].join("\n"),
-        value: output.hits.map((hit) => ({
-          title: hit.title,
-          url: hit.url,
-          snippet: snippet(hit.content),
-        })),
+        sections: {
+          results: output.hits.map((hit) => ({
+            title: hit.title,
+            url: hit.url,
+            snippet: snippet(hit.content),
+          })),
+        },
         details: { query: "topic", answer: output.answer },
       }),
     }),
