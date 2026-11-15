@@ -163,6 +163,20 @@ function freePriority(rules: readonly Json[], rule: Json): number {
   throw new Error("No free rule priority");
 }
 
+/** Tools whose whole-call risk followed their arguments; their external writes matched `write`. */
+const SCRIPT_RISK_TOOLS = new Set(["quick_script", "async_bash", "launch"]);
+
+function writeRuleCoveredScripts(
+  rule: Json & Record<string, unknown>,
+): boolean {
+  const when = rule.when as Record<string, unknown>;
+  if (Array.isArray(when.toolNames))
+    return (when.toolNames as unknown[]).some(
+      (name) => typeof name === "string" && SCRIPT_RISK_TOOLS.has(name),
+    );
+  return rule.decision === "deny" || rule.decision === "prompt";
+}
+
 /**
  * Rewrites rules that name removed tools, in one `rules` array (an overlay or
  * a rule set), per the table in permissions.md:
@@ -176,6 +190,7 @@ function freePriority(rules: readonly Json[], rule: Json): number {
  *   risk-category filters) or has nothing to allow is disabled and reported,
  *   never dropped.
  */
+
 export function convertRemovedToolRules(
   rules: readonly unknown[],
   loss: Loss,
@@ -199,11 +214,15 @@ export function convertRemovedToolRules(
       ];
       changed = true;
     }
-    // External writes were matched through `unknown`; they are `external_write` now.
+    // External writes are `external_write` now. An operation used to match
+    // `unknown`, and a whole script (`quick_script`, `async_bash`, `launch`)
+    // `write`. Keep both matches; a `write` rule naming no tool keeps it only
+    // when it restricts, so a broad allow does not start allowing external writes.
     if (
       Array.isArray(when.baseRisks) &&
-      when.baseRisks.includes("unknown") &&
-      !when.baseRisks.includes("external_write")
+      !when.baseRisks.includes("external_write") &&
+      (when.baseRisks.includes("unknown") ||
+        (when.baseRisks.includes("write") && writeRuleCoveredScripts(rule)))
     ) {
       when.baseRisks = [...when.baseRisks, "external_write"];
       changed = true;

@@ -163,7 +163,7 @@ void test("operation rules cannot outrank a guardrail script-level deny, and bui
     enabled: true,
     priority: 1,
     enforcement: "guardrail",
-    when: { toolNames: ["quick_script"], baseRisks: ["write"] },
+    when: { toolNames: ["quick_script"], baseRisks: ["external_write"] },
     decision: "deny",
   };
   const admitted = scriptAdmission(calls, [guard, allowOps()]);

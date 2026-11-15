@@ -172,3 +172,44 @@ void test("rules matching unknown also match external_write", () => {
     false,
   );
 });
+
+void test("write rules that covered whole scripts also match external_write; broad allows do not", () => {
+  const rule = (id: string, when: object, decision: string) => ({
+    id,
+    enabled: true,
+    priority: 1,
+    enforcement: "guardrail",
+    when,
+    decision,
+  });
+  const { document } = convertRuleSetDocument(
+    {
+      rules: [
+        rule(
+          "script",
+          { toolNames: ["quick_script"], baseRisks: ["write"] },
+          "allow",
+        ),
+        rule("deny", { baseRisks: ["write"] }, "deny"),
+        rule("allow", { baseRisks: ["write"] }, "allow"),
+        rule(
+          "files",
+          { toolNames: ["write", "edit"], baseRisks: ["write"] },
+          "deny",
+        ),
+      ],
+    },
+    () => {},
+  );
+  assert.deepEqual(
+    (document as { rules: { when: { baseRisks: string[] } }[] }).rules.map(
+      (r) => r.when.baseRisks,
+    ),
+    [
+      ["write", "external_write"],
+      ["write", "external_write"],
+      ["write"],
+      ["write"],
+    ],
+  );
+});

@@ -4,6 +4,8 @@ import {
   effectiveRiskForCategory,
   staticToolRiskSchema,
   toolRiskSchema,
+  type StaticToolRisk,
+  type ToolRisk,
 } from "../src/domains/permissions/index.js";
 
 describe("effectiveRiskForCategory", () => {
@@ -11,13 +13,14 @@ describe("effectiveRiskForCategory", () => {
     read: "read",
     write: "workspace_write",
     external_read: "external_read",
+    external_write: "external_write",
     secret: "secret",
     destructive: "destructive",
     deployment: "deployment",
     agent_spawn: "agent_spawn",
     interaction: "interaction",
     unknown: "command",
-  } as const;
+  } satisfies Record<StaticToolRisk, ToolRisk>;
 
   it("maps every static category to a valid effective risk", () => {
     for (const risk of staticToolRiskSchema.options) {
