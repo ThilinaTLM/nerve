@@ -6,11 +6,11 @@ The API is built to be isolated: extension code could later run in its own sandb
 
 ## Rules
 
-1. **Extension code imports only `@nervekit/extension-api`** and its own files. No host objects, no `fetch`, no file system. _Why:_ this is what keeps the contract publishable and sandbox-ready. The boundary checker enforces the dependency, and the [`extension-naming` rule](../../scripts/checks/extension-naming-policy.ts) forbids every other production source from naming an extension; only the built-in list and frozen migration steps do. Its exception list is reviewed and may only shrink: the `planning` rule set names the Atlassian namespaces because a quick_script operation's tool group is its namespace and extensions declare no "read-only research" flag.
+1. **Extension code imports only `@nervekit/extension-api`** and its own files. No host objects, no `fetch`, no file system. _Why:_ this is what keeps the contract publishable and sandbox-ready. The boundary checker enforces the dependency, and the [`extension-naming` rule](../../scripts/checks/extension-naming-policy.ts) forbids every other production source from naming an extension; only the built-in list and frozen migration steps do. Its exception list is reviewed and may only shrink; rule sets select extension operations by risk (`external_read`), not by namespace.
 2. **Every `ctx` call is async and exchanges plain data** (JSON values, `Uint8Array`, handles); no class instances or callbacks cross. _Why:_ a later `__hostCall` transport must work without an API change.
 3. **The extension declares; the host decides.** Permissions, approvals, network policy and limits are host code. The manifest is plain data except its hooks (`test`, `availability`, `parse`, `authorize`, `run`); contracts validate the data part, typed against the API.
 4. **`parse` and `authorize` are synchronous and pure**, so authorization happens before any I/O. `authorize` returns one check, several (all must pass) or none.
-5. **Account kinds are unique across extensions**; the registry rejects duplicates.
+5. **Account kinds are unique across extensions**; the registry rejects duplicates. Their fields cannot be `account` or `model` (the account dialog has no control for them), so such a kind fails registration.
 
 ## Context security
 
@@ -38,7 +38,7 @@ The API is built to be isolated: extension code could later run in its own sandb
 A manifest can contribute tools (`defineTool`) for work the agent does often enough that discovery through `sdk.*` is too costly; `web_search` (extension `web-search`) is the case. A tool is usually bound to a namespace method, so it shares `parse`, `authorize`, the operation and one implementation (`parse` receives the tool's arguments object as its single argument; a script passes positional arguments). A tool without `method` declares its own `parse`, `authorize` and `run`, and an optional `present` that splits the result into agent text and transcript sections (see [Tool views](#tool-views)).
 
 - A tool is offered only while its extension and switch are on and its `requires` are met; unavailable tools are left out of the request.
-- Permission rules match the operation (`search.web`) through `quick_script` operation rules. Exceptions naming the tool itself still validate against core tool names only (see [Not shipped](#not-shipped)).
+- Permission rules match the operation (`search.web`) through `quick_script` operation rules. Exceptions accept core tool names only; one naming an extension tool is rejected with a hint to use `tool: "quick_script"` and the operation.
 - `web_fetch` stays a core tool; `web.fetch` is a built-in runtime namespace (not an extension) authorized as `web_fetch`, so URL rules and approvals are unchanged whichever route is used.
 - Web search goes through a provider interface ([`providers/`](../../packages/extensions/src/web-search/providers/)): the selected account's kind picks the provider (Tavily first), which normalises results to `{ title, url, content, published? }` plus an optional answer. A provider is an account kind (credential, origins, optional `test`) and a `search` function; its origins are the extension's only network permissions. The `searchAccount` field accepts several kinds as providers are added.
 
