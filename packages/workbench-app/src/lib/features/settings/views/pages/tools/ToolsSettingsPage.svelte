@@ -25,7 +25,6 @@ import {
   setExtensionTools,
 } from "$lib/presentation/tools/lifecycle/extension-tools";
 import ExtensionMark from "../extensions/ExtensionMark.svelte";
-import { entryWithEnabled } from "../extensions/extensions-view";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import {
@@ -86,7 +85,7 @@ $effect(() => {
   ensureProfilesFor(scope, projectId);
 });
 $effect(() => editor.observe());
-// The direct tools extensions contribute, grouped under their extension below the core tools.
+// The direct tools of enabled extensions, grouped under their extension below the core tools.
 let toolDescriptors = $state<ToolDescriptor[]>([]);
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
@@ -124,11 +123,13 @@ const extensionGroups = $derived.by(() => {
   const groups: ExtensionToolGroup[] = [];
   for (const tool of toolDescriptors) {
     if (!tool.extension) continue;
+    const owner = extensions.view?.extensions.find(
+      (extension) => extension.metadata.id === tool.extension,
+    );
+    // A disabled extension contributes no tools; it is turned on in Extensions.
+    if (!owner?.enabled.value) continue;
     let group = groups.find((entry) => entry.extensionId === tool.extension);
     if (!group) {
-      const owner = extensions.view?.extensions.find(
-        (extension) => extension.metadata.id === tool.extension,
-      );
       group = {
         extensionId: tool.extension,
         name: owner?.metadata.name ?? tool.extension,
@@ -297,9 +298,6 @@ const python = $derived(status?.runtime.python);
       <SettingsList ariaLabel={`${group.name} tools`}>
         {#each group.tools as tool (tool.name)}
           {@const switchId = toolSwitch(tool.name)}
-          {@const owner = extensions.view?.extensions.find(
-            (extension) => extension.metadata.id === group.extensionId,
-          )}
           {@const fromExtension = extensionToolState(
             tool.name,
             group.extensionId,
@@ -325,26 +323,11 @@ const python = $derived(status?.runtime.python);
                     ),
                 }
               : undefined}
-            checked={switchId
-              ? payload(switchId).enabled === true
-              : owner?.enabled.value === true}
-            switchLabel={switchId
-              ? undefined
-              : `Enable the ${group.name} extension`}
-            disabled={switchId
-              ? locked || fromExtension?.disabled === true
-              : !owner || owner.readOnly || extensions.saving}
-            lockedBy={!switchId && owner?.enabled.source.locked
-              ? (owner.enabled.source.profile ?? "profile")
-              : undefined}
+            always={switchId === undefined}
+            checked={switchId ? payload(switchId).enabled === true : undefined}
+            disabled={locked || fromExtension?.disabled === true}
             onCheckedChange={(next) => {
-              // A tool without its own switch follows its extension's switch.
               if (switchId) toggle(switchId, next);
-              else if (owner)
-                void extensions.save(
-                  owner.metadata.id,
-                  entryWithEnabled(owner, next),
-                );
             }}
             onOpen={() => openExtension(group.extensionId)}
             openLabel={`Open ${group.name} extension settings`}
