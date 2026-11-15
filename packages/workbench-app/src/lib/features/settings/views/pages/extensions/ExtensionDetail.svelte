@@ -82,6 +82,9 @@ const busy = $derived(extensions.saving || extension.readOnly);
 const mergedKinds = $derived(
   new Set(layout.accounts.map((entry) => entry.kind)),
 );
+const kindLabels = $derived(
+  Object.fromEntries(extension.accountKinds.map((k) => [k.kind, k.label])),
+);
 const listKinds = $derived(
   extension.accountKinds.filter((kind) => !mergedKinds.has(kind.kind)),
 );
@@ -178,6 +181,7 @@ function openPage(page: "tools" | "skills"): void {
           {item}
           {scope}
           {accounts}
+          {kindLabels}
           {models}
           change={changes.find((change) => change.key === item.key)}
           disabled={busy}
@@ -210,6 +214,7 @@ function openPage(page: "tools" | "skills"): void {
                 {item}
                 {scope}
                 {accounts}
+                {kindLabels}
                 {models}
                 change={changes.find((change) => change.key === item.key)}
                 disabled={busy}

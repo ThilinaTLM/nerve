@@ -76,11 +76,11 @@ export const settingFieldSchema = z.discriminatedUnion("type", [
       )
       .min(1),
   }),
-  /** Id of a user account of this kind (`accounts.json`). */
+  /** Id of a user account of this kind, or any of several (`accounts.json`). */
   z.strictObject({
     ...fieldBase,
     type: z.literal("account"),
-    kind: z.string().min(1),
+    kind: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
   }),
   z.strictObject({
     ...fieldBase,
@@ -89,6 +89,13 @@ export const settingFieldSchema = z.discriminatedUnion("type", [
   }),
 ]) satisfies z.ZodType<ApiSettingField>;
 export type SettingField = z.infer<typeof settingFieldSchema>;
+
+/** The account kinds an `account` field accepts, in declared order. */
+export function accountFieldKinds(field: {
+  kind: string | readonly string[];
+}): readonly string[] {
+  return typeof field.kind === "string" ? [field.kind] : field.kind;
+}
 
 export const settingsSchemaSchema = z.strictObject({
   sections: z

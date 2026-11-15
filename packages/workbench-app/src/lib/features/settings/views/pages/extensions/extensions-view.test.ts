@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ExtensionView } from "@nervekit/contracts/extensions";
 import {
+  accountChoicesFor,
   activeNamespaces,
+  displayValue,
   controlFor,
   detailLayout,
   helperNote,
@@ -516,6 +518,16 @@ describe("detail layout", () => {
     assert.equal(detailLayout(plain, "user").accounts[0]!.kind, "atlassian");
     assert.deepEqual(keys(plain), []);
 
+    // A one-kind list is the same as the kind; several kinds keep their own lists.
+    assert.deepEqual(
+      merged(view({ account: account({ kind: ["atlassian"] }) })),
+      ["account"],
+    );
+    assert.deepEqual(
+      merged(view({ account: account({ kind: ["atlassian", "other"] }) })),
+      [],
+    );
+
     const two = view({ a: account(), b: account({ label: "Other" }) });
     assert.deepEqual(merged(two), []);
     assert.deepEqual(keys(two), ["a", "b"]);
@@ -575,5 +587,35 @@ describe("detail layout", () => {
     assert.equal(tool.problem, "Needs an account.");
     assert.deepEqual(tool.control, { type: "opens", page: "tools" });
     assert.deepEqual(rows[4]!.control, { type: "opens", page: "skills" });
+  });
+});
+
+describe("account fields accepting several kinds", () => {
+  const field = {
+    type: "account" as const,
+    kind: ["tavily", "brave"],
+    label: "Search",
+  };
+  const accounts: AccountChoices = {
+    brave: [{ id: "b", name: "Brave one" }],
+    tavily: [{ id: "t", name: "Tavily one", detail: "pro" }],
+  };
+
+  it("lists the accounts of every kind, labelled by kind", () => {
+    assert.deepEqual(
+      accountChoicesFor(field, accounts, { tavily: "Tavily", brave: "Brave" }),
+      [
+        { id: "t", name: "Tavily one", detail: "Tavily · pro" },
+        { id: "b", name: "Brave one", detail: "Brave" },
+      ],
+    );
+    assert.deepEqual(
+      accountChoicesFor({ ...field, kind: "brave" }, accounts),
+      accounts.brave,
+    );
+  });
+
+  it("shows the selected account whichever kind it is", () => {
+    assert.equal(displayValue(field, "b", accounts), "Brave one");
   });
 });

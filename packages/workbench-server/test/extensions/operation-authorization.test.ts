@@ -62,10 +62,10 @@ void test("raw requests are operations: GET is network, anything else destructiv
   }
 });
 
-void test("web.search is a network operation named after the method, without targets", () => {
-  const [check] = checksOf("web.search", ["nerve"]);
+void test("search.web is a network operation named after the method, without targets", () => {
+  const [check] = checksOf("search.web", ["nerve"]);
   assert.ok(check && isOperationCheck(check));
-  assert.equal(check.operation, "web.search");
+  assert.equal(check.operation, "search.web");
   assert.equal(check.risk, "network");
   assert.deepEqual(check.targets, []);
 });

@@ -31,7 +31,7 @@ export const EXTENSION_NAMING_EXCEPTIONS: ReadonlyMap<string, string> = new Map(
 
 const SCANNED = /^packages\/[^/]+\/src\/.*\.(?:ts|svelte|json|js|mjs)$/;
 const OUT_OF_SCOPE =
-  /\.test\.ts$|\.d\.ts$|\/test\/|\/migrations\/steps\/|\/frozen\/|^packages\/website\/|^packages\/extensions\/src\/(?:atlassian|web|diagram|imagegen)\//;
+  /\.test\.ts$|\.d\.ts$|\/test\/|\/migrations\/steps\/|\/frozen\/|^packages\/website\/|^packages\/extensions\/src\/(?:atlassian|web-search|diagram|imagegen)\//;
 
 export function extensionNamingViolations(
   file: string,

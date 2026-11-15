@@ -26,12 +26,6 @@ const namespaces: QuickScriptAvailability = {
     reason: "off",
     fix: "enable",
   },
-  web: {
-    configured: false,
-    available: false,
-    reason: "Web is switched off for quick_script.",
-    fix: "Ask the user to enable Web.",
-  },
   diagram: { configured: true, available: true },
 };
 

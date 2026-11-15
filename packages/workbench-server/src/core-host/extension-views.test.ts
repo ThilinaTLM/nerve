@@ -38,7 +38,7 @@ void test("the user view lists every built-in extension with sources, availabili
           enabled: true,
           settings: { account: "acme", jira: true },
         },
-        web: { version: 7, settings: { searchAccount: "future" } },
+        "web-search": { version: 7, settings: { searchAccount: "future" } },
       },
     }),
   );
@@ -60,7 +60,7 @@ void test("the user view lists every built-in extension with sources, availabili
   const view = await views.view({ scope: "user" });
   assert.deepEqual(
     view.extensions.map((extension) => extension.metadata.id),
-    ["atlassian", "web", "imagegen", "diagram"],
+    ["atlassian", "web-search", "imagegen", "diagram"],
   );
   assert.equal(view.file.revision, 3);
   const atlassian = view.extensions[0];

@@ -21,7 +21,7 @@ export const SAMPLES: Record<string, unknown[][]> = {
     ["https://example.com/a"],
     [{ url: "https://example.com/a", as: "file", name: "a.bin" }],
   ],
-  "web.search": [["nerve"], [{ query: "nerve", limit: 20 }]],
+  "search.web": [["nerve"], [{ query: "nerve", limit: 20 }]],
   "sdk.list": [[]],
   "sdk.describe": [["jira.issues"]],
   "sdk.search": [["sprint"], ["sprint", { in: "jira", offset: 0 }]],

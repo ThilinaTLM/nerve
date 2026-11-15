@@ -95,7 +95,7 @@ void test("quick_script wins over direct tools; differing accounts keep Jira", (
       enabled: true,
       settings: { account: "jira-qs", jira: false, confluence: true },
     },
-    web: {
+    "web-search": {
       version: 1,
       enabled: true,
       settings: { searchAccount: "tav-qs" },
@@ -123,9 +123,9 @@ void test("quick_script wins over direct tools; differing accounts keep Jira", (
   });
 });
 
-void test("a selected search account keeps web_search available: Web is enabled unless it was set or the tool was off", () => {
+void test("a selected search account keeps web_search available: Web Search is enabled unless it was set or the tool was off", () => {
   const web = (tools: Record<string, unknown>) =>
-    extractFromTools(tools, () => {}).entries.web;
+    extractFromTools(tools, () => {}).entries["web-search"];
   assert.deepEqual(web({ web_search: { profileId: "tav" } }), {
     version: 1,
     enabled: true,
@@ -180,7 +180,7 @@ void test("a child's frozen defaults and overrides become its frozen extension f
     enabled: true,
     settings: { account: "acme", jira: true },
   });
-  assert.deepEqual(entries.web?.settings, { searchAccount: "tav" });
+  assert.deepEqual(entries["web-search"]?.settings, { searchAccount: "tav" });
   // The frozen default server equals the default, so it is not carried.
   assert.equal(entries.diagram, undefined);
   const applied = document.appliedProfile as Record<string, unknown>;
@@ -295,7 +295,7 @@ void test("moves accounts, user, profile and conversation settings, and verifies
   const profile = read(join(paths.agentProfilesConfigPath, "planning.json"));
   assert.deepEqual(profile.extensions, {
     requirements: {
-      web: {
+      "web-search": {
         version: 1,
         enabled: true,
         settings: { searchAccount: "tav" },

@@ -1,4 +1,5 @@
 import { ExtensionError, type AccountInfo } from "@nervekit/extension-api";
+import { accountFieldKinds } from "@nervekit/contracts/extensions";
 import type { IntegrationHealthStatus } from "@nervekit/contracts/auth";
 import { ToolExecutionError } from "../../execution/index.js";
 import type { QuickScriptRegistry } from "../registry.js";
@@ -49,7 +50,8 @@ export async function testExtensionAccount(input: {
     );
   const selecting = Object.fromEntries(
     Object.entries(definition.settings.fields).flatMap(([name, field]) =>
-      field.type === "account" && field.kind === account.kind
+      field.type === "account" &&
+      accountFieldKinds(field).includes(account.kind)
         ? [[name, account.id]]
         : [],
     ),

@@ -18,6 +18,7 @@ import {
   controlFor,
   displayValue,
   parseNumberInput,
+  accountChoicesFor,
   type AccountChoices,
   type ExtensionChange,
   type ExtensionsScope,
@@ -29,6 +30,8 @@ type Props = {
   item: FieldItem;
   scope: ExtensionsScope;
   accounts: AccountChoices;
+  /** Labels of the extension's account kinds, by kind. */
+  kindLabels?: Readonly<Record<string, string>>;
   /** Authenticated models for `model` fields. */
   models?: ModelInfo[];
   /** Differs from the inherited value. */
@@ -49,6 +52,7 @@ let {
   item,
   scope,
   accounts,
+  kindLabels,
   models = [],
   change,
   disabled = false,
@@ -63,7 +67,7 @@ const inputId = $derived(`extension-${extensionId}-${item.key}`);
 const locked = $derived(!item.editable);
 const accountItems = $derived(
   field.type === "account"
-    ? (accounts[field.kind] ?? []).map((account) => ({
+    ? accountChoicesFor(field, accounts, kindLabels).map((account) => ({
         value: account.id,
         label: account.name,
         ...(account.detail ? { detail: account.detail } : {}),

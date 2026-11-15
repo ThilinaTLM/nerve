@@ -109,11 +109,15 @@ void test("the extension switch gates its products, the product switch the names
   );
 });
 
-void test("web needs only its switch; web_search also needs its search account with a saved token", async () => {
+void test("search needs only its switch; web_search also needs its search account with a saved token", async () => {
   const withAccount = resolve({
-    web: { version: 1, enabled: true, settings: { searchAccount: "tav" } },
+    "web-search": {
+      version: 1,
+      enabled: true,
+      settings: { searchAccount: "tav" },
+    },
   });
-  assert.deepEqual((await derive(withAccount)).namespaces.web, {
+  assert.deepEqual((await derive(withAccount)).namespaces.search, {
     configured: true,
     available: true,
   });
@@ -128,12 +132,12 @@ void test("web needs only its switch; web_search also needs its search account w
     ),
     false,
   );
-  const noAccount = resolve({ web: { version: 1, enabled: true } });
+  const noAccount = resolve({ "web-search": { version: 1, enabled: true } });
   assert.equal(
     extensionToolOffered(await derive(noAccount), "web_search"),
     false,
   );
-  assert.equal((await derive(noAccount)).namespaces.web.available, true);
+  assert.equal((await derive(noAccount)).namespaces.search.available, true);
 });
 
 void test("tools the extensions do not contribute are not gated here", async () => {

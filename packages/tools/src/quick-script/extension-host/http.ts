@@ -40,8 +40,8 @@ export type HttpHostDeps = {
       { label: string; auth?: AccountAuth; origins?: readonly string[] }
     >
   >;
-  /** Kind of the account an `account` setting selects; undefined when `field` is not one. */
-  kindOfField(field: string): string | undefined;
+  /** Kinds an `account` setting accepts; empty when `field` is not one. */
+  kindsOfField(field: string): readonly string[];
   /** The account the setting selects, when it exists. */
   selected(field: string): Promise<AccountInfo | undefined>;
   /** Every selected account of the extension, for `{account.<field>}` templates. */
@@ -235,35 +235,42 @@ export function createHttp(deps: HttpHostDeps) {
         }
       | undefined;
     if (req.auth) {
-      const kindId = deps.kindOfField(req.auth.account);
-      const kind = kindId ? deps.kinds[kindId] : undefined;
-      if (!kindId || !kind?.auth)
+      const accepted = deps.kindsOfField(req.auth.account);
+      const accountKinds = accepted.flatMap((id) =>
+        deps.kinds[id] ? [{ id, ...deps.kinds[id] }] : [],
+      );
+      if (!accountKinds.some((candidate) => candidate.auth))
         throw new ExtensionError(
           "BAD_REQUEST",
           `${deps.extensionName}: '${req.auth.account}' is not an account setting with an auth scheme.`,
         );
       const account = await deps.selected(req.auth.account);
+      const selectedKind = accountKinds.find(
+        (candidate) => candidate.id === account?.kind,
+      );
+      const kind = selectedKind ?? accountKinds[0];
+      const kindId = kind.id;
       const secret = account
         ? await deps.secret(kindId, account.id)
         : undefined;
-      if (!account || !secret)
+      if (!account || !secret || !selectedKind?.auth)
         throw new ExtensionError(
           "BAD_REQUEST",
           account
             ? `The ${kind.label} "${account.name}" has no saved credential.`
-            : `No ${kind.label} is selected.`,
+            : `No ${accountKinds.map((candidate) => candidate.label).join(" or ")} is selected.`,
           {
             fix: `Ask the user to choose an account with a saved credential in ${settingsPage(deps.extensionName)}.`,
           },
         );
       credential = {
         account,
-        header: credentialHeader(kind.auth, account, secret),
-        origins: (kind.origins ?? []).flatMap((origin) => {
+        header: credentialHeader(selectedKind.auth, account, secret),
+        origins: (selectedKind.origins ?? []).flatMap((origin) => {
           const filled = fillTemplate(origin, { account: account.fields });
           return filled ? [filled] : [];
         }),
-        label: kind.label,
+        label: selectedKind.label,
       };
     }
 

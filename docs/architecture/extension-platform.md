@@ -35,11 +35,12 @@ The API is built to be isolated: extension code could later run in its own sandb
 
 ## Direct tools
 
-A manifest can contribute tools (`defineTool`) for work the agent does often enough that discovery through `sdk.*` is too costly; `web_search` is the case. A tool is usually bound to a namespace method, so it shares `parse`, `authorize`, the operation and one implementation (`parse` receives the tool's arguments object as its single argument; a script passes positional arguments). A tool without `method` declares its own `parse`, `authorize` and `run`, and an optional `present` that splits the result into agent text and transcript value.
+A manifest can contribute tools (`defineTool`) for work the agent does often enough that discovery through `sdk.*` is too costly; `web_search` (extension `web-search`) is the case. A tool is usually bound to a namespace method, so it shares `parse`, `authorize`, the operation and one implementation (`parse` receives the tool's arguments object as its single argument; a script passes positional arguments). A tool without `method` declares its own `parse`, `authorize` and `run`, and an optional `present` that splits the result into agent text and transcript value.
 
 - A tool is offered only while its extension and switch are on and its `requires` are met; unavailable tools are left out of the request.
-- Permission rules match the operation (`web.search`) through `quick_script` operation rules. Exceptions naming the tool itself still validate against core tool names only (see [Not shipped](#not-shipped)).
-- `web_fetch` stays a core tool; the Web extension's `web.fetch` is authorized as `web_fetch`, so URL rules and approvals are unchanged whichever route is used.
+- Permission rules match the operation (`search.web`) through `quick_script` operation rules. Exceptions naming the tool itself still validate against core tool names only (see [Not shipped](#not-shipped)).
+- `web_fetch` stays a core tool; `web.fetch` is a built-in runtime namespace (not an extension) authorized as `web_fetch`, so URL rules and approvals are unchanged whichever route is used.
+- Web search goes through a provider interface ([`providers/`](../../packages/extensions/src/web-search/providers/)): the selected account's kind picks the provider (Tavily first), which normalises results to `{ title, url, content, published? }` plus an optional answer. A provider is an account kind (credential, origins, optional `test`) and a `search` function; its origins are the extension's only network permissions. The `searchAccount` field accepts several kinds as providers are added.
 
 ### Display kinds and projection
 

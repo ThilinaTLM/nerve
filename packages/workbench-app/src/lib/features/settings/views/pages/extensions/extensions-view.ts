@@ -1,4 +1,5 @@
 import {
+  accountFieldKinds,
   fieldScopes,
   type ExtensionView,
   type SettingField,
@@ -10,6 +11,31 @@ export type ExtensionsScope = "user" | "project";
 export type AccountChoice = { id: string; name: string; detail?: string };
 /** The user's accounts by extension account kind (`atlassian`, `tavily`). */
 export type AccountChoices = Readonly<Record<string, readonly AccountChoice[]>>;
+
+/**
+ * The accounts an `account` field offers: those of every kind it accepts, in
+ * declared order. With several kinds each choice's detail leads with its
+ * kind's label (`kindLabels`, falling back to the kind).
+ */
+export function accountChoicesFor(
+  field: { kind: string | readonly string[] },
+  accounts: AccountChoices,
+  kindLabels: Readonly<Record<string, string>> = {},
+): AccountChoice[] {
+  const kinds = accountFieldKinds(field);
+  return kinds.flatMap((kind) =>
+    (accounts[kind] ?? []).map((account) =>
+      kinds.length > 1
+        ? {
+            ...account,
+            detail: [kindLabels[kind] ?? kind, account.detail]
+              .filter(Boolean)
+              .join(" · "),
+          }
+        : account,
+    ),
+  );
+}
 
 export type FieldControl =
   | "switch"
@@ -148,8 +174,9 @@ export function displayValue(
       );
     case "account":
       return (
-        accounts[field.kind]?.find((account) => account.id === value)?.name ??
-        undefined
+        accountChoicesFor(field, accounts).find(
+          (account) => account.id === value,
+        )?.name ?? undefined
       );
     case "model": {
       const selection = value as { provider?: string; modelId?: string };
@@ -238,7 +265,7 @@ export function extensionFix(
   if (field?.type !== "account")
     return { label: "Review", section: "settings" };
   const merged = mergedAccountFields(extension).has(failing!.requiresAccount!);
-  return (accounts[field.kind]?.length ?? 0) === 0
+  return accountChoicesFor(field, accounts).length === 0
     ? { label: "Add account", section: "accounts" }
     : { label: "Choose account", section: merged ? "accounts" : "settings" };
 }
@@ -295,20 +322,26 @@ const enabledByKeys = (enabledBy: string | string[] | undefined): string[] =>
  * Keys of the account fields that merge with their kind's list: the only
  * account field of the kind, with no `section`, `advanced` or `visibleWhen`
  * (the author placed those on purpose), and whose kind the extension defines.
+ * A field accepting several kinds never merges: each kind keeps its own list.
  */
 export function mergedAccountFields(extension: ExtensionView): Set<string> {
   const fields = Object.entries(extension.settingsSchema.fields).flatMap(
-    ([key, field]) => (field.type === "account" ? [[key, field] as const] : []),
+    ([key, field]) => {
+      if (field.type !== "account") return [];
+      const kinds = accountFieldKinds(field);
+      return [[key, field, kinds.length === 1 ? kinds[0] : undefined] as const];
+    },
   );
   return new Set(
     fields
       .filter(
-        ([, field]) =>
-          extension.accountKinds.some((kind) => kind.kind === field.kind) &&
+        ([, field, kind]) =>
+          kind !== undefined &&
+          extension.accountKinds.some((declared) => declared.kind === kind) &&
           field.section === undefined &&
           !field.advanced &&
           field.visibleWhen === undefined &&
-          fields.filter(([, other]) => other.kind === field.kind).length === 1,
+          fields.filter(([, , other]) => other === kind).length === 1,
       )
       .map(([key]) => key),
   );
@@ -380,7 +413,7 @@ export function detailLayout(
   const accounts: MergedAccount[] = [];
   for (const { item } of placed.values())
     if (merged.has(item.key) && item.field.type === "account")
-      accounts.push({ item, kind: item.field.kind });
+      accounts.push({ item, kind: accountFieldKinds(item.field)[0]! });
   const hidden = new Set([...moves, ...merged]);
 
   const namespaces = listed.map((namespace): FeatureRow => {

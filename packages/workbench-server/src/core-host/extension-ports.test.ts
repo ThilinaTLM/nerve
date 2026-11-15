@@ -115,3 +115,39 @@ void test("a disabled extension, or an unset or deleted account, adds no account
     { demo: { account: { id: "gone", missing: true } } },
   );
 });
+
+void test("the approval target finds the selected account among several accepted kinds", async () => {
+  const multi = defineExtension({
+    ...extension,
+    settings: {
+      version: 1,
+      fields: {
+        account: { type: "account", kind: ["first", "demo"], label: "Account" },
+      },
+    },
+  });
+  const asked: string[] = [];
+  const target = await selectedAccountsTarget(
+    createQuickScriptRegistry([multi]),
+    resolveExtensions(
+      [
+        {
+          id: "demo",
+          settingsVersion: 1,
+          enabledByDefault: false,
+          settings: multi.settings,
+        },
+      ],
+      [{ layer: "user", entries: on }],
+    ),
+    {
+      ...accounts,
+      get: async (kind, id) => {
+        asked.push(kind);
+        return kind === "first" ? undefined : accounts.get(kind, id);
+      },
+    },
+  );
+  assert.deepEqual(asked, ["first", "demo"]);
+  assert.equal((target.demo.account as { kind: string }).kind, "demo");
+});

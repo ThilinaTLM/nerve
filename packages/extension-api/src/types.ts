@@ -97,8 +97,11 @@ export type SettingField =
         description?: string;
       }[];
     })
-  /** Id of a user account of this kind. */
-  | (FieldBase & { type: "account"; kind: string })
+  /**
+   * Id of a user account of this kind, or of any of several kinds (one
+   * provider each; read `AccountInfo.kind` to tell them apart).
+   */
+  | (FieldBase & { type: "account"; kind: string | string[] })
   | (FieldBase & { type: "model"; capability?: "image" | "vision" });
 
 export type SettingsSchema = {

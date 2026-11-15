@@ -10,9 +10,10 @@ import type { QuickScriptNestedRequest } from "@nervekit/tools/execution";
 import type { ExtensionHostPorts } from "@nervekit/tools/quick-script";
 
 /*
- * The Diagrams and Web extensions through the real host (`ctx.http` with the
- * `{settings.server}` template, the `*` origin, injected bearer credential,
- * artifacts and HTML conversion), against a local server.
+ * The Diagram and Web Search extensions and the built-in `web.fetch` through the
+ * real host (`ctx.http` with the `{settings.server}` template, injected bearer
+ * credential, artifacts, the `web_fetch` network policy and HTML conversion),
+ * against a local server.
  */
 
 const PNG = Buffer.from(
@@ -110,10 +111,10 @@ void test("diagram.render posts to the configured server and saves a PNG artifac
   });
 });
 
-void test("web.fetch reaches any public origin through ctx.http and converts HTML with the host", async () => {
+void test("web.fetch is always present, converts HTML and is authorized as web_fetch", async () => {
   const { result, authorized } = await run(
     `const page = await web.fetch("${base}/page"); console.log(JSON.stringify(page));`,
-    { web: { enabled: true } },
+    {},
   );
   const page = JSON.parse(result.content!.split("\n")[0]) as Record<
     string,
@@ -127,7 +128,7 @@ void test("web.fetch reaches any public origin through ctx.http and converts HTM
   });
 });
 
-void test("web.search sends the selected account's key as a bearer credential the script never sees", async (t) => {
+void test("search.web sends the selected account's key as a bearer credential the script never sees", async (t) => {
   const real = globalThis.fetch;
   let headers: Headers | undefined;
   t.mock.method(
@@ -143,8 +144,8 @@ void test("web.search sends the selected account's key as a bearer credential th
     },
   );
   const { result } = await run(
-    `const hits = await web.search("nerve"); console.log(JSON.stringify(hits));`,
-    { web: { enabled: true, searchAccount: "t1" } },
+    `const hits = await search.web("nerve"); console.log(JSON.stringify(hits));`,
+    { "web-search": { enabled: true, searchAccount: "t1" } },
   );
   assert.equal(headers?.get("authorization"), "Bearer tvly-secret");
   assert.deepEqual(JSON.parse(result.content!.split("\n")[0]), [
@@ -153,11 +154,11 @@ void test("web.search sends the selected account's key as a bearer credential th
   assert.ok(!result.content?.includes("tvly-secret"));
 });
 
-void test("web.search without a selected account is DENIED before any request", async () => {
+void test("search.web without a selected account is DENIED before any request", async () => {
   const before = seen.length;
   const { result } = await run(
-    `try { await web.search("x"); } catch (e) { console.log(e.code); }`,
-    { web: { enabled: true } },
+    `try { await search.web("x"); } catch (e) { console.log(e.code); }`,
+    { "web-search": { enabled: true } },
   );
   assert.equal(result.content?.split("\n")[0], "DENIED");
   assert.equal(seen.length, before);

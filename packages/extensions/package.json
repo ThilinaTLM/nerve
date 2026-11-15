@@ -2,7 +2,7 @@
   "name": "@nervekit/extensions",
   "version": "0.40.2",
   "private": true,
-  "description": "Built-in quick_script extensions (Atlassian, web, diagram, image generation) and their docs.",
+  "description": "Built-in quick_script extensions (Atlassian, web search, diagram, image generation) and their docs.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",

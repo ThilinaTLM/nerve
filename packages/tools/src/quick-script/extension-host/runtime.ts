@@ -9,6 +9,7 @@ import type {
   NamespaceDefinition,
   Risk,
 } from "@nervekit/extension-api";
+import { accountFieldKinds } from "@nervekit/contracts/extensions";
 import { ExtensionError } from "@nervekit/extension-api";
 import {
   isolatedHtmlToMarkdown,
@@ -122,18 +123,18 @@ export class ExtensionRuntime {
     if (!ports)
       throw new Error("Extensions are not available in this context.");
     const settings = ports.settings(definition.id);
-    const accountKind = (field: string): string | undefined => {
-      const declared = definition.settings.fields[field];
-      return declared?.type === "account" ? declared.kind : undefined;
-    };
     const selected = async (
       field: string,
     ): Promise<AccountInfo | undefined> => {
-      const kind = accountKind(field);
+      const declared = definition.settings.fields[field];
       const id = settings[field];
-      return kind && typeof id === "string" && id
-        ? await ports.accounts.get(kind, id)
-        : undefined;
+      if (declared?.type !== "account" || typeof id !== "string" || !id)
+        return undefined;
+      for (const kind of accountFieldKinds(declared)) {
+        const account = await ports.accounts.get(kind, id);
+        if (account) return account;
+      }
+      return undefined;
     };
     const signal = env.context.signal ?? new AbortController().signal;
     const readWorkspaceOrArtifact = async (handle: string) => {
@@ -154,7 +155,7 @@ export class ExtensionRuntime {
         mediaType: entry.mediaType,
       };
     };
-    const accountFieldKinds = Object.entries(definition.settings.fields)
+    const accountFieldNames = Object.entries(definition.settings.fields)
       .filter(([, field]) => field.type === "account")
       .map(([name]) => name);
     const http = createHttp({
@@ -166,11 +167,14 @@ export class ExtensionRuntime {
           { label: def.label, auth: def.auth, origins: def.origins },
         ]),
       ),
-      kindOfField: accountKind,
+      kindsOfField: (field) => {
+        const declared = definition.settings.fields[field];
+        return declared?.type === "account" ? accountFieldKinds(declared) : [];
+      },
       settings,
       selected,
       allSelected: async () =>
-        (await Promise.all(accountFieldKinds.map(selected))).filter(
+        (await Promise.all(accountFieldNames.map(selected))).filter(
           (account): account is AccountInfo => account !== undefined,
         ),
       secret: (kind, id) => ports.accounts.secret(kind, id),
