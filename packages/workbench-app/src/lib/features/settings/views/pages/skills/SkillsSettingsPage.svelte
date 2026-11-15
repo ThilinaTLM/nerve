@@ -249,10 +249,8 @@ function onRetry() {
             {#snippet meta()}
               {#if entry.overridden}
                 <SettingsChangeIndicator
-                  compact
                   {scope}
                   from={entry.inherited ? "On" : "Off"}
-                  to={entry.enabled ? "On" : "Off"}
                   onReset={() => resetEntry(entry)}
                 />
               {/if}

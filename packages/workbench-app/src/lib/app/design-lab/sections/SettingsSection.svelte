@@ -502,10 +502,8 @@ let headerStyle = $state("auto");
         >
           {#snippet meta()}
             <SettingsChangeIndicator
-              compact
               scope="project"
               from="On"
-              to="Off"
               onReset={() => {}}
             />
           {/snippet}
@@ -787,14 +785,11 @@ let headerStyle = $state("auto");
       <SettingsChangeIndicator
         scope="user"
         from="Balanced"
-        to="Early"
         onReset={() => {}}
       />
       <SettingsChangeIndicator
         scope="project"
         from="Claude Sonnet 4"
-        to="GPT-5"
-        compact
         onReset={() => {}}
       />
     </GallerySpecimen>

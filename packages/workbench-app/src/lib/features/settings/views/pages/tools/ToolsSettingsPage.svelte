@@ -301,10 +301,8 @@ const python = $derived(status?.runtime.python);
           {#snippet meta()}
             {#if changed(row.id)}
               <SettingsChangeIndicator
-                compact
                 {scope}
                 from={summary(row.id, inheritedPayload(row.id))}
-                to={summary(row.id, value)}
                 onReset={() => reset(row.id)}
               />
             {/if}
@@ -359,10 +357,8 @@ const python = $derived(status?.runtime.python);
             {#snippet meta()}
               {#if switchId && changed(switchId)}
                 <SettingsChangeIndicator
-                  compact
                   {scope}
                   from={summary(switchId, inheritedPayload(switchId))}
-                  to={summary(switchId, payload(switchId))}
                   onReset={() => reset(switchId)}
                 />
               {/if}

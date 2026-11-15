@@ -120,12 +120,7 @@ function commit(): void {
 >
   {#snippet badges()}
     {#if change}
-      <SettingsChangeIndicator
-        {scope}
-        from={change.from}
-        to={change.to}
-        {onReset}
-      />
+      <SettingsChangeIndicator {scope} from={change.from} {onReset} />
     {/if}
   {/snippet}
   {#snippet control()}

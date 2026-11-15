@@ -427,7 +427,6 @@ export type ExtensionChange = {
   key: string;
   label: string;
   from: string;
-  to: string;
 };
 
 const same = (a: unknown, b: unknown) =>
@@ -458,7 +457,6 @@ export function extensionChanges(
         key: "enabled",
         label: "Enabled",
         from: base ? "On" : "Off",
-        to: stored.enabled ? "On" : "Off",
       });
   }
   for (const [key, field] of Object.entries(extension.settingsSchema.fields)) {
@@ -475,7 +473,6 @@ export function extensionChanges(
       key,
       label: field.label,
       from: displayValue(field, base, accounts, modelLabel) ?? "Not set",
-      to: displayValue(field, value, accounts, modelLabel) ?? "Not set",
     });
   }
   return changes;

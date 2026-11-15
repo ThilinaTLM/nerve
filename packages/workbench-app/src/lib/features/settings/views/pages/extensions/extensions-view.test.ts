@@ -316,7 +316,7 @@ describe("changes against the inherited value", () => {
   it("compares a user value with the schema default", () => {
     assert.deepEqual(
       extensionChanges(stored({ jira: true }), "user", accounts),
-      [{ key: "jira", label: "Jira", from: "Off", to: "On" }],
+      [{ key: "jira", label: "Jira", from: "Off" }],
     );
     assert.deepEqual(
       extensionChanges(stored({ jira: false }), "user", accounts),
@@ -326,7 +326,7 @@ describe("changes against the inherited value", () => {
 
   it("compares the user's enable switch with the extension default", () => {
     assert.deepEqual(extensionChanges(stored({}, true), "user", accounts), [
-      { key: "enabled", label: "Enabled", from: "Off", to: "On" },
+      { key: "enabled", label: "Enabled", from: "Off" },
     ]);
     assert.deepEqual(extensionChanges(stored({}, false), "user", accounts), []);
   });
@@ -340,11 +340,11 @@ describe("changes against the inherited value", () => {
         accounts,
         user,
       ),
-      [{ key: "enabled", label: "Enabled", from: "On", to: "Off" }],
+      [{ key: "enabled", label: "Enabled", from: "On" }],
     );
     assert.deepEqual(
       extensionChanges(stored({ jira: false }), "project", accounts, user),
-      [{ key: "jira", label: "Jira", from: "On", to: "Off" }],
+      [{ key: "jira", label: "Jira", from: "On" }],
     );
   });
 });

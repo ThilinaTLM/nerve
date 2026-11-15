@@ -40,7 +40,7 @@ Row actions are `IconAction`s, which require a label and supply the tooltip and 
 
 ## Provenance
 
-Show provenance only when it differs. A setting that matches where it would otherwise come from shows nothing: no per-row source badges. One that differs (a user value that differs from the built-in default, a project value that differs from the user's, a conversation value that differs from its profile) gets `SettingsChangeIndicator` (a `bg-info` dot opening a popover, plus ↺ to reset) in the row's `badges` slot. Project pages summarise them in the page header ("N differ · Reset all"). Fixed values say who fixed them in a tooltip ("Locked by Planning"), not a disabled-looking input.
+Show provenance only when it differs. A setting that matches where it would otherwise come from shows nothing: no per-row source badges. One that differs (a user value that differs from the built-in default, a project value that differs from the user's, a conversation value that differs from its profile) gets `SettingsChangeIndicator`: a single ↺ that marks the change and resets it, with the inherited value in its tooltip ("Reset to default (Balanced)"). It goes in the row's `badges` slot, or `meta` for a `SettingsItem`. Project pages summarise them in the page header ("N differ · Reset all"). Fixed values say who fixed them in a tooltip ("Locked by Planning"), not a disabled-looking input.
 
 ## Model choice
 

@@ -269,13 +269,9 @@ function resetAll(): void {
             {#snippet meta()}
               {#if row.changes.length > 0}
                 <SettingsChangeIndicator
-                  compact
                   {scope}
                   from={row.changes
                     .map((change) => `${change.label} ${change.from}`)
-                    .join(", ")}
-                  to={row.changes
-                    .map((change) => `${change.label} ${change.to}`)
                     .join(", ")}
                   onReset={() => void extensions.reset(extension.metadata.id)}
                 />
