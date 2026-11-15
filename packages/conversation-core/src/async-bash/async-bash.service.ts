@@ -213,6 +213,11 @@ export class AsyncBashService {
     return this.options.tasks.cancelForConversations(ids);
   }
 
+  /** Whether `recover` has persisted running work to reattach or settle. */
+  hasRecoverable(conversationId: string): boolean {
+    return this.options.tasks.hasRunning(conversationId);
+  }
+
   /** Reattach to running commands (or mark them interrupted) after a restart. */
   recover(conversationId?: string): Promise<void> {
     return this.options.tasks.recover(conversationId);

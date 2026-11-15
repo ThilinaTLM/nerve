@@ -221,7 +221,7 @@ test("recovery validates raw identities independently and never recovers or wake
           return true;
         },
       },
-      asyncBash: { recover: async () => {} },
+      asyncBash: { recover: async () => {}, hasRecoverable: () => false },
       status: new StatusService(
         f.storage,
         () => {},
@@ -254,6 +254,78 @@ test("recovery validates raw identities independently and never recovers or wake
         .prepare("SELECT status FROM conversation WHERE id='bad-row'")
         .get()?.status,
       "corrupt",
+    );
+  } finally {
+    f.storage.close();
+  }
+});
+
+test("recovery validates only conversations with recovery work and skips idle history", async () => {
+  const f = fixture();
+  try {
+    for (const id of [
+      "idle-corrupt",
+      "open-call-corrupt",
+      "open-execution",
+      "running-task-corrupt",
+      "idle-healthy",
+    ])
+      f.insert(id);
+    for (const id of [
+      "idle-corrupt",
+      "open-call-corrupt",
+      "running-task-corrupt",
+    ])
+      f.event(id);
+    f.db.sqlite.exec(
+      "UPDATE conversation_event SET payload='{' WHERE conversation_id IN ('idle-corrupt', 'open-call-corrupt', 'running-task-corrupt')",
+    );
+    f.storage.events.append({
+      id: "event-started",
+      conversationId: "open-execution",
+      turnId: null,
+      inputId: null,
+      createdAt: at,
+      type: "system_event",
+      llmRepresentation: "none",
+      payload: { subtype: "execution_state", transition: "started" },
+    });
+    const recovered: string[] = [];
+    const transitions: string[] = [];
+    const status = new StatusService(
+      f.storage,
+      () => {},
+      () => at,
+      () => {},
+      () => false,
+    );
+    await recoverCore({
+      storage: f.storage,
+      toolCalls: {
+        recover: async (id) => {
+          recovered.push(id!);
+        },
+        openRows: (id) => (id === "open-call-corrupt" ? [{} as never] : []),
+      },
+      inputs: { hasDeliverable: () => false },
+      asyncBash: {
+        recover: async () => {},
+        hasRecoverable: (id) => id === "running-task-corrupt",
+      },
+      status: {
+        refresh: (id) => status.refresh(id),
+        transition: (id, payload) => {
+          transitions.push(`${id}:${payload.transition}`);
+          return status.transition(id, payload);
+        },
+      },
+      scheduler: { enable: () => {}, wake: () => {} },
+    });
+    assert.deepEqual(recovered, ["open-execution"]);
+    assert.deepEqual(transitions, ["open-execution:interrupted"]);
+    assert.deepEqual(
+      [...new Set(f.failures.map((failure) => failure.conversationId))].sort(),
+      ["open-call-corrupt", "running-task-corrupt"],
     );
   } finally {
     f.storage.close();

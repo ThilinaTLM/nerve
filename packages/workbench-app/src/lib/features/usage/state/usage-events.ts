@@ -12,8 +12,9 @@ export function registerUsageEventHandlers(): () => void {
     "usage.subscription.updated",
     handleSubscriptionUsageUpdated,
   );
-  const unregisterReconnect = onWorkbenchReconnect(async () => {
-    await refreshSubscriptionUsage();
+  // Recovery gates workbench startup; the refresh may wait on provider APIs.
+  const unregisterReconnect = onWorkbenchReconnect(() => {
+    void refreshSubscriptionUsage().catch(() => undefined);
   });
   return () => {
     unregisterEvents();
