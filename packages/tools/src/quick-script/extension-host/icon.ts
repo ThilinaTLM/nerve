@@ -45,7 +45,9 @@ export function resolveExtensionIcon(
 export function svgProblem(svg: string): string | undefined {
   if (Buffer.byteLength(svg, "utf8") > maxExtensionIconBytes)
     return `is larger than ${maxExtensionIconBytes / 1024} KB`;
-  const root = /<svg\b[^>]*>/i.exec(svg.replace(/<!--[\s\S]*?-->/g, ""));
+  // Comments could hide markup from these checks; an icon needs none.
+  if (svg.includes("<!--")) return "must not contain comments";
+  const root = /<svg\b[^>]*>/i.exec(svg);
   if (!root) return "has no <svg> root";
   const viewBox = /\sviewBox\s*=\s*["']([^"']*)["']/i.exec(root[0])?.[1];
   const parts = viewBox

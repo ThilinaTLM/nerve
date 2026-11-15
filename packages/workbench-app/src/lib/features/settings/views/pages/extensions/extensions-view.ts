@@ -378,14 +378,6 @@ export function detailLayout(
 /** `quick_script` namespaces of the runtime itself, always present. */
 export const RUNTIME_NAMESPACES = ["files", "image"] as const;
 
-/** Every namespace the extension contributes with its availability, helpers included. */
-export function contributedNamespaces(extension: ExtensionView) {
-  return extension.metadata.contributes.namespaces.map((namespace) => ({
-    ...namespace,
-    state: extension.availability[namespace.id],
-  }));
-}
-
 /** Names the Quick script row lists: the runtime's plus every switched-on extension namespace. */
 export function activeNamespaces(
   extensions: readonly ExtensionView[],

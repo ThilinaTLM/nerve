@@ -32,6 +32,10 @@ void test("unsafe or malformed SVGs are rejected", () => {
   assert.match(svgProblem(svg(box, "<script>1</script>"))!, /script/);
   assert.match(svgProblem(svg(box, '<path onclick="x()"/>'))!, /event/);
   assert.match(
+    svgProblem(svg(box, "<!-- <script>1</script> -->"))!,
+    /comments/,
+  );
+  assert.match(
     svgProblem(svg(box, '<use href="https://example.com/a.svg#b"/>'))!,
     /outside/,
   );
