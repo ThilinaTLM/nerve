@@ -13,7 +13,7 @@ const extension = defineExtension({
   id: "demo",
   name: "Demo",
   description: "Test.",
-  icon: "box",
+  icon: "blocks",
   enabledByDefault: false,
   settings: {
     version: 1,
