@@ -3,6 +3,10 @@ import type { ToolUserProjection } from "@nervekit/contracts/core";
 import { AGENT_RESULT_PROFILES } from "../profiles.js";
 import { buildWebFetchTranscriptPreview } from "./web-tool-transcript-preview.js";
 import {
+  buildExtensionToolTranscriptPreview,
+  EXTENSION_PREVIEW_ITEMS,
+} from "./extension-tool-transcript-preview.js";
+import {
   firstLines,
   lastLines,
   MAX_PREVIEW_CHARS,
@@ -322,8 +326,34 @@ const CREDENTIAL_URL = /^[a-z][a-z0-9+.-]*:\/\/[^/\s]*@/i;
 const MAX_PUBLIC_PREVIEW_DEPTH = 6;
 const MAX_PUBLIC_PREVIEW_ENTRIES = 128;
 
-type PublicPreviewState = {
+/** Bounds of the final public pass over a preview. */
+type PublicPreviewLimits = {
   maxTextBytes: number;
+  maxDepth: number;
+  maxItems: number;
+  maxEntries: number;
+};
+
+const DEFAULT_PUBLIC_PREVIEW_LIMITS: PublicPreviewLimits = {
+  maxTextBytes: MAX_PREVIEW_CHARS,
+  maxDepth: MAX_PUBLIC_PREVIEW_DEPTH,
+  maxItems: PREVIEW_COUNT,
+  maxEntries: MAX_PUBLIC_PREVIEW_ENTRIES,
+};
+
+/**
+ * Extension results nest their card data (`details.sections[].value[]` items)
+ * deeper and wider than the default pass keeps; their preview is already
+ * bounded per item by the extension preview.
+ */
+const EXTENSION_PUBLIC_PREVIEW_LIMITS: PublicPreviewLimits = {
+  maxTextBytes: 16 * 1024,
+  maxDepth: 8,
+  maxItems: EXTENSION_PREVIEW_ITEMS,
+  maxEntries: 512,
+};
+
+type PublicPreviewState = PublicPreviewLimits & {
   textBytes: number;
   entries: number;
   hiddenChars: number;
@@ -334,7 +364,7 @@ function finalizePublicPreview(
   argsPreview: unknown,
   resultPreview: unknown,
   resultFirst = false,
-  maxTextBytes = MAX_PREVIEW_CHARS,
+  limits: PublicPreviewLimits = DEFAULT_PUBLIC_PREVIEW_LIMITS,
 ): {
   argsPreview: unknown;
   resultPreview: unknown;
@@ -343,7 +373,7 @@ function finalizePublicPreview(
   state: PublicPreviewState;
 } {
   const state: PublicPreviewState = {
-    maxTextBytes,
+    ...limits,
     textBytes: 0,
     entries: 0,
     hiddenChars: 0,
@@ -386,13 +416,13 @@ function projectPublicValue(
   if (typeof value !== "object") {
     return projectPublicValue(String(value), state, depth);
   }
-  if (depth >= MAX_PUBLIC_PREVIEW_DEPTH) {
+  if (depth >= state.maxDepth) {
     state.hiddenItems += 1;
     return "[Nested preview omitted; open details.]";
   }
   if (Array.isArray(value)) {
-    const available = Math.max(0, MAX_PUBLIC_PREVIEW_ENTRIES - state.entries);
-    const selected = value.slice(0, Math.min(PREVIEW_COUNT, available));
+    const available = Math.max(0, state.maxEntries - state.entries);
+    const selected = value.slice(0, Math.min(state.maxItems, available));
     state.entries += selected.length;
     state.hiddenItems += value.length - selected.length;
     return selected.map(
@@ -405,8 +435,8 @@ function projectPublicValue(
   const entries = Object.entries(recordValue);
   for (const [key, nested] of entries) {
     if (
-      state.entries >= MAX_PUBLIC_PREVIEW_ENTRIES ||
-      Object.keys(output).length >= PREVIEW_COUNT
+      state.entries >= state.maxEntries ||
+      Object.keys(output).length >= state.maxItems
     ) {
       state.hiddenItems += 1;
       continue;
@@ -497,6 +527,7 @@ export function buildUserProjection(
   let noun = "lines";
   let direction: Overflow["direction"];
   let semanticOverflow = false;
+  let limits = DEFAULT_PUBLIC_PREVIEW_LIMITS;
   switch (toolName) {
     case "read": {
       argsPreview = assignPathArgs(argsRecord);
@@ -695,6 +726,13 @@ export function buildUserProjection(
     }
 
     default: {
+      const extension = buildExtensionToolTranscriptPreview(resultRecord);
+      if (extension) {
+        argsPreview = previewUnknown(args).value;
+        ({ resultPreview, hidden, noun, direction } = extension);
+        limits = EXTENSION_PUBLIC_PREVIEW_LIMITS;
+        break;
+      }
       const argsBound = previewUnknown(args);
       const resultBound = previewUnknown(publicResult);
       argsPreview = argsBound.value;
@@ -710,14 +748,18 @@ export function buildUserProjection(
     toolName === "ask_user" ||
     toolName === "launch" ||
     isSubagentTool(toolName) ||
-    toolName.startsWith("web_");
+    toolName.startsWith("web_") ||
+    limits === EXTENSION_PUBLIC_PREVIEW_LIMITS;
   const finalized = finalizePublicPreview(
     argsPreview,
     resultPreview,
     resultFirst,
     toolName === "ask_user"
-      ? AGENT_RESULT_PROFILES.human_response.inline.maxBytes
-      : MAX_PREVIEW_CHARS,
+      ? {
+          ...limits,
+          maxTextBytes: AGENT_RESULT_PROFILES.human_response.inline.maxBytes,
+        }
+      : limits,
   );
   if (!semanticOverflow) {
     if (finalized.hiddenItems > 0) {

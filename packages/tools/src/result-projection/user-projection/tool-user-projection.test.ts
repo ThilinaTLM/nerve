@@ -94,6 +94,42 @@ void test("durable previews retain lifecycle details and totals while bounding v
   ]);
 });
 
+void test("extension tool previews keep every link's fields and the artifacts the card shows", () => {
+  const links = Array.from({ length: 12 }, (_, index) => ({
+    title: `Title ${index}`,
+    url: `https://x.test/${index}`,
+    snippet: "s".repeat(400),
+  }));
+  const projection = buildUserProjection(
+    "web_search",
+    { query: "nerve" },
+    {
+      content: "### Title 0",
+      details: {
+        extension: "web-search",
+        tool: "web_search",
+        sections: [{ id: "results", type: "links", value: links }],
+        results: links,
+        query: "nerve",
+        answer: "An answer.",
+        artifacts: [{ handle: "artifact:a.png" }],
+        created: [],
+      },
+    },
+  );
+  const details = (
+    projection.resultPreview as { details: Record<string, unknown> }
+  ).details;
+  const [section] = details.sections as { value: Record<string, string>[] }[];
+  assert.equal(section.value.length, 12);
+  assert.equal(section.value[11].title, "Title 11");
+  assert.equal(section.value[11].url, "https://x.test/11");
+  assert.equal(section.value[0].snippet.length, 300);
+  assert.deepEqual(details.artifacts, [{ handle: "artifact:a.png" }]);
+  assert.equal(details.results, undefined);
+  assert.equal(projection.previewOverflow, undefined);
+});
+
 void test("quick_script previews keep artifacts and SDK calls beyond the generic key cut", () => {
   const artifact = {
     handle: "artifact:chart.png",
