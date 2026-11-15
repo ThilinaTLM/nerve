@@ -1,18 +1,31 @@
 <!--
-  The status icon that follows an account's name: verified, a warning for
-  restricted or unreachable, rejected, muted for not available; nothing when not checked or the kind has
-  no test. Its tooltip names the status and when it was checked.
+  An account's connection status, which is also its Test button: verified,
+  a warning for restricted or unreachable, rejected, muted for not available,
+  and a muted refresh glyph when not checked yet. The tooltip names the status,
+  the check's reason and when it ran. Without `onTest` (no test, or read-only)
+  it is a plain icon, shown only once there is a result.
 -->
 <script lang="ts">
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleMinus from "@lucide/svelte/icons/circle-minus";
 import CircleX from "@lucide/svelte/icons/circle-x";
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { AccountHealth } from "@nervekit/contracts/auth";
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import { accountHealthIndicator, formatChecked } from "./account-health";
+import { accountHealthIndicator, healthSummary } from "./account-health";
 
-let { health }: { health: AccountHealth | undefined } = $props();
+let {
+  health,
+  busy = false,
+  onTest,
+}: {
+  health: AccountHealth | undefined;
+  busy?: boolean;
+  /** Runs the connection test; the icon becomes its button. */
+  onTest?: () => void;
+} = $props();
 
 const indicator = $derived(accountHealthIndicator(health));
 const Icon = $derived(
@@ -22,11 +35,26 @@ const Icon = $derived(
       ? CircleX
       : indicator?.icon === "circle-minus"
         ? CircleMinus
-        : TriangleAlert,
+        : indicator
+          ? TriangleAlert
+          : RefreshCw,
 );
+const summary = $derived(health ? healthSummary(health) : undefined);
 </script>
 
-{#if indicator && health}
+{#if onTest}
+  <IconAction
+    icon={Icon}
+    class={indicator?.class}
+    label={busy
+      ? "Testing connection…"
+      : summary
+        ? `${summary} · Test again`
+        : "Not checked · Test connection"}
+    {busy}
+    onclick={onTest}
+  />
+{:else if indicator && summary}
   <Tooltip.Provider delayDuration={300}>
     <Tooltip.Root>
       <Tooltip.Trigger>
@@ -37,9 +65,7 @@ const Icon = $derived(
           </span>
         {/snippet}
       </Tooltip.Trigger>
-      <Tooltip.Content
-        >{indicator.label} · {formatChecked(health.checkedAt)}</Tooltip.Content
-      >
+      <Tooltip.Content>{summary}</Tooltip.Content>
     </Tooltip.Root>
   </Tooltip.Provider>
 {/if}

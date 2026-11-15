@@ -82,3 +82,24 @@ export function formatChecked(
   if (hours < 24) return `checked ${hours} h ago`;
   return `checked ${Math.floor(hours / 24)} d ago`;
 }
+
+/**
+ * One line for the status tooltip: "Not available · Jira: Jira GET /myself
+ * failed (404 Not Found) · checked 2 min ago". The reason is the result's first
+ * line, shortened.
+ */
+export function healthSummary(
+  health: Pick<AccountHealth, "status" | "checkedAt" | "message">,
+  now: number = Date.now(),
+): string {
+  const reason = health.message?.split("\n")[0]?.trim();
+  const short =
+    reason && reason.length > 90 ? `${reason.slice(0, 89)}…` : reason;
+  return [
+    accountHealthBadge(health).label,
+    health.status === "verified" ? undefined : short,
+    formatChecked(health.checkedAt, now),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}

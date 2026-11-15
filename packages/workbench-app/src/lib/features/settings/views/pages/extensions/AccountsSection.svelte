@@ -8,7 +8,6 @@
 -->
 <script lang="ts">
 import Lock from "@lucide/svelte/icons/lock";
-import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type {
   AccountKind,
@@ -185,6 +184,7 @@ function summary(account: AccountView): string | undefined {
       disabled={choice.disabled}
       onValueChange={choice.onSelect}
       aria-label={choice.title}
+      class="rounded-[inherit]"
     >
       <SettingsList ariaLabel={`${kind.label}s`}>
         {#each accounts as account (account.id)}
@@ -213,20 +213,23 @@ function summary(account: AccountView): string | undefined {
     />
   {/snippet}
   {#snippet rowActions()}
-    {#if accountCanTest(kind, account)}
-      <IconAction
-        icon={RefreshCw}
-        label={checking[account.id] ? "Testing connection…" : "Test connection"}
+    {#if kind.test && account.secretConfigured}
+      <AccountHealthIcon
+        health={accountsState.healthOf(kind.kind, account.id)}
         busy={checking[account.id]}
-        onclick={() => void test(account)}
+        onTest={readonly || !accountCanTest(kind, account)
+          ? undefined
+          : () => void test(account)}
       />
     {/if}
-    <IconAction
-      icon={Trash2}
-      label="Delete account"
-      tone="destructive"
-      onclick={() => (pendingDelete = account)}
-    />
+    {#if !readonly}
+      <IconAction
+        icon={Trash2}
+        label="Delete account"
+        tone="destructive"
+        onclick={() => (pendingDelete = account)}
+      />
+    {/if}
   {/snippet}
   {@const testable = accountCanTest(kind, account)}
   {@const health = accountsState.healthOf(kind.kind, account.id)}
@@ -254,14 +257,8 @@ function summary(account: AccountView): string | undefined {
     openLabel={`Edit ${account.name}`}
     select={choice ? radio : undefined}
     leading={choice ? undefined : mark}
-    actions={readonly ? undefined : rowActions}
-  >
-    {#snippet badges()}
-      {#if kind.test && account.secretConfigured}
-        <AccountHealthIcon {health} />
-      {/if}
-    {/snippet}
-  </SettingsItem>
+    actions={rowActions}
+  ></SettingsItem>
 {/snippet}
 
 <AccountDialog

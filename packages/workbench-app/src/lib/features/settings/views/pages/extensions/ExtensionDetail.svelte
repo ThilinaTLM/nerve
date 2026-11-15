@@ -37,7 +37,6 @@ import {
   detailLayout,
   entryWithSetting,
   extensionChanges,
-  extensionFix,
   extensionProblem,
   helperNote,
   lockOwner,
@@ -77,7 +76,6 @@ const problem = $derived(extensionProblem(extension));
 // The callout above already gives this reason; the row only marks itself.
 const rowProblem = (reason: string | undefined) =>
   reason !== undefined && reason === problem ? "Unavailable" : reason;
-const fix = $derived(extensionFix(extension, accounts));
 const note = $derived(helperNote(layout.helpers));
 const hasFeatures = $derived(layout.features.length > 0);
 const busy = $derived(extensions.saving || extension.readOnly);
@@ -110,11 +108,6 @@ async function revealField(sectionId: string, advanced: boolean) {
   await tick();
   revealSection(sectionId);
 }
-function runFix(): void {
-  if (!fix) return;
-  if (fix.section === "accounts" && scope === "project") openUserAccounts();
-  else revealSection(fix.section);
-}
 function featureProblem(row: FeatureRow): string | undefined {
   return rowProblem(row.problem);
 }
@@ -141,15 +134,7 @@ function openPage(page: "tools" | "skills"): void {
       icon={TriangleAlert}
       title="Unavailable"
       text={problem}
-    >
-      {#snippet actions()}
-        {#if fix}
-          <Button size="sm" variant="outline" onclick={runFix}
-            >{fix.label}</Button
-          >
-        {/if}
-      {/snippet}
-    </Callout>
+    />
   {/if}
 
   {#each layout.accounts as entry (entry.item.key)}

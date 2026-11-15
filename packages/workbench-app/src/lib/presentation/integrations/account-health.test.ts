@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, test } from "node:test";
 import {
+  healthSummary,
   accountHealthBadge,
   accountHealthIndicator,
   accountHealthStale,
@@ -61,4 +62,26 @@ describe("account health indicator", () => {
     );
     assert.equal(formatChecked("2026-01-01T09:00:00Z", now), "checked 3 h ago");
   });
+});
+
+void test("healthSummary names the status, the first line of the reason and the check time", () => {
+  const now = Date.parse("2026-11-15T10:00:00Z");
+  assert.equal(
+    healthSummary(
+      {
+        status: "unavailable",
+        checkedAt: "2026-11-15T09:58:00Z",
+        message: "Jira: GET /myself failed (404)\nConfluence: failed",
+      },
+      now,
+    ),
+    "Not available · Jira: GET /myself failed (404) · checked 2 min ago",
+  );
+  assert.equal(
+    healthSummary(
+      { status: "verified", checkedAt: "2026-11-15T10:00:00Z", message: "ok" },
+      now,
+    ),
+    "Verified · checked just now",
+  );
 });
