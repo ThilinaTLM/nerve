@@ -37,7 +37,7 @@ Durable approval choices retain the permission rule set captured when the call w
 
 Rules can match tool names/groups, risks, validated arguments, and canonical path or URL targets. Portable path matchers use rooted POSIX patterns such as `src/**`; external host-specific paths use exact argument matching. Rules apply to Nerve's corresponding tools and are not an operating-system sandbox.
 
-Allow and deny exceptions name a core tool. Extension tools are targeted by operation instead: use tool `quick_script` with the operation as the rule, for example `search.web` or `jira.issues.*`. An exception that names an extension tool such as `web_search` is rejected as not a core tool. The read-outside-the-machine risk is `external_read`; the planning rule set allows it, and external writes (`jira.issues.update`, `imagegen.generate`) keep matching as `unknown`.
+Allow and deny exceptions name a core tool. Extension tools are targeted by operation instead: use tool `quick_script` with the operation as the rule, for example `search.web` or `jira.issues.*`. An exception that names an extension tool such as `web_search` is rejected as not a core tool. The read-outside-the-machine risk is `external_read`; the planning rule set allows it, and external writes (`jira.issues.update`, `imagegen.generate`) match the `external_write` risk, separate from `unknown` (shell commands).
 
 Execution admission rechecks current policy even after approval; approval cannot defeat a later denial. After restart, not-yet-started calls are re-captured and re-admitted, and a changed target needs fresh approval. Frozen child preferences do not freeze current authorization.
 

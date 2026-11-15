@@ -71,6 +71,7 @@ const permissionRules: PageData = {
   description:
     "Rule sets decide which tool calls are allowed, asked about or blocked.",
   sections: [{ id: "rule-sets", label: "Rule sets" }],
+  detail: { param: "rule-set" },
 };
 const models: PageData = {
   label: "Models",
@@ -82,6 +83,7 @@ const suggestions: PageData = {
   description:
     "Project suggestions override user and built-in suggestions with the same name.",
   sections: [{ id: "suggestions", label: "Suggestions" }],
+  detail: { param: "suggestion" },
 };
 
 const userPages: Record<string, PageData> = {

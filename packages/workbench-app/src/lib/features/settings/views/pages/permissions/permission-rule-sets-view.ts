@@ -74,6 +74,11 @@ export function ruleMetadata(rule: PermissionRule): string[] {
   ];
 }
 
+/** One line for a rule row: priority, tools, condition count and decision. */
+export function ruleSummary(rule: PermissionRule): string {
+  return [`priority ${rule.priority}`, ...ruleMetadata(rule)].join(" · ");
+}
+
 export function ruleTitle(rule: PermissionRule): string {
   return rule.description ?? rule.id;
 }

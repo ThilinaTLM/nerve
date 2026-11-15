@@ -41,6 +41,7 @@ export const staticToolRiskSchema = z.enum([
   "read",
   "write",
   "external_read",
+  "external_write",
   "secret",
   "destructive",
   "deployment",
@@ -471,6 +472,15 @@ export type PermissionRuleSetSummary = z.infer<
   typeof permissionRuleSetSummarySchema
 >;
 
+/** A rule set in the permission configuration, with its own rules (overlays are listed separately). */
+export const permissionRuleSetWithRulesSchema =
+  permissionRuleSetSummarySchema.extend({
+    rules: z.array(permissionRuleSchema).max(256),
+  });
+export type PermissionRuleSetWithRules = z.infer<
+  typeof permissionRuleSetWithRulesSchema
+>;
+
 export const permissionOverlayOriginSchema = z.enum([
   "user",
   "project",
@@ -501,7 +511,7 @@ export type ProjectPermissionTrust = z.infer<
 
 export const permissionPolicyConfigurationSchema = z
   .object({
-    ruleSets: z.array(permissionRuleSetSummarySchema).max(256),
+    ruleSets: z.array(permissionRuleSetWithRulesSchema).max(256),
     userOverlays: permissionOverlayDocumentSchema,
     projectOverlays: permissionOverlayDocumentSchema,
     conversationOverlays: permissionOverlayDocumentSchema.optional(),

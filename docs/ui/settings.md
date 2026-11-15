@@ -31,9 +31,14 @@ Entity lists and catalogs (tools, skills, extensions, providers, accounts) are a
 - **Status line:** the summary of how the item is set up, or what it does when it has no settings. A problem replaces it in warning tone, followed by its fix action, so every row keeps its height. Never write "Off" there; the switch says it.
 - **Right:** change indicator and other quiet meta, icon actions (entity lists), lock, then the switch or "Always on", then a chevron when the row opens something.
 - **Opening:** the whole row opens the item's detail view or dialog. Never add a per-row Configure or Edit button; the row is that button. Lists that open nothing keep the chevron slot empty so switches align.
+- **Compact:** `compact` makes a single-line row (`min-h-10`, no status line); use it for reference lists whose rows never have a second line (shortcuts).
 - **Off:** the title and icon turn muted; the row stays readable and openable.
 
-Row actions are `IconAction`s, which require a label and supply the tooltip and accessible name; keep them to actions other than opening (Test, Copy, Delete). Detail editing belongs in a dialog or detail view, not inline on the page. Compact lists without identity (shortcuts, devices, activity) use `SettingsItem` without an icon. Rows with small read-mostly detail may expand in place: `onOpen` toggles, `expanded` turns the chevron, and the detail goes in `children` (the summary moves into it while open).
+Row actions are `IconAction`s, which require a label and supply the tooltip and accessible name; keep them to actions other than opening (Test, Copy, Delete). Detail editing belongs in a dialog or detail view, not inline on the page.
+
+### List → inner page
+
+Anything with more to show than a row (an extension, a permission rule set, a prompt suggestion) opens an **inner page**, never an in-place expansion: the row is a plain `SettingsItem` with a chevron and its summary on the status line. A page opts in by declaring `detail` in the registry (`settings-page-data.ts`); the shell then tracks the open item, restores the list's scroll on back, and Escape returns to the list. The page renders its own `SettingsPageHeader` with `parent` set, so the title becomes a breadcrumb (`Permission rules › Name`) in the same box as the list header, with the item's description and its page actions (an enable switch) in the actions slot; nothing moves vertically and the heading takes focus on open. The detail's body is ordinary `SettingsSection`s. A list that has nothing more to show (storage categories) opens nothing. Compact lists without identity (shortcuts, devices, activity) use `SettingsItem` without an icon.
 
 ## Entity cards
 

@@ -10,6 +10,7 @@ import {
   newRuleTemplate,
   overlaySummary,
   ruleMetadata,
+  ruleSummary,
   validateRuleSource,
 } from "./permission-rule-sets-view";
 
@@ -190,6 +191,18 @@ describe("permission rule set view helpers", () => {
       validateRuleSource(JSON.stringify(guardrail), "project", "supervised", [])
         .error ?? "",
       /overridable/,
+    );
+  });
+});
+
+describe("rule summary", () => {
+  it("joins priority, tools, conditions and decision", () => {
+    assert.equal(
+      ruleSummary(rule("a", { priority: 5, decision: "deny" })),
+      ruleMetadata(rule("a", { priority: 5, decision: "deny" })).reduce(
+        (line, part) => `${line} · ${part}`,
+        "priority 5",
+      ),
     );
   });
 });

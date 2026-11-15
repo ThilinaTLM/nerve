@@ -506,7 +506,7 @@ function operationEffectiveRisk(risk: unknown): ToolRisk {
     case "write":
       return "workspace_write";
     case "external_write":
-      return "command";
+      return "external_write";
     case "destructive":
       return "destructive";
     default:

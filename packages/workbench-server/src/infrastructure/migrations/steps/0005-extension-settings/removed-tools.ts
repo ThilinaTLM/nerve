@@ -199,6 +199,15 @@ export function convertRemovedToolRules(
       ];
       changed = true;
     }
+    // External writes were matched through `unknown`; they are `external_write` now.
+    if (
+      Array.isArray(when.baseRisks) &&
+      when.baseRisks.includes("unknown") &&
+      !when.baseRisks.includes("external_write")
+    ) {
+      when.baseRisks = [...when.baseRisks, "external_write"];
+      changed = true;
+    }
     if (Array.isArray(when.toolGroups)) {
       const groups = (when.toolGroups as unknown[]).map((group) =>
         typeof group === "string" && GROUP_RENAMES[group]

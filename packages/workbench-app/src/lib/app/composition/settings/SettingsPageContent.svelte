@@ -136,6 +136,9 @@ const projectId = $derived(
       controller={controllers.permissionsController}
       {projectId}
       projectName={project?.name}
+      {itemId}
+      {onOpenItem}
+      {onCloseItem}
     />
   {:else if page.id === "workbench"}
     <WorkbenchSettingsPage
@@ -163,6 +166,9 @@ const projectId = $derived(
     <SuggestionsSettingsPage
       pageState={controllers.suggestionsPageState}
       activeProject={project ? projectView(project) : undefined}
+      {itemId}
+      {onOpenItem}
+      {onCloseItem}
     />
   {:else if page.id === "models"}
     <ModelsSettingsPage {models} {authProviders} />

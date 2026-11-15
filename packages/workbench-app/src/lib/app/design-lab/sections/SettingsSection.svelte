@@ -5,7 +5,6 @@ import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
 import EntityRow from "$lib/presentation/settings/EntityRow.svelte";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
-import FolderIcon from "@lucide/svelte/icons/folder";
 import KeyRoundIcon from "@lucide/svelte/icons/key-round";
 import KeyboardIcon from "@lucide/svelte/icons/keyboard";
 import MonitorIcon from "@lucide/svelte/icons/monitor";
@@ -81,11 +80,9 @@ let fieldNumber = $state("43967");
 // Local only: picking a card here never changes the lab or app theme.
 let theme = $state<string>(defaultColorTheme);
 let specimenTheme = $state("melange-light");
-let discA = $state(false);
 let itemPython = $state(false);
 let itemImage = $state(true);
 let itemSkill = $state(true);
-let discB = $state(true);
 
 // ── In context: SettingsShell (screenshots 29 Workbench, 34 Tools) ────────
 const pages: SettingsPageDef[] = [
@@ -545,42 +542,23 @@ let headerStyle = $state("auto");
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="SettingsItem (expands in place)"
+      title="SettingsItem (compact)"
       source="settings/SettingsItem"
-      usage="3 files · settings"
+      usage="shortcuts"
       layout="stack"
-      description="Rows with small read-mostly detail: onOpen toggles, expanded turns the chevron, detail goes in children and the summary moves into it."
+      description="compact: single-line rows (min-h-10, no status line) for reference lists whose rows never have a second line."
     >
-      <SettingsList ariaLabel="Expandable rows">
-        <SettingsItem
-          title="Closed"
-          summary="A long summary that stays on one line while the item is collapsed."
-          expanded={discA}
-          onOpen={() => (discA = !discA)}
-          openLabel="Expand Closed"
-        >
-          {#snippet badges()}
-            <Badge variant="success">Enabled</Badge>
-          {/snippet}
-          {#if discA}
-            <span class="font-mono text-ui text-muted-foreground"
-              >{longText}</span
-            >
-          {/if}
-        </SettingsItem>
-        <SettingsItem
-          title="Open"
-          icon={FolderIcon}
-          expanded={discB}
-          onOpen={() => (discB = !discB)}
-          openLabel="Collapse Open"
-        >
-          {#if discB}
-            <span class="text-ui text-muted-foreground"
-              >Supplemental content only: paths, nested lists or controls.</span
-            >
-          {/if}
-        </SettingsItem>
+      <SettingsList ariaLabel="Compact rows">
+        {#each ["New conversation", "Open command palette", "Toggle sidebar"] as label, i (label)}
+          <SettingsItem compact title={label}>
+            {#snippet meta()}
+              <span
+                class="whitespace-nowrap font-mono text-caption text-muted-foreground"
+                >{["Ctrl+N", "Ctrl+K", "Ctrl+B"][i]}</span
+              >
+            {/snippet}
+          </SettingsItem>
+        {/each}
       </SettingsList>
     </GallerySpecimen>
 

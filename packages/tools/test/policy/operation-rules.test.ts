@@ -86,7 +86,7 @@ void test("operations never get the write base risk, and the namespace is the to
   const baseRisk = (risk: Parameters<typeof operationBaseRisk>[0]) =>
     operationBaseRisk(risk);
   assert.equal(baseRisk("external_read"), "external_read");
-  assert.equal(baseRisk("external_write"), "unknown");
+  assert.equal(baseRisk("external_write"), "external_write");
   assert.equal(baseRisk("destructive"), "destructive");
   const request = normalizeOperationRequest({
     operation: "confluence.pages.update",

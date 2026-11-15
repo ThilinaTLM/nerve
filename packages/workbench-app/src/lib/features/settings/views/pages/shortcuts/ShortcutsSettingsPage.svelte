@@ -65,7 +65,7 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
   <SettingsSection surface={false} title={group.category}>
     <SettingsList ariaLabel={`${group.category} shortcuts`}>
       {#each group.commands as command (command.id)}
-        <SettingsItem title={command.label}>
+        <SettingsItem compact title={command.label}>
           {#snippet meta()}
             <span
               class="whitespace-nowrap font-mono text-caption text-muted-foreground"
