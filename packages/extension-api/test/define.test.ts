@@ -61,7 +61,6 @@ void test("definitions are returned unchanged and errors carry their fix", () =>
     method: "echo.say",
     description: "d",
     parameters: { type: "object" },
-    display: "text",
   });
   assert.equal(tool.method, "echo.say");
   const error = new ExtensionError("NOT_FOUND", "gone", {

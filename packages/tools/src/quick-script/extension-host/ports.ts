@@ -2,6 +2,8 @@ import type {
   AccountInfo,
   ImageGenerateRequest,
   ImageGenerateResponse,
+  VisionExplainRequest,
+  VisionResult,
 } from "@nervekit/extension-api";
 
 /**
@@ -28,4 +30,8 @@ export type ExtensionHostPorts = {
   generateImage?: (
     request: ImageGenerateRequest,
   ) => Promise<ImageGenerateResponse>;
+  /** The vision model behind `ctx.models.vision`, selected by the extension's `model` and `thinkingLevel` settings. */
+  explainImage?: (request: VisionExplainRequest) => Promise<VisionResult>;
+  /** Whether the extension's selected vision model resolves with credentials and accepts images. */
+  visionReady?: (extensionId: string) => Promise<boolean>;
 };

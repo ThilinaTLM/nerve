@@ -1,4 +1,5 @@
 import type { BashToolSettings } from "@nervekit/contracts/settings";
+import { toolOutputStreamSchema } from "@nervekit/contracts/tools";
 import { realpath } from "node:fs/promises";
 import { projectProcessOutputResult } from "@nervekit/tools/result-projection";
 import type {
@@ -137,7 +138,9 @@ export function createToolHostPort(
           onUpdate: (update: { chunk: string; stream?: string }) =>
             input.onProgress({
               chunk: update.chunk,
-              ...(update.stream === "stdout" || update.stream === "stderr"
+              // Process streams, or the live view section of an extension tool.
+              ...(update.stream &&
+              toolOutputStreamSchema.safeParse(update.stream).success
                 ? { stream: update.stream }
                 : {}),
             }),

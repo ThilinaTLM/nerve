@@ -8,7 +8,7 @@ import {
   toolLifecycleSpec,
   unknownToolLifecycleSpec,
 } from "./registry";
-import { setExtensionToolNames } from "./extension-tools";
+import { setExtensionTools } from "./extension-tools";
 describe("tool lifecycle registry", () => {
   it("has exactly one typed spec for every active tool", () => {
     assert.deepEqual(
@@ -61,7 +61,7 @@ describe("tool lifecycle registry", () => {
 
   it("presents tools extensions contribute through one generic spec, and other names as unknown", () => {
     assert.equal(toolLifecycleSpec("web_search"), unknownToolLifecycleSpec);
-    setExtensionToolNames(["web_search"]);
+    setExtensionTools([{ name: "web_search" }]);
     try {
       const spec = toolLifecycleSpec("web_search");
       assert.equal(spec.completedView, "extension");
@@ -81,7 +81,36 @@ describe("tool lifecycle registry", () => {
         unknownToolLifecycleSpec,
       );
     } finally {
-      setExtensionToolNames([]);
+      setExtensionTools([]);
+    }
+  });
+
+  it("presents an extension tool's declared header and facts; a path header opens the file", () => {
+    setExtensionTools([
+      {
+        name: "explain_image",
+        view: {
+          header: { argument: "path", format: "path" },
+          meta: ["prompt"],
+          sections: [{ id: "explanation", type: "markdown" }],
+        },
+      },
+    ]);
+    try {
+      const presentation = presentToolArguments(
+        "explain_image",
+        { args: { prompt: "colors", path: "shots/a.png" } },
+        "completed",
+        "/repo",
+      );
+      assert.equal(presentation.primaryArg?.text, "shots/a.png");
+      assert.equal(presentation.primaryArg?.openPath, "/repo/shots/a.png");
+      assert.deepEqual(
+        presentation.secondary.map((item) => item.text),
+        ["prompt colors"],
+      );
+    } finally {
+      setExtensionTools([]);
     }
   });
 

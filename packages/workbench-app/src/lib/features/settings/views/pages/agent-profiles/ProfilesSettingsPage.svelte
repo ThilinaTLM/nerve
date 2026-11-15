@@ -321,7 +321,6 @@ function text(row: ChangeRow) {
   return toolSummary(id, row.value as ToolPayload, {
     profileLabel: (name) =>
       all.find((p) => p.name === name)?.definition?.label ?? name,
-    modelLabel: (selection) => modelText(selection as ModelSelection),
   });
 }
 /** The draft card for a new or duplicated profile, shown first. */

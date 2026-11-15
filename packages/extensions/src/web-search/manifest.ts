@@ -62,7 +62,11 @@ export const webSearchExtension = defineExtension({
       },
       risk: "network",
       ...webSearchTool,
-      display: "links",
+      view: {
+        header: { argument: "query" },
+        meta: ["max_results"],
+        sections: [{ id: "results", type: "links" }],
+      },
       requires: { account: SEARCH_ACCOUNT_FIELD },
     }),
   ],

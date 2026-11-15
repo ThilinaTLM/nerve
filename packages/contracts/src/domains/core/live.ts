@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { toolOutputStreamSchema } from "../tools/tool-output.js";
 
 export const toolProgressSchema = z.object({
   chunk: z.string(),
-  stream: z.enum(["stdout", "stderr"]).optional(),
+  /** `stdout`/`stderr` of a process, or the live view section of an extension tool. */
+  stream: toolOutputStreamSchema.optional(),
 });
 export const liveDeltaSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("assistant_reset"), turnId: z.string() }),

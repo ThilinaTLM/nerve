@@ -146,7 +146,7 @@ export type AccountKind = z.infer<typeof accountKindSchema>;
 /** What an extension may reach: network origins and host capabilities. */
 export const extensionPermissionsSchema = z.strictObject({
   network: z.array(z.string().min(1)).optional(),
-  capabilities: z.array(z.enum(["models.image"])).optional(),
+  capabilities: z.array(z.enum(["models.image", "models.vision"])).optional(),
 }) satisfies z.ZodType<ExtensionPermissions>;
 export type ExtensionPermissionsData = z.infer<
   typeof extensionPermissionsSchema
@@ -155,6 +155,7 @@ export type ExtensionPermissionsData = z.infer<
 /** Lucide icons an extension may name; the app maps each, so an addition fails its type check until mapped. */
 export const extensionLucideIconSchema = z.enum([
   "blocks",
+  "eye",
   "globe",
   "image-plus",
   "layers",

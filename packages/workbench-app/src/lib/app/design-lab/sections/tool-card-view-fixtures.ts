@@ -2,17 +2,43 @@
  * Per-tool-view sample data (file, search, web and todo tools) for the ToolCards gallery section. Builders and
  * lifecycle fixtures live in `tool-card-fixtures.ts`.
  */
-import { setExtensionToolNames } from "$lib/presentation/tools/lifecycle/extension-tools";
+import { setExtensionTools } from "$lib/presentation/tools/lifecycle/extension-tools";
 import {
   SAMPLE_CWD,
   sampleApproval,
   isoAgo,
   sampleCall,
   sampleDraft,
+  sampleLiveOutput,
 } from "./tool-card-fixtures";
 
 // The gallery shows `web_search` as the extension tool it is.
-setExtensionToolNames(["web_search"]);
+setExtensionTools([
+  {
+    name: "explain_image",
+    view: {
+      header: { argument: "path", format: "path" },
+      meta: ["prompt"],
+      sections: [
+        { id: "thinking", type: "text", label: "Thinking", live: "transient" },
+        {
+          id: "explanation",
+          type: "markdown",
+          label: "Explanation",
+          live: "stream",
+        },
+      ],
+    },
+  },
+  {
+    name: "web_search",
+    view: {
+      header: { argument: "query" },
+      meta: ["max_results"],
+      sections: [{ id: "results", type: "links" }],
+    },
+  },
+]);
 
 const DIFF = `--- a/src/lib/presentation/cards/MetaChip.svelte
 +++ b/src/lib/presentation/cards/MetaChip.svelte
@@ -471,23 +497,26 @@ export const webSearchCompleted = sampleCall({
     details: {
       extension: "web",
       tool: "web_search",
-      display: {
-        kind: "links",
-        value: [
-          {
-            title: "$state • Svelte Docs",
-            url: "https://svelte.dev/docs/svelte/$state",
-            snippet:
-              "$state creates reactive state. Arrays and plain objects are turned into deeply reactive proxies.",
-          },
-          {
-            title:
-              "Understanding Svelte 5 reactivity: a long-form walkthrough of runes, signals, and fine-grained updates",
-            url: "https://example.com/blog/svelte-5-reactivity-walkthrough-with-a-very-long-path/that/keeps/going",
-            snippet: "A deep dive into how signals replaced stores.",
-          },
-        ],
-      },
+      sections: [
+        {
+          id: "results",
+          type: "links",
+          value: [
+            {
+              title: "$state • Svelte Docs",
+              url: "https://svelte.dev/docs/svelte/$state",
+              snippet:
+                "$state creates reactive state. Arrays and plain objects are turned into deeply reactive proxies.",
+            },
+            {
+              title:
+                "Understanding Svelte 5 reactivity: a long-form walkthrough of runes, signals, and fine-grained updates",
+              url: "https://example.com/blog/svelte-5-reactivity-walkthrough-with-a-very-long-path/that/keeps/going",
+              snippet: "A deep dive into how signals replaced stores.",
+            },
+          ],
+        },
+      ],
     },
   },
 });
@@ -501,14 +530,17 @@ export const extensionTableCompleted = sampleCall({
     details: {
       extension: "web",
       tool: "web_search",
-      display: {
-        kind: "table",
-        value: [
-          { name: "svelte", version: "5.1.0", released: "2025-01-12" },
-          { name: "tailwindcss", version: "4.0.2", released: "2025-02-03" },
-          { name: "vite", version: "6.2.0", released: "2025-02-20" },
-        ],
-      },
+      sections: [
+        {
+          id: "rows",
+          type: "table",
+          value: [
+            { name: "svelte", version: "5.1.0", released: "2025-01-12" },
+            { name: "tailwindcss", version: "4.0.2", released: "2025-02-03" },
+            { name: "vite", version: "6.2.0", released: "2025-02-20" },
+          ],
+        },
+      ],
     },
   },
 });
@@ -522,11 +554,14 @@ export const extensionMarkdownCompleted = sampleCall({
     details: {
       extension: "web",
       tool: "web_search",
-      display: {
-        kind: "markdown",
-        value:
-          "# Release notes\n\n- Faster **startup**\n- Fixed `tool` cards\n\nSee [the docs](https://example.com).",
-      },
+      sections: [
+        {
+          id: "notes",
+          type: "markdown",
+          value:
+            "# Release notes\n\n- Faster **startup**\n- Fixed `tool` cards\n\nSee [the docs](https://example.com).",
+        },
+      ],
     },
   },
 });
@@ -617,12 +652,49 @@ export const removedToolCompleted = sampleCall({
   },
 });
 
+const EXPLANATION =
+  "The screenshot shows a **transcript column** with three tool cards.\n\n- Each card has a header row\n- a recessed sheet\n- and a footer of metadata chips.";
+
 export const explainImageCompleted = sampleCall({
   id: "tool_explain_ok",
   toolName: "explain_image",
-  args: { path: "docs/screenshots/transcript.png" },
+  args: { path: "docs/screenshots/transcript.png", prompt: "layout" },
   result: {
-    content:
-      "The screenshot shows a transcript column with three tool cards. Each card has a header row, a recessed sheet and a footer of metadata chips.",
+    content: EXPLANATION,
+    details: {
+      extension: "vision-demo",
+      tool: "explain_image",
+      sections: [
+        {
+          id: "explanation",
+          type: "markdown",
+          label: "Explanation",
+          value: EXPLANATION,
+        },
+      ],
+    },
   },
+});
+
+export const explainImageLiveOutput = sampleLiveOutput(
+  "tool_explain_run",
+  "Looking at the card layout.The screenshot shows",
+  {
+    chunks: [
+      {
+        stream: "thinking",
+        text: "Looking at the card layout.",
+        ts: isoAgo(2_000),
+      },
+      { stream: "explanation", text: "The screenshot shows", ts: isoAgo(500) },
+    ],
+  },
+);
+
+export const explainImageRunning = sampleCall({
+  id: "tool_explain_run",
+  toolName: "explain_image",
+  status: "running",
+  ageMs: 4_000,
+  args: { path: "docs/screenshots/transcript.png" },
 });

@@ -133,7 +133,6 @@ export function toolOverrides(variant: Variant | "none") {
     web_search: { enabled: false },
     web_fetch: { enabled: false },
     subagents: { enabled: false },
-    explain_image: { enabled: false },
     plan_present: { enabled: false },
   };
 }

@@ -16,10 +16,9 @@ import {
 
 const modelA = { provider: "provider-a", modelId: "model-a" };
 const modelB = { provider: "provider-b", modelId: "model-b" };
-// These are the five object-valued canonical merge units, not containers.
+// These are the object-valued canonical merge units, not containers.
 const atomicPaths = new Set([
   "/model",
-  "/tools/explain_image/settings/model",
   "/tools/bash/settings/autoPromotion",
   "/subagents/coding/model",
 ]);
@@ -70,9 +69,6 @@ const cases: Record<string, readonly [unknown, unknown]> = {
   "/tools/web_fetch/enabled": booleanPair,
   "/tools/plan_present/enabled": booleanPair,
   "/tools/plan_present/settings/approvalProfile": ["planning", "coding"],
-  "/tools/explain_image/enabled": booleanPair,
-  "/tools/explain_image/settings/model": [modelA, modelB],
-  "/tools/explain_image/settings/thinkingLevel": ["low", "high"],
   "/tools/bash/settings/shellPath": ["/lower/bash", "/upper/bash"],
   "/tools/bash/settings/autoPromotion": [
     { enabled: true, afterMs: 1000 },

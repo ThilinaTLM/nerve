@@ -5,6 +5,7 @@ import type {
   ToolTrait,
 } from "@nervekit/contracts/tools";
 import type { ToolRisk } from "@nervekit/contracts/permissions";
+import type { ToolView } from "@nervekit/extension-api";
 import type { Static, TObject } from "typebox";
 import type {
   ToolExecutionContext,
@@ -49,7 +50,7 @@ interface ToolDefinitionBase<TParams extends TObject = TObject> {
     targets?: readonly ToolPermissionTargetDescriptor[];
   };
   /** The extension that contributes the tool (`id`), absent for core tools; the Tools page groups by it. */
-  extension?: { id: string; name: string };
+  extension?: { id: string; name: string; view: ToolView };
   /** Permission metadata of a tool the core manifest does not know (extension tools). */
   permissionMetadata?: ToolPermissionMetadata;
   /** Host/model-only semantic result projection policy; never exposed publicly. */

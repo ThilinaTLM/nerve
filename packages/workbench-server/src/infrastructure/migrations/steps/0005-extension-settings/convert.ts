@@ -2,7 +2,8 @@
  * Frozen conversion of account choices and tool options from agent
  * configuration into extension settings, and removal of the direct tools that
  * `quick_script` namespaces replaced (`jira*`, `confluence*`, `generate_image`,
- * `kroki_export`). Plain-JSON shapes only: this step must not follow later
+ * `kroki_export`), and of `tools.explain_image` (now the `image-explanation`
+ * extension's tool) into that extension's entry. Plain-JSON shapes only: this step must not follow later
  * changes to the evolving contracts.
  */
 export type Json = Record<string, unknown>;
@@ -31,6 +32,7 @@ const REMOVED_TOOLS: ReadonlySet<string> = new Set([
   "confluence",
   "generate_image",
   "kroki_export",
+  "explain_image",
 ]);
 
 const IMAGEGEN_DEFAULTS = {
@@ -61,6 +63,42 @@ function imageGenerationEntry(
   set("quality", options.quality);
   set("size", options.size);
   set("background", options.background);
+  const enabled = boolean(tool.enabled);
+  if (enabled === undefined && Object.keys(values).length === 0)
+    return undefined;
+  return {
+    version: 1,
+    ...(enabled !== undefined ? { enabled } : {}),
+    ...(Object.keys(values).length ? { settings: values } : {}),
+  };
+}
+
+const THINKING_LEVELS = new Set([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+
+/** `tools.explain_image` (`{ enabled, settings: { model: { provider, modelId }, thinkingLevel } }`) as the `image-explanation` extension entry. */
+function imageExplanationEntry(
+  tool: unknown,
+  complete: boolean,
+): Entry | undefined {
+  if (!isRecord(tool)) return undefined;
+  const source = isRecord(tool.settings) ? tool.settings : {};
+  const values: Record<string, unknown> = {};
+  if (isRecord(source.model)) {
+    const provider = string(source.model.provider);
+    const modelId = string(source.model.modelId);
+    if (provider && modelId) values.model = { provider, modelId };
+  }
+  const level = string(source.thinkingLevel);
+  if (level && THINKING_LEVELS.has(level) && !(complete && level === "off"))
+    values.thinkingLevel = level;
   const enabled = boolean(tool.enabled);
   if (enabled === undefined && Object.keys(values).length === 0)
     return undefined;
@@ -143,6 +181,8 @@ export function extractFromTools(
 
   const image = imageGenerationEntry(tools.generate_image, complete);
   if (image) entries.imagegen = image;
+  const explanation = imageExplanationEntry(tools.explain_image, complete);
+  if (explanation) entries["image-explanation"] = explanation;
 
   const cleaned: Json = {};
   for (const [name, entry] of Object.entries(tools)) {

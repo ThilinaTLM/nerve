@@ -10,7 +10,18 @@ import type {
   ToolOutputArtifactPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts/tools";
-import type { ExtensionDisplayKind } from "@nervekit/contracts/extensions";
+import type { ExtensionViewSectionType } from "@nervekit/contracts/extensions";
+
+/** One section of an extension tool's card. */
+export type ExtensionSectionView = {
+  id: string;
+  type: ExtensionViewSectionType;
+  label?: string;
+  /** The section's value (`text`/`markdown`: a string). */
+  value?: unknown;
+  /** Text streaming in while the call runs. */
+  live?: boolean;
+};
 import type { LaunchStatus } from "@nervekit/contracts/launches";
 import type { UserInputAnswer } from "@nervekit/contracts/core";
 import type { RedactedStructuredEntry } from "../lifecycle/argument-source";
@@ -261,10 +272,12 @@ export type ToolView =
       toolName: string;
       /** Id of the extension that contributes the tool. */
       extension: string;
-      /** How the result renders; `value` is the method's result as data when it was small enough to carry. */
-      display: { kind: ExtensionDisplayKind; value?: unknown };
+      /** The sections to render, in view order: streamed text while running, the result's values after. */
+      sections: ExtensionSectionView[];
+      /** Whether sections hold live text of a running call. */
+      live: boolean;
       artifacts: QuickScriptArtifact[];
-      /** The result text the agent saw; the fallback when `value` is absent. */
+      /** The result text the agent saw; the fallback when no section has a value. */
       resultText?: string;
     }
   | {
@@ -278,16 +291,6 @@ export type ToolView =
       content?: string;
       outputLimits?: ToolOutputLimitsPayload;
       outputArtifacts?: ToolOutputArtifactPayload[];
-    }
-  | {
-      kind: "explain_image";
-      path?: string;
-      relPath?: string;
-      explanation?: string;
-      thinking?: string;
-      liveExplanation?: string;
-      live: boolean;
-      outputLimits?: ToolOutputLimitsPayload;
     }
   | {
       kind: "generic";

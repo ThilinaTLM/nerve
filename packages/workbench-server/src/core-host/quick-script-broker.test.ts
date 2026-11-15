@@ -139,12 +139,7 @@ void test("deny wins over the approved risk", async () => {
 
 void test("only operations and the remaining direct tools can be brokered", async () => {
   const { authorize, inputs } = authorizer([]);
-  for (const toolName of [
-    "bash",
-    "python_exec",
-    "quick_script",
-    "explain_image",
-  ])
+  for (const toolName of ["bash", "python_exec", "quick_script"])
     await assert.rejects(authorize(call, { toolName, args: {} }), {
       code: "NESTED_DENIED",
     });

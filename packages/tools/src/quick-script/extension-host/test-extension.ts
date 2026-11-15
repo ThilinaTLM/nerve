@@ -180,7 +180,10 @@ export const demoExtension = defineExtension({
         required: ["id"],
         additionalProperties: false,
       },
-      display: "markdown",
+      view: {
+        header: { argument: "id" },
+        sections: [{ id: "item", type: "markdown" }],
+      },
       enabledBy: "items",
       requires: { account: "account" },
     }),

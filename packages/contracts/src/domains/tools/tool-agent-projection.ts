@@ -14,6 +14,7 @@ export const agentResultProfileIdSchema = z.enum([
   "delegation_report",
   "primary_file_result",
   "human_response",
+  /** Stored results of the former core `explain_image` tool. */
   "vision_explanation",
   "terminal_outcome",
   "conservative_fallback",
@@ -89,6 +90,7 @@ export const validatedToolArtifactSchema = z
         itemKind: z.string().min(1).optional(),
       })
       .strict(),
+    // `explain_image`: stored results from before the tool moved to an extension.
     recommendedTools: z.array(z.enum(["read", "grep", "explain_image"])).max(3),
     label: z.string().min(1).max(256),
     unavailableReason: z

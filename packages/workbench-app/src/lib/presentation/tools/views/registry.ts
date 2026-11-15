@@ -3,7 +3,6 @@ import QuickScriptToolView from "../tool-call/QuickScriptToolView.svelte";
 import AskUserToolView from "../tool-call/AskUserToolView.svelte";
 import BashToolView from "../tool-call/BashToolView.svelte";
 import EditToolView from "../tool-call/EditToolView.svelte";
-import ExplainImageToolView from "../tool-call/ExplainImageToolView.svelte";
 import FindToolView from "../tool-call/FindToolView.svelte";
 import GenericToolView from "../tool-call/GenericToolView.svelte";
 import GrepToolView from "../tool-call/GrepToolView.svelte";
@@ -36,7 +35,6 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   plan_present: PlanPresentToolView,
   extension: ExtensionToolView,
   web_fetch: WebFetchToolView,
-  explain_image: ExplainImageToolView,
   quick_script: QuickScriptToolView,
   generic: GenericToolView,
 };

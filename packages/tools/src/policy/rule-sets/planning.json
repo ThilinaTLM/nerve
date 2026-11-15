@@ -41,7 +41,13 @@
       "priority": 175,
       "enforcement": "overridable",
       "when": {
-        "toolGroups": ["web", "vision", "jira", "confluence", "quickScript"],
+        "toolGroups": [
+          "web",
+          "image-explanation",
+          "jira",
+          "confluence",
+          "quickScript"
+        ],
         "baseRisks": ["network"]
       },
       "decision": "allow"

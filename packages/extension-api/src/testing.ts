@@ -8,6 +8,8 @@ import type {
   ImageRequest,
   ImageResult,
   Risk,
+  VisionRequest,
+  VisionResult,
 } from "./types.js";
 
 /** What a fake `ctx` recorded, for assertions. */
@@ -20,6 +22,8 @@ export type FakeContextRecord = {
   deleted: string[];
   notes: string[];
   logs: { level: "debug" | "warn"; message: string; data?: unknown }[];
+  /** `ctx.progress` chunks, in order. */
+  progress: { section: string; chunk: string }[];
   /** Artifacts written or seeded, by handle. */
   artifacts: Map<
     string,
@@ -39,6 +43,14 @@ export type FakeContextOptions = {
   http?: (request: HttpRequest) => HttpResponse | Promise<HttpResponse>;
   /** Present: `ctx.models.image` exists. */
   image?: (request: ImageRequest) => ImageResult | Promise<ImageResult>;
+  /** Present: `ctx.models.vision` exists; `ready` defaults to true. */
+  vision?: {
+    explain: (
+      request: VisionRequest,
+      progress: (section: string, chunk: string) => void,
+    ) => VisionResult | Promise<VisionResult>;
+    ready?: boolean;
+  };
   /** Answers `ctx.text.htmlToMarkdown`; throws when a test uses it without one. */
   htmlToMarkdown?: (html: string) => string | Promise<string>;
   signal?: AbortSignal;
@@ -59,8 +71,11 @@ export function createFakeContext(options: FakeContextOptions = {}): {
     deleted: [],
     notes: [],
     logs: [],
+    progress: [],
     artifacts: new Map(),
   };
+  const progress = (section: string, chunk: string) =>
+    void record.progress.push({ section, chunk });
   const ref = (name: string): ArtifactRef => {
     const stored = record.artifacts.get(`artifact:${name}`)!;
     return {
@@ -136,7 +151,17 @@ export function createFakeContext(options: FakeContextOptions = {}): {
             },
           }
         : {}),
+      ...(options.vision
+        ? {
+            vision: {
+              explain: async (request) =>
+                await options.vision!.explain(request, progress),
+              ready: async () => options.vision!.ready ?? true,
+            },
+          }
+        : {}),
     },
+    progress,
     signal: options.signal ?? new AbortController().signal,
     log: {
       debug: (message, data) =>

@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 import Blocks from "@lucide/svelte/icons/blocks";
+import Eye from "@lucide/svelte/icons/eye";
 import Globe from "@lucide/svelte/icons/globe";
 import ImagePlus from "@lucide/svelte/icons/image-plus";
 import Layers from "@lucide/svelte/icons/layers";
@@ -23,6 +24,7 @@ type Glyph = Component<{ class?: string; "aria-hidden"?: "true" }>;
 // Exhaustive on purpose: a new name in the contract fails the type check here.
 const glyphs: Record<ExtensionLucideIcon, Glyph> = {
   blocks: Blocks,
+  eye: Eye,
   globe: Globe,
   "image-plus": ImagePlus,
   layers: Layers,

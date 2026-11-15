@@ -9,6 +9,7 @@ import { createAvailabilityContext } from "@nervekit/tools/quick-script";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { createExtensionPorts, extensionStates } from "./extension-ports.js";
 import type { AccountsReader } from "../domains/accounts/accounts.service.js";
+import type { VisionHost } from "./vision-models.js";
 
 /**
  * Which extension namespaces and direct tools are configured and usable, from
@@ -52,11 +53,16 @@ export async function assertExtensionToolOffered(
   toolName: string,
   resolution: ExtensionResolution,
   accounts: AccountsReader,
+  vision?: VisionHost,
 ): Promise<void> {
   if (!registry.tools.some((tool) => tool.definition.name === toolName)) return;
   const offered = await extensionAvailability(registry, resolution, accounts, {
     checkSecrets: true,
-    ports: createExtensionPorts({ resolution, accounts }),
+    ports: createExtensionPorts({
+      resolution,
+      accounts,
+      ...(vision ? { vision } : {}),
+    }),
   });
   if (extensionToolOffered(offered, toolName)) return;
   const state = offered.tools[toolName] as { reason?: string; fix?: string };

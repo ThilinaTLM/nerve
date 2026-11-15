@@ -258,7 +258,16 @@ const searchCases: LabeledCard[] = [
     props: { toolCall: vfx.removedToolCompleted, cwd },
   },
   {
-    label: "explain_image — completed",
+    label: "explain_image (extension view) — streaming",
+    props: {
+      toolCall: vfx.explainImageRunning,
+      liveOutput: vfx.explainImageLiveOutput,
+      cwd,
+      onOpenFile: noop,
+    },
+  },
+  {
+    label: "explain_image (extension view) — completed",
     props: { toolCall: vfx.explainImageCompleted, cwd, onOpenFile: noop },
   },
 ];

@@ -108,7 +108,6 @@ export type CompletedViewFamily =
   | "subagent"
   | "plan_present"
   | "web_fetch"
-  | "explain_image"
   | "quick_script"
   | "extension";
 

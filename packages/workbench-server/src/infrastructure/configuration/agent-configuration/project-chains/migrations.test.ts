@@ -44,6 +44,7 @@ const preferences = { schemaVersion: 1, revision: 0, overrides: {} };
 const movedKeys = {
   jira: { enabled: true, profileId: "acme" },
   generate_image: { enabled: true, settings: { provider: "openai-codex" } },
+  explain_image: { enabled: true, settings: { thinkingLevel: "off" } },
   quick_script: { enabled: true, settings: { diagram: { url: "https://k/" } } },
   python_exec: { enabled: true },
 };

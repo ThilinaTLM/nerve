@@ -626,23 +626,6 @@ export function buildUserProjection(
       break;
     }
 
-    case "explain_image": {
-      const details = record(resultRecord.details);
-      const explanation = firstLines(
-        stringField(details.explanation) ?? outputText(resultRecord),
-      );
-      resultPreview = {
-        ...withTextContent(resultRecord, explanation.value),
-        details: {
-          ...details,
-          explanation: explanation.value ?? "",
-        },
-      };
-      ({ hidden, noun } = textOverflowStats([explanation]));
-      direction = "head";
-      break;
-    }
-
     case "web_fetch": {
       const preview = buildWebFetchTranscriptPreview(resultRecord);
       ({ resultPreview, hidden, noun, direction, semanticOverflow } = preview);
@@ -727,8 +710,7 @@ export function buildUserProjection(
     toolName === "ask_user" ||
     toolName === "launch" ||
     isSubagentTool(toolName) ||
-    toolName.startsWith("web_") ||
-    toolName === "explain_image";
+    toolName.startsWith("web_");
   const finalized = finalizePublicPreview(
     argsPreview,
     resultPreview,

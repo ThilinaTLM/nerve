@@ -18,6 +18,7 @@ import {
 import type { AccountsReader } from "../domains/accounts/accounts.service.js";
 import { extensionAvailability } from "./extension-availability.js";
 import { createExtensionPorts } from "./extension-ports.js";
+import type { VisionHost } from "./vision-models.js";
 
 export type ExtensionViewOptions = {
   extensions: ExtensionSettingsService;
@@ -25,6 +26,7 @@ export type ExtensionViewOptions = {
   /** The extensions the views describe. */
   registry: QuickScriptRegistry;
   accounts: AccountsReader;
+  vision?: VisionHost;
 };
 
 export function toScopeRef(target: ExtensionTarget): ExtensionScopeRef {
@@ -57,6 +59,7 @@ export function createExtensionViews(options: ExtensionViewOptions) {
           ports: createExtensionPorts({
             resolution,
             accounts: options.accounts,
+            ...(options.vision ? { vision: options.vision } : {}),
           }),
         },
       );

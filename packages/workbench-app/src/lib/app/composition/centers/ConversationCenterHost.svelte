@@ -153,6 +153,7 @@ const activeRun = $derived(
         queuedPrompts: transcript.queuedPrompts,
         liveBlocks: store?.liveBlocks ?? [],
         toolOutput: store?.toolOutput ?? {},
+        toolStreams: store?.toolStreams ?? {},
       })
     : undefined,
 );

@@ -54,6 +54,9 @@ const HISTORY_PAGE_SIZE = 1000;
 const FORK_TIMEOUT_MS = 5 * 60_000;
 
 /** One store serves a full pane or a read-only child peek. */
+
+/** Live text kept per extension view section; the end is what streams. */
+const MAX_LIVE_STREAM_CHARS = 64_000;
 export class ConversationStore {
   effective = $state<EffectiveAgentView>();
   configuration = $state<GetAgentConfigurationResult>();
@@ -63,6 +66,8 @@ export class ConversationStore {
   /** Replaced (never mutated) at most once per frame by the delta buffer. */
   liveBlocks = $state.raw<LiveAssistantBlock[]>([]);
   toolOutput = $state.raw<Record<string, string>>({});
+  /** Live view sections of running extension tools, by tool call and section. */
+  toolStreams = $state.raw<Record<string, Record<string, string>>>({});
   activity = $state<string>();
   /** Bumps on each provider-request restart so views can reset wait timing. */
   responseRevision = $state(0);
@@ -353,7 +358,11 @@ export class ConversationStore {
       return;
     }
     if (delta.type === "tool_progress") {
-      this.liveDeltas.progress(delta.toolCallId, delta.update.chunk);
+      this.liveDeltas.progress(
+        delta.toolCallId,
+        delta.update.chunk,
+        delta.update.stream,
+      );
       return;
     }
     if (
@@ -386,10 +395,27 @@ export class ConversationStore {
         next[id] = (next[id] ?? "") + chunk;
       this.toolOutput = next;
     }
+    if (Object.keys(batch.toolStreams).length) {
+      const next = { ...this.toolStreams };
+      for (const [id, streams] of Object.entries(batch.toolStreams)) {
+        const merged = { ...next[id] };
+        for (const [stream, chunk] of Object.entries(streams))
+          merged[stream] = ((merged[stream] ?? "") + chunk).slice(
+            -MAX_LIVE_STREAM_CHARS,
+          );
+        next[id] = merged;
+      }
+      this.toolStreams = next;
+    }
   }
 
   private dropToolOutput(toolCallId: string): void {
     this.liveDeltas.dropToolOutput(toolCallId);
+    if (toolCallId in this.toolStreams) {
+      const streams = { ...this.toolStreams };
+      delete streams[toolCallId];
+      this.toolStreams = streams;
+    }
     if (!(toolCallId in this.toolOutput)) return;
     const rest = { ...this.toolOutput };
     delete rest[toolCallId];
@@ -400,6 +426,7 @@ export class ConversationStore {
     this.liveDeltas.clear();
     this.liveBlocks = [];
     this.toolOutput = {};
+    this.toolStreams = {};
     this.activity = undefined;
   }
 

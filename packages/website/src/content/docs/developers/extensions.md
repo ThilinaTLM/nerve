@@ -22,7 +22,7 @@ Define tool name/schema/risk/execution mode in the owning manifest, implement a 
 
 ## Built-in extensions
 
-A `quick_script` extension (Atlassian, web, diagrams, image generation) is one folder in `packages/extensions/src/<id>/`: a definition written with `@nervekit/extension-api` (settings, accounts, namespaces, direct tools, declared doc paths) and method code that reaches the world only through `ctx`. The package depends on `extension-api` and nothing else. The workbench server owns the list of built-ins (`builtinExtensions`), builds the registry from it and reads the declared doc files; a repository check rejects a mention of an extension anywhere else in production source.
+A `quick_script` extension (Atlassian, web, diagrams, image generation, image explanation) is one folder in `packages/extensions/src/<id>/`: a definition written with `@nervekit/extension-api` (settings, accounts, namespaces, direct tools, declared doc paths) and method code that reaches the world only through `ctx`. The package depends on `extension-api` and nothing else. The workbench server owns the list of built-ins (`builtinExtensions`), builds the registry from it and reads the declared doc files; a repository check rejects a mention of an extension anywhere else in production source.
 
 ## Content extensions
 

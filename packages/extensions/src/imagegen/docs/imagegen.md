@@ -14,4 +14,4 @@ await image(hero).resize({ width: 760 }).save("hero-760.png");
 - `size`: `"auto"` or `"<width>x<height>"`; the limits are in the error when a size is refused.
 - `inputs`: reference images as file handles, for backends that take them. The error names the backend when it does not.
 - `backendOptions`: options only the configured backend has; unknown ones are rejected with the valid names.
-- To look at the result, `read` the artifact path or use `explain_image`. Image rules for pages: `sdk.docs("confluence/writing")`.
+- To look at the result, `read` the artifact path or, when enabled, use `explain_image`. Image rules for pages: `sdk.docs("confluence/writing")`.

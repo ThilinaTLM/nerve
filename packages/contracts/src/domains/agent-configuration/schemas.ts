@@ -18,7 +18,6 @@ import {
 import {
   bashToolSettingsSchema,
   compactionProfileSchema,
-  imageExplanationToolSettingsSchema,
   planPresentToolSettingsSchema,
   pythonExecToolSettingsSchema,
 } from "../settings/settings.js";
@@ -40,9 +39,6 @@ const bash = bashToolSettingsSchema
     autoPromotion: bashToolSettingsSchema.shape.autoPromotion.strict(),
     maxTimeoutMs: bashToolSettingsSchema.shape.maxTimeoutMs.removeDefault(),
   })
-  .strict();
-const explanation = imageExplanationToolSettingsSchema
-  .extend({ model: model.optional() })
   .strict();
 const sourceDefaults = z.strictObject({
   file: z.boolean(),
@@ -67,7 +63,6 @@ const childToolShape = {
   web_search: toggle,
   quick_script: toggle,
   web_fetch: toggle,
-  explain_image: payload(explanation.partial().refine(nonempty)),
   bash: z.strictObject({ settings: bash.partial().refine(nonempty) }),
 };
 const leadTools = z
@@ -120,10 +115,6 @@ const completeTools = z.strictObject({
     .required({ enabled: true })
     .optional(),
   web_fetch: toggle,
-  explain_image: z.strictObject({
-    enabled: z.boolean(),
-    settings: explanation,
-  }),
   bash: z.strictObject({ settings: bash }),
 });
 export const completeChildSettingsSchema = childSettingsOverridesSchema.extend({

@@ -5,12 +5,10 @@
 -->
 <script lang="ts">
 import { canonicalSettingRequired } from "$lib/presentation/composer/capability-tool-locks";
-import type { ModelInfo } from "$lib/api";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
 import { type ToolId, type ToolPayload } from "./tool-settings";
 
 type Props = {
@@ -19,8 +17,6 @@ type Props = {
   payload: ToolPayload;
   /** Whether the draft can be saved. */
   valid?: boolean;
-  /** Authenticated models; the vision picker narrows them itself. */
-  models?: ModelInfo[];
   /** Main-agent profiles offered as the plan-approval target. */
   leadProfiles?: { name: string; label: string }[];
   /** The Python executable currently in use, shown under the path field. */
@@ -32,7 +28,6 @@ let {
   requiredPointers = [],
   payload = $bindable(),
   valid = $bindable(true),
-  models = [],
   leadProfiles = [],
   resolvedPython,
 }: Props = $props();
@@ -81,9 +76,7 @@ $effect(() => {
       ? validAfter && (auto.enabled || validTimeout)
       : name === "plan_present"
         ? Boolean(settings.approvalProfile)
-        : name === "explain_image"
-          ? Boolean(settings.model)
-          : true;
+        : true;
   if (valid !== nextValid) valid = nextValid;
 });
 </script>
@@ -201,29 +194,6 @@ $effect(() => {
           In use: <span class="font-mono">{resolvedPython}</span>
         {/if}
       </p>
-    </div>
-  {:else if name === "explain_image"}
-    <div class="grid gap-1.5">
-      <Label>Vision model</Label>
-      <ModelPicker
-        modelDisabled={required("settings/model")}
-        thinkingDisabled={required("settings/thinkingLevel")}
-        lockReason="Required by the active profile"
-        label="Image explanation model"
-        class="w-full"
-        {models}
-        requiredCapabilities={["vision"]}
-        value={settings.model as never}
-        thinkingLevel={settings.thinkingLevel as never}
-        emptyMessage="Connect a provider with a vision-capable model first."
-        onChange={(next) =>
-          patchSettings({
-            ...(!required("settings/model") ? { model: next.model } : {}),
-            ...(!required("settings/thinkingLevel")
-              ? { thinkingLevel: next.thinkingLevel }
-              : {}),
-          })}
-      />
     </div>
   {:else if name === "plan_present"}
     <div class="grid gap-1.5">

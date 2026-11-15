@@ -196,6 +196,16 @@ export class ExtensionRuntime {
       }),
     });
     const generateImage = ports.generateImage;
+    const explainImage = ports.explainImage;
+    const visionReady = ports.visionReady;
+    const progress = (section: string, chunk: string) => {
+      if (!env.context.toolProgress?.(section, chunk))
+        ports.log?.(
+          "warn",
+          definition.id,
+          `ctx.progress: '${section}' is not a live section of the running tool; ignored.`,
+        );
+    };
     return {
       settings: { get: <T>(key: string) => settings[key] as T | undefined },
       accounts: { selected },
@@ -277,7 +287,33 @@ export class ExtensionRuntime {
               },
             }
           : {}),
+        ...(explainImage &&
+        visionReady &&
+        definition.permissions?.capabilities?.includes("models.vision")
+          ? {
+              vision: {
+                explain: async (request) =>
+                  await explainImage({
+                    extensionId: definition.id,
+                    image: request.image,
+                    ...(request.prompt !== undefined
+                      ? { prompt: request.prompt }
+                      : {}),
+                    onDelta: ({ kind, delta }) => {
+                      const section =
+                        kind === "thinking"
+                          ? request.progress?.thinking
+                          : request.progress?.text;
+                      if (section) progress(section, delta);
+                    },
+                    signal,
+                  }),
+                ready: async () => await visionReady(definition.id),
+              },
+            }
+          : {}),
       },
+      progress,
       signal,
       log: {
         debug: (message, data) =>

@@ -1,19 +1,18 @@
 <script lang="ts">
-// Result of a direct tool an extension contributes. The extension names how the
-// result renders (`display.kind`); there is one renderer per kind and no
-// per-tool branch.
-import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
+// Card body of a direct tool an extension contributes. The extension declares
+// its view (sections and their types); the app renders each section with its
+// own components and has no per-tool branch.
 import type {
   ToolCallDisplayRecord,
   ToolView,
 } from "../views/tool-result-view";
-import { COLLAPSED_LINES } from "../views/tool-result-view";
 import {
   displayArtifactHandles,
   displayLinks,
   displayTable,
 } from "../views/extension-display";
 import ArtifactList from "./ArtifactList.svelte";
+import ExtensionSection from "./ExtensionSection.svelte";
 import ToolOutputBlock from "./ToolOutputBlock.svelte";
 import ToolSections from "./ToolSections.svelte";
 
@@ -25,136 +24,56 @@ type Props = {
 };
 let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
 
-const kind = $derived(view.display.kind);
-const value = $derived(view.display.value);
-// Text of the value for `text` and `markdown`; the agent-facing result text otherwise.
-const bodyText = $derived(
-  typeof value === "string" && value.length > 0 ? value : view.resultText,
+/** Sections with something to show. */
+const shown = $derived(
+  view.sections.filter((section) => {
+    const value = section.value;
+    switch (section.type) {
+      case "text":
+      case "markdown":
+        return typeof value === "string" && value.length > 0;
+      case "links":
+        return Array.isArray(value) || displayLinks(value).length > 0;
+      case "table":
+        return Array.isArray(value) || displayTable(value) !== undefined;
+      case "artifacts":
+        return view.artifacts.length > 0;
+    }
+  }),
 );
-const links = $derived(
-  kind === "links"
-    ? expanded
-      ? displayLinks(value)
-      : displayLinks(value).slice(0, COLLAPSED_LINES)
-    : [],
+const hasArtifactSection = $derived(
+  shown.some((section) => section.type === "artifacts"),
 );
-const table = $derived(kind === "table" ? displayTable(value) : undefined);
-const tableRows = $derived(
-  table ? (expanded ? table.rows : table.rows.slice(0, COLLAPSED_LINES)) : [],
+// Artifacts the call wrote that no `artifacts` section already shows.
+const named = $derived(
+  shown.flatMap((section) =>
+    section.type === "artifacts" ? displayArtifactHandles(section.value) : [],
+  ),
 );
-const handles = $derived(
-  kind === "artifact" ? displayArtifactHandles(value) : [],
+const otherArtifacts = $derived(
+  hasArtifactSection && named.length === 0
+    ? []
+    : view.artifacts.filter((artifact) => !named.includes(artifact.handle)),
 );
-// Artifacts the call wrote; for `artifact`, those the value names (else all).
-const artifacts = $derived(
-  kind === "artifact" && handles.length > 0
-    ? view.artifacts.filter((artifact) => handles.includes(artifact.handle))
-    : view.artifacts,
-);
-const emptyList = $derived(
-  (kind === "links" || kind === "table") &&
-    Array.isArray(value) &&
-    value.length === 0,
-);
-const rendered = $derived(
-  (kind === "links" && displayLinks(value).length > 0) ||
-    (kind === "table" && table !== undefined) ||
-    (kind === "artifact" && artifacts.length > 0) ||
-    ((kind === "text" || kind === "markdown") && Boolean(bodyText)),
-);
-
-function hostname(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
 </script>
 
 <ToolSections>
-  {#if kind === "links" && links.length > 0}
-    {#each links as link, index (index)}
-      <a
-        class="group grid gap-0.5 px-2.5 py-1.5 text-inherit no-underline hover:bg-hover"
-        href={link.url}
-        target="_blank"
-        rel="noreferrer"
-        title={link.url}
-      >
-        <span class="flex min-w-0 items-baseline gap-2 text-ui">
-          <span
-            class="w-4 flex-none text-right font-mono text-muted-foreground tabular-nums"
-            >{index + 1}</span
-          >
-          <span class="min-w-0 flex-1 truncate text-foreground"
-            >{link.title}</span
-          >
-          <span class="flex-none font-mono text-muted-foreground"
-            >{hostname(link.url)}</span
-          >
-        </span>
-        {#if link.snippet}
-          <span class="line-clamp-2 pl-6 text-ui text-muted-foreground"
-            >{link.snippet}</span
-          >
-        {/if}
-      </a>
-    {/each}
-  {:else if kind === "table" && table}
-    <div class="min-w-0 overflow-x-auto px-2.5 py-2">
-      <table class="w-full border-collapse text-left text-ui">
-        <thead>
-          <tr>
-            {#each table.columns as column, index (index)}
-              <th
-                class="border-b border-border-subtle px-2 py-1 font-normal text-muted-foreground"
-                >{column}</th
-              >
-            {/each}
-          </tr>
-        </thead>
-        <tbody>
-          {#each tableRows as row, rowIndex (rowIndex)}
-            <tr>
-              {#each row as cell, cellIndex (cellIndex)}
-                <td
-                  class="px-2 py-1 align-top text-foreground [overflow-wrap:anywhere]"
-                  >{cell}</td
-                >
-              {/each}
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-  {:else if kind === "artifact" && artifacts.length > 0}
-    <ArtifactList {artifacts} {onOpenFile} />
-  {:else if kind === "markdown" && bodyText}
-    {#if expanded}
-      <div class="min-w-0 p-3">
-        <Markdown text={bodyText} {onOpenFile} />
-      </div>
-    {:else}
-      <div class="px-2.5 py-2">
-        <ToolOutputBlock text={bodyText} language="markdown" direction="head" />
-      </div>
-    {/if}
-  {:else if kind === "text" && bodyText}
-    <div class="px-2.5 py-2">
-      <ToolOutputBlock text={bodyText} direction="head" {expanded} />
-    </div>
+  {#each shown as section (section.id)}
+    <ExtensionSection
+      {section}
+      artifacts={view.artifacts}
+      labelled={shown.length > 1}
+      {expanded}
+      {onOpenFile}
+    />
+  {/each}
+
+  {#if otherArtifacts.length > 0}
+    <ArtifactList artifacts={otherArtifacts} {onOpenFile} />
   {/if}
 
-  <!-- Files the call wrote that the value does not already show. -->
-  {#if kind !== "artifact" && view.artifacts.length > 0}
-    <ArtifactList artifacts={view.artifacts} {onOpenFile} />
-  {/if}
-
-  {#if !rendered && view.artifacts.length === 0}
-    {#if emptyList}
-      <p class="m-0 px-3 py-2 text-ui text-muted-foreground">No results.</p>
-    {:else if view.resultText}
+  {#if shown.length === 0 && view.artifacts.length === 0 && !view.live}
+    {#if view.resultText}
       <div class="px-2.5 py-2">
         <ToolOutputBlock text={view.resultText} direction="head" {expanded} />
       </div>

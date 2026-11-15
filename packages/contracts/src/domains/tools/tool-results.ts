@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { userInputAnswerSchema } from "../core/tool-call.js";
-import { modelSelectionSchema } from "../models/models.js";
 import { launchStatusSchema } from "../launches/launch.js";
 
 /**
@@ -102,6 +101,7 @@ export const toolArtifactClaimSchema = z
     items: z.number().int().nonnegative().optional(),
     itemKind: z.string().min(1).optional(),
     label: z.string().min(1).max(256),
+    // `explain_image`: stored results from before the tool moved to an extension.
     recommendedTools: z.array(z.enum(["read", "grep", "explain_image"])).max(3),
   })
   .refine((claim) => Boolean(claim.path || claim.logicalPath), {
@@ -400,17 +400,6 @@ export const webSearchResultDetailsSchema = z.object({
 });
 export type WebSearchResultDetails = z.infer<
   typeof webSearchResultDetailsSchema
->;
-
-export const explainImageResultDetailsSchema = z.object({
-  path: z.string(),
-  mimeType: z.string(),
-  byteSize: z.number().int().nonnegative(),
-  model: modelSelectionSchema,
-  explanation: z.string(),
-});
-export type ExplainImageResultDetails = z.infer<
-  typeof explainImageResultDetailsSchema
 >;
 
 export const webFetchResultDetailsSchema = z.object({

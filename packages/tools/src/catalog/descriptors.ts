@@ -1,4 +1,5 @@
 import type { ToolDescriptor } from "@nervekit/contracts/tools";
+import { extensionToolViewSchema } from "@nervekit/contracts/extensions";
 import { coreToolDefinitions, toolManifest } from "./manifest.js";
 import { permissionMetadataForTool } from "./permission-metadata.js";
 import type {
@@ -27,7 +28,12 @@ function descriptor(definition: ToolDefinition): ToolDescriptor {
     argumentSensitive: Boolean(definition.classifyRisk),
     description: definition.description,
     group: definition.group,
-    ...(definition.extension ? { extension: definition.extension.id } : {}),
+    ...(definition.extension
+      ? {
+          extension: definition.extension.id,
+          view: extensionToolViewSchema.parse(definition.extension.view),
+        }
+      : {}),
     executionKind: definition.executionKind,
     traits: [...definition.traits],
     permission: {

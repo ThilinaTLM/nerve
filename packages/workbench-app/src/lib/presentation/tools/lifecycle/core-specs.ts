@@ -551,26 +551,6 @@ export const coreToolLifecycleSpecs = {
     emptyResult: "No output",
     present: quickScriptPresentation,
   }),
-  explain_image: defineToolLifecycleSpec({
-    name: "explain_image",
-    argumentRegion: "none",
-    completedView: "explain_image",
-    resultPlaceholder: { variant: "text", rows: 6 },
-    present: (source, stage, cwd) =>
-      argumentPresentation({
-        primaryArg: pathArg(source, cwd),
-        body:
-          stage === "approval"
-            ? keyValues([
-                ["Image", source.string("path"), true],
-                ["Focus", source.string("prompt")],
-              ])
-            : undefined,
-        safetyNotes: [
-          "Sends the image to the vision model configured in Nerve Settings.",
-        ],
-      }),
-  }),
   web_fetch: defineToolLifecycleSpec({
     name: "web_fetch",
     argumentRegion: "none",
@@ -612,7 +592,6 @@ export const coreToolLifecycleSpecs = {
     | "todos_set"
     | "todos_get"
     | "web_fetch"
-    | "explain_image"
     | "quick_script"
   >,
   ToolLifecycleSpec

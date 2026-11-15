@@ -185,7 +185,7 @@ test("strict sparse inputs reject unsupported, partial atomic and future values"
     { compaction: { customKeepRecentPercent: 10 } },
     { tools: { web_fetch: {} } },
     { tools: { bash: { enabled: false } } },
-    { tools: { explain_image: { settings: { model: { provider: "p" } } } } },
+    { tools: { explain_image: { enabled: true } } },
     { tools: { bash: { settings: { autoPromotion: { enabled: false } } } } },
   ];
   for (const input of invalid)

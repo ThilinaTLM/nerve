@@ -15,7 +15,7 @@ import type { ToolPresentation } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import { COLLAPSED_LINES, type ToolView } from "./tool-result-view";
 import { presentToolArguments } from "../lifecycle/registry";
-import { displayItemCount } from "./extension-display";
+import { sectionsItemCount } from "./extension-display";
 import { subagentPresentation } from "./subagent-presentation";
 
 export type { ToolPresentation } from "./tool-presentation-types";
@@ -357,28 +357,15 @@ function projectToolPresentation(
       return { ...base, meta };
     }
 
-    case "explain_image": {
-      const content = view.live ? view.liveExplanation : view.explanation;
-      const meta: MetaItem[] = view.live
-        ? [{ text: view.thinking ? "thinking" : "generating", tone: "info" }]
-        : [];
-      meta.push(...outputMeta(view));
-      return {
-        ...base,
-        primaryArg: view.path
-          ? { text: view.relPath ?? view.path, openPath: view.path }
-          : base.primaryArg,
-        meta,
-        detailsAction:
-          previewDetailsAction ?? detailsActionFor(lineCount(content), "lines"),
-      };
-    }
-
     case "extension": {
-      const items = displayItemCount(view.display);
+      const items = sectionsItemCount(view.sections);
       return {
         ...base,
-        meta: items ? [{ text: plural(items.count, items.noun) }] : [],
+        meta: view.live
+          ? [{ text: "generating", tone: "info" }]
+          : items
+            ? [{ text: plural(items.count, items.noun) }]
+            : [],
         detailsAction: items
           ? (previewDetailsAction ??
             detailsActionFor(items.count, `${items.noun}s`))

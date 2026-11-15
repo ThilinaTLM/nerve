@@ -58,12 +58,6 @@ export const toolRows: readonly ToolRowDef[] = [
     description: "Submit a plan for your review before changes.",
     configurable: true,
   },
-  {
-    id: "explain_image",
-    label: "Image explanation",
-    description: "A vision model explains images to text-only agents.",
-    configurable: true,
-  },
 ];
 
 export function toolRow(id: ToolId): ToolRowDef {
@@ -112,7 +106,6 @@ export function accountOptions(
 
 export type ToolDisplayContext = {
   profileLabel: (name: string) => string;
-  modelLabel: (selection: unknown) => string | undefined;
 };
 
 function onOff(payload: ToolPayload): string {
@@ -142,8 +135,6 @@ export function toolSettingsSummary(
     }
     case "python_exec":
       return `${(s.interpreterPath as string | undefined) ?? "auto-detect"}`;
-    case "explain_image":
-      return `${context.modelLabel(s.model) ?? "no model"}`;
     case "plan_present":
       return `after approval: ${context.profileLabel(String(s.approvalProfile ?? ""))}`;
     default:

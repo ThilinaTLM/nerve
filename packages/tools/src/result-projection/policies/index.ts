@@ -17,7 +17,6 @@ import {
   processAgentResultPolicy,
   scriptAgentResultPolicy,
 } from "./process.js";
-import { explainImageAgentResultPolicy } from "./vision.js";
 import { webFetchAgentResultPolicy } from "./web.js";
 
 const subagentPolicy = policy("lifecycle_state", "item_aware", textCandidate);
@@ -39,7 +38,6 @@ const map: Record<ToolName, AgentResultPolicy> = {
   python_exec: scriptAgentResultPolicy,
   quick_script: scriptAgentResultPolicy,
   web_fetch: webFetchAgentResultPolicy,
-  explain_image: explainImageAgentResultPolicy,
   ask_user: askUserAgentResultPolicy,
   todos_set: todosAgentResultPolicy,
   todos_get: todosAgentResultPolicy,
@@ -69,6 +67,5 @@ export * from "./filesystem.js";
 export * from "./interaction.js";
 export * from "./plan-review.js";
 export * from "./process.js";
-export * from "./vision.js";
 export * from "./web.js";
 export * from "./search.js";

@@ -69,11 +69,12 @@ describe("daemon lifecycle events", () => {
 });
 
 describe("live tool output streams", () => {
-  it("accepts model thinking and text channels", () => {
-    for (const stream of ["thinking", "text"] as const) {
+  it("accepts process streams and extension view section ids", () => {
+    for (const stream of ["stdout", "stderr", "thinking", "explanation"]) {
       assert.equal(toolOutputStreamSchema.safeParse(stream).success, true);
     }
-    assert.equal(toolOutputStreamSchema.safeParse("reasoning").success, false);
+    assert.equal(toolOutputStreamSchema.safeParse("Thinking").success, false);
+    assert.equal(toolOutputStreamSchema.safeParse("").success, false);
   });
 });
 

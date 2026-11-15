@@ -6,7 +6,6 @@ import {
   grepResultDetailsSchema,
   findResultDetailsSchema,
   editOperationResultDetailsSchema,
-  explainImageResultDetailsSchema,
   pythonResultDetailsSchema,
   todosResultSchema,
   webFetchResultDetailsSchema,
@@ -50,7 +49,8 @@ import {
   todoItemsField,
   trimMatchText,
 } from "./tool-view-helpers";
-import type { ToolView } from "./tool-view-types";
+import type { ExtensionSectionView, ToolView } from "./tool-view-types";
+import { extensionToolView } from "../lifecycle/extension-tools";
 
 // Re-export the supporting modules so existing consumers that import from this
 // file (via tool-result-view) keep a single, stable surface.
@@ -163,6 +163,8 @@ function toolViewSignature(
     overflow ? `${overflow.hidden}:${overflow.noun}:${overflow.direction}` : "",
     liveOutput?.updatedAt ?? "",
     liveOutput?.text.length ?? 0,
+    liveOutput?.chunks.length ?? 0,
+    extensionToolView(toolCall.toolName) ? "extension" : "",
   ].join("\0");
 }
 
@@ -639,68 +641,6 @@ export function parseToolView(
       };
     }
 
-    case "explain_image": {
-      const details = explainImageResultDetailsSchema.safeParse(
-        result?.details,
-      );
-      const data = details.success ? details.data : undefined;
-      const path = resolveToolPath(
-        data?.path ?? result?.path ?? stringField(args.path),
-        cwd,
-      );
-      const live = toolCall.status === "running" && Boolean(liveOutput);
-      const boundedLiveChunks = (() => {
-        if (!liveOutput) return [];
-        let remaining = liveOutput.text.length;
-        const chunks = [] as typeof liveOutput.chunks;
-        for (let index = liveOutput.chunks.length - 1; index >= 0; index -= 1) {
-          if (remaining <= 0) break;
-          const chunk = liveOutput.chunks[index];
-          if (!chunk) continue;
-          const text = chunk.text.slice(
-            Math.max(0, chunk.text.length - remaining),
-          );
-          chunks.unshift({ ...chunk, text });
-          remaining -= text.length;
-        }
-        return chunks;
-      })();
-      const liveText = (stream: "thinking" | "text") =>
-        boundedLiveChunks
-          .filter((chunk) => chunk.stream === stream)
-          .map((chunk) => chunk.text)
-          .join("");
-      return {
-        kind: "explain_image",
-        path,
-        relPath: relativePath(path, cwd),
-        explanation: live
-          ? undefined
-          : (data?.explanation ?? resultOutputText(result, rawResult)) ||
-            undefined,
-        thinking: live ? liveText("thinking") : undefined,
-        liveExplanation: live ? liveText("text") : undefined,
-        live,
-        outputLimits: liveOutput?.outputLimits
-          ? {
-              ...outputLimits,
-              live: {
-                capped: liveOutput.outputLimits.capped,
-                direction: liveOutput.outputLimits.direction,
-                maxChars: liveOutput.outputLimits.maxChars,
-                maxChunks: liveOutput.outputLimits.maxChunks,
-                totalChars: liveOutput.outputLimits.totalChars,
-                displayedChars: liveOutput.outputLimits.displayedChars,
-                omittedChars: liveOutput.outputLimits.omittedChars,
-                totalLines: liveOutput.outputLimits.totalLines,
-                displayedLines: liveOutput.outputLimits.displayedLines,
-                omittedLines: liveOutput.outputLimits.omittedLines,
-              },
-            }
-          : outputLimits,
-      };
-    }
-
     case "web_fetch": {
       const details = webFetchResultDetailsSchema.safeParse(result?.details);
       const data = details.success ? details.data : undefined;
@@ -720,22 +660,57 @@ export function parseToolView(
     }
 
     default: {
-      // A direct tool of an extension: the result says how to render it.
+      // A direct tool of an extension: its stored result lists the sections to
+      // render; while it runs, its declared live sections show streamed text.
+      const declared = extensionToolView(toolCall.toolName);
       const extensionResult = extensionToolResultDetailsSchema.safeParse(
         result?.details,
       );
-      if (extensionResult.success) {
-        const details = extensionResult.data;
+      if (extensionResult.success || (declared && !result)) {
+        const details = extensionResult.success
+          ? extensionResult.data
+          : undefined;
+        const running = !details && toolCall.status === "running";
+        const sections: ExtensionSectionView[] = details
+          ? details.sections.map((section) => ({
+              id: section.id,
+              type: section.type,
+              ...(section.label ? { label: section.label } : {}),
+              value: section.value,
+            }))
+          : running && declared && liveOutput
+            ? declared.sections.flatMap((section) => {
+                if (!section.live) return [];
+                const text = liveOutput.chunks
+                  .filter((chunk) => chunk.stream === section.id)
+                  .map((chunk) => chunk.text)
+                  .join("");
+                return text
+                  ? [
+                      {
+                        id: section.id,
+                        type: section.type,
+                        ...(section.label ? { label: section.label } : {}),
+                        value: text,
+                        live: true,
+                      },
+                    ]
+                  : [];
+              })
+            : [];
         const artifacts = quickScriptArtifactSchema
           .array()
-          .safeParse(details.artifacts);
+          .safeParse(details?.artifacts);
         return {
           kind: "extension",
           toolName: toolCall.toolName,
-          extension: details.extension,
-          display: details.display,
+          extension: details?.extension ?? "",
+          sections,
+          live: sections.some((section) => section.live),
           artifacts: artifacts.success ? artifacts.data : [],
-          resultText: resultOutputText(result, rawResult, liveOutput),
+          resultText: details
+            ? resultOutputText(result, rawResult, liveOutput)
+            : undefined,
         };
       }
       const resultText = resultOutputText(result, rawResult, liveOutput);

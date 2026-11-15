@@ -38,18 +38,12 @@ export function hasSharedToolViewBody(view: ViewWithSharedBody): boolean {
           : view.lines.length > 0;
     case "extension":
       return Boolean(
-        view.display.value !== undefined ||
+        view.sections.some((section) => section.value !== undefined) ||
         view.resultText?.length ||
         view.artifacts.length,
       );
     case "web_fetch":
       return Boolean(view.content?.length);
-    case "explain_image":
-      return Boolean(
-        view.explanation?.length ||
-        view.thinking?.length ||
-        view.liveExplanation?.length,
-      );
     case "ask_user":
     case "plan_present":
       return true;

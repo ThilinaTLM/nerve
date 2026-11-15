@@ -1,7 +1,8 @@
 import { assertUniqueAccountKinds } from "@nervekit/contracts/settings";
-import type {
-  ExtensionDefinition,
-  ToolDefinition as ExtensionToolDefinition,
+import {
+  VIEW_SECTION_ID,
+  type ExtensionDefinition,
+  type ToolDefinition as ExtensionToolDefinition,
 } from "@nervekit/extension-api";
 import { resolveExtensionIcon } from "./extension-host/icon.js";
 import { fromDefinition } from "./extension-host/from-definition.js";
@@ -100,6 +101,7 @@ export function createQuickScriptRegistry(
     tools.map((tool) => tool.definition.name),
     "tool",
   );
+  for (const { definition } of tools) assertToolView(definition);
   return {
     extensions,
     tools,
@@ -107,6 +109,33 @@ export function createQuickScriptRegistry(
     methods: namespaces.flatMap((namespace) => namespace.methods),
     limits: Object.assign({}, ...extensions.map((e) => e.limits ?? {})),
   };
+}
+
+/** A tool's view names its own arguments, unique section ids, and streams only into text. */
+function assertToolView(tool: ExtensionToolDefinition): void {
+  const view = tool.view;
+  if (!view) return;
+  const fail = (message: string): never => {
+    throw new Error(`Tool ${tool.name}: view ${message}.`);
+  };
+  if (view.sections.length === 0) fail("declares no sections");
+  const parameters = Object.keys(tool.parameters.properties ?? {});
+  for (const argument of [
+    ...(view.header ? [view.header.argument] : []),
+    ...(view.meta ?? []),
+  ])
+    if (!parameters.includes(argument))
+      fail(`names unknown argument '${argument}'`);
+  if ((view.meta?.length ?? 0) > 3) fail("lists more than 3 meta arguments");
+  const ids = new Set<string>();
+  for (const section of view.sections) {
+    if (!VIEW_SECTION_ID.test(section.id))
+      fail(`section id '${section.id}' is not a lower-case identifier`);
+    if (ids.has(section.id)) fail(`repeats section '${section.id}'`);
+    ids.add(section.id);
+    if (section.live && section.type !== "text" && section.type !== "markdown")
+      fail(`section '${section.id}' is live but not text or markdown`);
+  }
 }
 
 function assertUnique(ids: readonly string[], what: string): void {
