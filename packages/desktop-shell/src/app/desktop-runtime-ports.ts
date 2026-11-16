@@ -38,6 +38,8 @@ export interface DesktopApplicationLifecyclePort {
   readonly architecture: string;
   readonly electronVersion: string | undefined;
   readonly chromeVersion: string | undefined;
+  /** The desktop release version, shown in the startup splash footer. */
+  readonly version: string | undefined;
 }
 
 export interface DesktopProcessSignalPort {

@@ -105,6 +105,7 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
       architecture: process.arch,
       electronVersion: process.versions.electron,
       chromeVersion: process.versions.chrome,
+      version: app.getVersion(),
     },
     signals: {
       onSignal: (signal, listener) => {

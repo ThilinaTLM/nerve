@@ -166,8 +166,9 @@
          `startup-splash` markers (styles and markup) mirrors
          packages/desktop-shell/src/window/startup-splash-document.ts verbatim so
          the Electron shell page and this document render identical pixels;
-         scripts/checks/test/startup-splash-sync.test.mjs fails on any drift. Only the
-         --splash-* declarations below are host-specific. -->
+         scripts/checks/test/startup-splash-sync.test.ts fails on any drift. Only the
+         --splash-* declarations below are host-specific; %NERVE_VERSION% is
+         replaced with the release version by vite.config.ts. -->
     <style>
       :root {
         color-scheme: light dark;
@@ -275,27 +276,43 @@
         color: var(--splash-fg);
         font-family: var(--splash-font-sans);
         /* Frameless desktop window: the backdrop moves it while no titlebar
-           exists; ignored outside Electron. */
+      exists; ignored outside Electron. */
         -webkit-app-region: drag;
-        transition:
-          opacity 280ms ease,
-          transform 280ms ease,
-          filter 280ms ease;
       }
       /* Hidden while a startup failure is shown; a retry shows it again. */
       #startup-splash.is-hidden {
         display: none;
       }
       #startup-splash.is-dismissed {
-        opacity: 0;
-        transform: scale(1.03);
-        filter: blur(4px);
         pointer-events: none;
         /* Drag regions ignore pointer-events; release the window during the
-           fade so the revealed workbench is clickable at once. */
+      exit so the revealed workbench is clickable at once. */
         -webkit-app-region: no-drag;
+        animation: splash-backdrop-out 300ms ease-in 240ms both;
+      }
+      #startup-splash [hidden] {
+        display: none;
+      }
+      #startup-splash-grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--splash-border) 1px, transparent 1px),
+          linear-gradient(90deg, var(--splash-border) 1px, transparent 1px);
+        background-position: center;
+        background-size: 1.5rem 1.5rem;
+        -webkit-mask-image: radial-gradient(
+          circle at center,
+          black,
+          transparent 60%
+        );
+        mask-image: radial-gradient(circle at center, black, transparent 60%);
+        opacity: 0.55;
+        animation: splash-fade 700ms ease-out both;
+        animation-delay: var(--splash-t0, 0ms);
       }
       #startup-splash-content {
+        position: relative;
         -webkit-app-region: no-drag;
         transform: scale(var(--nerve-inverse-zoom-scale, 1));
         transform-origin: center;
@@ -310,76 +327,91 @@
       }
       #startup-splash-plate {
         position: relative;
-        display: grid;
-        place-items: center;
-        overflow: hidden;
-        width: 3rem;
-        height: 3rem;
-        border-radius: 0.625rem;
-        color: var(--splash-bg);
-        animation: splash-beat 2400ms cubic-bezier(0.22, 1, 0.36, 1) infinite
-          both;
-        animation-delay: calc(var(--splash-t0, 0ms) + 2200ms);
+        width: 3.25rem;
+        height: 3.25rem;
+        animation: splash-impact 460ms ease-out both;
+        animation-delay: calc(var(--splash-t0, 0ms) + 540ms);
       }
-      #startup-splash-plate::before {
-        content: "";
+      #startup-splash-plate-fill,
+      #startup-splash .splash-ring {
         position: absolute;
         inset: 0;
-        border-radius: inherit;
+        border-radius: 0.375rem;
+      }
+      #startup-splash-plate-fill {
         background: var(--splash-fg);
-        animation: splash-plate 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
-        animation-delay: calc(var(--splash-t0, 0ms) + 900ms);
+        animation:
+          splash-plate 620ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+          splash-thump 2800ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+        animation-delay:
+          calc(var(--splash-t0, 0ms) + 520ms),
+          calc(var(--splash-t0, 0ms) + 2000ms);
+      }
+      #startup-splash .splash-ring {
+        border: 2px solid var(--splash-primary);
+        opacity: 0;
+      }
+      #startup-splash .splash-ring-intro {
+        animation: splash-ring 760ms cubic-bezier(0.16, 1, 0.3, 1);
+        animation-delay: calc(var(--splash-t0, 0ms) + 540ms);
+      }
+      /* Long waits (storage upgrades) keep a beat so the splash never looks frozen. */
+      #startup-splash .splash-ring-idle {
+        animation: splash-ring-idle 2800ms cubic-bezier(0.16, 1, 0.3, 1)
+          infinite;
+        animation-delay: calc(var(--splash-t0, 0ms) + 2000ms);
       }
       #startup-splash-mark {
-        position: relative;
-        z-index: 1;
+        position: absolute;
+        inset: 18.75%;
         width: 62.5%;
         height: 62.5%;
+        overflow: visible;
         color: var(--splash-bg);
-        animation: splash-ink 420ms ease-out both;
-        animation-delay: calc(var(--splash-t0, 0ms) + 1050ms);
+        animation: splash-ink 180ms ease-out both;
+        animation-delay: calc(var(--splash-t0, 0ms) + 520ms);
       }
-      #startup-splash-mark path {
-        stroke-dasharray: 100;
-        stroke-dashoffset: 0;
-        animation: splash-draw 860ms cubic-bezier(0.65, 0, 0.35, 1) both;
+      /* Bands alternate sides; --band-i staggers the entry and exit, --band-g
+      sizes each band's glitch offset. */
+      #startup-splash .splash-band {
+        --band-x: -320px;
+        --band-i: 0;
+        --band-g: 10px;
+        animation: splash-band-in 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-delay: calc(var(--splash-t0, 0ms) + var(--band-i) * 55ms);
       }
-      #startup-splash-mark .splash-stem-left {
-        animation-delay: calc(var(--splash-t0, 0ms) + 60ms);
+      #startup-splash .splash-band:nth-child(2) {
+        --band-x: 320px;
+        --band-i: 1;
+        --band-g: -14px;
       }
-      #startup-splash-mark .splash-stem-right {
-        animation-delay: calc(var(--splash-t0, 0ms) + 140ms);
+      #startup-splash .splash-band:nth-child(3) {
+        --band-i: 2;
+        --band-g: 6px;
       }
-      #startup-splash-mark .splash-diagonal {
-        animation-duration: 900ms;
-        animation-delay: calc(var(--splash-t0, 0ms) + 240ms);
+      #startup-splash .splash-band:nth-child(4) {
+        --band-x: 320px;
+        --band-i: 3;
+        --band-g: -8px;
       }
-      /* After the intro an impulse keeps travelling through the letterform, so long
-      waits (storage upgrades) never look frozen. Each lap ends in a plate beat. */
-      #startup-splash-mark path.splash-pulse {
+      #startup-splash .splash-band:nth-child(5) {
+        --band-i: 4;
+        --band-g: 16px;
+      }
+      #startup-splash .splash-band:nth-child(6) {
+        --band-x: 320px;
+        --band-i: 5;
+        --band-g: -6px;
+      }
+      #startup-splash .splash-band-glitch {
+        animation: splash-glitch 3200ms steps(1, end) infinite;
+        animation-delay: calc(var(--splash-t0, 0ms) + 1600ms);
+      }
+      #startup-splash .splash-band-ghost {
         stroke: var(--splash-primary);
-        stroke-dasharray: 16 116;
-        stroke-dashoffset: 16;
-        animation: splash-pulse 2400ms cubic-bezier(0.45, 0, 0.25, 1) infinite
-          both;
-        animation-delay: calc(var(--splash-t0, 0ms) + 2200ms);
-      }
-      #startup-splash-sheen {
-        position: absolute;
-        z-index: 2;
-        top: -60%;
-        bottom: -60%;
-        left: -40%;
-        width: 34%;
-        background: linear-gradient(
-          90deg,
-          transparent,
-          color-mix(in oklab, var(--splash-bg) 65%, transparent),
-          transparent
-        );
-        transform: rotate(18deg) translateX(460%);
-        animation: splash-sheen 700ms cubic-bezier(0.4, 0, 0.2, 1) both;
-        animation-delay: calc(var(--splash-t0, 0ms) + 1350ms);
+        opacity: 0;
+        animation: splash-ghost 3200ms steps(1, end) infinite;
+        animation-delay: calc(var(--splash-t0, 0ms) + 1600ms);
       }
       #startup-splash-word {
         margin-top: 0.875rem;
@@ -389,27 +421,31 @@
         letter-spacing: -0.01em;
       }
       #startup-splash-word span {
+        --letter-x: -0.75rem;
+        --letter-i: 0;
         display: inline-block;
-        animation: splash-rise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
-      }
-      #startup-splash-word span:nth-child(1) {
-        animation-delay: calc(var(--splash-t0, 0ms) + 1150ms);
+        animation: splash-letter 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-delay: calc(
+          var(--splash-t0, 0ms) + 560ms + var(--letter-i) * 45ms
+        );
       }
       #startup-splash-word span:nth-child(2) {
-        animation-delay: calc(var(--splash-t0, 0ms) + 1195ms);
+        --letter-x: 0.75rem;
+        --letter-i: 1;
       }
       #startup-splash-word span:nth-child(3) {
-        animation-delay: calc(var(--splash-t0, 0ms) + 1240ms);
+        --letter-i: 2;
       }
       #startup-splash-word span:nth-child(4) {
-        animation-delay: calc(var(--splash-t0, 0ms) + 1285ms);
+        --letter-x: 0.75rem;
+        --letter-i: 3;
       }
       #startup-splash-word span:nth-child(5) {
-        animation-delay: calc(var(--splash-t0, 0ms) + 1330ms);
+        --letter-i: 4;
       }
       #startup-splash-status {
         width: min(21rem, calc(100vw - 3rem));
-        margin: 1.25rem 0 0;
+        margin: 1.125rem 0 0;
         overflow: hidden;
         color: var(--splash-muted);
         font-size: 0.875rem;
@@ -425,18 +461,15 @@
         animation: splash-status-swap 200ms ease-out both;
       }
       #startup-splash-detail {
-        margin: 0.375rem 0 0;
+        margin: 0;
         color: var(--splash-muted);
         font-size: 0.75rem;
         line-height: 1.25rem;
       }
-      #startup-splash [hidden] {
-        display: none;
-      }
       #startup-splash-meter {
-        width: min(21rem, calc(100vw - 3rem));
-        height: 0.25rem;
-        margin-top: 0.5rem;
+        width: min(12rem, calc(100vw - 3rem));
+        height: 0.125rem;
+        margin-top: 0.375rem;
         overflow: hidden;
         border-radius: 999px;
         background: var(--splash-border);
@@ -476,20 +509,130 @@
         transform: scaleX(1);
         animation: none;
       }
+      #startup-splash-version {
+        position: absolute;
+        bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+        left: 50%;
+        margin: 0;
+        color: var(--splash-muted);
+        font-size: 0.75rem;
+        line-height: 1rem;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+        opacity: 0.7;
+        transform: translateX(-50%) scale(var(--nerve-inverse-zoom-scale, 1));
+        transform-origin: center bottom;
+        animation: splash-fade 600ms ease-out both;
+        animation-delay: calc(var(--splash-t0, 0ms) + 900ms);
+      }
+      /* Exit. Copy leaves first, the plate drops out so the bands leave in full
+      colour, then the bands slide back out while the backdrop clears. */
+      #startup-splash.is-dismissed #startup-splash-word,
+      #startup-splash.is-dismissed #startup-splash-status,
+      #startup-splash.is-dismissed #startup-splash-detail,
+      #startup-splash.is-dismissed #startup-splash-meter {
+        animation: splash-text-out 240ms cubic-bezier(0.5, 0, 0.75, 0) both;
+      }
+      #startup-splash.is-dismissed #startup-splash-grid,
+      #startup-splash.is-dismissed #startup-splash-version {
+        animation: splash-out 240ms ease-in both;
+      }
+      #startup-splash.is-dismissed #startup-splash-plate,
+      #startup-splash.is-dismissed .splash-ring,
+      #startup-splash.is-dismissed .splash-band-glitch,
+      #startup-splash.is-dismissed .splash-band-ghost {
+        animation: none;
+      }
+      #startup-splash.is-dismissed #startup-splash-plate-fill {
+        animation: splash-out 140ms ease-in both;
+      }
+      #startup-splash.is-dismissed #startup-splash-mark {
+        animation: splash-ink-out 120ms ease-in both;
+      }
+      #startup-splash.is-dismissed .splash-band {
+        animation: splash-band-out 360ms cubic-bezier(0.7, 0, 0.84, 0) both;
+        animation-delay: calc(80ms + var(--band-i) * 30ms);
+      }
       @keyframes splash-push {
         from {
           transform: scale(1.035);
         }
       }
+      @keyframes splash-fade {
+        from {
+          opacity: 0;
+        }
+      }
+      @keyframes splash-out {
+        to {
+          opacity: 0;
+        }
+      }
+      @keyframes splash-backdrop-out {
+        to {
+          background-color: transparent;
+        }
+      }
+      @keyframes splash-band-in {
+        from {
+          opacity: 0;
+          transform: translateX(var(--band-x));
+        }
+        40% {
+          opacity: 1;
+        }
+      }
+      @keyframes splash-band-out {
+        60% {
+          opacity: 1;
+        }
+        to {
+          opacity: 0;
+          transform: translateX(var(--band-x));
+        }
+      }
       @keyframes splash-plate {
         from {
           opacity: 0;
-          clip-path: inset(0 0 100% 0 round 0.625rem);
+          transform: scale(0.3);
         }
       }
-      @keyframes splash-draw {
+      @keyframes splash-impact {
+        25% {
+          transform: scale(1.1, 0.9);
+        }
+        55% {
+          transform: scale(0.96, 1.04);
+        }
+      }
+      @keyframes splash-ring {
         from {
-          stroke-dashoffset: 100;
+          opacity: 0.9;
+          transform: scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: scale(2.4);
+        }
+      }
+      @keyframes splash-ring-idle {
+        0% {
+          opacity: 0.6;
+          transform: scale(1);
+        }
+        45%,
+        100% {
+          opacity: 0;
+          transform: scale(1.9);
+        }
+      }
+      @keyframes splash-thump {
+        8% {
+          transform: scale(1.06);
+        }
+        30%,
+        100% {
+          transform: scale(1);
         }
       }
       @keyframes splash-ink {
@@ -497,20 +640,60 @@
           color: var(--splash-fg);
         }
       }
-      @keyframes splash-sheen {
+      @keyframes splash-ink-out {
         from {
-          transform: rotate(18deg) translateX(-260%);
+          color: var(--splash-bg);
+        }
+        to {
+          color: var(--splash-fg);
         }
       }
-      @keyframes splash-rise {
-        from {
-          opacity: 0;
-          transform: translateY(0.5rem);
+      @keyframes splash-glitch {
+        0%,
+        86% {
+          transform: translateX(0);
+        }
+        88% {
+          transform: translateX(var(--band-g));
+        }
+        90% {
+          transform: translateX(calc(var(--band-g) * -0.6));
+        }
+        92%,
+        100% {
+          transform: translateX(0);
         }
       }
-      @keyframes splash-fade {
+      @keyframes splash-ghost {
+        0%,
+        86% {
+          opacity: 0;
+          transform: translateX(0);
+        }
+        88% {
+          opacity: 0.9;
+          transform: translateX(-8px);
+        }
+        90% {
+          opacity: 0.9;
+          transform: translateX(8px);
+        }
+        92%,
+        100% {
+          opacity: 0;
+          transform: translateX(0);
+        }
+      }
+      @keyframes splash-letter {
         from {
           opacity: 0;
+          transform: translateX(var(--letter-x));
+        }
+      }
+      @keyframes splash-text-out {
+        to {
+          opacity: 0;
+          transform: translateY(0.25rem);
         }
       }
       @keyframes splash-status-swap {
@@ -524,50 +707,13 @@
           transform: scaleX(0.04);
         }
       }
-      @keyframes splash-pulse {
-        0% {
-          stroke-dashoffset: 16;
-        }
-        55%,
-        100% {
-          stroke-dashoffset: -100;
-        }
-      }
-      @keyframes splash-beat {
-        0%,
-        52% {
-          transform: scale(1);
-          box-shadow: 0 0 0 0
-            color-mix(in oklab, var(--splash-primary) 55%, transparent);
-        }
-        60% {
-          transform: scale(1.06);
-        }
-        80% {
-          transform: scale(1);
-        }
-        100% {
-          transform: scale(1);
-          box-shadow: 0 0 0 1.25rem
-            color-mix(in oklab, var(--splash-primary) 0%, transparent);
-        }
-      }
       @keyframes splash-shimmer {
         to {
           transform: translateX(250%);
         }
       }
-      /* The settled composition is the base state, so suppressing the intro is enough
-      for reduced motion and for the desktop hand-off after the shell already
-      played it. Ambient .splash-loop motion keeps running while settled. */
-      :root[data-splash-intro="settled"] #startup-splash *:not(.splash-loop),
-      :root[data-splash-intro="settled"] #startup-splash *::before {
-        animation: none !important;
-      }
       @media (prefers-reduced-motion: reduce) {
-        #startup-splash {
-          transition-duration: 1ms;
-        }
+        #startup-splash,
         #startup-splash *,
         #startup-splash *::before,
         #startup-splash *::after {
@@ -585,48 +731,106 @@
     <div id="app">
       <!-- startup-splash:begin -->
       <div id="startup-splash" aria-busy="true" aria-label="Starting Nerve">
+        <span id="startup-splash-grid" aria-hidden="true"></span>
         <div id="startup-splash-content">
           <div id="startup-splash-stage">
-            <div
-              id="startup-splash-plate"
-              class="splash-loop"
-              aria-hidden="true"
-            >
+            <div id="startup-splash-plate" aria-hidden="true">
+              <span class="splash-ring splash-ring-intro"></span>
+              <span class="splash-ring splash-ring-idle"></span>
+              <span id="startup-splash-plate-fill"></span>
               <svg
                 id="startup-splash-mark"
                 viewBox="120 120 272 272"
                 fill="none"
                 focusable="false"
               >
+                <defs>
+                  <g id="startup-splash-n">
+                    <path d="M150 350V162" />
+                    <path d="M362 350V162" />
+                    <path d="M150 162L232 235L258 208L284 288L362 350" />
+                  </g>
+                  <clipPath id="startup-splash-band-1">
+                    <rect x="100" y="119.5" width="312" height="46.34" />
+                  </clipPath>
+                  <clipPath id="startup-splash-band-2">
+                    <rect x="100" y="164.83" width="312" height="46.34" />
+                  </clipPath>
+                  <clipPath id="startup-splash-band-3">
+                    <rect x="100" y="210.17" width="312" height="46.34" />
+                  </clipPath>
+                  <clipPath id="startup-splash-band-4">
+                    <rect x="100" y="255.5" width="312" height="46.34" />
+                  </clipPath>
+                  <clipPath id="startup-splash-band-5">
+                    <rect x="100" y="300.83" width="312" height="46.34" />
+                  </clipPath>
+                  <clipPath id="startup-splash-band-6">
+                    <rect x="100" y="346.17" width="312" height="46.34" />
+                  </clipPath>
+                </defs>
                 <g
                   stroke="currentColor"
-                  stroke-width="32"
+                  stroke-width="30"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <path
-                    class="splash-stem-left"
-                    pathLength="100"
-                    d="M150 350V162"
-                  />
-                  <path
-                    class="splash-stem-right"
-                    pathLength="100"
-                    d="M362 350V162"
-                  />
-                  <path
-                    class="splash-diagonal"
-                    pathLength="100"
-                    d="M150 162L232 235L258 208L284 288L362 350"
-                  />
-                  <path
-                    class="splash-pulse splash-loop"
-                    pathLength="100"
-                    d="M150 350V162L232 235L258 208L284 288L362 350V162"
-                  />
+                  <g class="splash-band">
+                    <g
+                      class="splash-band-glitch"
+                      clip-path="url(#startup-splash-band-1)"
+                    >
+                      <use class="splash-band-ghost" href="#startup-splash-n" />
+                      <use href="#startup-splash-n" />
+                    </g>
+                  </g>
+                  <g class="splash-band">
+                    <g
+                      class="splash-band-glitch"
+                      clip-path="url(#startup-splash-band-2)"
+                    >
+                      <use class="splash-band-ghost" href="#startup-splash-n" />
+                      <use href="#startup-splash-n" />
+                    </g>
+                  </g>
+                  <g class="splash-band">
+                    <g
+                      class="splash-band-glitch"
+                      clip-path="url(#startup-splash-band-3)"
+                    >
+                      <use class="splash-band-ghost" href="#startup-splash-n" />
+                      <use href="#startup-splash-n" />
+                    </g>
+                  </g>
+                  <g class="splash-band">
+                    <g
+                      class="splash-band-glitch"
+                      clip-path="url(#startup-splash-band-4)"
+                    >
+                      <use class="splash-band-ghost" href="#startup-splash-n" />
+                      <use href="#startup-splash-n" />
+                    </g>
+                  </g>
+                  <g class="splash-band">
+                    <g
+                      class="splash-band-glitch"
+                      clip-path="url(#startup-splash-band-5)"
+                    >
+                      <use class="splash-band-ghost" href="#startup-splash-n" />
+                      <use href="#startup-splash-n" />
+                    </g>
+                  </g>
+                  <g class="splash-band">
+                    <g
+                      class="splash-band-glitch"
+                      clip-path="url(#startup-splash-band-6)"
+                    >
+                      <use class="splash-band-ghost" href="#startup-splash-n" />
+                      <use href="#startup-splash-n" />
+                    </g>
+                  </g>
                 </g>
               </svg>
-              <span id="startup-splash-sheen"></span>
             </div>
             <div id="startup-splash-word" aria-hidden="true">
               <span>n</span><span>e</span><span>r</span><span>v</span
@@ -643,6 +847,7 @@
             </div>
           </div>
         </div>
+        <p id="startup-splash-version">Nerve %NERVE_VERSION%</p>
       </div>
       <!-- startup-splash:end -->
     </div>

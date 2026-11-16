@@ -257,7 +257,10 @@ export class DesktopRuntime {
         );
         await window.loadURL(
           runtime.#shellPageUrls.create(
-            loadingHtml({ appearance: ports.windows.appearance() }),
+            loadingHtml({
+              appearance: ports.windows.appearance(),
+              version: ports.application.version,
+            }),
           ),
         );
         const currentSettings = await readStartupSettings();
@@ -452,7 +455,10 @@ export class DesktopRuntime {
             splashShownAt = ports.now();
             return window.loadURL(
               runtime.#shellPageUrls.create(
-                loadingHtml({ appearance: ports.windows.appearance() }),
+                loadingHtml({
+                  appearance: ports.windows.appearance(),
+                  version: ports.application.version,
+                }),
               ),
             );
           },

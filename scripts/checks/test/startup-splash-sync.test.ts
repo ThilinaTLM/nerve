@@ -44,11 +44,13 @@ const normalizeMarkup = (block) =>
     .replaceAll(/> </g, "><")
     .replaceAll(/ (\/?)>/g, "$1>")
     .replaceAll("/>", " />")
-    // The status text is host-specific: a literal in HTML, an interpolation in TS.
+    // Status and version are host-specific: literals or a build placeholder in
+    // HTML, interpolations in TS.
     .replace(
       /(<p id="startup-splash-status" aria-live="polite">).*?(<\/p>)/,
       "$1STATUS$2",
     )
+    .replace(/(<p id="startup-splash-version">).*?(<\/p>)/, "$1VERSION$2")
     .trim();
 
 const shellStyles = extract(
@@ -117,6 +119,7 @@ describe("startup splash mirrors", () => {
       "startup-splash",
       "startup-splash-status",
       "startup-splash-fill",
+      "startup-splash-version",
     ])
       assert.ok(
         webMarkup.includes(`id="${id}"`),

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { designLabBuildPlugin } from "./vite-design-lab";
 import { materialIconThemePlugin } from "./vite-material-icon-theme";
@@ -48,6 +48,23 @@ function isLoopbackTarget(target: string): boolean {
   }
 }
 
+/**
+ * Fills the startup splash footer in index.html with the release version. Runs
+ * before Vite's own `%ENV%` replacement, which would otherwise warn about it.
+ */
+function splashVersionPlugin(): Plugin {
+  const manifest = JSON.parse(
+    readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+  ) as { version: string };
+  return {
+    name: "nerve-splash-version",
+    transformIndexHtml: {
+      order: "pre",
+      handler: (html) => html.replaceAll("%NERVE_VERSION%", manifest.version),
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, fileURLToPath(new URL(".", import.meta.url)), "");
   const home = nerveHome(env);
@@ -64,6 +81,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       designLabBuildPlugin(),
       materialIconThemePlugin(),
+      splashVersionPlugin(),
       svelte(),
       tailwindcss(),
       VitePWA({

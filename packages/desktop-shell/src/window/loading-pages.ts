@@ -36,10 +36,12 @@ export interface LoadingPageOptions {
   status?: string;
   /** The renderer's last reported theme; defaults to the nerve-dark theme. */
   appearance?: WindowAppearance;
+  /** Shown in the splash footer. */
+  version?: string;
 }
 
 export function loadingHtml(options: LoadingPageOptions = {}): string {
-  const { status = "Starting local services", appearance } = options;
+  const { status = "Starting local services", appearance, version } = options;
   return `<!doctype html>
 <html lang="en" ${modeAttribute(appearance)}>
   <head>
@@ -50,7 +52,7 @@ export function loadingHtml(options: LoadingPageOptions = {}): string {
     <style>${shellStyles(appearance)}</style>
   </head>
   <body>
-${startupSplashMarkup(status)}
+${startupSplashMarkup(status, version)}
   </body>
 </html>`;
 }
