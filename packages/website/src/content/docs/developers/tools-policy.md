@@ -9,7 +9,7 @@ The contracts and tool manifest define the agent-callable catalog. Definitions d
 
 ## Local versus host tools
 
-Local executors cover files/search, Bash/Python, Web and the `quick_script` sandbox, whose SDK namespaces (Jira, Confluence, diagrams, image generation) come from extensions and are checked per operation. Conversation-core handlers own questions, to-dos, asynchronous sub-agent delegation and plan review. The server supplies host integrations, including the `launch` tool for user-defined run configurations.
+Local executors cover files/search, Bash/Python, web fetch and the `quick_script` sandbox. Its SDK namespaces (Jira, Confluence, search, diagrams, image generation) and the `web_search` and `explain_image` tools come from built-in [extensions](/developers/extensions/#built-in-extensions) and are checked per operation. Conversation-core handlers own questions, to-dos, asynchronous sub-agent delegation and plan review. The server supplies host integrations, including the `launch` tool for user-defined run configurations.
 
 Accepted calls use the durable core tool lifecycle. File mutations serialize per path. Python remains finite; Bash can return immediately in the background or promote after its configured foreground limit. `async_bash` manages conversation-owned runs; `launch` manages separate workbench launch instances. Async Bash queues completion notices instead of requiring polling. Agent-started launches queue exit notices when they finish naturally while the daemon retains their in-memory ownership; cancelled launches suppress those notices, and launch ownership does not survive restart. See [tool output lifecycle](/developers/tool-output-lifecycle/) for the execution states, durable/live event split, and output budgets.
 
@@ -17,10 +17,10 @@ Accepted calls use the durable core tool lifecycle. File mutations serialize per
 
 The server composes Baseline with one selected permission rule set:
 
-- **Read only** allows interaction, local inspection, and sub-agent delegation, then denies other capabilities;
-- **Supervised** allows interaction and local inspection, then prompts for other capabilities;
+- **Read only** allows interaction, local inspection, external reads (by risk, such as web fetch and Jira reads), and sub-agent delegation, then denies other capabilities;
+- **Supervised** allows interaction and local inspection, then prompts for other capabilities, external reads included;
 - **Autonomous** allows valid requests unless a scoped overlay or guardrail replaces the decision;
-- **Planning** allows research, interaction, sub-agent delegation, and plan-file writes, prompts for local analysis commands, and denies other mutations;
+- **Planning** allows research (including external reads), interaction, sub-agent delegation, and plan-file writes, prompts for local analysis commands, and denies other mutations;
 - custom user rule sets can define another ordered policy; all enabled sets appear in the permission picker.
 
 Sub-agent delegation under Read only and Planning is not tied to the lead's profile: a lead may assign any profile, and each sub-agent runs under its own profile's rule set.
@@ -37,7 +37,9 @@ Durable approval choices retain the permission rule set captured when the call w
 
 Rules can match tool names/groups, risks, validated arguments, and canonical path or URL targets. Portable path matchers use rooted POSIX patterns such as `src/**`; external host-specific paths use exact argument matching. Rules apply to Nerve's corresponding tools and are not an operating-system sandbox.
 
-Allow and deny exceptions name a core tool. Extension tools are targeted by operation instead: use tool `quick_script` with the operation as the rule, for example `search.web` or `jira.issues.*`. An exception that names an extension tool such as `web_search` is rejected as not a core tool. The read-outside-the-machine risk is `external_read`; the planning rule set allows it, and external writes (`jira.issues.update`, `imagegen.generate`) match the `external_write` risk, separate from `unknown` (shell commands).
+Allow and deny exceptions name a core tool. Extension tools are targeted by operation instead: use tool `quick_script` with the operation as the rule, for example `search.web` or `jira.issues.*`. An exception that names an extension tool such as `web_search` is rejected as not a core tool. The read-outside-the-machine risk is `external_read`; the Read only and Planning rule sets allow it, and external writes (`jira.issues.update`, `imagegen.generate`) match the `external_write` risk, which rule sets treat separately from `unknown` (shell commands). Stored records that say `network` read as `external_read`.
+
+`quick_script` is admitted as one call whose risk is the highest risk the script text can reach; anything the scan can't follow counts as destructive. Each SDK call it then makes is authorized again as a nested request. A deny always holds, a script a user approved may spend calls up to the risk they approved, and a script a rule allowed may not make calls that need approval. `web.*` and `files.*` calls keep the direct-tool route (`web_fetch`, `web_search`, `read`, `write`, `edit`). See [code mode](https://github.com/ThilinaTLM/nerve/blob/main/docs/architecture/code-mode.md#permissions).
 
 Execution admission rechecks current policy even after approval; approval cannot defeat a later denial. After restart, not-yet-started calls are re-captured and re-admitted, and a changed target needs fresh approval. Frozen child preferences do not freeze current authorization.
 

@@ -13,9 +13,9 @@ When the agent needs you, it shows a card in the transcript beside the work that
 
 ## Approve an action
 
-With Supervised permission, the agent pauses before commands, file changes, and network use. Each card shows the tool, its arguments, and any preview. Approve only what you understand. A denied or failed action stays in the transcript.
+With Supervised permission, the agent pauses before commands, file changes, and network use. Each card shows the tool, its arguments, and any preview. A [Quick script](/guides/quick-script/) card lists each operation and target the script will use, such as `jira.issues.update · jira:issue/APP-12`. Approve only what you understand. A denied or failed action stays in the transcript.
 
-To avoid repeated prompts for a rule Nerve can describe, choose **Always in project** or **Always for user**. Rules saved to a project need your trust before they apply, and editing the project's rules outside Nerve withdraws that trust. Python runs and destructive, secret, or deployment actions can only be approved once. Autonomous permission skips approvals for allowed actions but still honors blocks, and Read-only denies instead of asking.
+To avoid repeated prompts for a rule Nerve can describe, choose **Always in project** or **Always for user**. Rules saved to a project need your trust before they apply, and editing the project's rules outside Nerve withdraws that trust. Python runs and destructive, secret, or deployment actions can only be approved once. Autonomous permission skips approvals for allowed actions but still honors blocks, and Read-only denies instead of asking, except for reads of the web and integrations, which it allows.
 
 Permissions are checked again right before an action runs, so approving never overrides a block.
 

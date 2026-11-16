@@ -29,7 +29,8 @@ let archiveOpen = $state(false);
 
 // Illustrated cards fill the grid; text-only notes (fixes, small changes)
 // follow as compact full-width rows. Pick the column count that leaves no
-// orphan cell when the card count allows it.
+// orphan cell when the card count allows it; a lone card (e.g. a line whose
+// headline yielded the spotlight to pending news) uses the wide layout.
 function gridColumns(count: number): string {
   if (count === 2 || count === 4) return "@xl:grid-cols-2";
   return "@xl:grid-cols-2 @3xl:grid-cols-3";
@@ -70,6 +71,9 @@ const empty = $derived(!news.spotlight && news.releases.length === 0);
     {#each news.releases as group (group.release)}
       {@const cards = group.entries.filter((entry) => entry.artwork)}
       {@const notes = group.entries.filter((entry) => !entry.artwork)}
+      {@const wide =
+        group.featured ?? (cards.length === 1 ? cards[0] : undefined)}
+      {@const grid = cards.filter((entry) => entry !== wide)}
       <section
         class="grid gap-2.5"
         aria-labelledby={`discover-release-${group.release}`}
@@ -83,11 +87,11 @@ const empty = $derived(!news.spotlight && news.releases.length === 0);
           </h3>
           <div class="h-px flex-1 bg-border" aria-hidden="true"></div>
         </div>
-        <div class={["grid gap-2.5", gridColumns(cards.length)]}>
-          {#if group.featured}
-            <DiscoverFeaturedNews entry={group.featured} {onAction} />
+        <div class={["grid gap-2.5", gridColumns(grid.length)]}>
+          {#if wide}
+            <DiscoverFeaturedNews entry={wide} {onAction} />
           {/if}
-          {#each cards as entry (entry.id)}
+          {#each grid as entry (entry.id)}
             <DiscoverNewsCard {entry} {onAction} />
           {/each}
         </div>

@@ -1,0 +1,88 @@
+---
+title: Batch work with Quick script
+description: Let the agent do multi-step Jira, Confluence, web, file, image, and document work in one sandboxed script, and control what it may do.
+sidebar:
+  order: 12
+---
+
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import quickScriptDark from "../../../assets/screenshots/desktop/quick-script-dark.webp";
+import quickScriptLight from "../../../assets/screenshots/desktop/quick-script-light.webp";
+
+**Quick script** (`quick_script`) lets the agent write a short TypeScript script instead of spending a model turn on every request. One call can search Jira, read ten issues, build a spreadsheet, and publish a Confluence page, and only the script's printed output returns to the conversation.
+
+## What a script can reach
+
+The script runs in an isolated sandbox. It has no filesystem, network, Node APIs or `import`; it can only call the SDK that Nerve provides, and every call is checked against your permissions.
+
+| Available                                    | What it gives the script                                                                                     | Set up in                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `files`, `image`, `web.fetch`, `sdk`         | Read and write project files and conversation files, resize or convert images, fetch a URL, discover the SDK | Always present while Quick script is on                                  |
+| `XLSX`, `Papa`, `docx`, `mammoth`            | Read and write Excel, CSV, and Word documents                                                                | Always present                                                           |
+| `PptxGenJS`, `JSZip`, `pptxText`             | Build PowerPoint files, work with ZIP archives, extract slide text                                           | Always present                                                           |
+| `jira`, `confluence`, `atlassian`, `storage` | Issues, boards, sprints, pages, comments, attachments, and Confluence page builders                          | [Atlassian extension](/integrations/extensions/#atlassian)               |
+| `search`                                     | Web search                                                                                                   | [Web Search extension](/integrations/extensions/#web-search)             |
+| `diagram`                                    | Render Mermaid, PlantUML, Graphviz and other diagrams to PNG                                                 | [Diagrams extension](/integrations/extensions/#diagrams)                 |
+| `imagegen`                                   | Generate an image from a prompt                                                                              | [Image generation extension](/integrations/extensions/#image-generation) |
+
+The agent sees only the namespaces that are switched on and usable, and discovers methods itself with `sdk.list()`, `sdk.describe()`, `sdk.search()` and `sdk.docs()`. You never write the scripts; you describe the outcome.
+
+## Turn it on
+
+Quick script is on by default. To check or change it:
+
+1. Open **Settings → Tools** and find **Quick script**. The row lists the namespaces that are currently available, or what to fix.
+2. Switch on the extensions you want under **Settings → Extensions**. See [Extensions](/integrations/extensions/).
+3. For one conversation, use the tools control beside the composer to turn Quick script on or off.
+
+A project can set its own tool switches and extensions. Project files apply only after you trust them; see [Settings at a glance](/guides/settings/#project-pages).
+
+## Watch a script run
+
+A Quick script tool card shows each SDK call as it happens, for example `jira.issues.get · jira:issue/APP-12`, so you can follow long scripts without waiting for the end. When the script finishes, the card shows its printed output, files it created, and a footer with the number of calls per product and the exit status.
+
+- A script that fails, times out or is cancelled still returns a normal result, with a non-zero exit status.
+- The default time limit is 120 seconds; the agent can ask for up to 600. A script is limited to 256 MiB of memory and 100,000 characters of code.
+- Cancelling stops the script and its in-flight calls. Calls that already finished, such as a created issue, are not undone.
+- Files a script writes are saved with the conversation, are copied when you fork it, and are removed with it. Attachment bytes and large files stay out of the model's context.
+
+<DocsScreenshot
+  light={quickScriptLight}
+  dark={quickScriptDark}
+  alt="A Quick script tool card in a Nerve conversation, listing five completed SDK calls across Atlassian, Jira, Confluence, and web fetch, with timings and the created Confluence page"
+  caption="Each SDK call appears as a row with its target and duration. The footer shows what the script created and how many calls it made."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+## Control what scripts may do
+
+Permissions apply at two levels, so batching never widens what you allow.
+
+1. **Before it runs.** Nerve reads the script and takes the highest risk among its calls: reading local files or documents is a read; reading Jira, Confluence, the web or diagrams is an external read; creating or editing issues and pages, or generating images, is an external write; deletes and raw non-GET requests are destructive. If Nerve cannot tell what a script does (for example, it builds method names dynamically), it counts as destructive. The approval card lists the operations and targets it found.
+2. **While it runs.** Each call is checked again as an operation such as `jira.issues.create` on a target such as `jira:issue/APP-12`. A deny rule always holds. If you approved the script, it may make calls up to the risk you approved. If a rule allowed the script, any call that would need your approval is refused instead of asking midway.
+
+What this means for each permission level:
+
+- **Read-only** and **Planning** allow scripts that only read, including Jira, Confluence, web, and diagram reads. They block writes.
+- **Supervised** asks before a script that reads or changes anything outside your project, such as Jira, the web, or an image provider. Scripts that only read project files and documents run without asking.
+- **Autonomous** runs scripts without asking unless a rule blocks a call.
+
+Choose **Always allow** on an approval only when Nerve offers it; it is offered when Nerve can read every call in the script. You can also write rules for operations such as `jira.issues.*` in **Settings → Permission rules**; see [Tools and approval policy](/developers/tools-policy/).
+
+:::caution
+Scripts can send data to Atlassian, a search provider, a Kroki server, or an image provider, using your configured accounts. Review the operations and targets before approving. The sandbox and permissions limit what a script can reach; they don't make remote content trustworthy.
+:::
+
+## Good to know
+
+- Choose Quick script for integrations and document work, [Python execution](/integrations/python/) for general data scripting, and Bash for builds, Git and processes. Quick script isn't a way to run local commands.
+- Quick script isn't replayed after a restart. A script that was running when Nerve stopped is marked as indeterminate instead of running again, because its calls may have partly completed.
+- The former direct Jira, Confluence, diagram, and image-generation tools are gone. Permission rules that named them were converted to Quick script operation rules on upgrade; a rule that couldn't be converted is disabled and reported.
+
+## Next steps
+
+- [Extensions](/integrations/extensions/)
+- [Jira](/integrations/jira/) and [Confluence](/integrations/confluence/)
+- [Approvals, questions, and plans](/guides/reviews/)
+- [Tool reference](/reference/tools/)

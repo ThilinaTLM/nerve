@@ -74,7 +74,7 @@ The runner prints the isolated raw-output directory for inspection.
 
 Desktop scenes: `ask-user`, `notifications` (popover with a question, a failure, and a
 stopped agent plus Mute 1 h), `folder-browser` (Open project dialog on the demo
-workspace), `quote` (selection toolbar over a rich reply), `discover`, `themes`
+workspace), `quote` (selection toolbar over a rich reply), `quick-script` (a retained `quick_script` card with its Jira, Confluence, and web SDK calls), `extensions` (Settings → Extensions overview with Atlassian enabled), `discover`, `themes`
 (Settings → Workbench → Appearance), `projects`, `conversation`, `async-bash`,
 `git`, `editor`, `files`, `history`, `launches`, `pull-request`. Mobile scenes:
 `conversation`, `composer-sheet`, `right-sheet`. Re-run one with
@@ -87,6 +87,12 @@ opens it explicitly. `ask-user` shows the pending decision's recommended choices
 answer field above the composer, and `notifications` lists it. They use a schema-valid retained `ask_user`
 interaction seeded through the current event/tool repositories, without a
 provider call. Voice input remains disconnected in this synthetic environment.
+
+`quick-script` opens a retained `quick_script` tool call stored in the shape the
+card reads (`details.hostCalls`, `details.created`). `extensions` relies on the
+seed enabling the Atlassian extension for a fictional account on
+`aurora.example` through the same accounts and extension-settings services
+Settings uses; the API token is a placeholder and nothing contacts that site.
 
 `git` shows the Git changes tab: the repository tree (aurora-api with two
 linked worktrees, one on `feat/rate-limiting` whose synthetic PR has failing

@@ -11,6 +11,10 @@ A call accepts exactly one inline script or script-file path. It is finite, non-
 
 Environment overrides with sensitive-looking keys are rejected so an agent cannot casually supply obvious secrets through the tool argument. This does not scrub secrets inherited by the Python process or printed by user code.
 
+## Python or Quick script
+
+Use Python for data work that needs the local interpreter and its packages. Use [Quick script](/guides/quick-script/) for Jira, Confluence, web, spreadsheet, Word, PowerPoint, CSV, ZIP, and image work: it runs in a sandbox and each external call is checked against your permissions, while Python runs as ordinary local code.
+
 ## Choose launches for servers
 
 Do not use Python execution for web servers, watchers, daemons, or scripts waiting for input. Use a saved [launch configuration](/guides/background-tasks/) for a server or watcher, or `bash` with background execution for a conversation-owned command.
@@ -21,6 +25,7 @@ The Planning profile can restrict ordinary writes to the artifact directory and 
 
 ## Next steps
 
+- [Batch work with Quick script](/guides/quick-script/)
 - [Launch configurations and async Bash](/guides/background-tasks/)
 - [Remote daemon behavior](/operations/remote-daemon/)
 - [Tool and permission policy](/developers/tools-policy/)

@@ -35,6 +35,23 @@ Resource concurrency defaults to automatic. At daemon startup, Nerve uses effect
 
 The page distinguishes active and saved values. Network, diagnostics enablement, heap, and resource-limit changes need a daemon restart. Timeout and Electron rendering changes need the desktop app to restart. The page can restart an owned local daemon; browser clients and remote or adopted daemons show manual guidance instead.
 
+## Extension settings and accounts
+
+[Extensions](/integrations/extensions/) keep their configuration apart from agent preferences:
+
+| File                                      | Holds                                                                 |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| `<NERVE_HOME>/config/extensions.json`     | Your extension switches and settings                                  |
+| `<project>/.nerve/config/extensions.json` | Project overrides; ignored until you trust the file's exact content   |
+| `<NERVE_HOME>/config/accounts.json`       | Accounts by kind (Atlassian, Tavily) without secrets; user scope only |
+| `<NERVE_HOME>/secrets`                    | Encrypted API tokens and keys, one per account                        |
+
+Settings choose an account by ID, and each field resolves from the extension's default, then your settings, then the project's, then an applied [profile](/reference/agent-profiles/). Edits in **Settings → Extensions** are trusted automatically; a project file edited elsewhere needs **Trust file** again. Upgrading to 0.41 moves integration accounts and tool options out of `agent.json` into these files and rewrites permission rules that named the removed Jira, Confluence, diagram, and image-generation tools to Quick script operation rules.
+
+## Project trust
+
+Project files that can widen what the agent does or runs apply only after you trust their exact content: `agent.json`, `permissions.json`, `extensions.json`, agent profiles, and prompt-suggestion scripts. Project **General**, **Tools**, and **Skills** settings show **Project agent settings are not trusted** with a **Trust file** button when `agent.json` hasn't been trusted; until then conversations use your user settings. Files Nerve writes are trusted for you, edits made elsewhere need a new review, and **Revoke trust** withdraws it. Trust state lives in `<NERVE_HOME>/data/nerve.sqlite`.
+
 ## Desktop flags
 
 ```text
@@ -67,6 +84,7 @@ Common overrides include:
 Owned daemons use a 4096 MB old-space limit by default. Legacy saved values or environment overrides below the supported 512 MB minimum are raised to 512 MB before launch.
 
 - `NERVE_ELECTRON_OZONE_PLATFORM`, `NERVE_ELECTRON_FONT_RENDER_HINTING`
+- `NERVE_ELECTRON_REMOTE_DEBUGGING_PORT` (desktop only; opens the Chrome DevTools Protocol on `127.0.0.1` for automation)
 
 `NERVE_HOME`, remote tokens, generated performance session IDs, web asset/build routing, and proxy/toolchain variables are launch context rather than saved UI preferences. Secret values are never returned in the configuration snapshot.
 

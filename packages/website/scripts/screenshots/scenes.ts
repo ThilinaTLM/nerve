@@ -20,6 +20,7 @@ export const MOBILE_SCALE = 3;
 const DEMO_PROJECT = "Aurora";
 const RATE_LIMIT_CONVERSATION = "Add rate limiting to the booking API";
 const DEPLOY_CONVERSATION = "Investigate flaky staging deploys";
+const QUICK_SCRIPT_CONVERSATION = "Draft the Aurora 2.4 release notes";
 const RICH_CONVERSATION = "Compare limiter strategies for POST /bookings";
 /** The seed's workspace parent, so the folder browser shows demo folders only. */
 const DEMO_WORKSPACE_ROOT = "/tmp/nerve-demo-workspace";
@@ -117,6 +118,26 @@ export const DESKTOP_SCENES = [
       });
       await page.mouse.up();
       await page.getByRole("toolbar", { name: "Selection actions" }).waitFor();
+    },
+  },
+  {
+    id: "quick-script",
+    alt: "A conversation with a quick_script tool card listing the Jira, Confluence, and web SDK calls one script made while drafting release notes",
+    async drive(page: Page) {
+      await openConversation(page, QUICK_SCRIPT_CONVERSATION);
+      await page.waitForTimeout(800);
+    },
+  },
+  {
+    id: "extensions",
+    alt: "Settings, Extensions listing the built-in web search, Atlassian, diagram, image generation, and image explanation extensions with their enable switches",
+    async drive(page: Page) {
+      await selectProject(page);
+      await page.getByRole("button", { name: "Open settings" }).click();
+      await page
+        .getByRole("button", { name: "Extensions", exact: true })
+        .click();
+      await page.waitForTimeout(800);
     },
   },
   {

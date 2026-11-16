@@ -29,7 +29,7 @@ Plan approval previews the target profile's requirements and commits accepted mo
 
 Priority is requirement → conversation choice → recommendation → process default → project → user → built-in. Switching profiles preserves conversation choices. **Reset removes an editable override and inherits**; it does not copy a default into the conversation or remove a requirement. Source labels distinguish defaults, conversation choices, recommendations, requirements and frozen child choices. Required values identify the controlling profile.
 
-Model and reasoning are separate settings; the picker saves them together. Reasoning inherited from a different source can be fitted to the model with a visible adjustment. Incompatible required reasoning is a conflict, not silently changed. Tool settings are typed; profiles support individual skill booleans. Ordinary settings also support source defaults (`file`, `nerve`, `agentBrowser`). Permission policy remains authoritative.
+Model and reasoning are separate settings; the picker saves them together. Reasoning inherited from a different source can be fitted to the model with a visible adjustment. Incompatible required reasoning is a conflict, not silently changed. Extension settings are separate: a profile's `extensions` section holds `recommendations` and `requirements` keyed by extension ID, each with `enabled` and `settings`, and the same recommend/require rules apply. Tool settings are typed; profiles support individual skill booleans. Ordinary settings also support source defaults (`file`, `nerve`, `agentBrowser`). Permission policy remains authoritative.
 
 ## Applied profile snapshots
 

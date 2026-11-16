@@ -15,7 +15,7 @@ Application data travels directly between the renderer and daemon over HTTP/Nerv
 
 ## Permission policy
 
-Read-only, supervised, and autonomous are the built-in permission rule sets governing agent tool dispatch. Planning adds its own restrictions. These reduce authority and create review points; they do not isolate commands or Python from the operating system.
+Read-only, supervised, and autonomous are the built-in permission rule sets governing agent tool dispatch. Read-only allows local inspection and external reads (web, Jira and Confluence reads) and denies the rest; external writes need Supervised approval or Autonomous. Planning adds its own restrictions. These reduce authority and create review points; they do not isolate commands or Python from the operating system.
 
 User overrides are stored under `<NERVE_HOME>/config/permissions.json`; project overrides use `.nerve/config/permissions.json`. Project allow rules require exact-content trust, so externally edited rules must be reviewed again. A sub-agent has its own profile-selected read-only or autonomous rule set; enabling Developer grants unattended shared-worktree mutation, not merely another read tool.
 
@@ -29,17 +29,23 @@ Resource containment protects daemon availability; it is not a security sandbox.
 
 ## Credentials and external data
 
-Provider, Tavily, Atlassian, and other secrets use encrypted storage where implemented. At execution time, the selected service or child process necessarily receives credentials. Logs, artifacts, prompts, imported project instructions, and external tool output can still expose sensitive information.
+Provider, Tavily, Atlassian, and other secrets, including extension account tokens, use encrypted storage where implemented. Project files select an extension account by ID and never contain its secret. At execution time, the selected service or child process necessarily receives credentials. Logs, artifacts, prompts, imported project instructions, and external tool output can still expose sensitive information.
 
-Network-capable paths include model calls, OAuth, Git remotes, web tools, Jira/Confluence, voice transcription, and commands/Python. Local-first is not offline-only.
+Network-capable paths include model calls, OAuth, Git remotes, web tools, Jira/Confluence, the Kroki diagram server, image generation and explanation, voice transcription, and commands/Python. Local-first is not offline-only.
 
 ## Remote access
 
 Non-loopback binding requires explicit opt-in. Each phone, browser, or remote desktop gets its own revocable device credential, obtained with a short-lived, single-use pairing code that travels in the URL fragment; the daemon token never appears in a URL or QR code. Devices expire after 180 days or 30 idle days, and you can revoke them in **Settings → Devices**. Behind a reverse proxy with `publicUrl` set, the owner signs in with a passkey. A `Host` allowlist protects against DNS rebinding, and pairing is refused over plain HTTP from other machines. Access events are logged to `logs/access-audit.jsonl`. Self-signed mobile HTTPS protects transport on a trusted LAN but is not an Internet-exposure solution. See [LAN and mobile HTTPS](/operations/lan-mobile/) and [Hosted server](/operations/hosted-server/).
 
+## Quick script sandbox
+
+[Quick script](/guides/quick-script/) runs agent-written TypeScript in an embedded QuickJS sandbox with no filesystem, network, or Node access and limits on memory, time, output, and calls. Its only effects are SDK calls, and each call is checked against your permission policy, so a script can't exceed what the tool call was approved for. Extensions reach the network only through their declared origins, and credentials are added by Nerve rather than visible to the script. This limits what a script can reach; it doesn't make the services it talks to, or the content they return, trustworthy.
+
 ## Project trust
 
 `AGENTS.md`, `SYSTEM.md`, skills, prompt-suggestion JavaScript, and other repository content can influence behavior. Review unfamiliar projects before enabling executable predicates or broad permissions.
+
+Project configuration that changes agent behavior (`agent.json`, `permissions.json`, `extensions.json`, profiles) is ignored until you trust its exact content. Untrusted project agent settings show a warning with a **Trust file** button, and configuration Nerve writes for you is trusted automatically. See [Configuration](/operations/configuration/#project-trust).
 
 :::danger[Beta]
 Use recoverable Git workspaces, least authority, and trusted networks. Report vulnerabilities privately through the repository [security policy](https://github.com/ThilinaTLM/nerve/blob/main/SECURITY.md).

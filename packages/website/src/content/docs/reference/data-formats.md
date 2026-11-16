@@ -15,10 +15,13 @@ All Nerve-home paths move with `NERVE_HOME`; default is `~/.nerve`.
 | Durable images and plans      | `<NERVE_HOME>/data/images` and `<NERVE_HOME>/data/plans`                                                                                  |
 | Agent profiles                | User `data/agent-profiles/<name>.json`, project `.nerve/agent-profiles/<name>.json`; see [profile format](/reference/agent-profiles/)     |
 | Agent preferences             | User/project `config/agent.json`; conversation `data/conversations/<id>/config/agent.json` (includes applied snapshot and prompt context) |
+| Extension settings            | User/project `config/extensions.json`; the project file needs trust                                                                       |
+| Extension accounts            | User `config/accounts.json` by kind; secrets are encrypted under `<NERVE_HOME>/secrets` as `account:<kind>:<id>`                          |
+| Quick script files            | `<NERVE_HOME>/data/conversations/<id>/quick-script/`; copied on fork, removed with the conversation                                       |
 | Creation preferences          | User/project `config/conversation-defaults.json`; no conversation scope                                                                   |
 | Agent list summaries          | `<NERVE_HOME>/cache/conversation-agent-summaries.json`; disposable display values only                                                    |
 | Long sub-agent reports        | `<NERVE_HOME>/data/conversations/<id>/reports`                                                                                            |
-| Resource trust state          | Tables in `<NERVE_HOME>/data/nerve.sqlite`                                                                                                |
+| Resource trust state          | Tables in `<NERVE_HOME>/data/nerve.sqlite` (project `agent.json`, `permissions.json`, `extensions.json`, profiles, suggestion scripts)    |
 | Other disposable caches       | Other content under `<NERVE_HOME>/cache`                                                                                                  |
 | Launch configurations         | `<project>/.nerve/launches/definitions.json`                                                                                              |
 | Launch log bundles            | `<NERVE_HOME>/data/launches`; live launch instances are memory-only                                                                       |

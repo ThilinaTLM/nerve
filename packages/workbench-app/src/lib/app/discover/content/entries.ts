@@ -17,7 +17,8 @@ export type DiscoverArtwork =
   | "suggestions"
   | "engineering-docs"
   | "mobile"
-  | "git-actions";
+  | "git-actions"
+  | "quick-script";
 
 /**
  * A release-tagged announcement. `releasedIn` anchors the entry to an app

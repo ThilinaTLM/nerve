@@ -9,19 +9,19 @@ Show the agent an image, have it generate one, or dictate a prompt instead of ty
 
 ## Paste an image
 
-Copy an image and paste it into the composer with `Mod+V`. Nerve saves a temporary copy on your computer and inserts its path at the cursor. PNG, JPEG, GIF, WebP, SVG, BMP, TIFF, and AVIF images work. A model that accepts images can then read it.
+Copy an image and paste it into the composer with `Mod+V`. Nerve saves a temporary copy on your computer and inserts its path at the cursor. PNG, JPEG, GIF, WebP, SVG, BMP, TIFF, and AVIF images work. A model that accepts images can then read it. Before sending, Nerve resizes or re-encodes images to fit the limits of your model's provider; an image that can't be prepared is replaced by a short text note instead of failing the run.
 
 The copy is temporary, not a project attachment. To refer to a file that already exists, drop it onto the desktop composer or use `@file:`. See [Write prompts](/guides/composer/#drop-files-and-folders).
 
 ## Use images with a text-only model
 
-If your main model can't read images, turn on the **Image explanation** extension in **Settings → Extensions** (it is off by default). Choose an image-capable model and a thinking level, then enable it for your user, a project or one conversation. The agent can then use `explain_image` to ask that model to describe a JPEG, PNG, GIF, or WebP image (up to 20 MiB, with an optional focus prompt) and use the answer. If the model or its credentials are removed, the tool is unavailable until you choose another.
+If your main model can't read images, turn on the **Image explanation** extension in **Settings → Extensions** (it is off by default). Choose an image-capable model and a thinking level, then turn it on for your user settings or a project. The agent can then use `explain_image` to ask that model to describe a JPEG, PNG, GIF, or WebP image (up to 20 MiB, with an optional focus prompt) and use the answer. If the model or its credentials are removed, the tool is unavailable until you choose another.
 
 The image is sent to the model you choose for this tool. To keep images on your machine, point it at a local vision model through a compatible custom provider. Its usage and billing are separate from your main model's.
 
 ## Generate an image
 
-Turn on **Image generation** in **Settings → Extensions** (Quick script must be on under **Settings → Tools**) and choose a backend, model, and output defaults. The agent then writes the prompt in a script, and the finished image is saved as a conversation file the agent can use or show you.
+Turn on **Image generation** in **Settings → Extensions** and choose a backend, model, and output defaults. The agent then generates images from a [Quick script](/guides/quick-script/), and the finished image is saved as a conversation file the agent can use or show you.
 
 The OpenAI Codex provider uses your ChatGPT subscription's image access and limits, not API billing. Availability and options can vary by account.
 
@@ -48,5 +48,6 @@ Image explanation and image generation can send image data to a remote provider.
 ## Next steps
 
 - [Write prompts](/guides/composer/)
+- [Extensions](/integrations/extensions/)
 - [Usage and limits](/models/usage/)
 - [Troubleshoot providers](/troubleshooting/providers/)

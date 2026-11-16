@@ -17,11 +17,12 @@ The list is grouped so the urgent ones come first: **Needs you**, **Pinned**, **
 
 - Search the list with `Mod+K`. It searches the selected project's conversations.
 - Right-click a conversation (or its tab) to **Pin** it so it stays near the top.
+- Choose **Rename** in a conversation's menu (in the list, on its tab, or on a phone). Enter saves; a title can't be empty or longer than 200 characters.
 - Choose **Mark done** to move a finished conversation out of the way, and **Reopen** to bring it back.
 
 ## Get better titles
 
-Every new conversation gets an instant title taken from your first prompt. To have a model write a better one in the background, turn on **Improve titles with AI** in **Settings → Titles**. It's off by default and only affects new conversations. A title you set yourself is never replaced.
+Every new conversation gets an instant title taken from your first prompt. To have a model write a better one in the background, turn on **Improve titles with AI** in **Settings → Titles**. It's off by default and only affects new conversations. A title you set yourself, including one from **Rename**, is never replaced.
 
 AI titles send a shortened version of your first prompt to the model you choose there, which may bill for usage. Pick a small, fast model.
 

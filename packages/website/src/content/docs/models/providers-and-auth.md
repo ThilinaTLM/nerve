@@ -27,7 +27,7 @@ Only one active flow can use a given local callback address at a time. Cancel a 
 
 ## Current OAuth examples
 
-Tests currently observe subscription metadata for Anthropic, GitHub Copilot, Kimi Coding, Meta, OpenAI Codex, OpenRouter, Radius, and xAI. This is not a frozen support matrix. Provider behavior, terms, and authentication options can change independently.
+Tests currently observe subscription metadata for Anthropic, GitHub Copilot, Kimi Coding, Meta, OpenAI Codex, OpenRouter, Radius, and xAI. Subscription usage limits are shown only for Anthropic, OpenAI Codex, and GitHub Copilot. This is not a frozen support matrix. Provider behavior, terms, and authentication options can change independently.
 
 :::caution
 Anthropic OAuth can use paid extra usage outside normal Claude plan limits. Nerve shows this warning in-product; verify usage with the provider.
@@ -41,4 +41,5 @@ Removing a custom provider also removes its custom models and associated stored 
 
 - [Select models and thinking](/models/selecting-models/)
 - [Custom providers and models](/models/custom-providers/)
+- [Usage and limits](/models/usage/), including subscription quotas for Anthropic, Codex, and GitHub Copilot
 - [Provider troubleshooting](/troubleshooting/providers/)

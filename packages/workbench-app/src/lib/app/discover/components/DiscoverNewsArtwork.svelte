@@ -962,6 +962,92 @@ const swatchPosition = [
         class="fill-border"
       />
     </svg>
+  {:else if artwork === "quick-script"}
+    <svg class="size-full" viewBox="0 0 240 120" fill="none">
+      <circle cx="206" cy="28" r="34" class="fill-primary-subtle" />
+      <circle cx="24" cy="102" r="9" class="fill-info-subtle" />
+
+      <!-- Tool card -->
+      <rect
+        x="18"
+        y="12"
+        width="204"
+        height="96"
+        rx="7"
+        class="fill-card stroke-border"
+        stroke-width="2"
+      />
+      <rect x="18" y="12" width="204" height="22" rx="7" class="fill-muted" />
+      <rect x="18" y="26" width="204" height="8" class="fill-muted" />
+      <path
+        d="M30 18 25 23 30 28M38 18 43 23 38 28"
+        class="stroke-primary-strong"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <rect x="50" y="20" width="52" height="6" rx="3" class="fill-border" />
+      <rect x="190" y="19" width="24" height="8" rx="4" class="fill-primary" />
+
+      <!-- Streamed SDK calls -->
+      <circle cx="34" cy="48" r="5" class="fill-success" />
+      <path
+        d="M31.5 48 33.5 50 37 46"
+        class="stroke-success-foreground"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <rect x="46" y="45" width="30" height="6" rx="3" class="fill-info" />
+      <rect x="82" y="45" width="60" height="6" rx="3" class="fill-border" />
+      <rect
+        x="170"
+        y="43"
+        width="44"
+        height="10"
+        rx="5"
+        class="fill-success-subtle"
+      />
+
+      <circle cx="34" cy="66" r="5" class="fill-success" />
+      <path
+        d="M31.5 66 33.5 68 37 64"
+        class="stroke-success-foreground"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <rect x="46" y="63" width="36" height="6" rx="3" class="fill-primary" />
+      <rect x="88" y="63" width="44" height="6" rx="3" class="fill-border" />
+      <rect
+        x="170"
+        y="61"
+        width="44"
+        height="10"
+        rx="5"
+        class="fill-success-subtle"
+      />
+
+      <circle
+        cx="34"
+        cy="84"
+        r="4"
+        class="fill-card stroke-warning"
+        stroke-width="2"
+      />
+      <rect x="46" y="81" width="26" height="6" rx="3" class="fill-warning" />
+      <rect x="78" y="81" width="52" height="6" rx="3" class="fill-border" />
+      <rect
+        x="170"
+        y="79"
+        width="44"
+        height="10"
+        rx="5"
+        class="fill-warning-subtle"
+      />
+
+      <rect x="30" y="96" width="120" height="5" rx="2.5" class="fill-muted" />
+    </svg>
   {:else}
     <svg class="size-full" viewBox="0 0 240 120" fill="none">
       <circle cx="194" cy="25" r="13" class="fill-success-subtle" />

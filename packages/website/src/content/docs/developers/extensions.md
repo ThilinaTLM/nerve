@@ -22,7 +22,17 @@ Define tool name/schema/risk/execution mode in the owning manifest, implement a 
 
 ## Built-in extensions
 
-A `quick_script` extension (Atlassian, web, diagrams, image generation, image explanation) is one folder in `packages/extensions/src/<id>/`: a definition written with `@nervekit/extension-api` (settings, accounts, namespaces, direct tools, declared doc paths) and method code that reaches the world only through `ctx`. The package depends on `extension-api` and nothing else. The workbench server owns the list of built-ins (`builtinExtensions`), builds the registry from it and reads the declared doc files; a repository check rejects a mention of an extension anywhere else in production source.
+An extension is a unit of capability with its own settings, accounts, and permissions. It contributes `quick_script` namespaces and optionally direct tools. The built-ins are Web Search, Atlassian, Diagrams, Image generation, and Image explanation; users manage them under [Extensions](/integrations/extensions/). Nerve doesn't load third-party extensions.
+
+Each is one folder in `packages/extensions/src/<id>/`: a definition written with `@nervekit/extension-api` and method code that reaches the world only through its `ctx`. The definition declares:
+
+- **Settings** as a small typed schema, from which the Settings page, scope rules (user, project, profile), defaults, and trust handling are generated.
+- **Accounts** by kind (fields, secret label, auth scheme, credential origins). Extension code never sees the secret; `ctx.http` injects the credential on the host side and only for the account's own origins, on every redirect hop.
+- **Namespaces**: a method table with a declared risk, operation name, and targets per method, plus declarations and doc topics that `sdk.describe` and `sdk.docs` serve to the agent.
+- **Direct tools** such as `web_search` and `explain_image`, with a declarative card view.
+- **Permissions**: the network origins it may reach and the host capabilities it uses (`models.image`, `models.vision`).
+
+The package depends on `extension-api` and nothing else. The workbench server owns the list of built-ins (`builtinExtensions`), builds the registry from it, and reads the declared doc files. A repository check rejects any mention of an extension outside its folder and the built-in list, so permission rule sets select extension operations by risk (`external_read`, `external_write`), not by name. Settings live in `config/extensions.json` and accounts in `config/accounts.json` ([configuration](/operations/configuration/#extension-settings-and-accounts)). The runtime and nested authorization are described in the repository's `docs/architecture/code-mode.md` and `extension-platform.md`.
 
 ## Content extensions
 

@@ -1,6 +1,7 @@
 ---
 import socialPreview from "../assets/social-preview.png";
 import MarketingLayout from "../layouts/MarketingLayout.astro";
+import BeyondRepo from "../components/marketing/BeyondRepo.astro";
 import ClosingCta from "../components/marketing/ClosingCta.astro";
 import Hero from "../components/marketing/Hero.astro";
 import LiveRun from "../components/marketing/LiveRun.astro";
@@ -9,12 +10,12 @@ import Section from "../components/marketing/Section.astro";
 import TokenLedger from "../components/marketing/TokenLedger.astro";
 import WorkbenchMap from "../components/marketing/WorkbenchMap.astro";
 
-/* Six beats, one argument: a lean harness (hero, ledger), a transcript you can
- * see through and steer (live run), the workbench around it, parallel work,
- * and the install. Everything else lives in the docs. */
+/* Seven beats, one argument: a lean harness (hero, ledger), a transcript you can
+ * see through and steer (live run), the workbench around it, agents that reach beyond the repo, parallel
+ * work, and the install. Everything else lives in the docs. */
 const title = "Nerve — more work per token, more control per run";
 const description =
-  "Free, open-source coding workbench for AI agents. A lean harness, parallel teammates, Git and PR review, an integrated prompt composer, and visible background work — on your subscription or API key.";
+  "Free, open-source coding workbench for AI agents. A lean harness, sandboxed scripts that reach Jira, Confluence and the web under your permission rules, parallel teammates, Git and PR review, and visible background work — on your subscription or API key.";
 const ogImage = new URL(socialPreview.src, Astro.site).href;
 ---
 
@@ -61,7 +62,7 @@ const ogImage = new URL(socialPreview.src, Astro.site).href;
           Reference files, paste images, quote exactly what you need from a reply,
           and find commands in grouped suggestions. Model and permission controls share one toolbar. Agent
           questions get individual answer fields with completion, dictation, and
-          saved drafts.
+          saved drafts.{" "}
           <a class="text-primary" href="/guides/composer/">Explore the composer →</a>
         </p>
       </article>
@@ -71,7 +72,7 @@ const ogImage = new URL(socialPreview.src, Astro.site).href;
           The header’s Notifications popover puts requests that need you first,
           followed by running work and finished results. Nerve notices when
           you’re away, flags results you haven’t seen, and lets you mute for an
-          hour.
+          hour.{" "}
           <a class="text-primary" href="/guides/workbench/">Find your way around →</a>
         </p>
       </article>
@@ -80,7 +81,7 @@ const ogImage = new URL(socialPreview.src, Astro.site).href;
         <p class="body-text">
           Rust-backed search matches and ranks completion suggestions, including
           project paths. Single-pass storage accounting and leaner startup
-          recovery reduce housekeeping around your next session.
+          recovery reduce housekeeping around your next session.{" "}
           <a class="text-primary" href="/developers/architecture/">See the architecture →</a>
         </p>
       </article>
@@ -88,7 +89,17 @@ const ogImage = new URL(socialPreview.src, Astro.site).href;
   </Section>
 
   <Section
+    id="beyond"
+    eyebrow="Beyond the repo"
+    title="Agents that reach Jira, Confluence and the web."
+    lede="quick_script lets the agent do multi-step integration and document work in one sandboxed TypeScript call: Jira, Confluence, web, files, office documents and diagrams. Each SDK call is permission-checked and streams into the tool card as it runs."
+  >
+    <BeyondRepo />
+  </Section>
+
+  <Section
     id="parallel"
+    tone="sunken"
     eyebrow="Parallel by nature"
     title="Many projects. A team of agents. All at once."
     lede="Every conversation is its own tab in its own project. Inside one, a lead agent running your chosen profile hands work to sub-agents you shape — and they report back with receipts."

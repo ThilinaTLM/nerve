@@ -7,6 +7,80 @@ import type { DiscoverNewsEntry } from "./entries.js";
  */
 export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
+    id: "quick-script-extensions",
+    version: 1,
+    releasedIn: "next",
+    featured: true,
+    artwork: "quick-script",
+    title: "Agents can script Jira, Confluence, the web, and files in one step",
+    summary:
+      "Quick script runs a sandboxed script, and each call it makes is checked against your permissions.",
+    details: [
+      "Quick script combines Jira, Confluence, web fetch and search, files, diagrams, images, and Excel, Word, PowerPoint, CSV, and ZIP libraries in one sandboxed step.",
+      "Each call the script makes is checked against your permission rules, and appears live in the tool card as it runs.",
+      "Extensions add these capabilities. Open Settings → Extensions to set up accounts and turn each one on or off.",
+      "The separate Jira and Confluence tools are gone. Quick script now handles both.",
+    ],
+    action: {
+      kind: "settings",
+      pageId: "extensions",
+      sectionId: "builtin",
+      label: "Open Extensions",
+    },
+  },
+  {
+    id: "read-only-external-reads",
+    version: 1,
+    releasedIn: "next",
+    title: "Read-only now allows external reads",
+    summary:
+      "Web fetch and search, plus Jira and Confluence reads, work in Read-only. Writes are still denied.",
+    action: {
+      kind: "settings",
+      pageId: "permission-rules",
+      sectionId: "rule-sets",
+      label: "Review permissions",
+    },
+  },
+  {
+    id: "rename-conversations",
+    version: 1,
+    releasedIn: "next",
+    title: "Rename conversations",
+    summary:
+      "Choose Rename from a conversation's menu in the sidebar, an editor tab, or on mobile.",
+  },
+  {
+    id: "copilot-usage",
+    version: 1,
+    releasedIn: "next",
+    title: "GitHub Copilot usage in the usage chip",
+    summary:
+      "See your Copilot subscription quotas next to your other providers' limits.",
+  },
+  {
+    id: "project-config-trust",
+    version: 1,
+    releasedIn: "next",
+    title: "See when project agent settings aren't trusted",
+    summary:
+      "A warning with a one-click Trust action appears for an untrusted project agent.json.",
+  },
+  {
+    id: "image-explanation-extension",
+    version: 1,
+    releasedIn: "next",
+    title: "Image explanation is now an extension",
+    summary:
+      "Turn it on in Settings → Extensions to let the agent explain images. It is off by default.",
+    action: {
+      kind: "settings",
+      pageId: "extensions",
+      sectionId: "builtin",
+      label: "Open Extensions",
+    },
+  },
+  {
     id: "multi-repo-git",
     version: 1,
     releasedIn: "0.40.0",

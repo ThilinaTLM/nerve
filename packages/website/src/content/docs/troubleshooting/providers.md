@@ -31,7 +31,7 @@ Voice requires OpenAI Codex/ChatGPT OAuth with account information, not an OpenA
 
 ## Image request fails
 
-To let a text-only primary model read images, open **Settings → Extensions → Image explanation**, choose a currently available image-capable model, then enable the extension (user, project or conversation scope). If the selected model or its credentials were removed, `explain_image` is unavailable and the extension page says how to fix it; choose another model or restore the credentials.
+To let a text-only primary model read images, open **Settings → Extensions → Image explanation**, choose a currently available image-capable model, then turn the extension on (user or project settings). If the selected model or its credentials were removed, `explain_image` is unavailable and the extension page says how to fix it; choose another model or restore the credentials.
 
 The tool is intentionally absent when disabled or when the primary model already supports image input. It accepts JPEG, PNG, GIF, and WebP files up to 20 MB, detected from file contents rather than the extension.
 

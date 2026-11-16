@@ -1,0 +1,88 @@
+---
+title: Extensions
+description: Turn on built-in extensions for Jira, Confluence, web search, diagrams, and images, and manage their accounts and scope.
+sidebar:
+  order: 0
+---
+
+import { Steps } from "@astrojs/starlight/components";
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import extensionsDark from "../../../assets/screenshots/desktop/extensions-dark.webp";
+import extensionsLight from "../../../assets/screenshots/desktop/extensions-light.webp";
+
+Extensions add optional capabilities to the agent. Each has its own switch, settings, and accounts, and most add a namespace to [Quick script](/guides/quick-script/). Nerve ships five built-in extensions; it doesn't install third-party ones.
+
+| Extension                               | Adds                                                               | Default | Needs                                         |
+| --------------------------------------- | ------------------------------------------------------------------ | ------- | --------------------------------------------- |
+| [Atlassian](#atlassian)                 | `jira`, `confluence`, and Confluence page builders in Quick script | Off     | An Atlassian account (site, email, API token) |
+| [Web Search](#web-search)               | The `web_search` tool and `search.web` in Quick script             | Off     | A Tavily account (API key)                    |
+| [Diagrams](#diagrams)                   | `diagram.render` in Quick script                                   | On      | A Kroki server (the public one by default)    |
+| [Image generation](#image-generation)   | `imagegen.generate` in Quick script                                | Off     | A ChatGPT (OpenAI Codex) sign-in              |
+| [Image explanation](#image-explanation) | The `explain_image` tool                                           | Off     | A model that can read images                  |
+
+Web fetch isn't an extension. It's always available to Quick script and follows the `web_fetch` tool rules; see [Web search and fetch](/integrations/web/).
+
+## Set up an extension
+
+<Steps>
+
+1. Open **Settings → Extensions** and select an extension. Each row shows how it is set up and has its own switch.
+2. If it needs an account, add one under **Accounts** (name, fields, and secret such as an API token). Use **Test connection** where it's offered.
+3. Choose that account in the extension's settings, adjust its options, and turn the extension on.
+4. Check **Settings → Tools**. Tools such as **Quick script** and **Web fetch** have their own switches, and the Quick script row lists which namespaces are usable or what to fix.
+
+</Steps>
+
+An extension's page shows a problem at the top when it can't be used, with a link to fix it: no account selected, an account without a saved secret, or a model that's no longer available. The agent only sees namespaces and tools that are on and usable.
+
+<DocsScreenshot
+  light={extensionsLight}
+  dark={extensionsDark}
+  alt="Nerve Settings showing the Extensions page with the five built-in extensions, Atlassian switched on"
+  caption="Settings → Extensions lists every built-in extension with its status and switch. Select one to set up its account and features."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
+## Scope and trust
+
+- **User** settings apply to every project. **Project** settings override them for one project and can be shared through the repository. Anything unset in a project follows your user settings. An [agent profile](/reference/agent-profiles/) can also recommend or require extension settings.
+- **Accounts are user-level only.** Their secrets are stored encrypted on your computer and are never copied into project files; a project selects an account by an ID that exists only on your computer, so a teammate must choose their own.
+- A project's `.nerve/config/extensions.json` is ignored until you trust its exact content. The project's Extensions page shows **Project extension settings are not trusted** with a **Trust file** button. Changes you make through Nerve's settings pages are trusted automatically; an edit made in another editor needs trusting again.
+
+See [Configuration](/operations/configuration/#extension-settings-and-accounts) for the files.
+
+## Atlassian
+
+Jira and Confluence share one Atlassian account.
+
+1. Add an account with your site URL (for example `https://acme.atlassian.net/`), email, and an API token created in your Atlassian account settings. Optional defaults: a Jira project and a Confluence space.
+2. Choose the account in the extension and switch on **Jira**, **Confluence**, or both (both are on by default once the extension is on).
+
+The account shows its connection status: verified, credentials rejected, access restricted, not on this site, or couldn't check. See [Jira](/integrations/jira/) and [Confluence](/integrations/confluence/) for what the agent can do.
+
+## Web Search
+
+Add a Tavily account with an API key and select it as the **Search account**. The agent then has `web_search`, and `search.web` inside Quick script. Details are in [Web search and fetch](/integrations/web/).
+
+## Diagrams
+
+Diagrams render with a [Kroki](https://kroki.io/) server and are saved as PNG files in the conversation. The extension is on by default and uses the public server `https://kroki.io/`, which is shared. Diagram source is sent to that server, so enter a self-hosted URL under **Kroki server** for private diagrams.
+
+## Image generation
+
+Choose the **Backend** (OpenAI Codex, which uses your ChatGPT subscription's image access instead of API billing), its **Model**, and default **Quality**. **Size** and **Background** are under advanced settings. A call can override size and backend options such as quality; the saved image is a conversation file the script can resize, attach to a Confluence page, or show you. Generation spends your subscription's allowance. Availability can vary by account.
+
+## Image explanation
+
+For a main model that can't read images. Choose a vision-capable **Model** and a **Thinking level**, then turn the extension on. The agent can then call `explain_image` on a JPEG, PNG, GIF, or WebP file (up to 20 MiB) with an optional focus prompt and gets back a short written description. The image goes only to the model you selected, and its usage is billed separately from your main model. Point it at a local model through a compatible [custom provider](/models/custom-providers/) to keep images on your machine. See [Images and voice](/guides/images-and-voice/).
+
+## Permissions
+
+Extension actions are classified by where they act. **External read** covers reading outside your machine: web search, Jira and Confluence reads, diagram rendering. **External write** covers changes there: creating issues, updating pages, generating images. The built-in Read-only and Planning permission levels allow external reads and deny external writes; Supervised asks for both. In **Settings → Permission rules**, a rule can match these risks, or a Quick script operation such as `jira.issues.*`. See [Choose a profile, model, and permissions](/guides/agent-controls/#choose-a-permission-level).
+
+## Next steps
+
+- [Batch work with Quick script](/guides/quick-script/)
+- [Settings at a glance](/guides/settings/)
+- [Security model](/operations/security/)

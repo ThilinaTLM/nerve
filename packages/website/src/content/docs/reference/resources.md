@@ -48,7 +48,7 @@ A project `config/agent.json` stores only its own choices:
   "revision": 0,
   "overrides": {
     "tools": {
-      "web_search": { "enabled": true, "profileId": "team-search" },
+      "web_search": { "enabled": true },
       "python_exec": { "enabled": false }
     },
     "skills": {
@@ -61,7 +61,7 @@ A project `config/agent.json` stores only its own choices:
 }
 ```
 
-Missing fields inherit. Tool configuration merges by declared fields, except atomic values such as the explanation model. Accounts for Jira, Confluence, and Web Search are selected in extension settings (`extensions.json`); credentials are never copied into project or conversation files. Missing references stay visible with readiness diagnostics. See [Agent profiles](/reference/agent-profiles/) for requirements, health and repair, and scope paths.
+Missing fields inherit. Tool configuration merges by declared fields. Accounts for Jira, Confluence, and Web Search are selected in extension settings (`extensions.json`, see [Extensions](/integrations/extensions/)); credentials are never copied into project or conversation files. Missing references stay visible with readiness diagnostics. See [Agent profiles](/reference/agent-profiles/) for requirements, health and repair, and scope paths.
 
 Agent Browser skills are prompt guidance from an external CLI, not a native browser tool.
 
