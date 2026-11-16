@@ -2,6 +2,7 @@ import {
   ExtensionError,
   method,
   type Authorization,
+  type ExtensionContext,
   type MethodDefinition,
   type Risk,
 } from "@nervekit/extension-api";
@@ -28,7 +29,8 @@ type MethodBody<P, S> = {
   authorizeAlso?(parsed: P): Authorization[];
   /** What a 403 refers to, e.g. `project APP`; defaults to the authorization summary. */
   resource?(parsed: P): string;
-  run(parsed: P, session: S): Promise<unknown>;
+  /** `ctx` is the per-call context; `session.ctx` cannot authorize. */
+  run(parsed: P, session: S, ctx: ExtensionContext): Promise<unknown>;
 };
 
 /** A method with the path it is registered under in its namespace. */
@@ -87,9 +89,9 @@ function build<P, S>(
       parse,
       authorize: authorizations,
       resource: resourceOf,
-      run: async (session, parsed) => {
+      run: async (session, parsed, ctx) => {
         try {
-          return await definition.run(parsed, session);
+          return await definition.run(parsed, session, ctx);
         } catch (error) {
           // The raw `request` keeps the full transport message.
           throw definition.path === "request"

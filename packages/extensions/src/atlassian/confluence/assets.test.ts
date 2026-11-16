@@ -339,11 +339,8 @@ void test("jiraIssues builds semicolon-separated columns and a layout; panels ma
     value,
     /ac:name="panel"[^>]*><ac:parameter ac:name="borderStyle">solid.*#EAE6FF.*<p>purple<\/p>/,
   );
-  // array bodies join their parts; the loose date is wrapped by the linter
-  assert.match(
-    value,
-    /<p>Plain text<\/p><p><time datetime="2026-01-02"\/><\/p>/,
-  );
+  // array bodies join contiguous inline parts into one paragraph
+  assert.match(value, /<p>Plain text<time datetime="2026-01-02"\/><\/p>/);
   assert.ok(value.includes("<p>a</p><p>b</p></ac:rich-text-body>"));
 });
 

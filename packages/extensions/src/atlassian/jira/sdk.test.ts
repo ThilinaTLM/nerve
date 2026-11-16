@@ -141,7 +141,7 @@ void test("maps parent for subtasks and simplifies structured fields", async () 
     },
   ]);
   assert.deepEqual(issue.attachment, [
-    { id: "9", filename: "a.png", size: 12, mimeType: "image/png" },
+    { id: "9", filename: "a.png", size: 12, mediaType: "image/png" },
   ]);
   assert.deepEqual(issue.issuelinks, [
     {

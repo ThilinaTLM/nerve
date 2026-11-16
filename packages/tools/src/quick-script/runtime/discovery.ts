@@ -34,8 +34,8 @@ import { join } from "node:path";
 export const DISCOVERY_BUDGET_CHARS = 12_000;
 /** A summary may use this much even when the budget is spent, so it can still say what to do next. */
 const SUMMARY_FLOOR_CHARS = 1_500;
-/** A single method's declaration is always returned in full up to this size. */
-const SINGLE_METHOD_CHARS = 3_000;
+/** A single method's declaration or a single doc topic is always returned in full up to this size, even over budget. */
+const WHOLE_ITEM_CHARS = 3_000;
 const SEARCH_PAGE_SIZE = 20;
 const SEARCH_LINE_CHARS = 150;
 
@@ -184,7 +184,7 @@ async function describeText(
     (configured ? `// ${configured}\n` : "") +
     pointer +
     describeDeclarations(namespace, typePool(namespaces), sub);
-  const single = methods.length === 1 && text.length <= SINGLE_METHOD_CHARS;
+  const single = methods.length === 1 && text.length <= WHOLE_ITEM_CHARS;
   if (single || text.length <= remaining(env)) return spend(env, text);
 
   // Over budget: a summary now, the full declarations in a file.
@@ -339,7 +339,8 @@ async function docsText(
   const state = stateOf(owner, env);
   if (!available(state)) return unavailableText(owner, state!);
   const text = renderLimits(owner.readDoc(entry.file), env.registry.limits);
-  if (text.length <= remaining(env)) return spend(env, text);
+  if (text.length <= Math.max(remaining(env), WHOLE_ITEM_CHARS))
+    return spend(env, text);
 
   const name = `sdk-docs-${topic.replaceAll("/", "-")}.md`;
   let file = "";
@@ -373,7 +374,7 @@ export function createSdkNamespace(registry: Registry): SdkNamespace {
       risk: "none",
       maxArgs: 0,
       signature:
-        "/** Every namespace with source, availability (reason and fix when unavailable), method count and doc topics. */ list(): string",
+        "/** Every namespace with source, availability (reason and fix when unavailable), method count and doc topics. */ list(): Promise<string>",
       parse: () => undefined,
       resource: () => "sdk",
       run: (_parsed, env) =>
@@ -396,7 +397,7 @@ export function createSdkNamespace(registry: Registry): SdkNamespace {
       risk: "none",
       maxArgs: 2,
       signature:
-        "/** Methods whose path, doc line or parameters match all words, best first, 20 per page; `in` limits it to one namespace. */ search(query: string, options?: { in?: string; offset?: number }): string",
+        "/** Methods whose path, doc line or parameters match all words, best first, 20 per page; `in` limits it to one namespace. */ search(query: string, options?: { in?: string; offset?: number }): Promise<string>",
       parse: (args) => {
         const options = (args[1] ?? {}) as Record<string, unknown>;
         if (typeof options !== "object" || Array.isArray(options))

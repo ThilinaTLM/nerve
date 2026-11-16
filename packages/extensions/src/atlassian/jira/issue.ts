@@ -184,7 +184,7 @@ export function flattenIssue(
             id: stringOrNull(item.id),
             filename: stringOrNull(item.filename),
             size: typeof item.size === "number" ? item.size : null,
-            mimeType: stringOrNull(item.mimeType),
+            mediaType: stringOrNull(item.mimeType),
           };
         });
         break;

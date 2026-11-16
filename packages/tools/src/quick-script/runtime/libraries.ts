@@ -1,9 +1,5 @@
 import { readSandboxLibrarySource } from "../sandbox-library-sources.js";
-import {
-  DOCUMENT_SHIMS,
-  MAMMOTH_WRAPPER,
-  PPTX_TEXT,
-} from "./files/documents.js";
+import { MAMMOTH_WRAPPER, PPTX_TEXT } from "./files/documents.js";
 
 /**
  * Third-party libraries scripts can use as globals. Each is evaluated inside
@@ -17,29 +13,25 @@ type Library = {
   also?: readonly string[];
   /** Sandbox code run right after the file loads. */
   after?: string;
-  /** Needs the document shims (UTF-8 codecs, timers). */
-  shims?: boolean;
 };
 
 const LIBRARIES: readonly Library[] = [
   // SheetJS Community Edition from the official CDN tarball (npm's `xlsx` is stale).
   { global: "XLSX", file: "xlsx.full.min.js" },
   { global: "Papa", file: "papaparse.min.js" },
-  { global: "docx", file: "docx.min.js", shims: true },
+  { global: "docx", file: "docx.min.js" },
   {
     global: "mammoth",
     file: "mammoth.browser.min.js",
     after: MAMMOTH_WRAPPER,
-    shims: true,
   },
   // The bundle build is the only one that includes JSZip.
   {
     global: "PptxGenJS",
     file: "pptxgen.bundle.js",
     also: ["JSZip"],
-    shims: true,
   },
-  { global: "JSZip", file: "jszip.min.js", shims: true },
+  { global: "JSZip", file: "jszip.min.js" },
 ];
 
 /** Plain helper functions defined eagerly (when mentioned), with the library globals they use. */
@@ -79,6 +71,5 @@ export function librariesPrelude(code: string): string {
     // Indirect eval runs in the global scope; the getter replaces itself with the real global.
     return `Object.defineProperty(globalThis, ${name}, { configurable: true, get() { ${owned} (0, eval)(${source});${after} return globalThis[${name}]; } });`;
   });
-  if (libraries.some((library) => library.shims)) parts.unshift(DOCUMENT_SHIMS);
   return [...parts, ...helpers.map((helper) => helper.source)].join("\n");
 }

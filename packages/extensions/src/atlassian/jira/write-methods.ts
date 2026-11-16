@@ -304,7 +304,13 @@ export const jiraWriteMethods: PathedMethod<JiraSession>[] = [
         : [];
       const transition = matchTransition(transitions, to);
       if (!transition) {
-        const choices = transitions.map(transitionSummary);
+        const choices = [
+          ...new Map(
+            transitions
+              .map(transitionSummary)
+              .map((item) => [`${String(item.to)}|${String(item.name)}`, item]),
+          ).values(),
+        ];
         throw new Error(
           `${key} cannot move to "${to}". Available: ${
             choices.length > 0
@@ -441,7 +447,7 @@ export const jiraWriteMethods: PathedMethod<JiraSession>[] = [
     risk: "external_write",
     options: ["key", "to", "type"],
     signature:
-      '/** `type`: link type name or phrase ("Blocks", "is blocked by"); unknown throws the valid ones. */ link(options: { key: string; to: string; type: string }): Promise<{ key: string; to: string; type: string }>',
+      '/** `key` <type> `to`: type name or outward phrase ("Blocks", "blocks") makes key the subject; inward phrase ("is blocked by") the reverse. Unknown throws the valid ones. */ link(options: { key: string; to: string; type: string }): Promise<{ key: string; to: string; type: string }>',
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       to: nonEmptyString(options.to, "to"),
@@ -484,8 +490,10 @@ export const jiraWriteMethods: PathedMethod<JiraSession>[] = [
           )}.`,
         );
       }
-      // `key` is the outward side unless the phrase names the inward side.
-      const keyIsInward = !byName && !outward && Boolean(inward);
+      // Jira's `inwardIssue` is the subject of the outward phrase ("A blocks B"
+      // is inwardIssue A, outwardIssue B). A name or outward phrase makes `key`
+      // the subject; an inward phrase ("is blocked by") makes `to` the subject.
+      const keyIsInward = byName !== undefined || outward !== undefined;
       await jiraRequest(connection, {
         method: "POST",
         path: "/issueLink",

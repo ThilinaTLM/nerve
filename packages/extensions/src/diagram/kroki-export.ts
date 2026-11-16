@@ -21,10 +21,12 @@ function replaceTags(text: string): string {
 
 /** Which part of an error body is worth showing: text only, without the diagram source. */
 function diagnosticOf(body: unknown, source: string): string {
-  const text =
-    body instanceof Uint8Array
-      ? new TextDecoder().decode(body.subarray(0, 4 * 1024))
-      : "";
+  if (
+    !(body instanceof Uint8Array) ||
+    PNG_SIGNATURE.every((byte, index) => body[index] === byte)
+  )
+    return "";
+  const text = new TextDecoder().decode(body.subarray(0, 4 * 1024));
   return replaceTags(text.replaceAll(source, "[diagram source omitted]"))
     .replace(/\p{Cc}/gu, " ")
     .replace(/\s+/g, " ")
@@ -41,7 +43,6 @@ export async function fetchKrokiDiagram(
   const response = await ctx.http.request({
     url,
     method: "POST",
-    headers: { accept: "image/png" },
     body: {
       json: {
         diagram_source: source,
@@ -55,9 +56,12 @@ export async function fetchKrokiDiagram(
   });
   if (!response.ok) {
     const diagnostic = diagnosticOf(response.body, source);
+    const hint = /unsupported output format/i.test(diagnostic)
+      ? ` ${diagramType} cannot render PNG; use a PNG-capable engine such as mermaid, plantuml or graphviz.`
+      : "";
     throw new ExtensionError(
       response.status >= 500 ? "SERVER_ERROR" : "BAD_REQUEST",
-      `Kroki returned HTTP ${response.status}${diagnostic ? `: ${diagnostic}` : "."}`,
+      `Kroki returned HTTP ${response.status}${diagnostic ? `: ${diagnostic}` : " (no text diagnostic)."}${hint}`,
     );
   }
   if (

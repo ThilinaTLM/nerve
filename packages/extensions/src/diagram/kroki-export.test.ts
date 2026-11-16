@@ -49,6 +49,25 @@ describe("fetchKrokiDiagram", () => {
     await assert.rejects(fetchKrokiDiagram(ctx, options), /invalid PNG data/);
   });
 
+  it("sends no Accept header and does not decode PNG error bodies", async () => {
+    const { ctx, record } = createFakeContext({
+      http: () => reply(png, "image/png", 400),
+    });
+    await assert.rejects(
+      fetchKrokiDiagram(ctx, options),
+      /HTTP 400 \(no text diagnostic\)/,
+    );
+    assert.equal(record.requests[0].headers?.accept, undefined);
+  });
+
+  it("names PNG-capable engines for unsupported output formats", async () => {
+    const { ctx } = createFakeContext({
+      http: () =>
+        reply("Error 400: Unsupported output format: png", "text/plain", 400),
+    });
+    await assert.rejects(fetchKrokiDiagram(ctx, options), /mermaid, plantuml/);
+  });
+
   it("reports the server diagnostic without echoing the source", async () => {
     const { ctx } = createFakeContext({
       http: () => reply(`Error 400: bad ${options.source}`, "text/plain", 400),

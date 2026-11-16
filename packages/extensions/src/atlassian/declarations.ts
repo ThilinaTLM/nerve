@@ -48,6 +48,7 @@ interface Issue {
   description?: Str;
   /** Present when named in \`fields\` (also attachment, subtasks: [key, summary, status] objects). */
   comment?: IssueComment[];
+  /** direction "outward": this issue blocks/duplicates/… key; "inward": this issue is blocked by/duplicated by/… key. */
   issuelinks?: { id: Str; type: Str; direction: "outward" | "inward"; key: Str; summary: Str }[];
   worklog?: { id: Str; author: Str; started: Str; timeSpent: Str; timeSpentSeconds: Num; comment: Str }[];
   /** originalEstimate, remainingEstimate, timeSpent and their …Seconds. */
@@ -147,7 +148,8 @@ interface PageWrite {
   title: string | null;
   url: string;
   version: number | null;
-    fixes: string[];
+  /** Applied automatically by the linter. */
+  fixes: string[];
   /** Left for you to fix with pages.update. */
   warnings: string[];
   attachments?: AttachmentInfo[];
@@ -175,6 +177,7 @@ interface AttachmentInfo {
   /** Bumped by a same-filename re-upload. */
   version?: number;
   comment?: string;
+  /** Pixels of a PNG/JPEG; only in upload results, not attachments.list. */
   width?: number;
   height?: number;
 }`;

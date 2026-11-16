@@ -27,3 +27,26 @@ void test("Markdown converts to ADF and back", () => {
   );
   assert.equal(adfToMarkdown(adf), markdown);
 });
+
+void test("checkbox items become ADF tasks and return as checkboxes", () => {
+  const markdown = [
+    "- [ ] todo **now**",
+    "  - [x] sub",
+    "- [x] done",
+    "",
+    "- plain",
+  ].join("\n");
+  const adf = markdownToAdf(markdown);
+  assert.deepEqual(
+    adf.content.map((node) => node.type),
+    ["taskList", "bulletList"],
+  );
+  const [first, nested, last] = adf.content[0].content as Array<{
+    type: string;
+    attrs?: { state?: string };
+  }>;
+  assert.equal(first.attrs?.state, "TODO");
+  assert.equal(nested.type, "taskList");
+  assert.equal(last.attrs?.state, "DONE");
+  assert.equal(adfToMarkdown(adf), markdown);
+});

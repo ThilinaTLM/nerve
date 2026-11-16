@@ -172,9 +172,12 @@ void test("comments, worklogs, links and sprint moves send the REST shapes and a
     started: "2026-03-02T09:00:00.000+0000",
   });
   const links = sent.filter((s) => s.path === "/issueLink");
-  assert.deepEqual(links[0].body.inwardIssue, { key: "APP-1" });
-  assert.deepEqual(links[0].body.outwardIssue, { key: "APP-2" });
-  assert.deepEqual(links[1].body.outwardIssue, { key: "APP-1" });
+  // "APP-1 is blocked by APP-2": APP-2 blocks, so it is the inwardIssue.
+  assert.deepEqual(links[0].body.inwardIssue, { key: "APP-2" });
+  assert.deepEqual(links[0].body.outwardIssue, { key: "APP-1" });
+  // "APP-1 Blocks APP-3".
+  assert.deepEqual(links[1].body.inwardIssue, { key: "APP-1" });
+  assert.deepEqual(links[1].body.outwardIssue, { key: "APP-3" });
   const moves = sent.filter((s) =>
     /\/rest\/agile\/1\.0\/(sprint\/42|backlog)\/issue$/.test(s.path),
   );

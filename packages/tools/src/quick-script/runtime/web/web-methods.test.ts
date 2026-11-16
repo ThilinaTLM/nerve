@@ -97,15 +97,16 @@ void test("web.fetch parses JSON, honours as: text, and saves binary content as 
   );
 });
 
-void test("web.fetch maps HTTP statuses to host codes and applies the private-network policy", async () => {
+void test("web.fetch returns HTTP error statuses with their body and still throws on policy errors", async () => {
   const { result } = await run(`
     for (const path of ["/missing", "/busy"]) {
-      try { await web.fetch("${base}" + path); } catch (e) { console.log(e.code); }
+      const page = await web.fetch("${base}" + path);
+      console.log(page.status + " " + page.content);
     }
   `);
   assert.deepEqual((result.content ?? "").split("\n").slice(0, 2), [
-    "NOT_FOUND",
-    "RATE_LIMITED",
+    "404 nope",
+    "429 nope",
   ]);
   const blocked = await run(
     `try { await web.fetch("${base}/page"); } catch (e) { console.log(e.code); }`,

@@ -256,11 +256,12 @@ export async function fetchWithPolicy(
   }
 }
 
-/** One policy-checked GET (SSRF guard, redirects, size limit); a non-2xx status throws. Shared by `web_fetch` and the quick_script `web.fetch`. */
+/** One policy-checked GET (SSRF guard, redirects, size limit); a non-2xx status throws unless `acceptErrorStatus`. Shared by `web_fetch` and the quick_script `web.fetch`. */
 export async function downloadWebResource(
   rawUrl: string,
   signal: AbortSignal,
   allowPrivateNetwork: boolean,
+  { acceptErrorStatus = false }: { acceptErrorStatus?: boolean } = {},
 ): Promise<{
   url: string;
   status: number;
@@ -272,7 +273,7 @@ export async function downloadWebResource(
     signal,
     allowPrivateNetwork,
   );
-  if (!response.ok) {
+  if (!response.ok && !acceptErrorStatus) {
     await response.body?.cancel().catch(() => undefined);
     throw new ToolExecutionError(
       "WEB_FETCH_HTTP_ERROR",

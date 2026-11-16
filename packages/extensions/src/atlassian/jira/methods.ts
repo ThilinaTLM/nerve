@@ -1,3 +1,4 @@
+import { ExtensionError } from "@nervekit/extension-api";
 import {
   isArray,
   isString,
@@ -69,6 +70,36 @@ function selectFields(
     : Promise.resolve(defaultSelection(defaults));
 }
 
+/** Jira answers unknown fields, statuses and projects with an empty result; strict parsing names them. */
+async function rejectInvalidJql(
+  connection: JiraConnection,
+  jql: string,
+): Promise<void> {
+  let errors: string[];
+  try {
+    const response = await jiraRequest(connection, {
+      parse: jsonObject,
+      method: "POST",
+      path: "/jql/parse",
+      query: { validation: "strict" },
+      body: { queries: [jql] },
+    });
+    const first = isArray(response.queries) ? response.queries[0] : undefined;
+    const raw =
+      first && typeof first === "object"
+        ? (first as { errors?: unknown }).errors
+        : undefined;
+    errors = isArray(raw) ? raw.filter(isString) : [];
+  } catch {
+    return;
+  }
+  if (errors.length > 0)
+    throw new ExtensionError(
+      "BAD_REQUEST",
+      `Invalid JQL (Jira returned no issues): ${errors.join("; ")}`,
+    );
+}
+
 const readMethods: PathedMethod<JiraSession>[] = [
   defineMethod({
     product: "jira",
@@ -112,6 +143,7 @@ const readMethods: PathedMethod<JiraSession>[] = [
         }
         nextPageToken = page.nextPageToken;
       } while (nextPageToken && issues.length < limit);
+      if (issues.length === 0) await rejectInvalidJql(connection, jql);
       return issues;
     },
   }),

@@ -138,8 +138,14 @@ describe("edit executor", () => {
       "EDIT_MATCH_AMBIGUOUS",
     );
     assert.match(ambiguous.message, /matched 2 times/);
-    assert.match(ambiguous.message, /1: same {2}\(before: other\)/);
-    assert.match(ambiguous.message, /3: same {2}\(after: other\)/);
+    assert.match(
+      ambiguous.message,
+      /match 1, line 1: same {2}\(before: other\)/,
+    );
+    assert.match(
+      ambiguous.message,
+      /match 2, line 3: same {2}\(after: other\)/,
+    );
   });
 
   it("caps ambiguous match listings at five", async () => {

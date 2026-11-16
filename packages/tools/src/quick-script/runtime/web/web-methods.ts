@@ -13,7 +13,7 @@ import {
   freshArtifactName,
   writeArtifact,
 } from "../files/artifacts.js";
-import { codedError, type HostErrorCode } from "../errors.js";
+import { codedError } from "../errors.js";
 import { defineMethod, type SdkMethod } from "../sdk-types.js";
 
 const FETCH_AS = ["markdown", "text", "json", "file"] as const;
@@ -37,30 +37,16 @@ export function htmlTitle(html: string): string | undefined {
   return title || undefined;
 }
 
-function httpCode(status: number): HostErrorCode {
-  if (status === 401) return "UNAUTHORIZED";
-  if (status === 403) return "FORBIDDEN";
-  if (status === 404 || status === 410) return "NOT_FOUND";
-  if (status === 429) return "RATE_LIMITED";
-  return status >= 500 ? "SERVER_ERROR" : "BAD_REQUEST";
-}
-
-/** Fetches the page through the `web_fetch` tool's network policy; an HTTP error status becomes the matching host code. */
+/** Fetches the page through the `web_fetch` tool's network policy. An HTTP error status is part of the result, not a failure. */
 async function download(url: string, env: Parameters<SdkMethod["prepare"]>[1]) {
   try {
     return await downloadWebResource(
       url,
       withTimeoutSignal(env.context.signal, 60_000),
       env.context.webFetchPolicy?.allowPrivateNetwork === true,
+      { acceptErrorStatus: true },
     );
   } catch (error) {
-    const status =
-      error instanceof ToolExecutionError &&
-      error.code === "WEB_FETCH_HTTP_ERROR"
-        ? error.details.status
-        : undefined;
-    if (typeof status === "number")
-      throw codedError(httpCode(status), `Fetch failed: ${status}`);
     if (
       error instanceof ToolExecutionError &&
       error.code === "WEB_FETCH_RESPONSE_TOO_LARGE"
@@ -78,7 +64,7 @@ export const webMethods: SdkMethod[] = [
     bare: "url",
     options: ["url", "as", "name"],
     signature:
-      '/** GET a URL. Default: HTML as markdown, text as text, JSON parsed; binary or `as: "file"` saves an artifact. */ fetch(url: string | { url: string; as?: "markdown" | "text" | "json" | "file"; name?: string }): Promise<WebPage | FileHandle>',
+      '/** GET a URL; an HTTP error status (404, 500…) is returned in `status` with the response body, not thrown. Default: HTML as markdown, text as text, JSON parsed; binary or `as: "file"` saves an artifact. */ fetch(url: string | { url: string; as?: "markdown" | "text" | "json" | "file"; name?: string }): Promise<WebPage | FileHandle>',
     parse: (options) => {
       const { url, as, name } = options;
       if (typeof url !== "string" || url.trim().length === 0)
@@ -101,7 +87,8 @@ export const webMethods: SdkMethod[] = [
     async run({ url, as, name }, env) {
       const page = await download(url, env);
       const { contentType, buffer } = page;
-      const text = isTextType(contentType);
+      // An error status always comes back as a page (its body is a message, whatever the content type).
+      const text = isTextType(contentType) || page.status >= 400;
       if (as === "file" || (as === undefined && !text))
         return await writeArtifact(
           env,

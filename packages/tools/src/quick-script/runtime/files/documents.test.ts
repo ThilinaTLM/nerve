@@ -33,15 +33,18 @@ async function setup() {
   return { cwd, artifactDir, authorized, run };
 }
 
-void test("document libraries and shims load only for scripts that mention them", () => {
+void test("document libraries load only for scripts that mention them", () => {
   const sources = (code: string) =>
     preludesFor(code, registry)
       .slice(1)
       .map((prelude) => prelude.source)
       .join("\n");
   assert.equal(preludesFor(`console.log(1)`, registry).length, 1);
-  assert.doesNotMatch(sources(`XLSX.read`), /g\.setImmediate/);
-  assert.match(sources(`docx.Packer`), /g\.setImmediate/);
+  assert.doesNotMatch(
+    sources(`XLSX.read`),
+    /defineProperty\(globalThis, "docx"/,
+  );
+  assert.match(sources(`docx.Packer`), /defineProperty\(globalThis, "docx"/);
   assert.match(sources(`mammoth.convertToHtml`), /qsimg/);
   const pptx = sources(`await pptxText(bytes)`);
   assert.match(pptx, /defineProperty\(globalThis, "JSZip"/);

@@ -13,8 +13,10 @@ export type FieldMeta = {
   type: string | null;
   items: string | null;
   kind: string | null;
-  /** Display values of `allowedValues`, when Jira lists them. */
+  /** Distinct display values of `allowedValues`, when Jira lists them. */
   allowed?: string[];
+  /** Every allowed value with its id; names can repeat (two "Done" resolutions). */
+  options?: { name: string; id: string | null }[];
 };
 
 const MAX_LISTED = 40;
@@ -54,9 +56,15 @@ export function fieldMetaMap(fields: unknown): Map<string, FieldMeta> {
   for (const [id, raw] of entries) {
     const field = record(raw);
     const schema = record(field.schema);
-    const allowed = Array.isArray(field.allowedValues)
-      ? field.allowedValues.flatMap((item) => displayOf(item) ?? [])
+    const options = Array.isArray(field.allowedValues)
+      ? field.allowedValues.flatMap((item) => {
+          const name = displayOf(item);
+          return name === undefined
+            ? []
+            : [{ name, id: text(record(item).id) }];
+        })
       : undefined;
+    const allowed = options && [...new Set(options.map((o) => o.name))];
     meta.set(id, {
       id,
       name: text(field.name) ?? id,
@@ -65,7 +73,7 @@ export function fieldMetaMap(fields: unknown): Map<string, FieldMeta> {
       type: text(schema.type),
       items: text(schema.items),
       kind: text(schema.custom) ?? text(schema.system),
-      ...(allowed && allowed.length > 0 ? { allowed } : {}),
+      ...(allowed && allowed.length > 0 ? { allowed, options } : {}),
     });
   }
   return meta;
@@ -95,19 +103,45 @@ export function missingFields(
 /** "Name (values: a, b)" for a field a caller must or may provide. */
 export function describeField(field: FieldMeta): string {
   return field.allowed
-    ? `${field.name} (values: ${listValues(field.allowed)})`
+    ? `${field.name} (values: ${listValues(optionLabels(field))})`
     : field.name;
 }
 
-function canonical(field: FieldMeta, value: string): string {
-  if (!field.allowed) return value;
-  const match = field.allowed.find(
-    (item) => item.toLowerCase() === value.trim().toLowerCase(),
+/** Allowed values for messages; a repeated name carries its ids: `Done (id 10000)`. */
+function optionLabels(field: FieldMeta): string[] {
+  const options =
+    field.options ?? (field.allowed ?? []).map((name) => ({ name, id: null }));
+  const counts = new Map<string, number>();
+  for (const { name } of options) counts.set(name, (counts.get(name) ?? 0) + 1);
+  return options.map(({ name, id }) =>
+    (counts.get(name) ?? 0) > 1 && id ? `${name} (id ${id})` : name,
   );
-  if (match) return match;
+}
+
+/** An allowed value matched by id or name: `id` is set when the name alone is ambiguous or an id was passed. */
+type OptionRef = { name: string; id?: string };
+
+function canonical(field: FieldMeta, value: string): OptionRef {
+  if (!field.allowed) return { name: value };
+  const wanted = value.trim().toLowerCase();
+  const options =
+    field.options ?? field.allowed.map((name) => ({ name, id: null }));
+  const byId = options.find(
+    (item) => item.id !== null && item.id === value.trim(),
+  );
+  if (byId) return { name: byId.name, id: byId.id ?? undefined };
+  const named = options.filter((item) => item.name.toLowerCase() === wanted);
+  if (named.length === 1) return { name: named[0].name };
+  if (named.length > 1) {
+    const ids = [...new Set(named.flatMap((item) => item.id ?? []))];
+    if (ids.length === 1) return { name: named[0].name };
+    throw new Error(
+      `"${value}" matches several values for ${field.name}: ${listValues(optionLabels(field).filter((_, index) => options[index].name.toLowerCase() === wanted))}. Pass one id.`,
+    );
+  }
   const close = closeMatches(value, field.allowed, 3);
   throw new Error(
-    `"${value}" is not a valid value for ${field.name}.${close.length ? ` Did you mean: ${close.map((item) => `"${item}"`).join(", ")}?` : ""} Valid values: ${listValues(field.allowed)}.`,
+    `"${value}" is not a valid value for ${field.name}.${close.length ? ` Did you mean: ${close.map((item) => `"${item}"`).join(", ")}?` : ""} Valid values: ${listValues(optionLabels(field))}.`,
   );
 }
 
@@ -169,6 +203,9 @@ export async function toApiFields(
   return out;
 }
 
+const named = (ref: OptionRef) =>
+  ref.id ? { id: ref.id } : { name: ref.name };
+
 const RICH_TEXT = new Set(["description", "environment"]);
 
 async function convert(
@@ -209,9 +246,7 @@ async function convert(
     type === "priority" ||
     type === "resolution"
   ) {
-    return typeof value === "string"
-      ? { name: canonical(field, value) }
-      : value;
+    return typeof value === "string" ? named(canonical(field, value)) : value;
   }
   if (
     items === "component" ||
@@ -220,9 +255,9 @@ async function convert(
     id === "fixVersions" ||
     id === "versions"
   ) {
-    return strings(value, field.name).map((item) => ({
-      name: canonical(field, item),
-    }));
+    return strings(value, field.name).map((item) =>
+      named(canonical(field, item)),
+    );
   }
   if (type === "option" || (type === "array" && items === "option")) {
     const options = strings(value, field.name).map((item) => {
@@ -230,7 +265,8 @@ async function convert(
       if (child !== undefined && more.length === 0) {
         return { value: parent.trim(), child: { value: child.trim() } };
       }
-      return { value: canonical(field, item) };
+      const ref = canonical(field, item);
+      return ref.id ? { id: ref.id } : { value: ref.name };
     });
     return type === "option" ? options[0] : options;
   }

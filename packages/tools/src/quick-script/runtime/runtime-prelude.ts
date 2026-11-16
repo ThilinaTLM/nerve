@@ -1,3 +1,5 @@
+import { SANDBOX_GLOBALS } from "./sandbox-globals.js";
+
 /**
  * Trusted sandbox code around the generated SDK: error decoding, base64 for
  * binary data on the JSON bridge, `return` printing, and the positional
@@ -18,6 +20,7 @@ export const RUNTIME_HEAD = String.raw`
     }
   };
 
+${SANDBOX_GLOBALS}
   const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   const b64encode = (bytes) => {
     let out = "";
@@ -109,3 +112,40 @@ export const runtimeTail = (guarded: readonly string[]) => String.raw`
     globalThis[name] = guard(name, globalThis[name]);
   }
 `;
+
+/**
+ * Wraps the globals an extension's helper prelude defined (e.g. `storage`) so a
+ * plain Error they throw, synchronously or as a rejection, carries
+ * `code: "BAD_REQUEST"` like host failures. Errors that already have a code, and
+ * the script's own errors, are untouched. Spliced around each extension prelude.
+ */
+export const helperErrorCoding = (prelude: string) => String.raw`{
+  const before = new Set(Object.getOwnPropertyNames(globalThis));
+${prelude}
+  const code = (error) => {
+    if (error !== null && typeof error === "object" && error.code === undefined) {
+      try { error.code = "BAD_REQUEST"; } catch {}
+    }
+    return error;
+  };
+  const wrap = (value) => {
+    if (typeof value === "function") {
+      const wrapped = function (...args) {
+        let result;
+        try { result = value.apply(this, args); } catch (error) { throw code(error); }
+        return result && typeof result.then === "function" ? result.then(undefined, (error) => { throw code(error); }) : result;
+      };
+      for (const key of Object.keys(value)) wrapped[key] = wrap(value[key]);
+      return wrapped;
+    }
+    if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+      for (const key of Object.keys(value)) {
+        try { value[key] = wrap(value[key]); } catch {}
+      }
+    }
+    return value;
+  };
+  for (const name of Object.getOwnPropertyNames(globalThis)) {
+    if (!before.has(name)) globalThis[name] = wrap(globalThis[name]);
+  }
+}`;
