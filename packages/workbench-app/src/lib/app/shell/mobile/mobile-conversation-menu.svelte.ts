@@ -5,6 +5,7 @@ import {
   countProjectConversations,
   type DeleteTarget,
   type ProjectTreeMenuContext,
+  type RenameTarget,
 } from "$lib/features/projects";
 import {
   sidebarConversations,
@@ -24,6 +25,7 @@ import {
  * in lockstep across shells; only the presentation differs (bottom sheet).
  */
 export const mobileConversationDelete = $state<{ target?: DeleteTarget }>({});
+export const mobileConversationRename = $state<{ target?: RenameTarget }>({});
 
 export function mobileConversationMenu(
   conversation: ConversationSummary,
@@ -50,6 +52,9 @@ export function mobileConversationMenu(
     requestPrune: () => {},
     requestDelete: (target) => {
       mobileConversationDelete.target = target;
+    },
+    requestRename: (target) => {
+      mobileConversationRename.target = target;
     },
   };
   return buildConversationMenu(

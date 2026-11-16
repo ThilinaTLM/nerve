@@ -10,6 +10,7 @@ import Copy from "@lucide/svelte/icons/copy";
 import Settings from "@lucide/svelte/icons/settings";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import BrushCleaning from "@lucide/svelte/icons/brush-cleaning";
+import Pencil from "@lucide/svelte/icons/pencil";
 import Pin from "@lucide/svelte/icons/pin";
 import PinOff from "@lucide/svelte/icons/pin-off";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
@@ -26,6 +27,9 @@ import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { DeleteTarget } from "./project-agent-tree-props";
 import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
+
+/** Conversation to rename; `title` is the stored (raw) title. */
+export type RenameTarget = { id: string; title: string };
 
 export type ProjectTreeMenuContext = {
   homeDir?: string;
@@ -44,6 +48,7 @@ export type ProjectTreeMenuContext = {
   onOpenProjectSettings?: (projectId: string) => void;
   requestPrune: (project: ProjectRecord) => void;
   requestDelete: (target: DeleteTarget) => void;
+  requestRename?: (target: RenameTarget) => void;
 };
 
 export function countProjectConversations(
@@ -157,6 +162,17 @@ export function buildConversationMenu(
 ): ContextMenuItem[] {
   const activity = ctx.conversationActivity?.(conversation.id);
   const stateItems: ContextMenuItem[] = [
+    {
+      label: "Rename",
+      icon: Pencil,
+      movesFocus: true,
+      disabled: !ctx.requestRename,
+      onSelect: () =>
+        ctx.requestRename?.({
+          id: conversation.id,
+          title: conversation.title,
+        }),
+    },
     {
       label: conversation.pinned ? "Unpin" : "Pin",
       icon: conversation.pinned ? PinOff : Pin,

@@ -4,10 +4,18 @@ import {
   deleteConversationAndRefresh,
   maintenance,
 } from "$lib/application/workspace";
-import { mobileConversationDelete } from "./mobile-conversation-menu.svelte";
+import {
+  RenameConversationDialog,
+  updateConversationStateAndRefresh,
+} from "$lib/features/projects";
+import {
+  mobileConversationDelete,
+  mobileConversationRename,
+} from "./mobile-conversation-menu.svelte";
 
-/** Confirmation for destructive conversation actions taken from phone lists. */
+/** Dialogs for conversation actions taken from phone lists. */
 const target = $derived(mobileConversationDelete.target);
+const renameTarget = $derived(mobileConversationRename.target);
 </script>
 
 <AlertDialog
@@ -26,3 +34,19 @@ const target = $derived(mobileConversationDelete.target);
     if (!open) mobileConversationDelete.target = undefined;
   }}
 />
+
+{#if renameTarget}
+  {@const rename = renameTarget}
+  {#key rename}
+    <RenameConversationDialog
+      open
+      title={rename.title}
+      onRename={(title) =>
+        void updateConversationStateAndRefresh(rename.id, { title })}
+      onOpenChange={(open) => {
+        if (!open && mobileConversationRename.target === rename)
+          mobileConversationRename.target = undefined;
+      }}
+    />
+  {/key}
+{/if}

@@ -41,6 +41,8 @@ let {
   onOpenChange,
 }: Props = $props();
 
+let content = $state<HTMLElement | null>(null);
+
 function handleOpenChange(next: boolean) {
   open = next;
   onOpenChange?.(next);
@@ -49,7 +51,16 @@ function handleOpenChange(next: boolean) {
 
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
   <Dialog.Content
+    bind:ref={content}
     showCloseButton={false}
+    onOpenAutoFocus={(event) => {
+      // Honor a field marked `autofocus`; otherwise the primitive focuses the
+      // first tabbable element, which is the header's close button.
+      const field = content?.querySelector<HTMLElement>("[autofocus]");
+      if (!field) return;
+      event.preventDefault();
+      field.focus();
+    }}
     layout="shell"
     onInteractOutside={(event) => {
       if (!closeOnInteractOutside) event.preventDefault();

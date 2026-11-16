@@ -5,6 +5,7 @@ import {
   asyncBashLogsResponseSchema,
 } from "./async-bash.js";
 import { projectSchema } from "./project.js";
+import { CONVERSATION_TITLE_MAX_LENGTH } from "./conversation-title.js";
 import {
   trustedResourceSchema,
   trustedResourceKindSchema,
@@ -76,7 +77,12 @@ export const configureConversationRequestSchema = z
 export const updateConversationRequestSchema = z.object({
   conversationId: z.string(),
   patch: z.object({
-    title: z.string().optional(),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(CONVERSATION_TITLE_MAX_LENGTH)
+      .optional(),
     pinned: z.boolean().optional(),
     completed: z.boolean().optional(),
     clearStatus: z.boolean().optional(),

@@ -35,6 +35,7 @@ import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import ConversationListItem from "$lib/presentation/conversations/ConversationListItem.svelte";
 import ConversationListSettingsDialog from "./ConversationListSettingsDialog.svelte";
 import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
+import RenameConversationPopover from "./RenameConversationPopover.svelte";
 import { getShortcutLabel } from "$lib/application/commands/command-registry";
 import {
   buildConversationMenu,
@@ -43,6 +44,7 @@ import {
   countKeepEligible,
   countProjectConversations,
   type ProjectTreeMenuContext,
+  type RenameTarget,
 } from "./project-tree-menus";
 import type {
   DeleteTarget,
@@ -77,6 +79,16 @@ let {
 const MAX_LISTED_CONVERSATIONS = 100;
 
 let pendingDelete = $state<DeleteTarget | undefined>();
+let pendingRename = $state<
+  (RenameTarget & { anchor: HTMLElement }) | undefined
+>();
+
+function requestRename(target: RenameTarget): void {
+  const anchor = viewport?.querySelector<HTMLElement>(
+    `[data-panel-row-id="${CSS.escape(target.id)}"]`,
+  );
+  if (anchor) pendingRename = { ...target, anchor };
+}
 let search = $state("");
 let searchInput = $state<HTMLInputElement | null>(null);
 let settingsOpen = $state(false);
@@ -214,6 +226,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       keepLatest: 20,
     }),
   requestDelete: (target) => (pendingDelete = target),
+  requestRename: onUpdateConversationState ? requestRename : undefined,
 });
 </script>
 
@@ -411,3 +424,17 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     if (!open) pendingDelete = undefined;
   }}
 />
+
+{#if pendingRename}
+  {@const target = pendingRename}
+  {#key target}
+    <RenameConversationPopover
+      anchor={target.anchor}
+      title={target.title}
+      onRename={(title) => onUpdateConversationState?.(target.id, { title })}
+      onClose={() => {
+        if (pendingRename === target) pendingRename = undefined;
+      }}
+    />
+  {/key}
+{/if}

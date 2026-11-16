@@ -1,5 +1,7 @@
 export * from "./api/projects.api";
 export { default as PruneConversationsDialog } from "./views/PruneConversationsDialog.svelte";
+export { default as RenameConversationDialog } from "./views/RenameConversationDialog.svelte";
+export { default as RenameConversationPopover } from "./views/RenameConversationPopover.svelte";
 export { default as ProjectIcon } from "./views/ProjectIcon.svelte";
 export { default as DropToOpenDialog } from "./views/DropToOpenDialog.svelte";
 export { default as DropToOpenOverlay } from "./views/DropToOpenOverlay.svelte";
@@ -25,6 +27,7 @@ export {
   countKeepEligible,
   countProjectConversations,
   type ProjectTreeMenuContext,
+  type RenameTarget,
 } from "./views/project-tree-menus";
 export {
   buildProjectSwitcherItems,

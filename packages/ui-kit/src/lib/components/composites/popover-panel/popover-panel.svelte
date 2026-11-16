@@ -46,7 +46,12 @@ type Props = {
   /** `adaptive` opens a bottom sheet instead on phone-sized viewports, so
    * touch users get full-width rows and a pull-down to dismiss. */
   presentation?: "popover" | "adaptive";
+  /** Positions the panel against an existing element instead of rendering a
+   * trigger, e.g. when a context-menu action opens it. */
+  anchor?: HTMLElement | null;
   onOpenChange?: (open: boolean) => void;
+  /** After the open or close transition, including close focus handling. */
+  onOpenChangeComplete?: (open: boolean) => void;
 };
 
 let {
@@ -69,7 +74,9 @@ let {
   collisionPadding = 8,
   trapFocus = true,
   presentation = "popover",
+  anchor,
   onOpenChange,
+  onOpenChangeComplete,
 }: Props = $props();
 
 const asSheet = $derived(presentation === "adaptive" && phoneViewport());
@@ -140,6 +147,16 @@ $effect(() => {
   });
 });
 
+/** Where Escape returns focus: the trigger, or the anchor (or its first
+ * focusable descendant, since anchors are often non-focusable rows). */
+function focusReturnTarget(): HTMLElement | null {
+  if (!anchor) return triggerElement;
+  const focusable = "button, [href], input, textarea, select, [tabindex]";
+  return anchor.matches(focusable)
+    ? anchor
+    : anchor.querySelector<HTMLElement>(focusable);
+}
+
 function handleOpenChange(next: boolean) {
   open = next;
   onOpenChange?.(next);
@@ -147,23 +164,29 @@ function handleOpenChange(next: boolean) {
 </script>
 
 {#if asSheet}
-  <DialogPrimitive.Root bind:open onOpenChange={handleOpenChange}>
-    <DialogPrimitive.Trigger
-      bind:ref={triggerElement}
-      data-popover-variant={variant}
-      data-popover-trigger
-      class={cn(
-        !triggerChild && "popover-trigger",
-        triggerClass,
-        animatesWidth && "overflow-hidden",
-      )}
-      aria-label={ariaLabel}
-      title={triggerTitle}
-      aria-keyshortcuts={triggerAriaKeyShortcuts}
-      child={triggerChild}
-    >
-      {@render trigger?.()}
-    </DialogPrimitive.Trigger>
+  <DialogPrimitive.Root
+    bind:open
+    onOpenChange={handleOpenChange}
+    {onOpenChangeComplete}
+  >
+    {#if !anchor}
+      <DialogPrimitive.Trigger
+        bind:ref={triggerElement}
+        data-popover-variant={variant}
+        data-popover-trigger
+        class={cn(
+          !triggerChild && "popover-trigger",
+          triggerClass,
+          animatesWidth && "overflow-hidden",
+        )}
+        aria-label={ariaLabel}
+        title={triggerTitle}
+        aria-keyshortcuts={triggerAriaKeyShortcuts}
+        child={triggerChild}
+      >
+        {@render trigger?.()}
+      </DialogPrimitive.Trigger>
+    {/if}
     <SheetContent
       bind:ref={sheetElement}
       side="bottom"
@@ -186,22 +209,28 @@ function handleOpenChange(next: boolean) {
     </SheetContent>
   </DialogPrimitive.Root>
 {:else}
-  <PopoverPrimitive.Root bind:open onOpenChange={handleOpenChange}>
-    <PopoverPrimitive.Trigger
-      bind:ref={triggerElement}
-      data-popover-variant={variant}
-      class={cn(
-        !triggerChild && "popover-trigger",
-        triggerClass,
-        animatesWidth && "overflow-hidden",
-      )}
-      aria-label={ariaLabel}
-      title={triggerTitle}
-      aria-keyshortcuts={triggerAriaKeyShortcuts}
-      child={triggerChild}
-    >
-      {@render trigger?.()}
-    </PopoverPrimitive.Trigger>
+  <PopoverPrimitive.Root
+    bind:open
+    onOpenChange={handleOpenChange}
+    {onOpenChangeComplete}
+  >
+    {#if !anchor}
+      <PopoverPrimitive.Trigger
+        bind:ref={triggerElement}
+        data-popover-variant={variant}
+        class={cn(
+          !triggerChild && "popover-trigger",
+          triggerClass,
+          animatesWidth && "overflow-hidden",
+        )}
+        aria-label={ariaLabel}
+        title={triggerTitle}
+        aria-keyshortcuts={triggerAriaKeyShortcuts}
+        child={triggerChild}
+      >
+        {@render trigger?.()}
+      </PopoverPrimitive.Trigger>
+    {/if}
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
         class={cn(
@@ -215,6 +244,7 @@ function handleOpenChange(next: boolean) {
         {side}
         align={align ?? (variant === "field" ? "start" : "end")}
         data-popover-variant={variant}
+        customAnchor={anchor}
         {sideOffset}
         {collisionPadding}
         {trapFocus}
@@ -225,7 +255,7 @@ function handleOpenChange(next: boolean) {
           if (!returnFocusToTrigger) return;
           returnFocusToTrigger = false;
           event.preventDefault();
-          triggerElement?.focus();
+          focusReturnTarget()?.focus();
         }}
       >
         <div
