@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "read_only",
   "name": "Read-only",
-  "description": "Allow interaction, local inspection and sub-agent delegation; deny all other capabilities.",
+  "description": "Allow interaction, local inspection, external reads and sub-agent delegation; deny all other capabilities.",
   "source": "builtin",
   "enabled": true,
   "rules": [
@@ -12,6 +12,14 @@
       "priority": 200,
       "enforcement": "overridable",
       "when": { "baseRisks": ["interaction"] },
+      "decision": "allow"
+    },
+    {
+      "id": "allow-external-reads",
+      "enabled": true,
+      "priority": 175,
+      "enforcement": "overridable",
+      "when": { "baseRisks": ["external_read"] },
       "decision": "allow"
     },
     {
@@ -32,7 +40,7 @@
     },
     {
       "id": "deny-everything-else",
-      "description": "Read-only mode allows only inspection tools such as read, grep, find and ls.",
+      "description": "Read-only mode allows only inspection tools such as read, grep, find and ls, and external reads such as web_fetch.",
       "enabled": true,
       "priority": 0,
       "enforcement": "overridable",
