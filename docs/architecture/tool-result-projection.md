@@ -82,4 +82,4 @@ Images returned in tool content become managed assets referenced by ID. They nee
 
 Image resolution is owned by [`loadProjectionOptions`](../../packages/conversation-core/src/context/asset-projection.ts). For how projections enter subsequent model requests, see [events and context](conversation-core/events-and-context.md).
 
-An agent projection stays in model context until compaction; older tool output is never cleared or shortened. This is why inline budgets stay below those of harnesses that clear old output. See the [old tool output clearing proposal](../proposals/old-tool-output-clearing.md).
+An agent projection stays in model context until compaction; older tool output is never cleared or shortened. This is why inline budgets stay below those of harnesses that clear old output. See the old tool output clearing proposal ([#603](https://github.com/ThilinaTLM/nerve/issues/603)).

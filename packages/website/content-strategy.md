@@ -391,7 +391,6 @@ The tables are editorial briefs for the existing corpus and refresh backlog, not
 | `docs/runbooks/performance-diagnostics.md` | Root docs       | Development-only diagnostics and incident analysis procedure.                                                            |
 | `docs/architecture/**`                     | Root docs       | Concise current cross-package architecture that links owning code.                                                       |
 | `docs/decisions/**`                        | Root docs       | Accepted cross-package design rationale without copied catalogs or schemas.                                              |
-| `docs/proposals/**`                        | Root docs       | Active, explicitly unimplemented target designs.                                                                         |
 | `docs/README.md`                           | Root docs       | Index explaining the root/website/package ownership boundary.                                                            |
 | `CONTRIBUTING.md`, `SECURITY.md`           | Repository root | Governance and vulnerability reporting; website pages summarize and link to these files.                                 |
 
