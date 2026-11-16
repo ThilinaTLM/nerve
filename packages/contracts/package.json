@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/contracts",
-  "version": "0.41.0",
+  "version": "0.41.1",
   "private": true,
   "description": "Transport-neutral schemas, events, policies, and result contracts.",
   "author": "ThilinaTLM",
