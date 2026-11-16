@@ -1,10 +1,10 @@
-/** Matches the fade declared in the `startup-splash` block of index.html. */
-const DISMISS_DURATION_MS = 280;
+/** Covers the `.is-dismissed` exit declared in the `startup-splash` block of index.html. */
+const DISMISS_DURATION_MS = 600;
 
 /**
  * Removes the startup splash that index.html painted before the bundle loaded.
  * The node lives for the whole boot so the intro never restarts; the workbench
- * paints behind it and this fades the splash away once it is ready.
+ * paints behind it and this plays the splash exit once it is ready.
  */
 export function dismissStartupSplash(): void {
   const splash = document.getElementById("startup-splash");
@@ -19,7 +19,7 @@ export function dismissStartupSplash(): void {
     return;
   }
 
-  // Two frames: the first commits `is-complete`, the second starts the fade.
+  // Two frames: the first commits `is-complete`, the second starts the exit.
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       splash.classList.add("is-dismissed");

@@ -16,6 +16,14 @@ describe("loadingHtml", () => {
     assert.match(html, /Waiting for &quot;local&quot; &lt;daemon&gt;/);
     assert.doesNotMatch(html, /<daemon>/);
   });
+
+  it("shows the escaped version in the splash footer", () => {
+    assert.match(
+      loadingHtml({ version: "0.41.0<beta>" }),
+      /<p id="startup-splash-version">Nerve 0\.41\.0&lt;beta&gt;<\/p>/,
+    );
+    assert.match(loadingHtml(), /<p id="startup-splash-version"><\/p>/);
+  });
 });
 
 describe("errorHtml", () => {
