@@ -161,16 +161,15 @@ function snapshotQuota(
   };
 }
 
-/** Copilot Free's legacy shape: monthly allowances and what is left. */
-function legacyQuota(
+/** Copilot Free's legacy shape: monthly chat allowance and what is left. */
+function legacyChatQuota(
   monthly: Json | undefined,
   left: Json | undefined,
-  key: "chat" | "completions",
   name: QuotaName,
   resetsAt: string | null,
 ): SubscriptionQuota | null {
-  const limit = numberValue(monthly?.[key]);
-  const remaining = numberValue(left?.[key]);
+  const limit = numberValue(monthly?.chat);
+  const remaining = numberValue(left?.chat);
   if (limit == null || limit <= 0 || remaining == null) return null;
   const used = Math.max(0, limit - remaining);
   return {
@@ -184,7 +183,12 @@ function legacyQuota(
   };
 }
 
-/** Parse a `copilot_internal/user` payload into a normalized snapshot. */
+/**
+ * Parse a `copilot_internal/user` payload into a normalized snapshot.
+ * Completions quotas are ignored: Nerve has no inline completions. Unlimited
+ * chat snapshots are dropped too: chat is billed in AI credits, which the
+ * premium snapshot already reports.
+ */
 export function parseCopilotUsageResponse(
   payload: unknown,
 ): SubscriptionUsage | null {
@@ -201,55 +205,27 @@ export function parseCopilotUsageResponse(
   const snapshots = record(user.quota_snapshots);
   const premium = record(snapshots?.premium_interactions);
   const chat = record(snapshots?.chat);
-  const completions = record(snapshots?.completions);
   if (premium) {
     const quota = snapshotQuota(premium, credits, accountReset);
     if (quota) quotas.push(quota);
   }
-  if (chat) {
+  if (chat && chat.unlimited !== true) {
     // Under token-based billing a capped chat snapshot (Copilot Free) is the
     // plan's credit allowance rather than a message count.
-    const name =
-      chat.unlimited === true
-        ? { id: "chat", label: "Chat", unit: "messages" }
-        : tokenBased
-          ? credits
-          : { id: "chat", label: "Chat messages", unit: "messages" };
+    const name = tokenBased
+      ? credits
+      : { id: "chat", label: "Chat messages", unit: "messages" };
     const quota = quotas.some((q) => q.id === name.id)
       ? null
       : snapshotQuota(chat, name, accountReset);
     if (quota) quotas.push(quota);
   }
-  const completionsName = {
-    id: "completions",
-    label: "Completions",
-    unit: "completions",
-  };
-  if (completions) {
-    const quota = snapshotQuota(completions, completionsName, accountReset);
-    if (quota) quotas.push(quota);
-  }
-
-  const monthly = record(user.monthly_quotas);
-  const left = record(user.limited_user_quotas);
-  const freeReset = isoDate(user.limited_user_reset_date) ?? accountReset;
   if (!chat) {
-    const quota = legacyQuota(
-      monthly,
-      left,
-      "chat",
+    const quota = legacyChatQuota(
+      record(user.monthly_quotas),
+      record(user.limited_user_quotas),
       { id: "chat", label: "Chat messages", unit: "messages" },
-      freeReset,
-    );
-    if (quota) quotas.push(quota);
-  }
-  if (!completions) {
-    const quota = legacyQuota(
-      monthly,
-      left,
-      "completions",
-      completionsName,
-      freeReset,
+      isoDate(user.limited_user_reset_date) ?? accountReset,
     );
     if (quota) quotas.push(quota);
   }

@@ -25,7 +25,12 @@ void test("token-billed plans report AI credits with counts and overage", () => 
   });
   assert.equal(usage?.provider, "github-copilot");
   assert.equal(usage?.planType, "Pro");
-  const [credits, chat, completions] = usage?.quotas ?? [];
+  assert.deepEqual(
+    usage?.quotas.map((q) => q.id),
+    ["credits"],
+    "unlimited chat and completions are not shown",
+  );
+  const [credits] = usage?.quotas ?? [];
   assert.deepEqual(
     {
       id: credits?.id,
@@ -46,8 +51,6 @@ void test("token-billed plans report AI credits with counts and overage", () => 
       overage: { permitted: true, used: 0 },
     },
   );
-  assert.equal(chat?.unlimited, true);
-  assert.equal(completions?.unlimited, true);
 });
 
 void test("legacy request billing reports premium requests", () => {
@@ -134,10 +137,7 @@ void test("Copilot Free on credits reads the capped chat snapshot as credits", (
   assert.equal(usage?.planType, "Free");
   assert.deepEqual(
     usage?.quotas.map((q) => [q.id, q.used, q.limit]),
-    [
-      ["credits", 30, 50],
-      ["completions", 1240, 2000],
-    ],
+    [["credits", 30, 50]],
   );
 });
 
@@ -150,10 +150,7 @@ void test("legacy Copilot Free allowances are read from monthly quotas", () => {
   });
   assert.deepEqual(
     usage?.quotas.map((q) => [q.id, q.used, q.usedPercent]),
-    [
-      ["chat", 38, 76],
-      ["completions", 0, 0],
-    ],
+    [["chat", 38, 76]],
   );
 });
 
