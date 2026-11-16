@@ -42,6 +42,18 @@ test("host errors reject in the script as HostError", async () => {
   assert.equal(outcome.hostCalls[0]?.ok, false);
 });
 
+test("a signal aborted before start yields a cancelled outcome, not a throw", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const outcome = await sandbox.runSandboxScript({
+    code: `console.log("ran");`,
+    signal: controller.signal,
+    onHostCall: async () => null,
+  });
+  assert.equal(outcome.status, "cancelled");
+  assert.equal(outcome.output, "");
+});
+
 test("abort signal cancels a script waiting on a slow host call", async () => {
   const controller = new AbortController();
   const started = performance.now();

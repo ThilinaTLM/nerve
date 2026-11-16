@@ -55,6 +55,7 @@ void test("timers wait for their delay; clearTimeout and clearInterval stop call
 });
 
 void test("a pending sleep ends with the script's cancellation or timeout", async () => {
+  // Whether this lands before or after the sandbox starts (slow runners), the result is the same.
   const controller = new AbortController();
   setTimeout(() => controller.abort(), 200);
   const started = Date.now();
@@ -63,6 +64,12 @@ void test("a pending sleep ends with the script's cancellation or timeout", asyn
   });
   assert.equal((cancelled.details as { status?: string }).status, "cancelled");
   assert.ok(Date.now() - started < 5000);
+
+  // An abort that lands before the sandbox starts is a cancellation too, not a throw.
+  const early = new AbortController();
+  early.abort();
+  const before = await run(`await sleep(60000);`, { signal: early.signal });
+  assert.equal((before.details as { status?: string }).status, "cancelled");
 
   const timedOut = await run(`await sleep(60000);`, { timeout: 1 });
   assert.equal((timedOut.details as { status?: string }).status, "timed_out");
