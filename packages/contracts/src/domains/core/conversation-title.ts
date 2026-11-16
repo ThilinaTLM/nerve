@@ -1,3 +1,5 @@
+/** Upper bound for user-entered conversation titles. */
+export const CONVERSATION_TITLE_MAX_LENGTH = 200;
 /** Reserved for automatically derived titles. Raw prompts must strip this token. */
 export const CONVERSATION_TITLE_IMAGE_MARKER = "\uE002";
 export type ConversationTitleSegment =

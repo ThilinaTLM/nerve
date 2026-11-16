@@ -35,6 +35,7 @@ import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import ConversationListItem from "$lib/presentation/conversations/ConversationListItem.svelte";
 import ConversationListSettingsDialog from "./ConversationListSettingsDialog.svelte";
 import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
+import RenameConversationDialog from "./RenameConversationDialog.svelte";
 import { getShortcutLabel } from "$lib/application/commands/command-registry";
 import {
   buildConversationMenu,
@@ -43,6 +44,7 @@ import {
   countKeepEligible,
   countProjectConversations,
   type ProjectTreeMenuContext,
+  type RenameTarget,
 } from "./project-tree-menus";
 import type {
   DeleteTarget,
@@ -77,6 +79,7 @@ let {
 const MAX_LISTED_CONVERSATIONS = 100;
 
 let pendingDelete = $state<DeleteTarget | undefined>();
+let pendingRename = $state<RenameTarget | undefined>();
 let search = $state("");
 let searchInput = $state<HTMLInputElement | null>(null);
 let settingsOpen = $state(false);
@@ -214,6 +217,9 @@ const menuContext = $derived<ProjectTreeMenuContext>({
       keepLatest: 20,
     }),
   requestDelete: (target) => (pendingDelete = target),
+  requestRename: onUpdateConversationState
+    ? (target) => (pendingRename = target)
+    : undefined,
 });
 </script>
 
@@ -411,3 +417,17 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     if (!open) pendingDelete = undefined;
   }}
 />
+
+{#if pendingRename}
+  {@const target = pendingRename}
+  {#key target}
+    <RenameConversationDialog
+      open
+      title={target.title}
+      onRename={(title) => onUpdateConversationState?.(target.id, { title })}
+      onOpenChange={(open) => {
+        if (!open && pendingRename === target) pendingRename = undefined;
+      }}
+    />
+  {/key}
+{/if}

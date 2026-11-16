@@ -9,6 +9,7 @@ import FileText from "@lucide/svelte/icons/file-text";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Logs from "@lucide/svelte/icons/logs";
 import Locate from "@lucide/svelte/icons/locate";
+import Pencil from "@lucide/svelte/icons/pencil";
 import Pin from "@lucide/svelte/icons/pin";
 import PinOff from "@lucide/svelte/icons/pin-off";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
@@ -27,6 +28,10 @@ import type {
 } from "$lib/presentation/shell";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { revealFileExplorerPath } from "$lib/features/filesystem";
+import {
+  RenameConversationDialog,
+  type RenameTarget,
+} from "$lib/features/projects";
 import { activatePanelView, revealPanelView } from "./shell-layout.svelte";
 import { responsive } from "./responsive.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
@@ -92,6 +97,7 @@ const newShortcut = getShortcutLabel("conversation.new");
 const newShortcutAria = getShortcutAriaLabel("conversation.new");
 
 const workbenchTabs = $derived(tabs.map(toWorkbenchTab));
+let pendingRename = $state<RenameTarget | undefined>();
 
 // The strip reports only `{kind, id}`; resolve the full identity so kinds that
 // carry routing fields (async-bash conversationId) survive the round trip.
@@ -201,6 +207,14 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
     // Same state actions as the conversation list's context menu.
     const { conversation } = source;
     content.push(
+      {
+        label: "Rename",
+        icon: Pencil,
+        movesFocus: true,
+        disabled: !onUpdateConversationState,
+        onSelect: () =>
+          (pendingRename = { id: conversation.id, title: conversation.title }),
+      },
       {
         label: conversation.pinnedAt ? "Unpin" : "Pin",
         icon: conversation.pinnedAt ? PinOff : Pin,
@@ -343,3 +357,17 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
   {onNew}
   onReorder={(tab, targetIndex) => onReorder?.(castIdentity(tab), targetIndex)}
 />
+
+{#if pendingRename}
+  {@const target = pendingRename}
+  {#key target}
+    <RenameConversationDialog
+      open
+      title={target.title}
+      onRename={(title) => onUpdateConversationState?.(target.id, { title })}
+      onOpenChange={(open) => {
+        if (!open && pendingRename === target) pendingRename = undefined;
+      }}
+    />
+  {/key}
+{/if}
