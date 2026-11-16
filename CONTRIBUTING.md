@@ -49,13 +49,13 @@ pnpm storage:copy --slot 3   # copy stopped ~/.nerve into unused slot 3
 
 Bugs, follow-ups and unimplemented designs are GitHub issues. Give each open issue one `type:` label, one `stage:` label and at least one `area:` label. Add `platform:`, `priority:` and `status: blocked` when they apply.
 
-| Group      | Labels                                                                                 |
-| ---------- | -------------------------------------------------------------------------------------- |
-| `type:`     | `bug`, `feature`, `performance`, `chore`, `docs`                                       |
+| Group       | Labels                                                                                                                             |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `type:`     | `bug`, `feature`, `performance`, `chore`, `docs`                                                                                   |
 | `stage:`    | `brainstorm` (direction open) → `research` (measure or investigate) → `plan` (direction clear, needs a plan) → `ready` (implement) |
-| `area:`     | `agent-runtime`, `tools`, `extensions`, `transcript`, `ui`, `desktop`, `release`        |
-| `platform:` | `windows`, `macos`                                                                     |
-| `priority:` | `high`, `medium`, `low`                                                                |
-| `status:`   | `blocked` (waiting on another issue or an external dependency)                         |
+| `area:`     | `agent-runtime`, `tools`, `extensions`, `transcript`, `ui`, `desktop`, `release`                                                   |
+| `platform:` | `windows`, `macos`                                                                                                                 |
+| `priority:` | `high`, `medium`, `low`                                                                                                            |
+| `status:`   | `blocked` (waiting on another issue or an external dependency)                                                                     |
 
 Move the `stage:` label forward as the work progresses. Example: open issues ready to implement are `is:open label:"stage: ready" -label:"status: blocked"`.
