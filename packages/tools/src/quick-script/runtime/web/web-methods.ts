@@ -44,7 +44,6 @@ async function download(url: string, env: Parameters<SdkMethod["prepare"]>[1]) {
       url,
       withTimeoutSignal(env.context.signal, 60_000),
       env.context.webFetchPolicy?.allowPrivateNetwork === true,
-      { acceptErrorStatus: true },
     );
   } catch (error) {
     if (

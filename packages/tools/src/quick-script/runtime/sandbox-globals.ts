@@ -16,7 +16,7 @@ export const SANDBOX_GLOBALS = String.raw`
   const startTimer = (callback, ms, args, repeat) => {
     if (typeof callback !== "function") throw new TypeError("timer callback must be a function");
     const id = ++lastTimer;
-    const delay = repeat ? Math.max(1, Number(ms) || 0) : Number(ms) || 0;
+    const delay = repeat ? Math.max(10, Number(ms) || 0) : Number(ms) || 0;
     timers.add(id);
     const tick = () => sleep(delay).then(() => {
       if (!timers.has(id)) return;

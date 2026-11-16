@@ -113,6 +113,8 @@ export async function executeQuickScript(
       preludes: preludesFor(code, registry),
       timeoutMs: clampTimeoutSeconds(args.timeout) * 1000,
       signal: stop.signal,
+      // Timer waits are bounded by the script timeout, so they do not use up the host-call cap.
+      uncountedHostMethods: [SLEEP_METHOD],
       onHostCall: (method, rawArgs) => {
         if (method === SLEEP_METHOD) return sleep(rawArgs, stop.signal);
         const call = hostCall(method, rawArgs);

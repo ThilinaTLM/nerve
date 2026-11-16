@@ -142,7 +142,7 @@ interface Page {
   children?: { id: string; title: string | null }[];
 }
 
-/** A new page with attachments ends at version 2. */
+/** A new page whose body references its attachments (e.g. storage.image) ends at version 2. */
 interface PageWrite {
   id: string;
   title: string | null;

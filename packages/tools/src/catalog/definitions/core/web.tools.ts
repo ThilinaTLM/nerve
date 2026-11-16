@@ -24,7 +24,7 @@ export const webToolDefinitions = [
     executor: executeWebFetch,
     label: "Web Fetch",
     description:
-      "Fetch a URL. HTML is converted to Markdown unless `raw`; large or binary responses are saved to files.",
+      "Fetch a URL. HTML is converted to Markdown unless `raw`; large or binary responses are saved to files. HTTP error pages (4xx/5xx) are returned too, with the HTTP status shown in the result header.",
     parameters: webFetchParameters,
     executionMode: "parallel",
   },

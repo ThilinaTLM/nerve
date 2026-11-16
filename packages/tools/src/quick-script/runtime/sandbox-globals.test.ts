@@ -126,3 +126,35 @@ void test("sdk.list and sdk.search return promises; a small doc topic stays whol
   assert.equal(lines[0], "true true");
   assert.match(lines[1], /^false \d+$/);
 });
+
+void test("timer waits do not count toward the host-call cap", async () => {
+  const { content } = await run(`
+    for (let i = 0; i < 250; i++) await sleep(1);
+    console.log("done");
+  `);
+  assert.equal(content?.split("\n")[0], "done");
+});
+
+void test("setInterval periods are at least 10 ms", async () => {
+  const { content } = await run(`
+    const stamps = [];
+    await new Promise((resolve) => {
+      const id = setInterval(() => {
+        stamps.push(Date.now());
+        if (stamps.length === 6) { clearInterval(id); resolve(undefined); }
+      }, 1);
+    });
+    console.log("span", stamps[5] - stamps[0] >= 45);
+  `);
+  assert.equal(content?.split("\n")[0], "span true");
+});
+
+void test("SDK calls still hit the host-call cap of 200", async () => {
+  const { content } = await run(`
+    let done = 0;
+    try {
+      for (let i = 0; i < 201; i++) { await sdk.search("x"); done++; }
+    } catch (e) { console.log(done, String(e.message ?? e)); }
+  `);
+  assert.match(content ?? "", /^200 .*host call limit of 200 reached/);
+});

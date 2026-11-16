@@ -35,6 +35,8 @@ export interface RunSandboxScriptOptions {
   timeoutMs?: number;
   memoryBytes?: number;
   maxHostCalls?: number;
+  /** Host methods that never count toward `maxHostCalls` (they stay bounded by the timeout and cancellation). */
+  uncountedHostMethods?: string[];
   maxOutputBytes?: number;
   signal?: AbortSignal;
   /**
@@ -107,6 +109,7 @@ export async function runSandboxScript(
           memoryBytes: options.memoryBytes ?? 256 * 1024 * 1024,
           timeoutMs: options.timeoutMs ?? 120_000,
           maxHostCalls: options.maxHostCalls ?? 200,
+          uncountedHostMethods: options.uncountedHostMethods,
           maxOutputBytes: options.maxOutputBytes ?? 256 * 1024,
         },
         (error, call) => {
