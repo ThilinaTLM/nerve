@@ -24,11 +24,11 @@ A profile can **recommend** or **require** a setting. A conversation choice beat
 
 ## Choose a permission level
 
-| Level          | The agent can                                                        | Use it for                                     |
-| -------------- | -------------------------------------------------------------------- | ---------------------------------------------- |
-| **Read-only**  | Look around, and prompt or stop sub-agents. Nothing else.            | Investigating a codebase.                      |
-| **Supervised** | Read freely. It asks before commands, file changes, and network use. | Most work, and your first runs.                |
-| **Autonomous** | Act without asking, except where you've blocked something.           | Bounded tasks in a repository you can recover. |
+| Level          | The agent can                                                                            | Use it for                                     |
+| -------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **Read-only**  | Look around, read the web and integrations, and prompt or stop sub-agents. Nothing else. | Investigating a codebase.                      |
+| **Supervised** | Read freely. It asks before commands, file changes, and network use.                     | Most work, and your first runs.                |
+| **Autonomous** | Act without asking, except where you've blocked something.                               | Bounded tasks in a repository you can recover. |
 
 Permissions are checked again right before an action runs, including after you approve it. If your permission configuration is invalid, the action waits as **configuration-blocked** with **Retry** and **Cancel**. Fix the cause, then choose Retry.
 

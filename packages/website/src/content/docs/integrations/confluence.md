@@ -11,7 +11,7 @@ Typed methods cover spaces, page search and reads, page create, update and move,
 
 Each SDK call is checked against your permission policy as an operation such as `confluence.pages.update` with the space or page it acts on (`confluence:page/123`); deletes and raw non-GET requests are destructive. The Planning profile allows reads and denies writes.
 
-Read-only agent permission blocks Confluence network access. Use supervised permission to inspect the operations, pages and attachment paths in each approval.
+Read-only agent permission allows Confluence reads and blocks changes. Use supervised permission to inspect the operations, pages and attachment paths in each approval.
 
 :::caution
 Confluence content and local attachment data leave the machine for Atlassian. The configured account may have broad publication rights. Verify the target space and page before approval.
