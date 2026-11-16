@@ -138,7 +138,38 @@ void test("untrusted storage XHTML is rejected, never escaped silently", () => {
     storage.panel("info", "Error says </div> mismatch"),
     /Error says &lt;\/div&gt; mismatch/,
   );
-  assert.match(storage.panel("info", [status, "more"]), /<p>more<\/p>/);
+  assert.match(storage.panel("info", [status, "more"]), /<p>.*more<\/p>/);
+});
+
+void test("contiguous inline parts form one paragraph", () => {
+  const storage = load();
+  const status = storage.status("On track", "green");
+  const date = storage.date("2026-01-02");
+  const xml = storage.panel("info", ["Due ", date, " ", status]);
+  assert.equal(xml.match(/<p>/g)?.length, 1);
+  assert.ok(xml.includes(`<p>Due ${date} ${status}</p>`));
+  // Markdown inside the run still renders; blocks break it.
+  const mixed = storage.panel("info", [
+    "**Due** ",
+    date,
+    "\n\n- a\n- b",
+    "after",
+  ]);
+  assert.ok(mixed.includes(`<p><strong>Due</strong> ${date}</p><ul>`));
+  assert.ok(
+    mixed.endsWith("<p>after</p></ac:rich-text-body></ac:structured-macro>"),
+  );
+});
+
+void test("argument errors carry code BAD_REQUEST", () => {
+  const storage = load();
+  const body = storage.raw("<h1>A</h1><p>a</p>");
+  for (const run of [
+    () => storage.replaceSection(body, "Nope", "x"),
+    () => storage.panel("info", INJECTION),
+  ]) {
+    assert.throws(run, (e: { code?: string }) => e.code === "BAD_REQUEST");
+  }
 });
 
 void test("RichText bodies reach the host as storage; page.body stays trusted", async () => {

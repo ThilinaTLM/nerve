@@ -5,6 +5,7 @@ export interface NativeSandboxOptions {
   memoryBytes: number;
   timeoutMs: number;
   maxHostCalls: number;
+  uncountedHostMethods?: string[];
   maxOutputBytes: number;
 }
 

@@ -16,7 +16,7 @@ export type QuickScriptCapabilities = {
 };
 
 const INTRO =
-  "Run a sandboxed TypeScript script (ES module, top-level await; no Node APIs, imports, JSX, network or filesystem). One script loops, filters and joins, and only its output returns. Use python_exec for general Python, bash for the local machine.";
+  "Run a sandboxed TypeScript script (ES module, top-level await; no Node APIs, imports, JSX, network or filesystem). Globals: console, setTimeout/setInterval, sleep(ms), URL, URLSearchParams, TextEncoder/TextDecoder, atob/btoa; Intl, crypto and fetch do not exist (use web.fetch). One script loops, filters and joins, and only its output returns. Use python_exec for general Python, bash for the local machine.";
 
 const RULES = `Rules: methods take one argument, a bare string (key, id, JQL, CQL) or an options object (exceptions: files.*, request, sdk.search); filter early (JQL/CQL, \`fields\`, \`limit\`), then in code; failures throw with e.code (${HOST_ERROR_CODES.join(", ")}), a 401 stops the run and finished calls are not undone; the script is approved by its highest-risk call. Print with console.log or a top-level \`return\`.`;
 

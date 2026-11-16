@@ -40,7 +40,7 @@ export const diagramMethods = {
   render: method({
     risk: "external_read",
     signature:
-      "/** Kroki engine such as mermaid, d2 or plantuml; returns a PNG artifact handle. */ render(options: { type: string; source: string; name?: string }): Promise<FileHandle>",
+      "/** PNG-capable Kroki engine such as mermaid, plantuml or graphviz; returns a PNG artifact handle. */ render(options: { type: string; source: string; name?: string }): Promise<FileHandle>",
     parse: (args) => {
       const options = parseOptions("diagram.render", args, {
         options: ["type", "source", "name"],
@@ -55,7 +55,7 @@ export const diagramMethods = {
       if (!KROKI_DIAGRAM_TYPE.test(type))
         throw new ExtensionError(
           "BAD_REQUEST",
-          `type must be a Kroki engine name such as mermaid, d2 or plantuml.`,
+          `type must be a Kroki engine name such as mermaid, plantuml or graphviz.`,
         );
       const name = options.name;
       if (

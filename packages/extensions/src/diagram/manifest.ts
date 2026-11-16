@@ -6,7 +6,8 @@ export const diagramExtension = defineExtension({
   id: "diagram",
   apiVersion: 1,
   name: "Diagrams",
-  description: "Render Mermaid, D2, PlantUML and other diagrams with Kroki.",
+  description:
+    "Render Mermaid, PlantUML, Graphviz and other PNG-capable diagrams with Kroki.",
   icon: "workflow",
   enabledByDefault: true,
   settings: {
@@ -31,7 +32,7 @@ export const diagramExtension = defineExtension({
     defineNamespace({
       id: "diagram",
       label: "Diagrams",
-      summary: "Kroki: mermaid, d2, plantuml… to PNG",
+      summary: "Kroki: mermaid, plantuml, graphviz… to PNG",
       methods: diagramMethods,
       types: "",
       docs: [

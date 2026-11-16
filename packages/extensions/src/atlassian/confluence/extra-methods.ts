@@ -1,4 +1,4 @@
-import type { Risk } from "@nervekit/extension-api";
+import type { ExtensionContext, Risk } from "@nervekit/extension-api";
 import { jsonObject } from "../shared/http.js";
 import { confluenceRequest } from "./client.js";
 import { pathSegment } from "../jira/client.js";
@@ -56,10 +56,11 @@ export function normalizeLabels(value: unknown): string[] {
  * methods authorize here, before their first write.
  */
 export async function authorizeLookedUp(
-  session: ConfluenceSession,
+  ctx: ExtensionContext,
   check: { operation: string; targets: string[]; risk: Risk },
 ): Promise<void> {
-  await session.ctx.authorize(check);
+  // The per-call `ctx`: the session's own cannot authorize.
+  await ctx.authorize(check);
 }
 
 /** The sandbox converts RichText to storage XHTML before the call; the host only checks it is well-formed storage. */
@@ -121,7 +122,7 @@ export const confluenceExtraMethods: PathedMethod<ConfluenceSession>[] = [
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     // The direct tool wants a page id: look the attachment's page up, then authorize.
     resource: ({ id }) => `attachment ${id}`,
-    async run({ id }, session) {
+    async run({ id }, session, ctx) {
       const connection = session.connection;
       const attachment = await confluenceRequest(connection, {
         parse: jsonObject,
@@ -134,7 +135,7 @@ export const confluenceExtraMethods: PathedMethod<ConfluenceSession>[] = [
           `Attachment ${id} is not on a page; it cannot be deleted from here.`,
         );
       }
-      await authorizeLookedUp(session, {
+      await authorizeLookedUp(ctx, {
         operation: "confluence.attachments.delete",
         targets: [confluenceAttachment(id), confluencePage(String(pageId))],
         risk: "destructive",

@@ -340,9 +340,9 @@ export const confluenceCommentMethods: PathedMethod<ConfluenceSession>[] = [
       body: storageBodyOption(options),
     }),
     resource: ({ id }) => `comment ${id}`,
-    async run({ id, body }, session) {
+    async run({ id, body }, session, ctx) {
       const { kind, comment } = await findComment(session, id);
-      await authorizeLookedUp(session, {
+      await authorizeLookedUp(ctx, {
         operation: "confluence.comments.update",
         targets: [confluenceComment(id), ...commentPage(comment)],
         risk: "external_write",
@@ -369,9 +369,9 @@ export const confluenceCommentMethods: PathedMethod<ConfluenceSession>[] = [
       "/** Also deletes replies. */ delete(id: string | { id: string }): Promise<{ id: string }>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     resource: ({ id }) => `comment ${id}`,
-    async run({ id }, session) {
+    async run({ id }, session, ctx) {
       const { kind, comment } = await findComment(session, id);
-      await authorizeLookedUp(session, {
+      await authorizeLookedUp(ctx, {
         operation: "confluence.comments.delete",
         targets: [confluenceComment(id), ...commentPage(comment)],
         risk: "destructive",
@@ -395,9 +395,9 @@ export const confluenceCommentMethods: PathedMethod<ConfluenceSession>[] = [
       body: storageBodyOption(options),
     }),
     resource: ({ id }) => `comment ${id}`,
-    async run({ id, body }, session) {
+    async run({ id, body }, session, ctx) {
       const { kind, comment } = await findComment(session, id);
-      await authorizeLookedUp(session, {
+      await authorizeLookedUp(ctx, {
         operation: "confluence.comments.reply",
         targets: [confluenceComment(id), ...commentPage(comment)],
         risk: "external_write",
@@ -436,7 +436,7 @@ export const confluenceCommentMethods: PathedMethod<ConfluenceSession>[] = [
       };
     },
     resource: ({ id }) => `comment ${id}`,
-    async run({ id, resolved }, session) {
+    async run({ id, resolved }, session, ctx) {
       const connection = session.connection;
       let comment: Json;
       try {
@@ -454,7 +454,7 @@ export const confluenceCommentMethods: PathedMethod<ConfluenceSession>[] = [
         }
         throw error;
       }
-      await authorizeLookedUp(session, {
+      await authorizeLookedUp(ctx, {
         operation: "confluence.comments.resolve",
         targets: [confluenceComment(id), ...commentPage(comment)],
         risk: "external_write",

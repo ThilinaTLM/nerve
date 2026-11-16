@@ -15,6 +15,7 @@ fn limits() -> Limits {
         memory_bytes: 64 * 1024 * 1024,
         timeout: Duration::from_secs(5),
         max_host_calls: 10,
+        uncounted_host_methods: Vec::new(),
         max_output_bytes: 4096,
     }
 }
@@ -167,6 +168,25 @@ fn host_call_limit_and_output_cap_are_enforced() {
     assert!(outcome.error.unwrap().contains("host call limit of 1"));
     assert_eq!(outcome.output, "12345\n");
     assert!(outcome.output_truncated);
+}
+
+#[test]
+fn uncounted_host_methods_skip_the_call_limit() {
+    let mut limits = limits();
+    limits.max_host_calls = 2;
+    limits.uncounted_host_methods = vec!["tick".to_string()];
+    let (outcome, _) = run_with(
+        r#"
+        for (let i = 0; i < 20; i++) await host("tick", i);
+        await host("a", 1);
+        await host("b", 2);
+        await host("c", 3);
+        "#,
+        limits,
+        echo,
+    );
+    assert_eq!(outcome.status, Status::Failed);
+    assert!(outcome.error.unwrap().contains("host call limit of 2"));
 }
 
 #[test]

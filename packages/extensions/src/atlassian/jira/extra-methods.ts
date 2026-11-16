@@ -194,7 +194,7 @@ export const jiraExtraMethods: PathedMethod<JiraSession>[] = [
     path: "adf.fromMarkdown",
     risk: "none",
     maxArgs: 1,
-    signature: "fromMarkdown(markdown: string): object",
+    signature: "fromMarkdown(markdown: string): Promise<object>",
     parse: ([markdown]) => nonEmptyString(markdown, "markdown"),
     run: async (markdown) => markdownToAdf(markdown),
   }),
@@ -203,7 +203,7 @@ export const jiraExtraMethods: PathedMethod<JiraSession>[] = [
     path: "adf.toMarkdown",
     risk: "none",
     maxArgs: 1,
-    signature: "toMarkdown(doc: object): string",
+    signature: "toMarkdown(doc: object): Promise<string>",
     parse: ([doc]) => {
       if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
         throw new Error(

@@ -1,3 +1,4 @@
+import { ExtensionError } from "@nervekit/extension-api";
 import { jsonObject } from "../shared/http.js";
 import { jiraRequest, pathSegment } from "./client.js";
 import {
@@ -407,11 +408,18 @@ export const jiraSprintMethods: PathedMethod<JiraSession>[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "/** Jira deletes future sprints only. */ delete(options: number | { id: number }): Promise<{ id: number }>",
+      "/** Future sprints only; other states throw (active: sprints.close). */ delete(options: number | { id: number }): Promise<{ id: number }>",
     parse: (options) => sprintId(options.id),
     authorize: (id) => sprintAuthorization(id),
     resource: (id) => `sprint ${id}`,
     async run(id, session) {
+      const current = await getSprint(session, id);
+      if (current.state !== "future") {
+        throw new ExtensionError(
+          "BAD_REQUEST",
+          `Sprint ${id} is ${String(current.state)}; only a future sprint can be deleted.${current.state === "active" ? " Use sprints.close to end it." : ""}`,
+        );
+      }
       await jiraRequest(session.connection, {
         api: "agile",
         method: "DELETE",

@@ -256,7 +256,7 @@ export async function fetchWithPolicy(
   }
 }
 
-/** One policy-checked GET (SSRF guard, redirects, size limit); a non-2xx status throws. Shared by `web_fetch` and the quick_script `web.fetch`. */
+/** One policy-checked GET (SSRF guard, redirects, size limit); a non-2xx status still returns the page (callers report `status`). Shared by `web_fetch` and the quick_script `web.fetch`. */
 export async function downloadWebResource(
   rawUrl: string,
   signal: AbortSignal,
@@ -272,14 +272,6 @@ export async function downloadWebResource(
     signal,
     allowPrivateNetwork,
   );
-  if (!response.ok) {
-    await response.body?.cancel().catch(() => undefined);
-    throw new ToolExecutionError(
-      "WEB_FETCH_HTTP_ERROR",
-      `Fetch failed: ${response.status} ${response.statusText}`,
-      { status: response.status },
-    );
-  }
   return {
     url: url.toString(),
     status: response.status,

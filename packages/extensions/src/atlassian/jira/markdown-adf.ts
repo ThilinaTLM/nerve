@@ -83,6 +83,9 @@ function splitImages(line: string): Array<string | Node> {
 const FENCE = /^\s*(`{3,}|~{3,})\s*([\w+-]*)\s*$/;
 const HEADING = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
 const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
+const TASK_ITEM = /^\[([ xX])\]\s+(.*)$/;
+let localIdCounter = 0;
+const nextLocalId = () => `task-${++localIdCounter}`;
 const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 const TABLE_SEPARATOR = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 const QUOTE = /^\s*>\s?(.*)$/;
@@ -250,21 +253,34 @@ function parseList(lines: string[]): Node[] {
   });
   const base = Math.min(...indents);
   const lists: Node[] = [];
-  let current: { ordered: boolean; items: Node[] } | undefined;
+  let current: { ordered: boolean; task: boolean; items: Node[] } | undefined;
   let nested: string[] = [];
+  const after: Node[] = [];
   const closeItem = () => {
     if (!current || nested.length === 0) return;
     const item = current.items[current.items.length - 1];
-    (item.content as Node[]).push(...parseList(nested));
+    const children = parseList(nested);
+    if (current.task) {
+      // A taskList holds only taskItems and nested taskLists; other nested
+      // lists cannot sit inside it, so they follow the list as siblings.
+      current.items.push(...children.filter((c) => c.type === "taskList"));
+      after.push(...children.filter((c) => c.type !== "taskList"));
+    } else (item.content as Node[]).push(...children);
     nested = [];
   };
   const closeList = () => {
     closeItem();
     if (current) {
       lists.push({
-        type: current.ordered ? "orderedList" : "bulletList",
+        type: current.task
+          ? "taskList"
+          : current.ordered
+            ? "orderedList"
+            : "bulletList",
+        ...(current.task ? { attrs: { localId: nextLocalId() } } : {}),
         content: current.items,
       });
+      lists.push(...after.splice(0));
     }
     current = undefined;
   };
@@ -273,12 +289,26 @@ function parseList(lines: string[]): Node[] {
     if (match && match[1].length <= base) {
       closeItem();
       const ordered = /\d/.test(match[2]);
-      if (current && current.ordered !== ordered) closeList();
-      current ??= { ordered, items: [] };
-      current.items.push({
-        type: "listItem",
-        content: [{ type: "paragraph", content: inline(match[3]) }],
-      });
+      const checkbox = ordered ? null : TASK_ITEM.exec(match[3]);
+      const task = checkbox !== null;
+      if (current && (current.ordered !== ordered || current.task !== task))
+        closeList();
+      current ??= { ordered, task, items: [] };
+      current.items.push(
+        checkbox
+          ? {
+              type: "taskItem",
+              attrs: {
+                localId: nextLocalId(),
+                state: checkbox[1] === " " ? "TODO" : "DONE",
+              },
+              content: inline(checkbox[2]),
+            }
+          : {
+              type: "listItem",
+              content: [{ type: "paragraph", content: inline(match[3]) }],
+            },
+      );
     } else {
       nested.push(line);
     }

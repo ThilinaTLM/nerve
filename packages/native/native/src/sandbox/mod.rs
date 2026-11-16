@@ -28,6 +28,8 @@ pub(crate) struct Limits {
     pub memory_bytes: usize,
     pub timeout: Duration,
     pub max_host_calls: u32,
+    /// Host methods that never count toward `max_host_calls` (e.g. timers, bounded by the timeout).
+    pub uncounted_host_methods: Vec<String>,
     pub max_output_bytes: usize,
 }
 
@@ -348,6 +350,7 @@ fn install_globals<'js>(
     )?;
 
     let max_calls = limits.max_host_calls;
+    let uncounted = limits.uncounted_host_methods.clone();
     let call_state = state.clone();
     let call_host = host.clone();
     globals.set(
@@ -357,13 +360,15 @@ fn install_globals<'js>(
             move |ctx: Ctx<'js>, method: String, args: String| -> rquickjs::Result<Promise<'js>> {
                 let id = {
                     let mut state = call_state.borrow_mut();
-                    if state.calls >= max_calls {
-                        return Err(rquickjs::Exception::throw_range(
-                            &ctx,
-                            &format!("host call limit of {max_calls} reached"),
-                        ));
+                    if !uncounted.contains(&method) {
+                        if state.calls >= max_calls {
+                            return Err(rquickjs::Exception::throw_range(
+                                &ctx,
+                                &format!("host call limit of {max_calls} reached"),
+                            ));
+                        }
+                        state.calls += 1;
                     }
-                    state.calls += 1;
                     let id = state.next_id;
                     state.next_id += 1;
                     id

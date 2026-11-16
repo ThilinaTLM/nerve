@@ -4,59 +4,6 @@
  * libraries.ts — never in the host.
  */
 
-/** Minimal runtime pieces the vendored libraries assume exist (UTF-8 codecs, timers). */
-export const DOCUMENT_SHIMS = String.raw`(() => {
-  const g = globalThis;
-  if (typeof g.TextEncoder === "undefined") {
-    g.TextEncoder = class TextEncoder {
-      get encoding() { return "utf-8"; }
-      encode(s = "") {
-        s = String(s); const out = [];
-        for (let i = 0; i < s.length; i++) {
-          let c = s.codePointAt(i);
-          if (c > 0xffff) i++;
-          if (c >= 0xd800 && c <= 0xdfff) c = 0xfffd;
-          if (c < 0x80) out.push(c);
-          else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
-          else if (c < 0x10000) out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
-          else out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
-        }
-        return Uint8Array.from(out);
-      }
-    };
-  }
-  if (typeof g.TextDecoder === "undefined") {
-    g.TextDecoder = class TextDecoder {
-      constructor(label = "utf-8") { this.encoding = String(label).toLowerCase().replace("utf8", "utf-8"); }
-      decode(input) {
-        if (input === undefined) return "";
-        const b = input instanceof ArrayBuffer ? new Uint8Array(input) : new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
-        let i = 0; if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) i = 3;
-        const parts = []; let cur = [];
-        const flush = () => { parts.push(String.fromCodePoint.apply(null, cur)); cur = []; };
-        while (i < b.length) {
-          const c = b[i++]; let cp;
-          if (c < 0x80) cp = c;
-          else if (c >= 0xc2 && c < 0xe0 && i < b.length) cp = ((c & 31) << 6) | (b[i++] & 63);
-          else if (c >= 0xe0 && c < 0xf0 && i + 1 < b.length) cp = ((c & 15) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63);
-          else if (c >= 0xf0 && c < 0xf5 && i + 2 < b.length) cp = ((c & 7) << 18) | ((b[i++] & 63) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63);
-          else cp = 0xfffd;
-          if (cp > 0x10ffff) cp = 0xfffd;
-          cur.push(cp); if (cur.length > 8192) flush();
-        }
-        flush(); return parts.join("");
-      }
-    };
-  }
-  if (typeof g.setTimeout === "undefined") {
-    let id = 0; const live = new Set();
-    g.setTimeout = (fn, _ms, ...args) => { const t = ++id; live.add(t); Promise.resolve().then(() => { if (live.delete(t)) fn(...args); }); return t; };
-    g.clearTimeout = (t) => { live.delete(t); };
-    g.setImmediate = (fn, ...args) => g.setTimeout(fn, 0, ...args);
-    g.clearImmediate = g.clearTimeout;
-  }
-})();`;
-
 /**
  * Runs right after mammoth loads. Accepts a Uint8Array/ArrayBuffer directly
  * (what files.read returns) and, unless the caller passes `convertImage`,

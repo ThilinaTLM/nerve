@@ -324,11 +324,11 @@ function ambiguousMessage(
   const distinct = (key: "before" | "after") =>
     new Set(found.map((match) => match[key])).size;
   const useAfter = distinct("before") < 2 && distinct("after") > 1;
-  const listed = found.slice(0, MAX_LISTED_MATCHES).map((match) => {
+  const listed = found.slice(0, MAX_LISTED_MATCHES).map((match, position) => {
     const after = match.before && `(after: ${match.before})`;
     const before = match.after && `(before: ${match.after})`;
     const hint = useAfter ? before || after : after || before;
-    return `  ${match.number}: ${match.line}${hint ? `  ${hint}` : ""}`;
+    return `  match ${position + 1}, line ${match.number}: ${match.line}${hint ? `  ${hint}` : ""}`;
   });
   const rest = found.length - listed.length;
   return [

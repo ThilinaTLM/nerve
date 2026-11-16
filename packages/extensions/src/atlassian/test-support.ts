@@ -346,6 +346,16 @@ export function createHarness(options: HarnessOptions = {}) {
     });
   }
 
+  // Like production: the session's context is not inside a method call, so it cannot authorize.
+  const sessionCtx = {
+    ...ctx,
+    authorize: async () => {
+      throw new ExtensionError(
+        "DENIED",
+        "ctx.authorize is only available inside a method call.",
+      );
+    },
+  };
   const sessions = new Map<string, Promise<unknown>>();
   const hostCalls: RunResult["hostCalls"] = [];
 
@@ -390,7 +400,7 @@ export function createHarness(options: HarnessOptions = {}) {
     try {
       let session = sessions.get(namespaceId);
       if (!session) {
-        session = Promise.resolve(namespace.session?.(ctx));
+        session = Promise.resolve(namespace.session?.(sessionCtx));
         sessions.set(namespaceId, session);
       }
       const value = await method.run(await session, input, ctx);

@@ -1,7 +1,11 @@
 import type { QuickScriptRegistry } from "../registry.js";
 import { ExtensionRuntime } from "../extension-host/runtime.js";
 import { librariesPrelude } from "./libraries.js";
-import { RUNTIME_HEAD, runtimeTail } from "./runtime-prelude.js";
+import {
+  RUNTIME_HEAD,
+  helperErrorCoding,
+  runtimeTail,
+} from "./runtime-prelude.js";
 import type {
   QuickScriptContext,
   SdkEnvironment,
@@ -118,7 +122,7 @@ function buildPrelude(registry: QuickScriptRegistry): string {
     ...withMethods.map((namespace) => productPrelude(methods, namespace.id)),
     `${runtimeTail(guarded)}})();`,
     ...registry.extensions.flatMap((extension) =>
-      extension.prelude ? [extension.prelude] : [],
+      extension.prelude ? [helperErrorCoding(extension.prelude)] : [],
     ),
   ].join("\n");
 }

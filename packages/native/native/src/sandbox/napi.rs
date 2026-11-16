@@ -27,6 +27,7 @@ pub struct NativeSandboxOptions {
     pub memory_bytes: f64,
     pub timeout_ms: f64,
     pub max_host_calls: u32,
+    pub uncounted_host_methods: Option<Vec<String>>,
     pub max_output_bytes: u32,
 }
 
@@ -114,6 +115,7 @@ pub fn start_sandbox_script(
         memory_bytes: options.memory_bytes as usize,
         timeout: Duration::from_millis(options.timeout_ms as u64),
         max_host_calls: options.max_host_calls,
+        uncounted_host_methods: options.uncounted_host_methods.unwrap_or_default(),
         max_output_bytes: options.max_output_bytes as usize,
     };
     let script = Script {

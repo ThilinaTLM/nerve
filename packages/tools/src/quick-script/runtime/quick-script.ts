@@ -16,6 +16,7 @@ import { ToolExecutionError } from "../../execution/index.js";
 import { type DisplayPaths, errnoMessage, hostErrorCode } from "./errors.js";
 import { processFooter } from "../../result-projection/index.js";
 import { withImageSizes } from "./files/artifacts.js";
+import { SLEEP_METHOD } from "./sandbox-globals.js";
 import { assertDeclaredRisk } from "./script-risk.js";
 import { declarationLine } from "./sdk-dts.js";
 import {
@@ -112,7 +113,10 @@ export async function executeQuickScript(
       preludes: preludesFor(code, registry),
       timeoutMs: clampTimeoutSeconds(args.timeout) * 1000,
       signal: stop.signal,
+      // Timer waits are bounded by the script timeout, so they do not use up the host-call cap.
+      uncountedHostMethods: [SLEEP_METHOD],
       onHostCall: (method, rawArgs) => {
+        if (method === SLEEP_METHOD) return sleep(rawArgs, stop.signal);
         const call = hostCall(method, rawArgs);
         const settled: Promise<void> = call
           .then(
@@ -324,6 +328,26 @@ export async function executeQuickScript(
       processStatusIncluded: true,
     },
   };
+}
+
+/** The sandbox's timers: resolves after `rawArgs[0]` ms, rejects when the run ends. Not an SDK call, so it is not authorized or listed. */
+function sleep(rawArgs: unknown, signal: AbortSignal): Promise<null> {
+  const ms = Array.isArray(rawArgs) ? Number(rawArgs[0]) : 0;
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(new Error("the script has finished"));
+    const done = () => {
+      clearTimeout(timer);
+      reject(new Error("the script has finished"));
+    };
+    const timer = setTimeout(
+      () => {
+        signal.removeEventListener("abort", done);
+        resolve(null);
+      },
+      Number.isFinite(ms) ? Math.max(0, ms) : 0,
+    );
+    signal.addEventListener("abort", done, { once: true });
+  });
 }
 
 /** A wrong-argument error ends with the method's declaration, so the call can be fixed without a `sdk.describe`. */

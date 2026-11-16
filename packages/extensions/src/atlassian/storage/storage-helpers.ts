@@ -17,6 +17,8 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const unesc = (s) => s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" })[e]);
   const cdata = (s) => "<![CDATA[" + String(s).split("]]>").join("]]]]><![CDATA[>") + "]]>";
+  // Argument errors carry e.code like host failures.
+  const bad = (message) => Object.assign(new Error(message), { code: "BAD_REQUEST" });
   const trusted = new Set();
   const T = (s) => { trusted.add(s); return s; };
   const raw = (xhtml) => T(String(xhtml));
@@ -31,14 +33,49 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
   };
   const markdown = (md) => {
     if (looksLikeStorage(md)) {
-      throw new Error("This string is storage XHTML but not trusted markup (concatenating with + or editing a trusted string loses trust, and plain strings are Markdown). Pass an array [page.body, storage.p(...)] to append, use storage.replaceSection(page.body, heading, content), or wrap hand-written XHTML in storage.raw(xhtml). For literal HTML in Markdown, put it in backticks.");
+      throw bad("This string is storage XHTML but not trusted markup (concatenating with + or editing a trusted string loses trust, and plain strings are Markdown). Pass an array [page.body, storage.p(...)] to append, use storage.replaceSection(page.body, heading, content), or wrap hand-written XHTML in storage.raw(xhtml). For literal HTML in Markdown, put it in backticks.");
     }
     return T(__markdownToStorage(md, ids));
   };
   // Inline content: trusted fragments as-is, anything else literal text (escaped); arrays are joined.
   const inline = (b) => Array.isArray(b) ? b.map(inline).join("") : trusted.has(b) ? b : esc(text(b));
   // Block content (RichText): trusted fragments as-is, plain strings are Markdown; arrays are joined.
-  const rich = (b) => Array.isArray(b) ? b.map(rich).join("") : trusted.has(b) ? b : markdown(text(b));
+  const INLINE_FRAGMENT = /^<(?:time|a|ac:link|ac:emoticon|strong|em|code|span)[\s>\/]|^<ac:structured-macro ac:name="status"|^<ac:structured-macro ac:name="jira"[^>]*>(?:<ac:parameter ac:name="key")/;
+  // The text of a one-line Markdown part without its <p>, keeping the whitespace around it; undefined when it is a block.
+  const inlineText = (s) => {
+    if (!s.trim()) return s;
+    if (s.includes("\n")) return undefined;
+    const m = /^<p>((?:(?!<p>)[\s\S])*)<\/p>$/.exec(markdown(s));
+    return m ? s.match(/^\s*/)[0] + m[1] + s.match(/\s*$/)[0] : undefined;
+  };
+  // Contiguous inline parts (text, dates, lozenges, links, mentions) around at least one fragment form ONE paragraph.
+  const richParts = (parts) => {
+    let out = "";
+    let run = [];
+    let hasFragment = false;
+    const flush = () => {
+      if (run.length) out += hasFragment && run.length > 1 ? "<p>" + run.map((r) => r.html).join("") + "</p>" : run.map((r) => rich(r.part)).join("");
+      run = [];
+      hasFragment = false;
+    };
+    for (const part of parts) {
+      if (typeof part === "string" && trusted.has(part) && INLINE_FRAGMENT.test(part)) {
+        run.push({ part, html: part });
+        hasFragment = true;
+        continue;
+      }
+      const t = typeof part === "string" && !trusted.has(part) ? inlineText(part) : undefined;
+      if (t !== undefined) {
+        run.push({ part, html: t });
+        continue;
+      }
+      flush();
+      out += rich(part);
+    }
+    flush();
+    return out;
+  };
+  const rich = (b) => Array.isArray(b) ? richParts(b.flat(Infinity)) : trusted.has(b) ? b : markdown(text(b));
   const param = (name, value) => value == null || value === "" ? "" : '<ac:parameter ac:name="' + name + '">' + esc(value) + "</ac:parameter>";
   const macro = (name, params, body, attrs) =>
     T('<ac:structured-macro ac:name="' + name + '" ac:schema-version="1"' + (attrs || "") + ">" + params + (body || "") + "</ac:structured-macro>");
@@ -53,19 +90,19 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
   };
   const width = (w) => {
     const n = Number(w);
-    if (!Number.isFinite(n) || n <= 0) throw new Error("column width must be a positive number of pixels");
+    if (!Number.isFinite(n) || n <= 0) throw bad("column width must be a positive number of pixels");
     return Math.round(n);
   };
   const url = (u) => {
     const s = text(u);
-    if (!__isSafeUrl(s)) throw new Error("unsupported URL: only http(s), mailto, relative and anchor links are allowed");
+    if (!__isSafeUrl(s)) throw bad("unsupported URL: only http(s), mailto, relative and anchor links are allowed");
     return s;
   };
   const LAYOUTS = { two_equal: 2, two_left_sidebar: 2, two_right_sidebar: 2, three_equal: 3, three_with_sidebars: 3 };
   const LAYOUT_NAMES = { default: 1, wide: 1, "full-width": 1 };
   const layoutAttr = (layout) => {
     const l = layout || "default";
-    if (!LAYOUT_NAMES[l]) throw new Error("layout must be one of: default, wide, full-width");
+    if (!LAYOUT_NAMES[l]) throw bad("layout must be one of: default, wide, full-width");
     return ' data-layout="' + l + '"';
   };
   // Confluence Cloud panel names -> storage macros (legacy colours: info blue, tip green, note yellow, warning red).
@@ -76,7 +113,7 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
   // <ri:...> reference for links and macros: a page by title, an attachment by filename.
   const pageRef = (title, space) => '<ri:page ri:content-title="' + esc(title) + '"' + (space ? ' ri:space-key="' + esc(space) + '"' : "") + "/>";
   const linkBody = (label) => (label == null ? "" : "<ac:plain-text-link-body>" + cdata(label) + "</ac:plain-text-link-body>");
-  const guardText = (v, what) => { if (typeof v !== "string" || !v.trim()) throw new Error(what + " must be a non-empty string"); return v; };
+  const guardText = (v, what) => { if (typeof v !== "string" || !v.trim()) throw bad(what + " must be a non-empty string"); return v; };
 
   const table = (rows, opts) => {
     const o = opts || {};
@@ -95,7 +132,7 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
     }
     const count = header.length || Math.max(0, ...body.map((r) => r.length));
     const layout = o.layout || "default";
-    if (!LAYOUT_NAMES[layout]) throw new Error("layout must be one of: default, wide, full-width");
+    if (!LAYOUT_NAMES[layout]) throw bad("layout must be one of: default, wide, full-width");
     const total = { default: 760, wide: 960, "full-width": 1800 }[layout];
     let cols = "";
     if (given.some((c) => c.width)) {
@@ -149,7 +186,7 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
     const at = found.findIndex((h) => h.text === String(heading).trim());
     if (at < 0) {
       const names = found.slice(0, 40).map((h) => h.text).join(" | ");
-      throw new Error("no heading \"" + heading + "\" in the body. Headings: " + (names || "(none)"));
+      throw bad("no heading \"" + heading + "\" in the body. Headings: " + (names || "(none)"));
     }
     const h = found[at];
     let end = xml.length;
@@ -187,7 +224,7 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
     replaceSection,
     heading: (level, v) => {
       const n = Number(level);
-      if (!Number.isInteger(n) || n < 1 || n > 6) throw new Error("heading level must be 1-6");
+      if (!Number.isInteger(n) || n < 1 || n > 6) throw bad("heading level must be 1-6");
       return T("<h" + n + ">" + esc(text(v)) + "</h" + n + ">");
     },
     p: (body) => T("<p>" + inline(body == null ? "" : body) + "</p>"),
@@ -198,11 +235,11 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
       if (t.page) return T("<ac:link" + anchor + ">" + pageRef(guardText(t.page, "page"), t.space) + linkBody(label == null ? t.page : label) + "</ac:link>");
       if (t.attachment) return T("<ac:link><ri:attachment ri:filename=\"" + esc(t.attachment) + "\"/>" + linkBody(label == null ? t.attachment : label) + "</ac:link>");
       if (t.anchor) return T("<ac:link" + anchor + ">" + linkBody(label == null ? t.anchor : label) + "</ac:link>");
-      throw new Error("link target is a URL string, { page, space?, anchor? }, { attachment } or { anchor }");
+      throw bad("link target is a URL string, { page, space?, anchor? }, { attachment } or { anchor }");
     },
     anchor: (name) => macro("anchor", param("", guardText(name, "anchor name"))),
     date: (iso) => {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(text(iso))) throw new Error("date must be YYYY-MM-DD");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(text(iso))) throw bad("date must be YYYY-MM-DD");
       return T('<time datetime="' + iso + '"/>');
     },
     mention: (accountId) => T('<ac:link><ri:user ri:account-id="' + esc(accountId) + '"/></ac:link>'),
@@ -233,8 +270,8 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
       macro("view-file", '<ac:parameter ac:name="name"><ri:attachment ri:filename="' + esc(filename) + '"/></ac:parameter>' + param("height", opts && opts.height)),
     layout: (cells, opts) => {
       const type = (opts && opts.type) || (cells.length === 3 ? "three_equal" : "two_equal");
-      if (!LAYOUTS[type]) throw new Error("layout type must be one of: " + Object.keys(LAYOUTS).join(", "));
-      if (cells.length !== LAYOUTS[type]) throw new Error("layout type " + type + " needs " + LAYOUTS[type] + " cells");
+      if (!LAYOUTS[type]) throw bad("layout type must be one of: " + Object.keys(LAYOUTS).join(", "));
+      if (cells.length !== LAYOUTS[type]) throw bad("layout type " + type + " needs " + LAYOUTS[type] + " cells");
       return T('<ac:layout><ac:layout-section ac:type="' + type + '">' +
         cells.map((c) => "<ac:layout-cell>" + rich(c) + "</ac:layout-cell>").join("") + "</ac:layout-section></ac:layout>");
     },
@@ -246,7 +283,7 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
       macro("excerpt-include", '<ac:parameter ac:name=""><ac:link>' + pageRef(guardText(page, "page title"), opts && opts.space) + "</ac:link></ac:parameter>" + param("nopanel", flag(opts && opts.noPanel))),
     pageProperties: (props, opts) => {
       const rows = Object.entries(props || {}).map(([k, v]) => [k, v]);
-      if (!rows.length) throw new Error("pageProperties needs an object of label: value");
+      if (!rows.length) throw bad("pageProperties needs an object of label: value");
       return macro("details", param("hidden", flag(opts && opts.hidden)), "<ac:rich-text-body>" + table(rows, { headerRow: false, headerColumn: true }) + "</ac:rich-text-body>");
     },
     propertiesReport: (label, opts) => {
@@ -256,7 +293,7 @@ const STORAGE_BUILDERS = String.raw`globalThis.storage = (() => {
     },
     panel: (type, body, opts) => {
       const name = PANELS[String(type)];
-      if (!name) throw new Error("panel type must be one of: info, note, success, warning, error");
+      if (!name) throw bad("panel type must be one of: info, note, success, warning, error");
       return macro(name, (String(type) === "note" ? NOTE_PANEL : "") + param("title", opts && opts.title), richBody(body));
     },
     expand: (title, body) => macro("expand", param("title", title), richBody(body)),

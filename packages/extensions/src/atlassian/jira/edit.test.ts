@@ -298,3 +298,47 @@ void test("sprints.create accepts a team-managed (simple) board and skips kanban
   await run(`await jira.sprints.create({ name: "S", project: "SCRUM" });`);
   assert.equal(lastOf(sent, "POST", `${AGILE}/sprint`)!.body.originBoardId, 1);
 });
+
+void test("sprints.delete refuses a sprint that is not future", async () => {
+  let state = "active";
+  const { sent, run } = setup((s) => {
+    if (s.method === "GET" && s.path === `${AGILE}/sprint/5`)
+      return Response.json({ id: 5, name: "S5", state });
+    if (s.method === "DELETE") return new Response(null, { status: 204 });
+  });
+  const refused = await run(`
+    try { await jira.sprints.delete(5); } catch (e) { console.log(e.code, e.message); }
+  `);
+  assert.match(
+    refused.content ?? "",
+    /BAD_REQUEST Sprint 5 is active.*sprints\.close/,
+  );
+  assert.equal(sent.filter((s) => s.method === "DELETE").length, 0);
+  state = "future";
+  await run(`await jira.sprints.delete(5);`);
+  assert.equal(sent.filter((s) => s.method === "DELETE").length, 1);
+});
+
+void test("issues.search explains an empty result when strict JQL parsing finds errors", async () => {
+  let parseResponse: () => Response = () =>
+    Response.json({
+      queries: [{ query: "q", errors: ["Field 'foo' does not exist."] }],
+    });
+  const { sent, run } = setup((s) => {
+    if (s.path === "/search/jql") return Response.json({ issues: [] });
+    if (s.path === "/jql/parse") return parseResponse();
+  });
+  const bad = await run(`
+    try { await jira.issues.search("project = APP AND foo = bar"); } catch (e) { console.log(e.code, e.message); }
+  `);
+  assert.match(
+    bad.content ?? "",
+    /BAD_REQUEST Invalid JQL.*Field 'foo' does not exist/,
+  );
+  const parse = sent.find((s) => s.path === "/jql/parse")!;
+  assert.equal(parse.query.get("validation"), "strict");
+  assert.deepEqual(parse.body, { queries: ["project = APP AND foo = bar"] });
+  parseResponse = () => new Response("nope", { status: 500 });
+  const fine = await run(`return await jira.issues.search("project = APP");`);
+  assert.deepEqual(returned(fine.content), []);
+});

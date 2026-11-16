@@ -52,6 +52,9 @@ function block(node: Node): string {
     case "bulletList":
     case "orderedList":
       return list(node);
+    case "taskList":
+    case "blockTaskList":
+      return taskList(node);
     case "codeBlock": {
       const language =
         typeof node.attrs?.language === "string" ? node.attrs.language : "";
@@ -124,6 +127,21 @@ function isInlineType(type: unknown): boolean {
     type === "date" ||
     type === "mediaInline"
   );
+}
+
+/** Task items are `- [ ]` / `- [x]` lines; a nested taskList indents under the item before it. */
+function taskList(node: Node): string {
+  return children(node)
+    .map((item) => {
+      if (item.type === "taskList")
+        return taskList(item)
+          .split("\n")
+          .map((line) => `  ${line}`)
+          .join("\n");
+      const done = item.attrs?.state === "DONE" ? "x" : " ";
+      return `- [${done}] ${inline(children(item))}`;
+    })
+    .join("\n");
 }
 
 function list(node: Node): string {
