@@ -44,25 +44,21 @@ test("quick-script scripts are matched on the risk of their script", () => {
   assert.equal(decision("supervised", network), "prompt");
   assert.equal(decision("autonomous", network), "allow");
   assert.equal(decision("planning", network), "allow");
-  assert.equal(decision("read_only", network), "deny");
+  assert.equal(decision("read_only", network), "allow");
   assert.equal(decision("supervised", write), "prompt");
   assert.equal(decision("supervised", alias), "prompt");
   assert.equal(decision("read_only", read), "allow");
   assert.notEqual(decision("read_only", write), "allow");
 });
 
-test("planning and read-only allow read scripts and never auto-allow writes", () => {
+test("planning and read-only allow read and external-read scripts and never auto-allow writes", () => {
   const read = `await files.list()`;
   const network = `await jira.issues.get("A-1"); await confluence.pages.get("1")`;
   const write = `await jira.issues.update({ key: "A-1", fields: { summary: "x" } })`;
   const destructive = `await jira.request("DELETE", "/rest/api/3/issue/A-1")`;
   for (const ruleSet of ["planning", "read_only"]) {
     assert.equal(decision(ruleSet, read), "allow", `${ruleSet} read`);
-    assert.equal(
-      decision(ruleSet, network),
-      ruleSet === "planning" ? "allow" : "deny",
-      `${ruleSet} network`,
-    );
+    assert.equal(decision(ruleSet, network), "allow", `${ruleSet} network`);
     assert.equal(decision(ruleSet, write), "deny", `${ruleSet} write`);
     assert.equal(
       decision(ruleSet, destructive),
