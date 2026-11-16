@@ -9,7 +9,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "quick-script-extensions",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.41.0",
     featured: true,
     artwork: "quick-script",
     title: "Agents can script Jira, Confluence, the web, and files in one step",
@@ -31,7 +31,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "read-only-external-reads",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.41.0",
     title: "Read-only now allows external reads",
     summary:
       "Web fetch and search, plus Jira and Confluence reads, work in Read-only. Writes are still denied.",
@@ -45,7 +45,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "rename-conversations",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.41.0",
     title: "Rename conversations",
     summary:
       "Choose Rename from a conversation's menu in the sidebar, an editor tab, or on mobile.",
@@ -53,7 +53,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "copilot-usage",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.41.0",
     title: "GitHub Copilot usage in the usage chip",
     summary:
       "See your Copilot subscription quotas next to your other providers' limits.",
@@ -61,7 +61,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "project-config-trust",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.41.0",
     title: "See when project agent settings aren't trusted",
     summary:
       "A warning with a one-click Trust action appears for an untrusted project agent.json.",
@@ -69,7 +69,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "image-explanation-extension",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.41.0",
     title: "Image explanation is now an extension",
     summary:
       "Turn it on in Settings → Extensions to let the agent explain images. It is off by default.",

@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/extension-api",
-  "version": "0.40.2",
+  "version": "0.41.0",
   "private": true,
   "description": "Nerve extension API: manifest types, define helpers, the host context interface and a fake context for tests.",
   "author": "ThilinaTLM",

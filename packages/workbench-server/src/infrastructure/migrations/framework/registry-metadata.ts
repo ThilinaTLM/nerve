@@ -56,9 +56,9 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
       step: { id: "0005-extension-settings" },
       checksum:
         "e61f49f8d72b277d7b343c150690f54e8fe2c4455f4e1e00bed820c9297113f7",
-      stage: "draft",
+      stage: "released",
+      releasedIn: "0.41.0",
       // Earlier drafts moved accounts without reshaping them; those homes rerun
       // this step. It is idempotent, so no previous checksums are listed.
-      rerunOnChange: true,
     },
   ]);

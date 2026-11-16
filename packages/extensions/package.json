@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/extensions",
-  "version": "0.40.2",
+  "version": "0.41.0",
   "private": true,
   "description": "Built-in quick_script extensions (Atlassian, web search, diagram, image generation, image explanation) and their docs.",
   "author": "ThilinaTLM",

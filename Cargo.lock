@@ -1820,7 +1820,7 @@ dependencies = [
 
 [[package]]
 name = "nerve-native"
-version = "0.40.2"
+version = "0.41.0"
 dependencies = [
  "gix",
  "grep-matcher",
