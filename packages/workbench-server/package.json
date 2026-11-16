@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-ai": "1.5.2",
-    "@hono/node-server": "2.1.5",
+    "@hono/node-server": "2.1.8",
     "@nervekit/contracts": "workspace:*",
     "@nervekit/conversation-core": "workspace:*",
     "@nervekit/extension-api": "workspace:*",
