@@ -1,10 +1,13 @@
 <script lang="ts">
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
+import ShieldCheck from "@lucide/svelte/icons/shield-check";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type {
   AgentScope,
   GetAgentConfigurationResult,
 } from "@nervekit/contracts/agent-configuration";
 import ProjectCapabilityTrustAction from "./ProjectCapabilityTrustAction.svelte";
+import { setProjectAgentTrust } from "./project-agent-trust";
 let {
   document,
   scope,
@@ -14,6 +17,21 @@ let {
   scope?: AgentScope;
   onReload: () => void | Promise<void>;
 } = $props();
+let busy = $state(false);
+let error = $state<string>();
+async function trust() {
+  if (busy) return;
+  busy = true;
+  error = undefined;
+  try {
+    await setProjectAgentTrust(document, true);
+    await onReload();
+  } catch (cause) {
+    error = cause instanceof Error ? cause.message : String(cause);
+  } finally {
+    busy = false;
+  }
+}
 </script>
 {#if document?.status === "unavailable"}
   <Callout
@@ -26,5 +44,21 @@ let {
         {scope}
         {onReload}
       />{/snippet}
+  </Callout>
+{:else if document?.trusted === false}
+  <Callout
+    layout="block"
+    tone="warning"
+    icon={ShieldCheck}
+    title="Project agent settings are not trusted"
+    text={error ??
+      "This project's settings file isn't trusted, so conversations ignore it and use your user settings. Trust it to apply the overrides shown below."}
+  >
+    {#snippet actions()}<Button
+        size="sm"
+        variant="outline"
+        disabled={busy}
+        onclick={trust}>Trust file</Button
+      >{/snippet}
   </Callout>
 {/if}

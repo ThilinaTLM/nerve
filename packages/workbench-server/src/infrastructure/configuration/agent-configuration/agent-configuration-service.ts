@@ -486,9 +486,8 @@ export class AgentConfigurationService {
     };
   }
 
-  private untrustedProject(
-    state: ScopeHealth<AgentScope, AgentDocument>,
-  ): boolean {
+  /** True when a project file's exact bytes lack trust, so resolution ignores them. */
+  untrustedProject(state: ScopeHealth<AgentScope, AgentDocument>): boolean {
     return isUntrustedAgentDocument(this.options, this.paths, state);
   }
   private resolve(
