@@ -8,7 +8,7 @@ import FileText from "@lucide/svelte/icons/file-text";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import FolderPlus from "@lucide/svelte/icons/folder-plus";
 import Locate from "@lucide/svelte/icons/locate";
-import Pencil from "@lucide/svelte/icons/pencil";
+import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Scissors from "@lucide/svelte/icons/scissors";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { Project } from "@nervekit/contracts/core";
@@ -47,7 +47,7 @@ const menuIcons: FileExplorerMenuIcons = {
   reveal: Locate,
   newFolder: FolderPlus,
   trash: Trash2,
-  rename: Pencil,
+  rename: NotebookPen,
   duplicate: CopyPlus,
   cut: Scissors,
   paste: ClipboardPaste,
