@@ -151,6 +151,12 @@ fn memory_limit_stops_unbounded_allocation() {
 }
 
 #[test]
+fn throwing_null_is_a_failure_not_a_memory_limit() {
+    let (outcome, _) = run_with("throw null;", limits(), echo);
+    assert_eq!(outcome.status, Status::Failed, "{:?}", outcome.error);
+}
+
+#[test]
 fn host_call_limit_and_output_cap_are_enforced() {
     let mut limits = limits();
     limits.max_host_calls = 1;

@@ -9,6 +9,7 @@ pub(crate) mod napi;
 
 use rquickjs::{
     CaughtError, Context, Ctx, Function, Module, Persistent, Promise, Runtime, Value,
+    allocator::{Allocator, RustAllocator},
     promise::PromiseState,
 };
 use std::cell::RefCell;
@@ -142,11 +143,16 @@ pub(crate) fn run(
         memory_used_bytes: 0,
     };
 
-    let runtime = match Runtime::new() {
+    let memory_exhausted = Arc::new(AtomicBool::new(false));
+    let allocator = LimitedAllocator {
+        limit: limits.memory_bytes,
+        used: 0,
+        exhausted: memory_exhausted.clone(),
+    };
+    let runtime = match Runtime::new_with_alloc(allocator) {
         Ok(runtime) => runtime,
         Err(error) => return fail(Status::Failed, format!("sandbox runtime: {error}")),
     };
-    runtime.set_memory_limit(limits.memory_bytes);
     runtime.set_max_stack_size(MAX_STACK_BYTES);
     {
         let stop = stop.clone();
@@ -289,13 +295,9 @@ pub(crate) fn run(
     }
 
     let memory_used_bytes = runtime.memory_usage().memory_used_size;
-    // QuickJS reports OOM either as "out of memory" or, when it cannot allocate
-    // the error object, as a bare `null` exception; usage near the cap tells them apart.
-    if status == Status::Failed
-        && let Err(message) = &result
-        && (message.contains("out of memory")
-            || memory_used_bytes as usize >= limits.memory_bytes / 10 * 9)
-    {
+    // QuickJS reports OOM as "out of memory" or, when it cannot allocate the error
+    // object, as a bare `null` exception; the allocator records the refusal either way.
+    if status == Status::Failed && memory_exhausted.load(Ordering::Acquire) {
         status = Status::MemoryLimit;
         result = Err(format!(
             "script exceeded the {} MiB memory limit",
@@ -387,6 +389,80 @@ fn install_globals<'js>(
         )?,
     )?;
     Ok(())
+}
+
+/// Enforces the memory limit at the allocator and records when it refuses, so an
+/// out-of-memory failure is detected exactly instead of inferred from usage.
+struct LimitedAllocator {
+    limit: usize,
+    used: usize,
+    exhausted: Arc<AtomicBool>,
+}
+
+impl LimitedAllocator {
+    fn admit(&self, released: usize, requested: usize) -> bool {
+        let fits = self
+            .used
+            .saturating_sub(released)
+            .checked_add(requested)
+            .is_some_and(|total| total <= self.limit);
+        if !fits {
+            self.exhausted.store(true, Ordering::Release);
+        }
+        fits
+    }
+}
+
+// SAFETY: every call delegates to `RustAllocator`; this wrapper only refuses requests
+// (returning null, which QuickJS handles as OOM) and tracks usable sizes.
+unsafe impl Allocator for LimitedAllocator {
+    fn alloc(&mut self, size: usize) -> *mut u8 {
+        if !self.admit(0, size) {
+            return std::ptr::null_mut();
+        }
+        let ptr = RustAllocator.alloc(size);
+        if !ptr.is_null() {
+            self.used += unsafe { RustAllocator::usable_size(ptr) };
+        }
+        ptr
+    }
+
+    fn calloc(&mut self, count: usize, size: usize) -> *mut u8 {
+        let Some(total) = count.checked_mul(size) else {
+            return std::ptr::null_mut();
+        };
+        if !self.admit(0, total) {
+            return std::ptr::null_mut();
+        }
+        let ptr = RustAllocator.calloc(count, size);
+        if !ptr.is_null() {
+            self.used += unsafe { RustAllocator::usable_size(ptr) };
+        }
+        ptr
+    }
+
+    unsafe fn dealloc(&mut self, ptr: *mut u8) {
+        self.used = self
+            .used
+            .saturating_sub(unsafe { RustAllocator::usable_size(ptr) });
+        unsafe { RustAllocator.dealloc(ptr) }
+    }
+
+    unsafe fn realloc(&mut self, ptr: *mut u8, new_size: usize) -> *mut u8 {
+        let old_size = unsafe { RustAllocator::usable_size(ptr) };
+        if !self.admit(old_size, new_size) {
+            return std::ptr::null_mut();
+        }
+        let next = unsafe { RustAllocator.realloc(ptr, new_size) };
+        if !next.is_null() {
+            self.used = self.used - old_size + unsafe { RustAllocator::usable_size(next) };
+        }
+        next
+    }
+
+    unsafe fn usable_size(ptr: *mut u8) -> usize {
+        unsafe { RustAllocator::usable_size(ptr) }
+    }
 }
 
 fn describe(ctx: &Ctx<'_>, error: rquickjs::Error) -> String {
