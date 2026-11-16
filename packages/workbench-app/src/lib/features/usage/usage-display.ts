@@ -62,7 +62,7 @@ export function consumptionQuotas(
   );
 }
 
-/** "Chat and Completions unlimited" for uncapped quotas without consumption. */
+/** "AI credits unlimited" for uncapped quotas without consumption. */
 export function unlimitedSummary(
   usage: SubscriptionUsage | null | undefined,
 ): string | null {
