@@ -10,7 +10,7 @@ import Copy from "@lucide/svelte/icons/copy";
 import Settings from "@lucide/svelte/icons/settings";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import BrushCleaning from "@lucide/svelte/icons/brush-cleaning";
-import Pencil from "@lucide/svelte/icons/pencil";
+import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Pin from "@lucide/svelte/icons/pin";
 import PinOff from "@lucide/svelte/icons/pin-off";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
@@ -164,7 +164,7 @@ export function buildConversationMenu(
   const stateItems: ContextMenuItem[] = [
     {
       label: "Rename",
-      icon: Pencil,
+      icon: NotebookPen,
       movesFocus: true,
       disabled: !ctx.requestRename,
       onSelect: () =>
