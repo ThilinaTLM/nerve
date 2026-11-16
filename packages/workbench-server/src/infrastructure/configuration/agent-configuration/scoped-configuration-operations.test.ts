@@ -57,6 +57,31 @@ void test("baseline failures expose relevant dependency health, never unrelated 
     assert.ok(dependency.diagnostics.every((issue) => issue.scope === "user"));
 });
 
+void test("project documents report whether their exact bytes are trusted", async (t) => {
+  const trustedDigests = new Set<string>();
+  const f = await fixture(t, {
+    isProjectAgentTrusted: (_id, _path, digest) => trustedDigests.has(digest),
+  });
+  await f.agent(project, {
+    schemaVersion: 1,
+    revision: 1,
+    overrides: { skills: { agentBrowser: { electron: true } } },
+  });
+  const operations = agentConfigurationOperations(f.service);
+  const untrusted = await operations.get(project);
+  assert.equal(untrusted.status, "available");
+  if (untrusted.status !== "available") return;
+  assert.equal(untrusted.trusted, false);
+  trustedDigests.add(untrusted.source.digest);
+  const trusted = await operations.get(project);
+  assert.equal(trusted.status === "available" && trusted.trusted, true);
+  const userResult = await operations.get(user);
+  assert.equal(
+    userResult.status === "available" && userResult.trusted,
+    undefined,
+  );
+});
+
 void test("creation inherited-baseline failure returns schema-valid unavailable rather than rejecting", async (t) => {
   const f = await fixture(t);
   t.mock.method(f.service, "getInheritedCreationPreferences", async () => {

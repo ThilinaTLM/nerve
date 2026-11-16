@@ -157,6 +157,9 @@ export function agentConfigurationOperations(
           source: documentSource(state.value),
           overrides: state.value.document.overrides,
           inherited: await service.getInheritedSettings(scope),
+          ...(scope.scope === "project"
+            ? { trusted: !service.untrustedProject(state) }
+            : {}),
         };
       } catch {
         return unavailableDependencies(

@@ -69,6 +69,8 @@ export const getAgentConfigurationResultSchema = z.discriminatedUnion(
       overrides: leadSettingsOverridesSchema,
       /** Resolved below this scope, without the edited layer or requirements. */
       inherited: leadSettingsOverridesSchema,
+      /** Project scope only: false when the file's exact bytes are not trusted, so resolution ignores them. */
+      trusted: z.boolean().optional(),
     }),
     configurationUnavailableSchema,
   ],

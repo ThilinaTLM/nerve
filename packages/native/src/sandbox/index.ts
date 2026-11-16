@@ -70,7 +70,17 @@ export async function runSandboxScript(
       return failedBeforeStart(error);
     }
   }
-  options.signal?.throwIfAborted();
+  // Same outcome as an abort mid-run, so callers see one cancellation path.
+  if (options.signal?.aborted) {
+    return {
+      status: "cancelled",
+      output: "",
+      outputTruncated: false,
+      hostCalls: [],
+      durationMs: 0,
+      memoryUsedBytes: 0,
+    };
+  }
 
   const records: SandboxHostCallRecord[] = [];
   return await new Promise<SandboxOutcome>((resolve, reject) => {
