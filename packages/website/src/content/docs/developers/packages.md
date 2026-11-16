@@ -13,8 +13,8 @@ sidebar:
 - `packages/harness` — model resolution, conversation facade, agent loop, streaming/tool primitives, resources, and generic compaction. Depends on contracts and native.
 - `packages/conversation-core` — portable SQLite-backed conversation runtime, history/context, inputs, tool lifecycle, delegation and async Bash. Depends on contracts, native, harness and tools; never protocol or the workbench hosts.
 - `packages/tools` — canonical tool definitions, local executors, output bounds, artifacts, Git/GitHub utility service, and the `quick_script` tool with its sandbox runtime and extension registry. Depends on contracts, native and extension-api.
-- `packages/extensions` — the built-in `quick_script` extensions (Atlassian, web, diagrams, image generation) with their docs. Depends on `extension-api` only; the workbench server registers them.
-- `packages/native` — TypeScript façades over the Rust N-API Git-read, managed-process, change-monitoring, and lexical-search domains. TypeScript callers retain policy, discovery, and contextual ranking; raw bindings and prebuild paths remain private.
+- `packages/extensions` — the built-in `quick_script` extensions (Atlassian, web search, diagrams, image generation, image explanation) with their docs. Depends on `extension-api` only; the workbench server registers them.
+- `packages/native` — TypeScript façades over the Rust N-API Git-read, managed-process, change-monitoring, lexical-search, image-preparation, and QuickJS sandbox domains. TypeScript callers retain policy, discovery, and contextual ranking; raw bindings and prebuild paths remain private.
 - `packages/ui-kit` — contract-free shadcn-svelte primitives, theme, generic Markdown/code/terminal rendering, and utilities.
 
 ## Product hosts

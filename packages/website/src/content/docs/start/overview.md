@@ -21,12 +21,13 @@ Nerve keeps your conversations, settings, and credentials on your computer, in `
 - **Sub-agent:** a teammate the agent can hand work to, such as Explore (read-only research) or Developer.
 - **Launch:** a saved command for a server or watcher, with its own status and logs.
 - **Background command:** a shell command the agent starts and keeps running while you continue.
+- **Extension:** an optional capability you switch on, such as Jira and Confluence, web search, diagrams, or image generation. The agent uses most of them through [Quick script](/guides/quick-script/).
 
 ## You decide how much the agent can do
 
 Pick a permission level for each conversation:
 
-- **Read-only:** the agent can look around but not change anything.
+- **Read-only:** the agent can look around, including reading the web and connected services, but not change anything.
 - **Supervised:** the agent can read freely and asks before running commands, changing files, or using the network.
 - **Autonomous:** the agent acts without asking, except where you have blocked something.
 

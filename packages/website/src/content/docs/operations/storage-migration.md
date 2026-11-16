@@ -55,6 +55,8 @@ Migration work is resumable, but the current conversion does **not** retain an a
 
 The scoped-configuration upgrade converts released v0.37.0 `harness.json`, `capabilities.json` and `subagents.json` into agent preferences, creation preferences and per-name profile definitions. It verifies exports before removing SQLite conversation configuration; frozen legacy readers are migration-only. Remembered selections are folded once where enabled; remember-last-selection and parent-copy behavior are removed. Review the upgrade report for dropped conversation sub-agent fields, child snapshots and trust that must be granted again. Later-encountered projects upgrade before activation.
 
+The extension-settings upgrade (0.41) moves integration accounts into `config/accounts.json` (renaming their stored secrets by account kind and ID) and moves account choices and tool options, such as image generation, from agent preferences into `config/extensions.json`. It drops the removed Jira, Confluence, diagram-export, and image-generation tool entries, renames the `network` risk in permission rules to `external_read`, and rewrites permission rules that named a removed tool as Quick script operation rules. A rule it can't convert is disabled and reported. Project files are upgraded when the project is next opened; check [Notifications](/guides/notifications/) for the upgrade report.
+
 ## When something is damaged
 
 Since this release, one broken file no longer stops Nerve from starting.

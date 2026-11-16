@@ -49,7 +49,7 @@ Shared foundations stay transport- and framework-neutral:
 - `@nervekit/extension-api` owns the extension contract (manifest and `ctx` types, `define*` helpers, a fake context).
 - `@nervekit/tools` owns the canonical tool catalog, executors, output bounds, artifacts, Git/GitHub utilities, and the `quick_script` runtime and registry.
 - `@nervekit/extensions` owns the built-in `quick_script` extensions. It depends on `@nervekit/extension-api` only; `@nervekit/workbench-server` builds the registry from its list.
-- `@nervekit/native` provides TypeScript façades over a Rust N-API addon for Git reads, managed processes, filesystem/Git monitoring, and lexical search indexes.
+- `@nervekit/native` provides TypeScript façades over a Rust N-API addon for Git reads, managed processes, filesystem/Git monitoring, lexical search indexes, image preparation for model providers, and the QuickJS sandbox behind `quick_script`.
 - `@nervekit/ui-kit` provides contract-free presentation primitives and renderers.
 
 Conversation core does not depend on protocol, workbench-server or UI: the server implements its environment ports. Contracts own domain shapes; protocol owns session and delivery mechanics.
@@ -69,17 +69,17 @@ See [package responsibilities](/developers/packages/) for the complete ownership
 
 ## Native computation and responsiveness
 
-Native code owns bounded computation and platform mechanisms, not the agent loop or UI. The server uses `createSearchIndex` to create a Rust lexical index of typed completion documents, not a file-only completion API. Native code matches terms and returns lexical scores and match ranges; TypeScript providers still own project discovery, permissions, freshness, contextual ranking, and selection effects. Git reads use the native Git domain, while mutations remain Git CLI operations. Managed processes and change monitoring have separate native domains and lifetimes.
+Native code owns bounded computation and platform mechanisms, not the agent loop or UI. The server uses `createSearchIndex` to create a Rust lexical index of typed completion documents, not a file-only completion API. Native code matches terms and returns lexical scores and match ranges; TypeScript providers still own project discovery, permissions, freshness, contextual ranking, and selection effects. Git reads use the native Git domain, while mutations remain Git CLI operations. Managed processes and change monitoring have separate native domains and lifetimes. Images sent to a model are decoded, fitted to the provider's limits, and re-encoded natively. `quick_script` runs each script in a fresh QuickJS runtime on its own thread, with the caller deciding which host methods exist and authorizing each call.
 
-Not every performance improvement is a Rust migration. Storage usage accounting scans conversation and log directories once each and reuses their tallies; startup work avoids full-history reads for status and skips creating a migration worker when the migration ledger is validated and current. These are targeted implementation changes, not a claim that the daemon is entirely native or a guarantee of a particular speedup.
+Not every performance improvement is a Rust migration. Storage usage accounting scans conversation and log directories once each and reuses their tallies; startup work avoids full-history reads for status, validates full history only for conversations with open work, skips creating a migration worker when the migration ledger is validated and current, and doesn't hold readiness behind subscription-usage refreshes. These are targeted implementation changes, not a claim that the daemon is entirely native or a guarantee of a particular speedup.
 
-The workbench presents background Git operations through header Activity, independently of conversation execution. Tool cards retain a shared lifecycle from streamed arguments through live output and settled results, using bounded previews and on-demand details. See [tool output lifecycle](/developers/tool-output-lifecycle/) for presentation and recovery boundaries.
+The workbench presents background Git operations through header Activity, independently of conversation execution. Tool cards retain a shared lifecycle from streamed arguments through live output and settled results, using bounded previews and on-demand details; a `quick_script` card also streams each SDK call into the card while the script runs. See [tool output lifecycle](/developers/tool-output-lifecycle/) for presentation and recovery boundaries.
 
 ## State and external boundaries
 
 `NERVE_HOME` keeps canonical conversation records and durable event streams in SQLite. Complete tool results that exceed the agent preview contract use private owner-scoped files beneath `data/conversations/`; SQLite records retain their projections, ownership, and integrity references. Electron's active Chromium profile stays outside the Nerve home so whole-home backup and migration do not capture live browser caches or profile locks. See [persistence and security boundaries](/developers/persistence-security/) for storage, secrets, authentication, and migration details.
 
-The server reaches project files and processes locally. Model providers, OAuth, voice transcription, Web and Atlassian integrations, and Git remotes are explicit external paths. [Platform reliability](/developers/platform-reliability/) documents the native filesystem, process, and desktop-state rules behind those boundaries.
+The server reaches project files and processes locally. Model providers, OAuth, voice transcription, extension services (web search, Atlassian, a Kroki diagram server, image generation), and Git remotes are explicit external paths. [Platform reliability](/developers/platform-reliability/) documents the native filesystem, process, and desktop-state rules behind those boundaries.
 
 ## Protocol recovery
 

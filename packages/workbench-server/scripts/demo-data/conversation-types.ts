@@ -21,7 +21,8 @@ export type DemoStep =
         | "read"
         | "workspace_write"
         | "command"
-        | "network"
+        | "external_read"
+        | "external_write"
         | "agent_spawn";
       readonly repo?: string;
       readonly args: unknown;

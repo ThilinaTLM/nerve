@@ -171,6 +171,30 @@ export const rateLimiting: DemoConversation = {
   ],
 };
 
+const RELEASE_NOTES_SCRIPT = `await atlassian.defaults();
+const done = await jira.issues.search({
+  jql: 'project = AUR AND fixVersion = "2.4" AND statusCategory = Done ORDER BY issuetype',
+  fields: ["summary", "issuetype", "assignee"],
+  limit: 50,
+});
+const drafts = await confluence.pages.search({
+  space: "REL",
+  title: "Aurora 2.4",
+});
+const status = await web.fetch("https://status.aurora.example");
+const incidents = JSON.parse(status.content).incidents.length;
+const rows = done.map((i) => \`| \${i.key} | \${i.type} | \${i.summary} |\`);
+const page = await confluence.pages.create({
+  space: "REL",
+  title: "Aurora 2.4 release notes",
+  body: [
+    storage.panel("info", \`\${done.length} issues shipped in 2.4. \${incidents} open incidents on the status page.\`),
+    "## Shipped",
+    "| Key | Type | Summary |\\n| --- | --- | --- |\\n" + rows.join("\\n"),
+  ],
+});
+console.log(\`\${done.length} issues, \${drafts.length} existing drafts, created \${page.title}\`);`;
+
 export const flakyDeploy: DemoConversation = {
   title: "Investigate flaky staging deploys",
   agentProfile: "coding",
@@ -621,3 +645,79 @@ export const shortConversations: readonly DemoConversation[] = [
     ],
   },
 ];
+
+export const releaseNotes: DemoConversation = {
+  title: "Draft the Aurora 2.4 release notes",
+  agentProfile: "coding",
+  permissionRuleSetId: "supervised",
+  ageHours: 3.5,
+  steps: [
+    {
+      type: "user",
+      text: "Collect everything we shipped in Aurora 2.4 from Jira and draft the release notes page in the REL Confluence space.",
+    },
+    {
+      type: "assistant",
+      text: "I will read the 2.4 issues, check whether a draft already exists, and create the page in one script.",
+    },
+    {
+      type: "tool",
+      toolName: "quick_script",
+      risk: "external_write",
+      args: { code: RELEASE_NOTES_SCRIPT, timeout: 120 },
+      result: {
+        content:
+          "14 issues, 0 existing drafts, created Aurora 2.4 release notes",
+        details: {
+          status: "completed",
+          durationMs: 4_380,
+          memoryUsedBytes: 3_100_000,
+          hostCalls: [
+            {
+              method: "atlassian.defaults",
+              targets: [],
+              summary: "defaults",
+              outcome: "completed",
+              durationMs: 286,
+            },
+            {
+              method: "jira.issues.search",
+              targets: [],
+              summary:
+                'project = AUR AND fixVersion = "2.4" AND statusCategory = Done ORDER BY issuetype',
+              outcome: "completed",
+              durationMs: 742,
+            },
+            {
+              method: "confluence.pages.search",
+              targets: ["confluence:space/REL"],
+              summary: 'space = "REL" AND title ~ "Aurora 2.4"',
+              outcome: "completed",
+              durationMs: 531,
+            },
+            {
+              method: "web.fetch",
+              targets: [],
+              authorizedAs: "web_fetch",
+              summary: "https://status.aurora.example",
+              outcome: "completed",
+              durationMs: 318,
+            },
+            {
+              method: "confluence.pages.create",
+              targets: ["confluence:space/REL"],
+              summary: "REL/Aurora 2.4 release notes",
+              outcome: "completed",
+              durationMs: 1_214,
+            },
+          ],
+          created: ['page "Aurora 2.4 release notes"'],
+        },
+      },
+    },
+    {
+      type: "assistant",
+      text: "The release notes page is created in the REL space: 14 shipped issues grouped by type, with a short status summary on top. No earlier 2.4 draft existed, and the status page reports no open incidents.",
+    },
+  ],
+};

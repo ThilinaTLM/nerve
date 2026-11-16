@@ -152,6 +152,10 @@ export default defineConfig({
               slug: "guides/background-tasks",
             },
             {
+              label: "Batch work with Quick script",
+              slug: "guides/quick-script",
+            },
+            {
               label: "Prompt suggestions",
               slug: "guides/prompt-suggestions",
             },

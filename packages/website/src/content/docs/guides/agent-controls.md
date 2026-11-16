@@ -26,9 +26,11 @@ A profile can **recommend** or **require** a setting. A conversation choice beat
 
 | Level          | The agent can                                                                            | Use it for                                     |
 | -------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| **Read-only**  | Look around, read the web and integrations, and prompt or stop sub-agents. Nothing else. | Investigating a codebase.                      |
-| **Supervised** | Read freely. It asks before commands, file changes, and network use.                     | Most work, and your first runs.                |
+| **Read-only**  | Look around, read the web and integrations, and prompt or stop sub-agents. Nothing else. | Investigating a codebase and its tickets.      |
+| **Supervised** | Read project files freely. It asks before commands, file changes, and network use.       | Most work, and your first runs.                |
 | **Autonomous** | Act without asking, except where you've blocked something.                               | Bounded tasks in a repository you can recover. |
+
+Permissions distinguish **external reads** (web search and fetch, Jira and Confluence reads, diagram rendering) from **external writes** (creating issues, updating pages, generating images). Read-only allows the first and denies the second; Supervised asks for both; Autonomous allows both. [Quick script](/guides/quick-script/) is checked call by call, so a script can't do more than its level allows.
 
 Permissions are checked again right before an action runs, including after you approve it. If your permission configuration is invalid, the action waits as **configuration-blocked** with **Retry** and **Cancel**. Fix the cause, then choose Retry.
 
@@ -50,5 +52,6 @@ A sub-agent's profile sets its own permission level, and it doesn't inherit the 
 
 - [Approvals, questions, and plans](/guides/reviews/)
 - [Sub-agents](/guides/agents-and-delegation/)
+- [Quick script](/guides/quick-script/)
 - [Security model](/operations/security/)
 - [Tool reference](/reference/tools/)

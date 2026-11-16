@@ -13,7 +13,7 @@ These figures are operational estimates, not invoices. Provider accounting, cach
 
 ## Subscription limits
 
-Nerve retrieves subscription usage snapshots for OAuth Anthropic, OpenAI Codex and GitHub Copilot. Refresh attempts are debounced per provider. This is separate from cumulative conversation usage and does not track general API-key billing.
+Nerve retrieves subscription usage snapshots for OAuth Anthropic, OpenAI Codex and GitHub Copilot. Refresh attempts are debounced per provider, and the list shows only providers that have data plus the one you've selected. This is separate from cumulative conversation usage and does not track general API-key billing.
 
 - **Anthropic and Codex** report rolling windows, usually a 5-hour session and a weekly limit, as a percentage with a countdown to reset.
 - **GitHub Copilot** reports the plan's monthly allowance: GitHub AI Credits, or premium requests on plans still billed per request. The panel shows used and included amounts, what is left, the reset date and any additional usage billed beyond the allowance. Copilot Free also shows its completions allowance.

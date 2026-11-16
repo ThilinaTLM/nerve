@@ -600,6 +600,46 @@ async function writeCustomProfile(home: string): Promise<void> {
   );
 }
 
+/**
+ * Enables the Atlassian extension with a fictional account, through the same
+ * services Settings → Extensions uses. The token is a placeholder: nothing
+ * contacts the invented site.
+ */
+async function seedAtlassianExtension(services: Services): Promise<void> {
+  const account = await services.accounts.save({
+    kind: "atlassian",
+    name: "Aurora Atlassian",
+    fields: {
+      siteUrl: "https://aurora.example",
+      email: "demo@aurora.example",
+      defaultProjectKey: "AUR",
+      defaultSpaceKey: "REL",
+    },
+  });
+  await services.accounts.setSecret(
+    "atlassian",
+    account.id,
+    "demo-screenshot-fixture-token",
+  );
+  const scope = { scope: "user" } as const;
+  const current = await services.extensionSettings.read(scope);
+  const saved = await services.extensionSettings.save(
+    scope,
+    { revision: current.revision, digest: current.digest },
+    {
+      id: "atlassian",
+      entry: {
+        enabled: true,
+        settings: { account: account.id, jira: true, confluence: true },
+      },
+    },
+  );
+  if (saved.status !== "saved")
+    throw new Error(
+      `Could not enable the Atlassian extension: ${saved.status}`,
+    );
+}
+
 async function main(): Promise<void> {
   const home = assertThrowaway(
     "NERVE_HOME",
@@ -650,6 +690,7 @@ async function main(): Promise<void> {
     );
 
     await writeCustomProfile(home);
+    await seedAtlassianExtension(fixture.services);
 
     /* Create Aurora last so narrow layouts, which intentionally hide the
      * title-bar project switcher, open on the project used by mobile scenes. */

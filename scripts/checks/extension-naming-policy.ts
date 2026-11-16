@@ -5,7 +5,8 @@ import { defineFileRule } from "./policy.ts";
  * (`packages/extensions/src/<id>/`), an extension is named only by the built-in
  * registry list (`packages/extensions/src/index.ts`) and by old migration steps and
  * their frozen schemas. Production source elsewhere may not name one in code;
- * comments and tests (which use them as fixtures) are exempt.
+ * comments, tests (which use them as fixtures), and user-facing prose (the
+ * website and Discover release notes) are exempt.
  */
 const EXTENSION_NAME =
   /atlassian|jira|confluence|tavily|kroki|imagegen(?!erat)|image-explanation/i;
@@ -27,7 +28,7 @@ export const EXTENSION_NAMING_EXCEPTIONS: ReadonlyMap<string, string> = new Map(
 
 const SCANNED = /^packages\/[^/]+\/src\/.*\.(?:ts|svelte|json|js|mjs)$/;
 const OUT_OF_SCOPE =
-  /\.test\.ts$|\.d\.ts$|\/test\/|\/migrations\/steps\/|\/frozen\/|^packages\/website\/|^packages\/extensions\/src\/(?:atlassian|web-search|diagram|imagegen|image-explanation)\//;
+  /\.test\.ts$|\.d\.ts$|\/test\/|\/migrations\/steps\/|\/frozen\/|^packages\/website\/|^packages\/workbench-app\/src\/lib\/app\/discover\/content\/news\.ts$|^packages\/extensions\/src\/(?:atlassian|web-search|diagram|imagegen|image-explanation)\//;
 
 export function extensionNamingViolations(
   file: string,

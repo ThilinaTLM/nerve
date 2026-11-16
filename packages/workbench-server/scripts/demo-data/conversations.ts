@@ -11,6 +11,7 @@ import {
   limiterStrategies,
   planning,
   rateLimiting,
+  releaseNotes,
   runningBackfill,
   shortConversations,
 } from "./aurora-conversations.js";
@@ -67,6 +68,7 @@ export const DEMO_PROJECT_CONVERSATIONS: Readonly<
       },
     },
     runningBackfill,
+    releaseNotes,
     limiterStrategies,
     failedMigration,
     flakyDeploy,

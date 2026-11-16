@@ -51,6 +51,8 @@ Pass app options after `--` when using `npx` or `pnpm dlx`.
 | `NERVE_ELECTRON_REMOTE_DEBUGGING_PORT` | Desktop: expose Chrome DevTools Protocol on `127.0.0.1:<port>`             |
 | `NERVE_DEBUG_PROXY=1`                  | Redacted startup proxy diagnostics                                         |
 
+The DevTools port gives any local process full control of the desktop window, so set it only for automation or debugging, such as connecting an automation tool. Without a valid port the variable is ignored with a warning.
+
 Standard `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `NODE_EXTRA_CA_CERTS`, `ELECTRON_GET_USE_PROXY`, and `ELECTRON_MIRROR` apply to proxy/download scenarios.
 
 Managed application settings resolve CLI → environment → saved settings → defaults. Explicit boolean `0`/`false` values are overrides. Settings shows the effective source and locks CLI/environment-controlled fields. `--allow-remote` or `NERVE_ALLOW_REMOTE=1` implies `0.0.0.0` when no host was supplied. Never place tokens or proxy credentials in committed config/examples.
