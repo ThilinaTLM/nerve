@@ -29,7 +29,7 @@ import type {
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { revealFileExplorerPath } from "$lib/features/filesystem";
 import {
-  RenameConversationDialog,
+  RenameConversationPopover,
   type RenameTarget,
 } from "$lib/features/projects";
 import { activatePanelView, revealPanelView } from "./shell-layout.svelte";
@@ -97,7 +97,17 @@ const newShortcut = getShortcutLabel("conversation.new");
 const newShortcutAria = getShortcutAriaLabel("conversation.new");
 
 const workbenchTabs = $derived(tabs.map(toWorkbenchTab));
-let pendingRename = $state<RenameTarget | undefined>();
+let pendingRename = $state<
+  (RenameTarget & { anchor: HTMLElement }) | undefined
+>();
+
+function requestRename(tab: WorkbenchTabModel, target: RenameTarget): void {
+  const key = tab.key ?? `${tab.kind}:${tab.id}`;
+  const anchor = [
+    ...document.querySelectorAll<HTMLElement>("[data-tab-key]"),
+  ].find((element) => element.dataset.tabKey === key);
+  if (anchor) pendingRename = { ...target, anchor };
+}
 
 // The strip reports only `{kind, id}`; resolve the full identity so kinds that
 // carry routing fields (async-bash conversationId) survive the round trip.
@@ -213,7 +223,10 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
         movesFocus: true,
         disabled: !onUpdateConversationState,
         onSelect: () =>
-          (pendingRename = { id: conversation.id, title: conversation.title }),
+          requestRename(tab, {
+            id: conversation.id,
+            title: conversation.title,
+          }),
       },
       {
         label: conversation.pinnedAt ? "Unpin" : "Pin",
@@ -361,12 +374,12 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
 {#if pendingRename}
   {@const target = pendingRename}
   {#key target}
-    <RenameConversationDialog
-      open
+    <RenameConversationPopover
+      anchor={target.anchor}
       title={target.title}
       onRename={(title) => onUpdateConversationState?.(target.id, { title })}
-      onOpenChange={(open) => {
-        if (!open && pendingRename === target) pendingRename = undefined;
+      onClose={() => {
+        if (pendingRename === target) pendingRename = undefined;
       }}
     />
   {/key}

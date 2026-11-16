@@ -42,4 +42,28 @@ describe("PopoverPanel", () => {
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
     expect(document.activeElement).toBe(button);
   });
+
+  it("opens against an external anchor without rendering a trigger", async () => {
+    const anchor = document.createElement("button");
+    anchor.textContent = "Row";
+    document.body.append(anchor);
+    const onOpenChange = vi.fn();
+    // `anchor` is also a Svelte mount option, so pass props explicitly.
+    render(PopoverPanel, {
+      props: {
+        anchor,
+        open: true,
+        children,
+        ariaLabel: "Rename",
+        onOpenChange,
+      },
+    });
+    expect(await screen.findByText("Inside")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Rename" })).toBeNull();
+
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    expect(document.activeElement).toBe(anchor);
+    anchor.remove();
+  });
 });

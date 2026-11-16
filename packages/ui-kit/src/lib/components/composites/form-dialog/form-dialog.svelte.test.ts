@@ -76,4 +76,15 @@ describe("FormDialog", () => {
     setup({ error: "Name is taken" });
     expect(screen.getByText("Name is taken")).toBeTruthy();
   });
+
+  it("focuses a field marked autofocus instead of the close button", async () => {
+    const autofocused = createRawSnippet(() => ({
+      render: () =>
+        `<div><input aria-label="Other" /><input aria-label="Title" autofocus /></div>`,
+    }));
+    setup({ children: autofocused });
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText("Title")),
+    );
+  });
 });
