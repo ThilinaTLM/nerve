@@ -17,7 +17,7 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
       id: "read_only",
       name: "Read-only",
       description:
-        "Allow interaction, local inspection and sub-agent delegation; deny all other capabilities.",
+        "Allow interaction, local inspection, external reads and sub-agent delegation; deny all other capabilities.",
       source: "builtin",
       enabled: true,
       available: true,

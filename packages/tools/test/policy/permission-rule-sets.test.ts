@@ -108,7 +108,7 @@ test("built-in coding rule sets implement their complete behavior", () => {
   );
   assert.equal(
     decision("read_only", "web_fetch", { url: "https://example.com" }).decision,
-    "deny",
+    "allow",
   );
   assert.equal(decision("read_only", "write", { path: "x" }).decision, "deny");
   assert.equal(
@@ -254,28 +254,34 @@ test("planning separates research, prompted analysis, and mutations", () => {
   }
 });
 
-test("planning allows SDK reads of Jira and Confluence and denies their writes", () => {
-  const operation = (
-    name: string,
-    risk: "external_read" | "external_write" | "destructive",
-  ) =>
-    evaluatePermissionRequest({
-      request: normalizeOperationRequest({
-        operation: name,
-        targets: [],
-        risk,
-        conversationId: "conv_test",
-      }),
-      policy: composeEffectivePermissionPolicy({
-        selectedRuleSet: builtInPermissionRuleSet("planning"),
-      }),
-    }).decision;
-  assert.equal(operation("jira.issues.get", "external_read"), "allow");
-  assert.equal(operation("confluence.pages.get", "external_read"), "allow");
-  assert.equal(operation("jira.issues.update", "external_write"), "deny");
-  assert.equal(operation("confluence.pages.create", "external_write"), "deny");
-  assert.equal(operation("imagegen.generate", "external_write"), "deny");
-  assert.equal(operation("diagram.render", "external_read"), "allow");
+test("planning and read_only allow SDK reads of integrations and deny their writes", () => {
+  for (const ruleSet of ["planning", "read_only"]) {
+    const operation = (
+      name: string,
+      risk: "external_read" | "external_write" | "destructive",
+    ) =>
+      evaluatePermissionRequest({
+        request: normalizeOperationRequest({
+          operation: name,
+          targets: [],
+          risk,
+          conversationId: "conv_test",
+        }),
+        policy: composeEffectivePermissionPolicy({
+          selectedRuleSet: builtInPermissionRuleSet(ruleSet),
+        }),
+      }).decision;
+    assert.equal(operation("jira.issues.get", "external_read"), "allow");
+    assert.equal(operation("confluence.pages.get", "external_read"), "allow");
+    assert.equal(operation("web.search", "external_read"), "allow");
+    assert.equal(operation("diagram.render", "external_read"), "allow");
+    assert.equal(operation("jira.issues.update", "external_write"), "deny");
+    assert.equal(
+      operation("confluence.pages.create", "external_write"),
+      "deny",
+    );
+    assert.equal(operation("imagegen.generate", "external_write"), "deny");
+  }
 });
 
 test("process read actions do not ask for approval; launch grants bind action and name", () => {

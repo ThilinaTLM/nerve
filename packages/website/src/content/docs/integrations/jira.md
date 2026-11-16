@@ -13,7 +13,7 @@ The agent writes one short script for a task instead of one tool call per reques
 
 Each SDK call is checked against your permission policy as an **operation** such as `jira.issues.create`, with the issue or project it acts on (`jira:issue/APP-12`). Reads are network operations; creating and changing issues are external writes; deletes and raw non-GET requests are destructive. In **Settings → Permissions** you can allow, prompt or deny by operation, for example a rule that lets the agent edit issues in one project only.
 
-Read-only agent permission blocks Jira network calls. Use supervised permission when you want the agent to research Jira and ask before changes.
+Read-only agent permission allows Jira reads and blocks changes. Use supervised permission when you want the agent to research Jira and ask before changes.
 
 :::caution
 Jira queries send project information to Atlassian, and changes act with the configured account's permissions. Review the operations and targets listed in the approval before accepting.
