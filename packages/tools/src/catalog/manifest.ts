@@ -17,6 +17,7 @@ import {
   permissionMetadataForTool,
   registerExtensionToolMetadata,
 } from "./permission-metadata.js";
+import { scopedToolDefinition } from "./tool-scope.js";
 import {
   type HostToolDefinition,
   isHostToolDefinition,
@@ -123,16 +124,6 @@ export function registerToolDefinitions(
   for (const definition of definitions) {
     const existing = definitionByName.get(definition.name);
     if (existing) {
-      // An extension's tool is registered again when the extension is reloaded or composed
-      // for another project: the new definition replaces the old one in place.
-      if (
-        existing.extension &&
-        definition.extension &&
-        existing.extension.id === definition.extension.id
-      ) {
-        replaceDefinition(existing, definition);
-        continue;
-      }
       if (existing.label === definition.label) continue;
       throw new Error(`Duplicate tool definition: ${definition.name}`);
     }
@@ -148,33 +139,21 @@ export function registerToolDefinitions(
   }
 }
 
-function replaceDefinition(
-  existing: ToolDefinition,
-  definition: ToolDefinition,
-): void {
-  if (definition.permissionMetadata)
-    registerExtensionToolMetadata(
-      definition.name,
-      definition.permissionMetadata,
-    );
-  const finalized = withAgentResultPolicy(definition);
-  Object.freeze(finalized.traits);
-  Object.freeze(finalized);
-  definitionByName.set(finalized.name, finalized);
-  for (const list of [coreDefinitions, allDefinitions]) {
-    const index = list.indexOf(existing);
-    if (index >= 0) list[index] = finalized;
-  }
-}
-
+/** A tool by name: the project `scope`'s installed-extension tools first, then core and built-in tools. */
 export function toolDefinitionByName(
   name: ToolName | string,
+  scope?: string,
 ): ToolDefinition | undefined {
-  return definitionByName.get(name as ToolName);
+  return (
+    scopedToolDefinition(name, scope) ?? definitionByName.get(name as ToolName)
+  );
 }
 
-export function requireToolDefinition(name: ToolName | string): ToolDefinition {
-  const definition = toolDefinitionByName(name);
+export function requireToolDefinition(
+  name: ToolName | string,
+  scope?: string,
+): ToolDefinition {
+  const definition = toolDefinitionByName(name, scope);
   if (!definition) throw new Error(`Unknown tool: ${name}`);
   return definition;
 }
@@ -196,8 +175,9 @@ export function hostToolDefinitions(): readonly HostToolDefinition[] {
 export function classifyToolRisk(
   name: ToolName | string,
   args: Record<string, unknown> = {},
+  scope?: string,
 ): ToolRisk {
-  const definition = requireToolDefinition(name);
+  const definition = requireToolDefinition(name, scope);
   if (definition.classifyRiskAsync)
     throw new Error(
       `${name} is classified asynchronously; use classifyToolRiskAsync.`,
@@ -209,11 +189,12 @@ export function classifyToolRisk(
 export async function classifyToolRiskAsync(
   name: ToolName | string,
   args: Record<string, unknown> = {},
+  scope?: string,
 ): Promise<ToolRisk> {
-  const definition = requireToolDefinition(name);
+  const definition = requireToolDefinition(name, scope);
   return definition.classifyRiskAsync
     ? await definition.classifyRiskAsync(args)
-    : classifyToolRisk(name, args);
+    : classifyToolRisk(name, args, scope);
 }
 
 export function toolHasTrait(

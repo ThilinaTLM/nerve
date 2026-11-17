@@ -536,6 +536,14 @@ export function createConversationCore(
   // A reload changes what the next prepared request sees.
   extensionCatalog.subscribe(() => {
     extensionEpoch++;
+    // Consent, the switch and reloads change what every non-conversation view lists.
+    void deps.events
+      .publish("extensions.changed", { scope: { scope: "user" } })
+      .catch((error) => {
+        void deps.logger.warn("Extension change notification failed", {
+          error,
+        });
+      });
   });
   const extensionSettings = new ExtensionSettingsService({
     paths: agentConfiguration.paths,

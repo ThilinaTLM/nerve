@@ -53,6 +53,8 @@ export interface NormalizedPermissionRequest {
   targets: PermissionTarget[];
   projectId?: string;
   conversationId: string;
+  /** The project directory whose installed extensions' direct tools this request may name. */
+  toolScope?: string;
   /** Set for a quick_script SDK operation checked by name (`jira.issues.create`), not for a script. */
   operation?: { namespace: string; baseRisk: StaticToolRisk };
   /** Risk of the arguments of a tool classified asynchronously (`quick_script`), awaited by the caller before evaluation. */
@@ -243,9 +245,12 @@ export function normalizePermissionRequest(input: {
   cwd?: string;
   projectId?: string;
   conversationId: string;
+  /** The project directory whose installed extensions' direct tools may be named. */
+  toolScope?: string;
 }): NormalizedPermissionRequest {
-  const definition = input.definition ?? requireToolDefinition(input.toolName);
-  const metadata = permissionMetadataForTool(input.toolName);
+  const definition =
+    input.definition ?? requireToolDefinition(input.toolName, input.toolScope);
+  const metadata = permissionMetadataForTool(input.toolName, input.toolScope);
   const args =
     input.normalizedArgs ?? normalizeToolArguments(definition, input.args);
   const argumentErrors = describeToolArgumentErrors(definition, args);
@@ -283,6 +288,7 @@ export function normalizePermissionRequest(input: {
     request.primaryArgument = primaryArgument;
   if (targets[0]) request.primaryTarget = targets[0];
   if (input.projectId !== undefined) request.projectId = input.projectId;
+  if (input.toolScope !== undefined) request.toolScope = input.toolScope;
   return request;
 }
 
@@ -450,7 +456,10 @@ function compareEffectiveRules(
 const ARGUMENT_RISK_TOOLS = new Set(["async_bash", "launch", "quick_script"]);
 
 function requestMetadata(request: NormalizedPermissionRequest) {
-  const metadata = permissionMetadataForTool(request.toolName);
+  const metadata = permissionMetadataForTool(
+    request.toolName,
+    request.toolScope,
+  );
   if (request.operation)
     return {
       ...metadata,

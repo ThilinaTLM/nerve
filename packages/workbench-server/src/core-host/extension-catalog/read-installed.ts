@@ -1,3 +1,4 @@
+import { agentTextProblems } from "./agent-text-limits.js";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
@@ -181,6 +182,10 @@ export async function readFolder(
           ),
         );
       }
+  // Text a model reads is bounded before consent: over the limit, the extension is invalid.
+  if (result.diagnostics.length === 0)
+    for (const problem of agentTextProblems(manifest, readAsset))
+      result.diagnostics.push(error(problem));
   if (result.diagnostics.length > 0) return result;
   result.manifest = manifest;
   result.readAsset = readAsset;

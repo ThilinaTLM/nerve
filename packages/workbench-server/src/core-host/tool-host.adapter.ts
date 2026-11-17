@@ -7,6 +7,7 @@ import type {
   ToolHostPort,
 } from "@nervekit/conversation-core";
 import {
+  scopedToolDefinitions,
   toolManifest,
   buildBashToolDefinition,
   toolDefinitionByName,
@@ -62,9 +63,9 @@ export function createToolHostPort(
     handlers.launch = (args, context) =>
       launchTool.execute(args, String(context.identity));
   // Host-only definitions (including launch) are advertised only with a registered handler.
-  // Read live: an extension's tools are registered when its project's extensions load.
-  const baseDefinitionList = () =>
-    toolManifest.filter(
+  // Read live: the installed extensions' tools of a project are published when its extensions load.
+  const baseDefinitionList = (projectDir?: string) =>
+    [...toolManifest, ...scopedToolDefinitions(projectDir)].filter(
       (tool) => tool.executionKind === "local" || tool.name in handlers,
     );
   const definitions = async (
@@ -73,9 +74,8 @@ export function createToolHostPort(
     capturedSettings: BashToolSettings,
   ): Promise<ToolDefinition[]> => {
     const settings = capturedSettings;
-    void cwd;
     void conversationId;
-    return baseDefinitionList().map((tool) =>
+    return baseDefinitionList(cwd).map((tool) =>
       tool.name === "bash"
         ? {
             ...tool,
@@ -104,9 +104,9 @@ export function createToolHostPort(
       while (true) {
         input.signal.throwIfAborted();
         // Core tools and the direct tools extensions contribute; the catalog is the authority on names.
-        const definition = baseDefinitionList().find(
-          (tool) => tool.name === input.toolName,
-        );
+        const definition = baseDefinitionList(
+          input.projectDir ?? input.cwd,
+        ).find((tool) => tool.name === input.toolName);
         if (!definition) throw new Error(`Tool unavailable: ${input.toolName}`);
         const name = definition.name;
         const args = structuredClone(

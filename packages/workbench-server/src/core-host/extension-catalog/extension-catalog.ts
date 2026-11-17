@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type {
   AccountKind,
   ExtensionCatalogDiagnostic,
+  ExtensionConsent,
   ExtensionCatalogEntry,
   ExtensionSettingsDefinition,
   ExtensionSource,
@@ -9,7 +10,7 @@ import type {
 } from "@nervekit/contracts/extensions";
 import type { ExtensionDefinition } from "@nervekit/extension-api";
 import {
-  registerToolDefinitions,
+  setScopedToolDefinitions,
   toolDefinitionByName,
 } from "@nervekit/tools/catalog";
 import {
@@ -21,6 +22,7 @@ import {
   sandboxExtensionCode,
   type QuickScriptRegistry,
 } from "@nervekit/tools/quick-script";
+import { limitInstalledErrors } from "./agent-text-limits.js";
 import {
   loadInstalledExtension,
   type LoadedInstalledExtension,
@@ -29,12 +31,32 @@ import {
   readInstalledExtensions,
   type ReadExtension,
 } from "./read-installed.js";
-import { pendingConsentGate, type ExtensionTrustGate } from "./trust-gate.js";
+import {
+  pendingConsentGate,
+  type ExtensionTrustGate,
+  type ExtensionTrustVerdict,
+  type InstalledExtensionCandidate,
+} from "./trust-gate.js";
 
 /** What a consumer needs of the catalog: the registry and the entries at a project. */
 export interface ExtensionRegistryProvider {
   registryFor(projectDir?: string): Promise<QuickScriptRegistry>;
   entries(projectDir?: string): Promise<ExtensionCatalogEntry[]>;
+}
+
+/**
+ * What changes consent, the enabled switch and what is loaded. Reachable only from the signed-in
+ * user's Settings page (the `extensions.*` operations of the workbench protocol); no agent tool,
+ * `quick_script` namespace or extension port exposes it.
+ */
+export interface ExtensionManagement {
+  grantConsent(
+    ref: InstalledExtensionRef,
+    contentHash: string,
+  ): Promise<"granted" | "changed" | "not_found">;
+  revokeConsent(ref: InstalledExtensionRef): Promise<boolean>;
+  setEnabled(ref: InstalledExtensionRef, enabled: boolean): Promise<boolean>;
+  reload(id?: string): Promise<void>;
 }
 
 /** A provider of one fixed registry whose extensions are all built in (tests, tools without a home). */
@@ -65,6 +87,14 @@ export type BuiltinExtensions = {
   readBundle(extensionId: string): string;
 };
 
+/** An installed extension a consent operation names. */
+export type InstalledExtensionRef = {
+  source: "user" | "project";
+  id: string;
+  /** The project directory of a project extension. */
+  projectDir?: string;
+};
+
 export type ExtensionCatalogOptions = {
   /** `NERVE_HOME`: user extensions live in `<home>/agent/extensions/`. */
   home: string;
@@ -85,6 +115,9 @@ export type ComposedExtensions = {
 type ScannedExtension = {
   read: ReadExtension;
   source: "user" | "project";
+  /** What the gate was asked about; absent when the folder is invalid or incompatible. */
+  candidate?: InstalledExtensionCandidate;
+  consent?: ExtensionConsent;
   /** What the trust gate and the load decided, before precedence and collisions. */
   state: "loadable" | Exclude<ExtensionState, "enabled" | "shadowed">;
   loaded?: LoadedInstalledExtension;
@@ -95,6 +128,7 @@ type Scan = Map<string, ScannedExtension>;
 type Outcome = {
   state: ExtensionState | "loadable";
   diagnostics: ExtensionCatalogDiagnostic[];
+  consent?: ExtensionConsent;
   shadowedBy?: ExtensionSource;
 };
 
@@ -120,6 +154,8 @@ export class ExtensionCatalog {
   /** The sandbox bundle of each installed definition; only these run, and only in the sandbox. */
   readonly #bundles = new WeakMap<ExtensionDefinition, string>();
   readonly #listeners = new Set<() => void>();
+  /** The tool scopes this catalog published to, to withdraw them on reload. */
+  readonly #toolScopes = new Set<string>();
   readonly #builtinRegistry: QuickScriptRegistry;
   #generation = 0;
 
@@ -189,6 +225,8 @@ export class ExtensionCatalog {
   async reload(id?: string): Promise<void> {
     this.#generation++;
     this.#composed.clear();
+    for (const scope of this.#toolScopes) setScopedToolDefinitions(scope, []);
+    this.#toolScopes.clear();
     if (id === undefined) this.#scans.clear();
     else {
       const rescans: Promise<Scan>[] = [];
@@ -227,17 +265,65 @@ export class ExtensionCatalog {
           : new Map<string, ScannedExtension>();
         const result = this.#compose(user, project);
         if (generation === this.#generation) this.#latest.set(key, result);
-        this.#registerTools(result.registry);
+        if (generation === this.#generation)
+          this.#publishTools(key, result.registry);
         return result;
       })();
       this.#composed.set(key, composed);
       composed.catch(() => this.#composed.delete(key));
     }
-    // Direct tools of installed extensions live in the global tool catalog; the latest request wins.
-    return composed.then((result) => {
-      this.#registerTools(result.registry);
-      return result;
-    });
+    return composed;
+  }
+
+  // ── Consent (the user's Settings page only; see the operations in the app protocol) ──
+
+  /** Records consent for the files the user reviewed. `changed` when they are not the files on disk now. */
+  async grantConsent(
+    ref: InstalledExtensionRef,
+    contentHash: string,
+  ): Promise<"granted" | "changed" | "not_found"> {
+    const found = await this.#find(ref);
+    if (!found?.candidate) return "not_found";
+    if (!this.#gate.grant) throw new Error("This host does not record consent");
+    const granted = await this.#gate.grant(found.candidate, contentHash);
+    await this.reload(ref.id);
+    return granted ? "granted" : "changed";
+  }
+
+  async revokeConsent(ref: InstalledExtensionRef): Promise<boolean> {
+    const found = await this.#find(ref);
+    if (!found?.candidate) return false;
+    await this.#gate.revoke?.(found.candidate);
+    await this.reload(ref.id);
+    return true;
+  }
+
+  async setEnabled(
+    ref: InstalledExtensionRef,
+    enabled: boolean,
+  ): Promise<boolean> {
+    const found = await this.#find(ref);
+    if (!found?.candidate) return false;
+    await this.#gate.setEnabled?.(found.candidate, enabled);
+    await this.reload(ref.id);
+    return true;
+  }
+
+  async #find(
+    ref: InstalledExtensionRef,
+  ): Promise<ScannedExtension | undefined> {
+    if (ref.source === "project" && !ref.projectDir) return undefined;
+    const scan =
+      ref.source === "user"
+        ? await this.#scan(userRootOf(this.#options.home), "user")
+        : await this.#scan(
+            projectRootOf(resolveKey(ref.projectDir!)),
+            "project",
+            resolveKey(ref.projectDir!),
+          );
+    return [...scan.values()].find(
+      (scanned) => scanned.read.manifest?.id === ref.id,
+    );
   }
 
   #scan(root: string, source: "user" | "project", projectDir?: string) {
@@ -292,7 +378,12 @@ export class ExtensionCatalog {
     source: "user" | "project",
     projectDir?: string,
   ): Promise<ScannedExtension> {
-    const base = { read, source, diagnostics: [...read.diagnostics] };
+    const base: ScannedExtension = {
+      read,
+      source,
+      state: "invalid",
+      diagnostics: [...read.diagnostics],
+    };
     const manifest = read.manifest;
     if (!manifest) return { ...base, state: "invalid" };
     if (read.incompatible)
@@ -307,17 +398,22 @@ export class ExtensionCatalog {
         message:
           "Themes of project extensions are ignored: a theme applies to the whole app, which shows several projects. Install the extension at user level to use its themes.",
       });
-    const decision = await this.#gate.decide({
+    const candidate: InstalledExtensionCandidate = {
       id: manifest.id,
       source,
       folder: read.folder,
       ...(projectDir ? { projectDir } : {}),
       manifest,
-    });
+    };
+    const verdict = await this.#gate.decide(candidate);
+    const { decision, consent }: ExtensionTrustVerdict =
+      typeof verdict === "string" ? { decision: verdict } : verdict;
+    base.candidate = candidate;
     if (decision === "pending")
       return {
         ...base,
         state: "pending_consent",
+        ...(consent ? { consent } : {}),
         diagnostics: [
           ...base.diagnostics,
           {
@@ -412,16 +508,20 @@ export class ExtensionCatalog {
       },
       extensionSource: (definition) =>
         sources.get(definition)?.source ?? "builtin",
-      extensionCodeAdapter: routedExtensionCode({
-        // Installed extensions always run in the sandbox; so do the built-ins that ship a bundle.
-        sandboxed: (definition) =>
-          this.#bundles.has(definition) ||
-          builtins.sandboxed.has(definition.id),
-        sandbox: sandboxExtensionCode({
-          bundle: (definition) =>
-            this.#bundles.get(definition) ?? builtins.readBundle(definition.id),
+      extensionCodeAdapter: limitInstalledErrors(
+        routedExtensionCode({
+          // Installed extensions always run in the sandbox; so do the built-ins that ship a bundle.
+          sandboxed: (definition) =>
+            this.#bundles.has(definition) ||
+            builtins.sandboxed.has(definition.id),
+          sandbox: sandboxExtensionCode({
+            bundle: (definition) =>
+              this.#bundles.get(definition) ??
+              builtins.readBundle(definition.id),
+          }),
         }),
-      }),
+        (definition) => this.#bundles.has(definition),
+      ),
     });
   }
 
@@ -450,6 +550,7 @@ export class ExtensionCatalog {
       const outcome: Outcome = {
         state: scanned.state,
         diagnostics: [...scanned.diagnostics],
+        ...(scanned.consent ? { consent: scanned.consent } : {}),
       };
       outcomes.set(scanned, outcome);
       if (!manifest) continue;
@@ -492,11 +593,8 @@ export class ExtensionCatalog {
           ),
         ...(definition.tools ?? [])
           .filter((tool) => {
-            const existing = toolDefinitionByName(tool.name);
-            return (
-              tools.has(tool.name) ||
-              (existing && existing.extension?.id !== definition.id)
-            );
+            // Core and built-in tools are global; installed extensions' tools are per project.
+            return tools.has(tool.name) || toolDefinitionByName(tool.name);
           })
           .map(
             (tool) =>
@@ -556,26 +654,30 @@ export class ExtensionCatalog {
           : {}),
         ...(outcome.shadowedBy ? { shadowedBy: outcome.shadowedBy } : {}),
         diagnostics: outcome.diagnostics,
+        ...(outcome.state === "pending_consent" && outcome.consent
+          ? { consent: outcome.consent }
+          : {}),
       });
     }
     return { registry, entries };
   }
 
-  /** Adds the direct tools of the installed extensions in `registry` to the global tool catalog (replacing their earlier definitions). */
-  #registerTools(registry: QuickScriptRegistry): void {
+  /** Publishes the direct tools of the installed extensions in `registry` to the tool scope of one project. */
+  #publishTools(key: string, registry: QuickScriptRegistry): void {
     const installed = new Set(
       registry.extensions
         .filter((extension) => extension.source !== "builtin")
         .map((extension) => extension.id),
     );
-    if (installed.size === 0) return;
-    registerToolDefinitions(
+    setScopedToolDefinitions(
+      key,
       createExtensionToolDefinitions(registry).filter(
         (definition) =>
           definition.extension !== undefined &&
           installed.has(definition.extension.id),
       ),
     );
+    this.#toolScopes.add(key);
   }
 }
 

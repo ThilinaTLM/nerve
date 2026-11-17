@@ -1,6 +1,7 @@
 import {
   accountFieldKinds,
   fieldScopes,
+  type ExtensionCatalogEntry,
   type ExtensionView,
   type SettingField,
 } from "@nervekit/contracts/extensions";
@@ -621,4 +622,75 @@ export function parseNumberInput(text: string): number | undefined | "invalid" {
   if (trimmed === "") return undefined;
   const value = Number(trimmed);
   return Number.isFinite(value) ? value : "invalid";
+}
+
+// ── Installed extensions (user and project folders) ─────────────────────────
+
+export type InstalledGroup = "user" | "project";
+
+/** The catalog entries of one installed source, in the catalog's order. */
+export function installedEntries(
+  catalog: readonly ExtensionCatalogEntry[],
+  source: InstalledGroup,
+): ExtensionCatalogEntry[] {
+  return catalog.filter((entry) => entry.source === source);
+}
+
+export type StateBadge = {
+  label: string;
+  variant: "neutral" | "warning" | "destructive";
+};
+
+/** The badge of a state that needs attention; enabled shows nothing (the switch says it). */
+export function installedStateBadge(
+  state: ExtensionCatalogEntry["state"],
+): StateBadge | undefined {
+  switch (state) {
+    case "pending_consent":
+      return { label: "Pending consent", variant: "warning" };
+    case "disabled":
+      return { label: "Disabled", variant: "neutral" };
+    case "incompatible":
+      return { label: "Incompatible", variant: "warning" };
+    case "invalid":
+      return { label: "Invalid", variant: "destructive" };
+    case "shadowed":
+      return { label: "Shadowed", variant: "neutral" };
+    case "enabled":
+      return undefined;
+  }
+}
+
+/** The row's status line: version and folder. */
+export function installedSummary(entry: ExtensionCatalogEntry): string {
+  return [entry.version ? `v${entry.version}` : "", entry.path ?? ""]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** What the row says is wrong: the first error, or the first warning of a state that needs care. */
+export function installedProblem(
+  entry: ExtensionCatalogEntry,
+): string | undefined {
+  if (entry.state === "pending_consent")
+    return entry.consent?.update
+      ? "Changed since you allowed it. Review what is new."
+      : "Waiting for your consent. Nothing runs until you allow it.";
+  const diagnostic =
+    entry.diagnostics.find((candidate) => candidate.level === "error") ??
+    (entry.state === "shadowed" || entry.state === "incompatible"
+      ? entry.diagnostics[0]
+      : undefined);
+  return diagnostic?.message;
+}
+
+/** The switch is the user's on/off; it exists only where on and off are both possible. */
+export function installedSwitch(
+  entry: ExtensionCatalogEntry,
+): boolean | undefined {
+  return entry.state === "enabled"
+    ? true
+    : entry.state === "disabled"
+      ? false
+      : undefined;
 }

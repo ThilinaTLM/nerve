@@ -28,6 +28,37 @@ export type ExtensionCatalogDiagnostic = z.infer<
   typeof extensionCatalogDiagnosticSchema
 >;
 
+/** One line of what an extension asks consent for, in plain language. */
+export const extensionConsentItemSchema = z.strictObject({
+  kind: z.enum([
+    "network",
+    "account",
+    "capability",
+    "tools",
+    "namespace",
+    "ui",
+    "code",
+  ]),
+  text: z.string(),
+  /** A grant much wider than usual (every host); the review calls it out. */
+  broad: z.boolean().optional(),
+});
+export type ExtensionConsentItem = z.infer<typeof extensionConsentItemSchema>;
+
+/**
+ * What the user is asked to allow for a pending extension. For an update (`update`), only what is
+ * new since the last consent. `contentHash` names the exact files that were summarized; a consent
+ * is accepted only for that hash.
+ */
+export const extensionConsentSchema = z.strictObject({
+  update: z.boolean(),
+  contentHash: z.string().min(1),
+  items: z.array(extensionConsentItemSchema),
+  /** The same summary as plain text, one line per item. */
+  text: z.string(),
+});
+export type ExtensionConsent = z.infer<typeof extensionConsentSchema>;
+
 /** One extension the host knows of, loaded or not. */
 export const extensionCatalogEntrySchema = z.strictObject({
   /** The extension id; the folder name when the manifest could not be read. */
@@ -43,5 +74,7 @@ export const extensionCatalogEntrySchema = z.strictObject({
   /** `shadowed` only: the source that has the id. */
   shadowedBy: extensionSourceSchema.optional(),
   diagnostics: z.array(extensionCatalogDiagnosticSchema),
+  /** `pending_consent` only: what to review before allowing. */
+  consent: extensionConsentSchema.optional(),
 });
 export type ExtensionCatalogEntry = z.infer<typeof extensionCatalogEntrySchema>;

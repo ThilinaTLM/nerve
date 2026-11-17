@@ -125,6 +125,8 @@ export type RegisteredNamespace = SdkNamespace & {
   extension?: string;
   /** Extension id, or `runtime`. */
   owner: string;
+  /** Who vouches for the text of an installed extension's namespace (`csv-tools, user extension`); absent for built-ins. */
+  attribution?: string;
   /** Reads one of this namespace's doc topic files. */
   readDoc: (file: string) => string;
 };

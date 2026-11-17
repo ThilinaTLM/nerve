@@ -177,6 +177,44 @@ export const trustProjectExtensionsResultSchema = z.discriminatedUnion(
   ],
 );
 
+/** An installed extension at a target: user extensions, or those of the target's project. */
+const installedExtensionRefSchema = z.strictObject({
+  target: z.discriminatedUnion("scope", [
+    z.strictObject({ scope: z.literal("user") }),
+    z.strictObject({
+      scope: z.literal("project"),
+      projectId: z.string().min(1),
+    }),
+  ]),
+  source: z.enum(["user", "project"]),
+  id: extensionIdSchema,
+});
+export type InstalledExtensionRef = z.infer<typeof installedExtensionRefSchema>;
+
+/** Consent to run an installed extension; only the signed-in user's UI sends it, never an agent. */
+export const grantExtensionConsentRequestSchema =
+  installedExtensionRefSchema.extend({
+    /** `catalog[].consent.contentHash` the user reviewed. */
+    contentHash: z.string().min(1),
+  });
+export const revokeExtensionConsentRequestSchema = installedExtensionRefSchema;
+export const setInstalledExtensionEnabledRequestSchema =
+  installedExtensionRefSchema.extend({ enabled: z.boolean() });
+export const reloadExtensionsRequestSchema = z.strictObject({
+  target: installedExtensionRefSchema.shape.target,
+  /** One extension folder; absent: every installed extension. */
+  id: extensionIdSchema.optional(),
+});
+export const installedExtensionResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("saved"), view: extensionsViewSchema }),
+  /** The files changed since the user reviewed them; review again. */
+  z.strictObject({ status: z.literal("changed"), view: extensionsViewSchema }),
+  z.strictObject({ status: z.literal("not_found") }),
+]);
+export type InstalledExtensionResult = z.infer<
+  typeof installedExtensionResultSchema
+>;
+
 const host = ["workbench_server"] as const;
 export const extensionOperationDefinitions = [
   defineOperation(
@@ -214,5 +252,41 @@ export const extensionOperationDefinitions = [
     "none",
     host,
     "operation.extensions.trustProject",
+  ),
+  defineOperation(
+    "extensions.grantConsent",
+    grantExtensionConsentRequestSchema,
+    installedExtensionResultSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.extensions.grantConsent",
+  ),
+  defineOperation(
+    "extensions.revokeConsent",
+    revokeExtensionConsentRequestSchema,
+    installedExtensionResultSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.extensions.revokeConsent",
+  ),
+  defineOperation(
+    "extensions.setInstalledEnabled",
+    setInstalledExtensionEnabledRequestSchema,
+    installedExtensionResultSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.extensions.setInstalledEnabled",
+  ),
+  defineOperation(
+    "extensions.reload",
+    reloadExtensionsRequestSchema,
+    installedExtensionResultSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.extensions.reload",
   ),
 ] as const;

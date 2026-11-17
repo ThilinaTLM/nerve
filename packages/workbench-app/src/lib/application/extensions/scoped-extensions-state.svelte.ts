@@ -1,5 +1,7 @@
 import type {
+  ExtensionCatalogEntry,
   ExtensionMutationResult,
+  InstalledExtensionResult,
   ExtensionsView,
   ExtensionTarget,
 } from "@nervekit/contracts/extensions";
@@ -118,6 +120,95 @@ export class ScopedExtensionsState {
       this.view = result.view;
       this.error = undefined;
       return true;
+    } catch (cause) {
+      this.error = cause instanceof Error ? cause.message : String(cause);
+      return false;
+    } finally {
+      this.saving = false;
+    }
+  }
+
+  /** The user allows what was reviewed (`entry.consent`); only an installed, pending extension has it. */
+  grantConsent(entry: ExtensionCatalogEntry): Promise<boolean> {
+    const contentHash = entry.consent?.contentHash;
+    if (!contentHash) return Promise.resolve(false);
+    return this.installed(
+      (target, source) =>
+        requestWorkbench("extensions.grantConsent", {
+          target,
+          source,
+          id: entry.id,
+          contentHash,
+        }),
+      entry,
+    );
+  }
+
+  revokeConsent(entry: ExtensionCatalogEntry): Promise<boolean> {
+    return this.installed(
+      (target, source) =>
+        requestWorkbench("extensions.revokeConsent", {
+          target,
+          source,
+          id: entry.id,
+        }),
+      entry,
+    );
+  }
+
+  /** Turns an installed extension on or off; consent is separate. */
+  setInstalledEnabled(
+    entry: ExtensionCatalogEntry,
+    enabled: boolean,
+  ): Promise<boolean> {
+    return this.installed(
+      (target, source) =>
+        requestWorkbench("extensions.setInstalledEnabled", {
+          target,
+          source,
+          id: entry.id,
+          enabled,
+        }),
+      entry,
+    );
+  }
+
+  /** Re-reads installed extensions from disk: one, or all. A reload never grants consent. */
+  reloadInstalled(id?: string): Promise<boolean> {
+    return this.installed((target) =>
+      requestWorkbench("extensions.reload", {
+        target,
+        ...(id ? { id } : {}),
+      }),
+    );
+  }
+
+  private async installed(
+    run: (
+      target: EditableTarget,
+      source: "user" | "project",
+    ) => Promise<InstalledExtensionResult>,
+    entry?: ExtensionCatalogEntry,
+  ): Promise<boolean> {
+    const target = this.target;
+    if (!target || this.saving) return false;
+    const source = entry?.source === "project" ? "project" : "user";
+    this.saving = true;
+    try {
+      const result = await run(target, source);
+      if (this.target !== target) return false;
+      if (result.status === "not_found") {
+        this.error = "That extension is no longer there. Reload and try again.";
+        await this.load(target);
+        return false;
+      }
+      this.view = result.view;
+      publishUserExtensions(result.view);
+      this.error =
+        result.status === "changed"
+          ? "The extension's files changed while you reviewed them. Review it again."
+          : undefined;
+      return result.status === "saved";
     } catch (cause) {
       this.error = cause instanceof Error ? cause.message : String(cause);
       return false;

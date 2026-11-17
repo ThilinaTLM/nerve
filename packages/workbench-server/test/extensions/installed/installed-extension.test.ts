@@ -194,7 +194,7 @@ void test(
       details: { extension: string; tool: string };
     }>;
     const run = (name: string, args: unknown) => {
-      const definition = toolDefinitionByName(name) as unknown as {
+      const definition = toolDefinitionByName(name, "") as unknown as {
         executor: Executor;
         extension: { id: string };
       };
@@ -216,7 +216,7 @@ void test(
     assert.equal(ping.content, "pong 7");
     // A registry without the extension (another project) refuses the call.
     await assert.rejects(
-      toolDefinitionByName("e2e_ping")!.executor!(
+      toolDefinitionByName("e2e_ping", "")!.executor!(
         {},
         { ...context, registry: hostRegistry },
       ),

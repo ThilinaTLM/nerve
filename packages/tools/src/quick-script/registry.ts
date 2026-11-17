@@ -92,6 +92,9 @@ export function createQuickScriptRegistry(
           source: "extension",
           extension: extension.name,
           owner: extension.id,
+          ...(extension.source !== "builtin"
+            ? { attribution: `${extension.id}, ${extension.source} extension` }
+            : {}),
           readDoc: (file) => {
             if (!options.readExtensionAsset)
               throw new Error(

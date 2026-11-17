@@ -44,7 +44,10 @@ import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { WorkbenchNoticePublisher } from "../infrastructure/events/index.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage-bootstrap/index.js";
-import type { ExtensionRegistryProvider } from "../core-host/extension-catalog/extension-catalog.js";
+import type {
+  ExtensionManagement,
+  ExtensionRegistryProvider,
+} from "../core-host/extension-catalog/extension-catalog.js";
 import { createExtensionViews } from "../core-host/extension-views.js";
 import type { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { createPermissionConfigurationService } from "../core-host/permission-configuration.js";
@@ -77,7 +80,7 @@ export interface AdapterInfrastructure {
 /** The service capabilities adapters are projected from; the bootstrap graph satisfies this structurally. */
 export interface AdapterServices {
   /** The extensions of this home: built-ins, user extensions and per-project ones. */
-  extensionCatalog: ExtensionRegistryProvider;
+  extensionCatalog: ExtensionRegistryProvider & ExtensionManagement;
   unreadableConversations: UnreadableConversationActivity;
   completions: UnifiedCompletionService;
   conversationTitles: ConversationTitleService;
@@ -140,6 +143,7 @@ export function createServerAdapterContexts(
       agentConfiguration: services.agentConfiguration,
       extensionSettings: services.extensionSettings,
       extensionViews,
+      extensionCatalog: services.extensionCatalog,
       configurationOperations: services.configurationOperations,
       admissionPolicy: services.admissionPolicy,
       workspaceMonitor: services.workspaceMonitor,

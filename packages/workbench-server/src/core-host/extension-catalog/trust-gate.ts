@@ -1,4 +1,7 @@
-import type { InstalledExtensionManifest } from "@nervekit/contracts/extensions";
+import type {
+  ExtensionConsent,
+  InstalledExtensionManifest,
+} from "@nervekit/contracts/extensions";
 
 /** What the gate decided about one installed extension. */
 export type ExtensionTrustDecision =
@@ -20,39 +23,51 @@ export type InstalledExtensionCandidate = {
   manifest: InstalledExtensionManifest;
 };
 
+/** A decision with what the user must review, for `pending`. */
+export type ExtensionTrustVerdict = {
+  decision: ExtensionTrustDecision;
+  consent?: ExtensionConsent;
+};
+
+/** Which installed extension a consent operation is about. */
+export type InstalledExtensionKey = Pick<
+  InstalledExtensionCandidate,
+  "id" | "source" | "folder"
+>;
+
 /**
  * Consulted before an installed extension is included in any registry, and before its code is
- * opened. Consent (content hashes, the update diff, the Settings action) arrives with the trust
- * step; the interface is what that step implements.
+ * opened. The host's gate is `ExtensionTrust`; consent and the enabled switch change only through
+ * the operations here, which the catalog exposes to the user's Settings page and to nothing else.
  */
 export interface ExtensionTrustGate {
   decide(
     candidate: InstalledExtensionCandidate,
-  ): ExtensionTrustDecision | Promise<ExtensionTrustDecision>;
+  ):
+    | ExtensionTrustDecision
+    | ExtensionTrustVerdict
+    | Promise<ExtensionTrustDecision | ExtensionTrustVerdict>;
+  /** Records consent for the content the user reviewed; false when the files changed since (`contentHash`). */
+  grant?(
+    candidate: InstalledExtensionCandidate,
+    contentHash: string,
+  ): Promise<boolean>;
+  /** Withdraws consent: the extension is pending again. */
+  revoke?(key: InstalledExtensionKey): Promise<void>;
+  /** The user's on/off switch, separate from consent. */
+  setEnabled?(key: InstalledExtensionKey, enabled: boolean): Promise<void>;
 }
 
-/** The default until consent exists: nothing installed runs. */
+/** Nothing installed runs. A gate for tests that need the safe default. */
 export const pendingConsentGate: ExtensionTrustGate = {
   decide: () => "pending",
 };
 
-/** Test and development override: `decide` answers per extension (everything trusted by default). */
+/** Test override: `decide` answers per extension (everything trusted by default). */
 export function overrideTrustGate(
   decide: (
     candidate: InstalledExtensionCandidate,
   ) => ExtensionTrustDecision = () => "trusted",
 ): ExtensionTrustGate {
   return { decide };
-}
-
-/** Environment variable that makes `defaultTrustGate` trust every installed extension; for development of extensions only. */
-export const TRUST_ALL_EXTENSIONS_ENV = "NERVE_DEV_TRUST_ALL_EXTENSIONS";
-
-/** The host's gate: pending for everything, unless the development override is set. */
-export function defaultTrustGate(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): ExtensionTrustGate {
-  return env[TRUST_ALL_EXTENSIONS_ENV] === "1"
-    ? overrideTrustGate()
-    : pendingConsentGate;
 }

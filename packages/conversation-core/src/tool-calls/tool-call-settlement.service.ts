@@ -1,3 +1,4 @@
+import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import { createId } from "@nervekit/contracts";
 import type { ToolCall, ToolCallOutcome } from "@nervekit/contracts/core";
 import type { ToolExecutionResultPayload } from "@nervekit/contracts/tools";
@@ -66,12 +67,21 @@ export class ToolCallSettlement {
       (current.state === "running" && current.executionClaim !== claim)
     )
       return;
+    const core = this.options.coreTools.get(call.toolName)?.definition;
+    // An installed extension's tool is the one of the call's project, not another project's.
+    let scope: string | undefined;
+    if (!core)
+      try {
+        scope = (await this.options.context(call.conversationId)).projectDir;
+      } catch {
+        // No project context: only the global catalog applies.
+      }
     const prepared = await prepareToolResult(
       this.options.assets,
       current,
       outcome,
       result,
-      this.options.coreTools.get(call.toolName)?.definition,
+      core ?? toolDefinitionByName(call.toolName, scope),
     );
     if (this.closed) return;
     let afterAcceptance: (() => void) | undefined;

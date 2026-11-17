@@ -25,6 +25,7 @@ export * from "./definitions/orchestration/plan-present.tools.js";
 export * from "./definitions/orchestration/process.tools.js";
 export * from "./permission-metadata.js";
 export * from "./risk.js";
+export * from "./tool-scope.js";
 export * from "./contracts.js";
 
 /** Descriptors of the core tools, including those registered by other packages. */

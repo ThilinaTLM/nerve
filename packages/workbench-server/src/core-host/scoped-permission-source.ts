@@ -213,6 +213,10 @@ export function createScopedPermissionSource(options: {
       if (paths) await Promise.all(paths.map(read));
     },
     async ensureLoaded(input) {
+      // Composing the project's extensions publishes their direct tools for the request below.
+      await options.registryFor?.(
+        projectOf(input.conversationId).project.directory,
+      );
       if (input.toolName === "quick_script" && !nestedOperation(input))
         scans.set(
           input,
@@ -242,6 +246,7 @@ export function createScopedPermissionSource(options: {
                 args: input.args as Record<string, unknown>,
                 conversationId: input.conversationId,
                 projectId: context.project.id,
+                toolScope: context.project.directory,
                 cwd: input.cwd,
                 roots: {
                   project: context.project.directory,
@@ -407,7 +412,11 @@ export function createScopedPermissionSource(options: {
                     ? operationEffectiveRisk(request.args.risk)
                     : scanned
                       ? scanned.risk
-                      : classifyToolRisk(actual.toolName, request.args),
+                      : classifyToolRisk(
+                          actual.toolName,
+                          request.args,
+                          request.toolScope,
+                        ),
                   reason:
                     actual.toolName === "quick_script" &&
                     !request.operation &&

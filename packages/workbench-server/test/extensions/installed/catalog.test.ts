@@ -8,10 +8,8 @@ import { builtinExtensions } from "@nervekit/extensions";
 import type { ExtensionCatalogEntry } from "@nervekit/contracts/extensions";
 import { createHostExtensionCatalog } from "../../../src/core-host/host-tools.js";
 import {
-  defaultTrustGate,
   overrideTrustGate,
   pendingConsentGate,
-  TRUST_ALL_EXTENSIONS_ENV,
   type InstalledExtensionCandidate,
 } from "../../../src/core-host/extension-catalog/trust-gate.js";
 import { fixtureBackend, writeExtension } from "./fixtures.js";
@@ -75,18 +73,13 @@ void test("by default nothing installed runs: valid extensions are pending conse
   );
 });
 
-void test("the development override trusts everything; a gate can disable or leave pending per extension", async () => {
-  assert.equal(
-    defaultTrustGate({}).decide.length,
-    pendingConsentGate.decide.length,
-  );
+void test("the test gates answer per extension; the pending gate never trusts", async () => {
   const candidate = { id: "x" } as InstalledExtensionCandidate;
-  assert.equal(await defaultTrustGate({}).decide(candidate), "pending");
+  assert.equal(await pendingConsentGate.decide(candidate), "pending");
+  assert.equal(await overrideTrustGate().decide(candidate), "trusted");
   assert.equal(
-    await defaultTrustGate({ [TRUST_ALL_EXTENSIONS_ENV]: "1" }).decide(
-      candidate,
-    ),
-    "trusted",
+    await overrideTrustGate(() => "disabled").decide(candidate),
+    "disabled",
   );
 });
 

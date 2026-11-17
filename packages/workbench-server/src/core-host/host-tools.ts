@@ -12,7 +12,8 @@ import {
   ExtensionCatalog,
   type ExtensionCatalogOptions,
 } from "./extension-catalog/extension-catalog.js";
-import { defaultTrustGate } from "./extension-catalog/trust-gate.js";
+import { ExtensionTrust } from "./extension-catalog/extension-trust.js";
+import { join } from "node:path";
 import {
   createQuickScriptRegistry,
   routedExtensionCode,
@@ -51,7 +52,10 @@ export function createHostExtensionCatalog(
   return new ExtensionCatalog({
     ...options,
     nerveVersion: options.nerveVersion ?? nerveVersion,
-    trustGate: options.trustGate ?? defaultTrustGate(),
+    // Consent and the on/off switch live in `<home>/config/extension-trust.json`.
+    trustGate:
+      options.trustGate ??
+      new ExtensionTrust({ configDir: join(options.home, "config") }),
     builtins: {
       definitions: builtinExtensions,
       readAsset: readBuiltinExtensionAsset,

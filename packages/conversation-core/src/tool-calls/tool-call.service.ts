@@ -327,11 +327,14 @@ export class ToolCallService {
    * re-normalize (idempotently) from them. `bash` is exempt because its effective schema
    * depends on settings and the host validates it.
    */
-  private schemaArgumentsReason(call: ToolCall): string | undefined {
+  private schemaArgumentsReason(
+    call: ToolCall,
+    projectDir?: string,
+  ): string | undefined {
     if (call.origin !== "model" || call.toolName === "bash") return undefined;
     const definition =
       this.options.coreTools.get(call.toolName)?.definition ??
-      toolDefinitionByName(call.toolName);
+      toolDefinitionByName(call.toolName, projectDir);
     if (!definition) return undefined;
     return describeToolArgumentErrors(
       definition,
@@ -377,18 +380,18 @@ export class ToolCallService {
         });
         return;
       }
+      const { config, projectDir } = await this.options.context(
+        call.conversationId,
+      );
       const invalid =
         this.unparsableArgumentsReason(call) ??
-        this.schemaArgumentsReason(call);
+        this.schemaArgumentsReason(call, projectDir);
       if (invalid) {
         await this.settlement.settle(call, "failed", { content: invalid });
         return;
       }
       const ctx = this.toolContext(call, controller.signal);
       const handler = this.options.coreTools.get(call.toolName);
-      const { config, projectDir } = await this.options.context(
-        call.conversationId,
-      );
       const artifactDir = handler
         ? ""
         : await this.options.assets.directory(

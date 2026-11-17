@@ -141,12 +141,12 @@ stateDiagram-v2
 ```
 
 - **Nothing runs before consent.** A discovered extension is listed with its consent summary; its backend is not loaded and its frames are not served until the user consents.
-- **Consent is bound to content.** The trust record holds a hash of `manifest.json` and every file in `dist/`, the same exact-content trust that prompt-suggestion scripts use.
+- **Consent is bound to content.** The trust record (a file, `config/extension-trust.json`, keyed by source, id and folder; not the database) holds a hash of `manifest.json` and every file in `dist/`, the same exact-content trust that prompt-suggestion scripts use.
   - **Project extensions:** any content change requires consent again. A repository is an untrusted source.
   - **User extensions:** a code-only change keeps consent; a change that adds permissions or contributions requires consent again and shows what is new (operations, direct tools, network origins, capabilities, account kinds, UI contributions). Permission rules still apply as written: a broad allow rule also allows new operations, because the user chose it; the notice makes that choice informed.
 - **Plain language.** The consent summary is generated from the manifest, for example: "Opens `.csv` files. Reads only the file you open with it. No network access." Broad grants (`*` network, file writes) are called out.
 - **Only the user consents.** Consent is a UI action with no agent-reachable route, so an agent cannot enable an extension it wrote.
-- **Agent-facing text from extensions is limited and attributed.** Namespace summaries, rules, method descriptions, doc topics and error messages have size limits, and `sdk.list`, `sdk.docs` and the tool description name the source (`csv-viewer, user extension`). Limits live in code ([agent-facing content](../../agent-facing.md)).
+- **Agent-facing text from extensions is limited and attributed.** Namespace summaries, rules, method descriptions, doc topics and error messages have size limits, and `sdk.list`, `sdk.docs` and the tool description name the source (`csv-viewer, user extension`). Limits live in code ([agent-facing content](../../agent-facing.md)). Static text over a limit makes the extension invalid at load; error messages are cut at run time. Consent names the content hash of the summary the user saw, so files changed after review are refused.
 
 ## Backend runtime
 
@@ -378,7 +378,7 @@ extension-creator/
 ## Settings → Extensions
 
 - Grouped by source: Built-in, User, Project (#599 planned this once `metadata.source` exists).
-- Each installed extension shows its state (pending consent, enabled, disabled, incompatible, invalid), its consent summary, its contributions, its folder, Reload and diagnostics.
+- Each installed extension shows its state (badges for pending consent, disabled, incompatible, invalid and shadowed; enabled shows none, the switch says it), its folder and diagnostics. A pending extension opens a consent review (Allow / Not now; for an update, only what is new). The row's switch is the on/off that is separate from consent; a loaded extension opens its settings. Reload re-reads all installed extensions; consent can be revoked per row. Contributions are listed in the detail view once UI contributions exist.
 - Settings and accounts keep working as today: generated from the manifest, stored in `config/extensions.json` and the account store.
 
 ## Work breakdown
@@ -386,8 +386,8 @@ extension-creator/
 All of this ships in one release, after #598.
 
 1. **Runtime isolation (#598).** QuickJS runtime per extension over `__hostCall`, with limits.
-2. **Packaging and loading.** (Implemented, with the trust gate as a placeholder that answers `pending`.) Folder format, generated manifest and the definition match check, discovery in both roots, precedence and collision rules, per-project registry composition, compatibility check, diagnostics.
-3. **Trust and consent.** Content hashes, consent records, the update diff, plain-language summaries, limits and attribution for agent-facing text.
+2. **Packaging and loading.** (Implemented.) Folder format, generated manifest and the definition match check, discovery in both roots, precedence and collision rules, per-project registry composition, compatibility check, diagnostics.
+3. **Trust and consent.** (Implemented: trust records in `config/extension-trust.json`, the consent operations, limits and attribution, and the Settings → Extensions groups, states, consent review, switch and Reload.) Content hashes, consent records, the update diff, plain-language summaries, limits and attribution for agent-facing text.
 4. **Packages and SDK.** Publish `extension-api` and `ui-kit`; create `extension-sdk` with `nerve-ext init`, `build`, `check`, `test` and `dev`, templates, `UPGRADING.md` and the release pipeline for lockstep publishing; the public-surface check.
 5. **UI host.** Frame serving and CSP, the bridge, file previews with both edit modes and preview selection, the page tab kind, extension dock panels, theme loading, validation and pre-paint caching.
 6. **Settings.** Source groups, states, consent, reload, diagnostics.
