@@ -89,7 +89,21 @@ export function fixtureManifest(options: FixtureOptions): Json {
     ],
     version: "1.0.0",
     sdkVersion: options.sdkVersion ?? "0.41.1",
-    ...(options.themes ? { ui: { themes: options.themes } } : {}),
+    ...(options.themes
+      ? {
+          ui: {
+            themes: options.themes.map((file) => {
+              const id = file.replace(/\.json$/, "");
+              return {
+                id,
+                label: id,
+                kind: "dark",
+                file: `themes/${id}.json`,
+              };
+            }),
+          },
+        }
+      : {}),
   };
 }
 

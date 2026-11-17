@@ -1,5 +1,6 @@
 import {
-  colorThemeKind,
+  resolveColorThemeKind,
+  type BuiltInColorTheme,
   colorThemeSchema,
   defaultColorTheme,
   type ColorTheme,
@@ -42,7 +43,7 @@ const kindDefaults: Record<ColorThemeKind, ColorTheme> = {
 };
 
 /** Keep in sync with each theme's `--background` in ui-kit theme.css. */
-export const themeBackgrounds: Record<ColorTheme, string> = {
+export const themeBackgrounds: Record<BuiltInColorTheme, string> = {
   "nerve-light": "#f6f3eb",
   "nerve-dark": "#272521",
   "melange-light": "#f4f0ed",
@@ -50,6 +51,14 @@ export const themeBackgrounds: Record<ColorTheme, string> = {
   graphite: "#1d1a18",
   indigo: "#262541",
 };
+
+/** Pre-paint background of a theme; extension themes use the default theme's until their tokens load. */
+export function themeBackground(theme: ColorTheme): string {
+  return (
+    themeBackgrounds[theme as BuiltInColorTheme] ??
+    themeBackgrounds[defaultColorTheme]
+  );
+}
 
 export function parseColorTheme(value: unknown): ColorTheme {
   return colorThemeSchema.safeParse(value).data ?? defaultColorTheme;
@@ -79,7 +88,9 @@ export function migrateStoredTheme(
   };
   const storedSlot = (kind: ColorThemeKind): ColorTheme | undefined => {
     const parsed = colorThemeSchema.safeParse(slots[kind]).data;
-    return parsed && colorThemeKind[parsed] === kind ? parsed : undefined;
+    return parsed && resolveColorThemeKind(parsed) === kind
+      ? parsed
+      : undefined;
   };
   const slotTheme = (kind: ColorThemeKind): ColorTheme =>
     storedSlot(kind) ?? kindDefaults[kind];

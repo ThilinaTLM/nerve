@@ -4,7 +4,9 @@ import { describe, it } from "node:test";
 import {
   autoCompactionSettingsSchema,
   colorThemeKind,
+  builtInColorThemeSchema,
   colorThemeSchema,
+  resolveColorThemeKind,
   defaultColorTheme,
   defaultUiConfig,
   uiConfigSchema,
@@ -18,9 +20,22 @@ describe("settings schema", () => {
   it("classifies every colour theme as light or dark and defaults to Nerve Dark", () => {
     assert.deepEqual(
       Object.keys(colorThemeKind).sort(),
-      [...colorThemeSchema.options].sort(),
+      [...builtInColorThemeSchema.options].sort(),
     );
     assert.equal(defaultColorTheme, "nerve-dark");
+  });
+
+  it("accepts extension themes and resolves their kind at runtime", () => {
+    assert.equal(colorThemeSchema.safeParse("ext:solar/dusk").success, true);
+    for (const bad of ["ext:solar", "ext:Solar/dusk", "solar/dusk", "nope"])
+      assert.equal(colorThemeSchema.safeParse(bad).success, false, bad);
+    assert.equal(resolveColorThemeKind("graphite"), "dark");
+    assert.equal(resolveColorThemeKind("melange-light"), "light");
+    assert.equal(
+      resolveColorThemeKind("ext:solar/dusk", () => "light"),
+      "light",
+    );
+    assert.equal(resolveColorThemeKind("ext:solar/dusk"), "dark");
   });
 
   it("keeps only zoom in daemon appearance and drops client preference patches", () => {

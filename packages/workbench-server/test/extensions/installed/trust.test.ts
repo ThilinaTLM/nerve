@@ -282,13 +282,81 @@ void test("the consent summary is plain language from the manifest", async () =>
 void test("broad network grants are called out; themes are described", async () => {
   const manifest = await manifestOf((m) => {
     m.permissions = { network: ["*"] };
-    m.ui = { themes: ["night.json"] };
+    m.ui = {
+      themes: [
+        {
+          id: "night",
+          label: "Night",
+          kind: "dark",
+          file: "themes/night.json",
+        },
+      ],
+    };
   });
   const consent = buildConsent({ manifest, contentHash: "h" });
   const network = consent.items.find((item) => item.kind === "network")!;
   assert.equal(network.broad, true);
   assert.match(network.text, /any host.*broad/);
-  assert.ok(consent.items.some((item) => /night\.json/.test(item.text)));
+  assert.ok(
+    consent.items.some((item) => /color theme "Night"/.test(item.text)),
+  );
+});
+
+void test("previews, pages and panels are grants described in plain language", async () => {
+  const ui = {
+    previews: [
+      {
+        id: "table",
+        label: "Table",
+        match: { extensions: [".csv", ".tsv"] },
+        edit: "custom",
+        entry: "ui/table/index.html",
+      },
+    ],
+    pages: [
+      {
+        id: "explorer",
+        label: "Explorer",
+        icon: "chart-bar",
+        entry: "ui/explorer/index.html",
+      },
+    ],
+    panels: [
+      {
+        id: "summary",
+        label: "Summary",
+        icon: "table",
+        entry: "ui/summary/index.html",
+      },
+    ],
+  } as NonNullable<InstalledExtensionManifest["ui"]>;
+  const manifest = await manifestOf((m) => {
+    m.ui = ui;
+  });
+  const items = buildConsent({ manifest, contentHash: "h" })
+    .items.filter((item) => item.kind === "ui")
+    .map((item) => item.text);
+  assert.deepEqual(items, [
+    'Adds a page "Explorer" to the workbench',
+    'Adds a side panel "Summary"',
+    'Opens .csv, .tsv files as "Table"; can change the file you open it with',
+  ]);
+  // Widening what a preview opens or how it edits is new; unchanged contributions are not.
+  const before = grantSnapshot(manifest);
+  const widened = grantSnapshot({
+    ...manifest,
+    ui: {
+      ...ui,
+      previews: [
+        {
+          ...ui.previews![0]!,
+          match: { extensions: [".csv", ".tsv", ".psv"] },
+        },
+      ],
+    },
+  });
+  assert.equal(newGrants(before, widened).ui.length, 1);
+  assert.ok(isEmptyGrant(newGrants(widened, before)));
 });
 
 void test("grant diffs list only what is new; shrinking is empty", async () => {

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { QueryClientProvider } from "@tanstack/svelte-query";
-import { colorThemeKind } from "@nervekit/contracts/settings";
+import { resolveColorThemeKind } from "@nervekit/contracts/settings";
 import App from "./App.svelte";
 import { Toaster } from "@nervekit/ui-kit/components/ui/sonner";
 import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
@@ -14,7 +14,7 @@ import { queryClient } from "$lib/platform/query/client";
     <Toaster
       position="bottom-right"
       closeButton
-      theme={colorThemeKind[appearanceState.theme]}
+      theme={resolveColorThemeKind(appearanceState.theme)}
     />
   {/if}
 </QueryClientProvider>

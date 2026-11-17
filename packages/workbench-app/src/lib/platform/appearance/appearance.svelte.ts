@@ -1,5 +1,5 @@
 import {
-  colorThemeKind,
+  resolveColorThemeKind,
   defaultColorTheme,
   type ColorTheme,
 } from "@nervekit/contracts/settings";
@@ -9,7 +9,7 @@ import {
   THEME_STORAGE_KEY,
   migrateStoredTheme,
   parseColorTheme,
-  themeBackgrounds,
+  themeBackground,
 } from "./theme-preference";
 
 export const MIN_ZOOM_LEVEL = -8;
@@ -52,13 +52,13 @@ function removeStorage(key: string): void {
 function syncDocumentTheme(theme: ColorTheme): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  const kind = colorThemeKind[theme];
+  const kind = resolveColorThemeKind(theme);
   root.dataset.theme = theme;
   root.classList.toggle("dark", kind === "dark");
   root.style.colorScheme = kind;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", themeBackgrounds[theme]);
+    ?.setAttribute("content", themeBackground(theme));
 }
 
 /** Applies a theme to the document without persisting it. */
@@ -66,8 +66,8 @@ export function applyAppearance(theme: ColorTheme): void {
   appearanceState.theme = theme;
   syncDocumentTheme(theme);
   reportDesktopWindowAppearance({
-    background: themeBackgrounds[theme],
-    dark: colorThemeKind[theme] === "dark",
+    background: themeBackground(theme),
+    dark: resolveColorThemeKind(theme) === "dark",
   });
 }
 

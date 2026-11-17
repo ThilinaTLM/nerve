@@ -22,6 +22,24 @@ export type GrantSnapshot = {
   ui: string[];
 };
 
+/**
+ * UI contributions as grants: `previews:<id>:<extension>` per file type, `previews-edit:<id>` for
+ * a preview that writes the file itself (`edit: "custom"`), `pages:<id>`, `panels:<id>`,
+ * `themes:<id>`. Widening the file types or adding custom editing asks again; narrowing does not.
+ */
+function uiGrants(manifest: InstalledExtensionManifest): string[] {
+  const ui = manifest.ui;
+  return [
+    ...(ui?.previews ?? []).flatMap((p) => [
+      ...p.match.extensions.map((extension) => `previews:${p.id}:${extension}`),
+      ...(p.edit === "custom" ? [`previews-edit:${p.id}`] : []),
+    ]),
+    ...(ui?.pages ?? []).map((p) => `pages:${p.id}`),
+    ...(ui?.panels ?? []).map((p) => `panels:${p.id}`),
+    ...(ui?.themes ?? []).map((t) => `themes:${t.id}`),
+  ];
+}
+
 const sorted = (values: Iterable<string>) => [...new Set(values)].sort();
 
 export function grantSnapshot(
@@ -38,10 +56,7 @@ export function grantSnapshot(
   }
   for (const tool of manifest.tools ?? [])
     if (tool.requires?.account) accounts.add(tool.requires.account);
-  const ui: string[] = [];
-  for (const [kind, value] of Object.entries(manifest.ui ?? {}))
-    for (const entry of Array.isArray(value) ? value : [value])
-      ui.push(`${kind}:${String(entry)}`);
+  const ui = uiGrants(manifest);
   return {
     network: sorted(network),
     capabilities: sorted(manifest.permissions?.capabilities ?? []),
@@ -148,15 +163,41 @@ export function consentItems(
           ? `Adds SDK namespace ${id}`
           : `Adds SDK namespace ${id} (operations ${list(operations)})`,
     });
+  const previewTypes = new Map<string, string[]>();
+  const customEdit = new Set<string>();
   for (const entry of grants.ui) {
-    const [kind, ...rest] = entry.split(":");
-    const value = rest.join(":");
+    const [kind, id = "", ...rest] = entry.split(":");
+    if (kind === "previews") {
+      previewTypes.set(id, [...(previewTypes.get(id) ?? []), rest.join(":")]);
+    } else if (kind === "previews-edit") {
+      customEdit.add(id);
+      if (!previewTypes.has(id)) previewTypes.set(id, []);
+    } else if (kind === "pages") {
+      const label = manifest.ui?.pages?.find((p) => p.id === id)?.label ?? id;
+      items.push({
+        kind: "ui",
+        text: `Adds a page "${label}" to the workbench`,
+      });
+    } else if (kind === "panels") {
+      const label = manifest.ui?.panels?.find((p) => p.id === id)?.label ?? id;
+      items.push({ kind: "ui", text: `Adds a side panel "${label}"` });
+    } else if (kind === "themes") {
+      const label = manifest.ui?.themes?.find((t) => t.id === id)?.label ?? id;
+      items.push({ kind: "ui", text: `Adds the color theme "${label}"` });
+    }
+  }
+  for (const [id, types] of previewTypes) {
+    const preview = manifest.ui?.previews?.find((p) => p.id === id);
+    const label = preview?.label ?? id;
+    const custom = customEdit.has(id);
+    const opens =
+      types.length > 0
+        ? `Opens ${list(types)} files as "${label}"`
+        : `Opens files as "${label}"`;
     items.push({
       kind: "ui",
-      text:
-        kind === "themes"
-          ? `Adds the color theme file ${value}`
-          : `Adds the interface contribution ${kind} (${value})`,
+      text: custom ? `${opens}; can change the file you open it with` : opens,
+      ...(custom ? { broad: true } : {}),
     });
   }
   return items;

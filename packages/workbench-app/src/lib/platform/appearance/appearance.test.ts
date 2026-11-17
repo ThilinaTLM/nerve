@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { compileModule } from "svelte/compiler";
 import ts from "typescript";
-import { migrateStoredTheme, themeBackgrounds } from "./theme-preference";
+import {
+  migrateStoredTheme,
+  themeBackground,
+  themeBackgrounds,
+} from "./theme-preference";
 
 const reports: unknown[] = [];
 (
@@ -248,7 +252,7 @@ test("the pre-paint bootstrap mirrors migrateStoredTheme", async () => {
         root.style.colorScheme,
         root.classes.has("dark") ? "dark" : "light",
       );
-      assert.equal(themeColor, themeBackgrounds[expected], label);
+      assert.equal(themeColor, themeBackground(expected), label);
       if (stored["nerve-theme"] === undefined) {
         assert.deepEqual([...values], [["nerve-theme", expected]], label);
       }

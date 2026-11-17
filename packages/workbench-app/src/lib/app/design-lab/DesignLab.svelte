@@ -1,7 +1,8 @@
 <script lang="ts">
 import {
-  colorThemeKind,
+  builtInColorThemeSchema,
   colorThemeSchema,
+  resolveColorThemeKind,
   type ColorTheme,
 } from "@nervekit/contracts/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -30,7 +31,7 @@ let theme = $state<ColorTheme>(
   colorThemeSchema.safeParse(document.documentElement.dataset.theme).data ??
     appearanceState.theme,
 );
-const dark = $derived(colorThemeKind[theme] === "dark");
+const dark = $derived(resolveColorThemeKind(theme) === "dark");
 
 // Lab theme selection applies to the document but is never persisted.
 $effect(() => applyAppearance(theme));
@@ -70,7 +71,7 @@ onMount(dismissStartupSplash);
             ><span>{theme}</span></Select.Trigger
           >
           <Select.Content>
-            {#each colorThemeSchema.options as option (option)}
+            {#each builtInColorThemeSchema.options as option (option)}
               <Select.Item value={option} label={option} />
             {/each}
           </Select.Content>

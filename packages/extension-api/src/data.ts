@@ -13,8 +13,13 @@ export type ExtensionData<T> = T extends (...args: any[]) => unknown
       ? { [K in keyof T]: ExtensionData<T[K]> }
       : T;
 
-/** What `manifest.json` carries of a definition (see `extensionDefinitionData`). */
-export type ExtensionDefinitionData = ExtensionData<ExtensionDefinition>;
+/**
+ * What `manifest.json` carries of a definition (see `extensionDefinitionData`). `ui` is not part
+ * of it: the definition names source files, the manifest's own `ui` names the built output.
+ */
+export type ExtensionDefinitionData = ExtensionData<
+  Omit<ExtensionDefinition, "ui">
+>;
 
 function toData(value: unknown): unknown {
   if (typeof value === "function") return true;
@@ -33,12 +38,14 @@ function toData(value: unknown): unknown {
 /**
  * The plain-data part of a definition, as `nerve-ext build` writes it to `dist/manifest.json`:
  * hooks (`parse`, `authorize`, `run`, `present`, `session`, `configuration`, `availability`,
- * `test`, settings `migrations`) become `true`, everything else is kept. The host compares it
+ * `test`, settings `migrations`) become `true`, everything else is kept; `ui` is left out. The host compares it
  * with the data of the definition the extension's code registers, so the manifest cannot
  * understate what the code does.
  */
 export function extensionDefinitionData(
   definition: ExtensionDefinition,
 ): ExtensionDefinitionData {
-  return toData(definition) as ExtensionDefinitionData;
+  const { ui, ...rest } = definition;
+  void ui;
+  return toData(rest) as ExtensionDefinitionData;
 }

@@ -9,3 +9,5 @@ export * from "./tool-display.js";
 export * from "./installed-manifest.js";
 export * from "./catalog.js";
 export * from "./compatibility.js";
+export * from "./theme-file.js";
+export * from "./ui-bridge.js";

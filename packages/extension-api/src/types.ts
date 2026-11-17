@@ -649,6 +649,63 @@ export type ExtensionPermissions = {
   capabilities?: Capability[];
 };
 
+/** How a file preview edits its file (see the proposal's "File previews"). */
+export type PreviewEditMode = "source" | "custom" | "none";
+
+/** A rendered view of a file type, shown in the file's tab. */
+export type PreviewContribution = {
+  /** Kebab-case, unique among the extension's previews. */
+  id: string;
+  label: string;
+  match: {
+    /** Lower-case file extensions with the dot (`.csv`). */
+    extensions: readonly string[];
+  };
+  /** Source path of the frame's entry (`src/ui/csv-table.svelte`); `nerve-ext build` compiles it. */
+  entry: string;
+  /**
+   * `"source"`: Nerve's source editor; `"custom"`: the frame edits and writes through the bridge;
+   * `"none"`: no edit toggle. Default: `"source"` for text files, `"none"` for binary ones.
+   */
+  edit?: PreviewEditMode;
+};
+
+/** A tab pane with fully custom content, not bound to a file. */
+export type PageContribution = {
+  id: string;
+  label: string;
+  /** A lucide icon name. */
+  icon: string;
+  /** Source path of the frame's entry. */
+  entry: string;
+};
+
+/** A dock panel like Files or Git. */
+export type PanelContribution = {
+  id: string;
+  label: string;
+  /** A lucide icon name. */
+  icon: string;
+  /** Source path of the frame's entry. */
+  entry: string;
+};
+
+/** A colour theme: token values in a JSON file. */
+export type ThemeContribution = {
+  id: string;
+  label: string;
+  /** Source path of the theme file (`themes/solarized-dark.json`). */
+  file: string;
+};
+
+/** UI contributions. Previews, pages and panels run in sandboxed frames; themes are data. */
+export type ExtensionUi = {
+  previews?: readonly PreviewContribution[];
+  pages?: readonly PageContribution[];
+  panels?: readonly PanelContribution[];
+  themes?: readonly ThemeContribution[];
+};
+
 export type ExtensionDefinition = {
   /** Stable, kebab-case; settings, accounts and operations are keyed by it. */
   id: string;
@@ -674,6 +731,8 @@ export type ExtensionDefinition = {
   tools?: readonly ToolDefinition[];
   /** Pure sandbox-side helper source (storage builders), evaluated after the SDK prelude; no host access. */
   prelude?: string;
+  /** UI contributions. The build compiles them; the manifest carries the built paths. */
+  ui?: ExtensionUi;
   /** Byte limits, filled into `{{limit:<name>}}` placeholders of docs and rules. */
   limits?: Readonly<Record<string, number>>;
 };

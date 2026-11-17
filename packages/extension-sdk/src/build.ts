@@ -9,13 +9,18 @@ import {
   type ExtensionDefinition,
   type ExtensionDefinitionData,
 } from "@nervekit/extension-api";
-import { installedExtensionManifestSchema } from "@nervekit/contracts/extensions";
+import {
+  installedExtensionManifestSchema,
+  type InstalledExtensionManifest,
+} from "@nervekit/contracts/extensions";
 import { ExtensionProjectError, type Problem } from "./problems.js";
 
 /** What `dist/manifest.json` holds: the definition's plain data plus the two versions. */
 export type BuiltManifest = ExtensionDefinitionData & {
   version: string;
   sdkVersion: string;
+  /** Built UI contributions; written by the UI build (not implemented yet). */
+  ui?: InstalledExtensionManifest["ui"];
 };
 
 export type BuildOptions = {

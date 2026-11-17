@@ -110,12 +110,129 @@ const toolSchema = z.union([
   }),
 ]);
 
+/** Limits of the `ui` section; the SDK build and the host enforce the same numbers. */
+export const extensionUiLimits = {
+  /** Contributions per kind. */
+  maxPerKind: 16,
+  maxLabelLength: 64,
+  maxExtensionsPerPreview: 32,
+  maxExtensionLength: 32,
+} as const;
+
+/** Id of a preview, page, panel or theme: kebab-case, unique within its kind. */
+export const uiContributionIdSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, "must be kebab-case")
+  .max(64);
+
+const uiLabelSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(extensionUiLimits.maxLabelLength);
+
+/** A lucide icon name (`table`, `chart-bar`). */
+const uiIconSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, "must be a lucide icon name")
+  .max(64);
+
+/** A file extension with its dot, lower case: `.csv`, `.tar.gz`. */
+export const previewFileExtensionSchema = z
+  .string()
+  .regex(
+    /^\.[a-z0-9][a-z0-9_-]*(?:\.[a-z0-9][a-z0-9_-]*)*$/,
+    "must look like .csv",
+  )
+  .max(extensionUiLimits.maxExtensionLength);
+
+export const previewEditModeSchema = z.enum(["source", "custom", "none"]);
+
+const binaryPreviewExtensions = new Set([
+  ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp", ".ico", ".tiff",
+  ".zip", ".gz", ".tgz", ".tar", ".7z", ".bz2", ".xz", ".wasm", ".bin", ".exe",
+  ".mp3", ".wav", ".ogg", ".flac", ".mp4", ".mov", ".webm", ".mkv",
+  ".woff", ".woff2", ".ttf", ".otf", ".xlsx", ".xls", ".docx", ".doc", ".pptx",
+  ".sqlite", ".db", ".parquet", ".npy", ".pkl", ".glb", ".stl",
+]); // prettier-ignore
+
 /**
- * Reserved for later steps: UI contributions. Only the names of theme files are known today;
- * nothing else in `ui` is accepted yet.
+ * The default `edit` of a preview that does not set it: `"none"` when every matched extension is
+ * a known binary format, `"source"` otherwise. The SDK build applies it, so manifests always
+ * carry the resolved value.
  */
+export function defaultPreviewEdit(
+  extensions: readonly string[],
+): "source" | "none" {
+  return extensions.length > 0 &&
+    extensions.every((extension) => binaryPreviewExtensions.has(extension))
+    ? "none"
+    : "source";
+}
+
+/** Where the build puts the frame of a preview, page or panel, relative to `dist/`. */
+export const uiEntryPath = (id: string) => `ui/${id}/index.html`;
+/** Where the build puts a theme file, relative to `dist/`. */
+export const themeFilePath = (id: string) => `themes/${id}.json`;
+
+const previewSchema = z
+  .strictObject({
+    id: uiContributionIdSchema,
+    label: uiLabelSchema,
+    match: z.strictObject({
+      extensions: z
+        .array(previewFileExtensionSchema)
+        .min(1)
+        .max(extensionUiLimits.maxExtensionsPerPreview),
+    }),
+    edit: previewEditModeSchema,
+    entry: z.string(),
+  })
+  .refine((preview) => preview.entry === uiEntryPath(preview.id), {
+    path: ["entry"],
+    message: "must be ui/<id>/index.html",
+  });
+
+const framePageSchema = (kind: "page" | "panel") =>
+  z
+    .strictObject({
+      id: uiContributionIdSchema,
+      label: uiLabelSchema,
+      icon: uiIconSchema,
+      entry: z.string(),
+    })
+    .refine((item) => item.entry === uiEntryPath(item.id), {
+      path: ["entry"],
+      message: `${kind} entry must be ui/<id>/index.html`,
+    });
+
+const themeSchema = z
+  .strictObject({
+    id: uiContributionIdSchema,
+    label: uiLabelSchema,
+    kind: z.enum(["light", "dark"]),
+    file: z.string(),
+  })
+  .refine((theme) => theme.file === themeFilePath(theme.id), {
+    path: ["file"],
+    message: "must be themes/<id>.json",
+  });
+
+const uniqueIds = (items: readonly { id: string }[]) =>
+  new Set(items.map((item) => item.id)).size === items.length;
+
+const list = <T extends z.ZodType<{ id: string }>>(item: T) =>
+  z
+    .array(item)
+    .max(extensionUiLimits.maxPerKind)
+    .refine(uniqueIds, { message: "ids must be unique" });
+
+/** The built UI contributions of an installed extension (paths relative to `dist/`). */
 export const installedExtensionUiSchema = z.strictObject({
-  themes: z.array(z.string().min(1)).optional(),
+  previews: list(previewSchema).optional(),
+  pages: list(framePageSchema("page")).optional(),
+  panels: list(framePageSchema("panel")).optional(),
+  themes: list(themeSchema).optional(),
 });
 
 export const installedExtensionManifestSchema = z.strictObject({
@@ -147,7 +264,7 @@ export type InstalledExtensionManifest = ExtensionDefinitionData & {
   version: string;
   /** The exact SDK version it was built with. */
   sdkVersion: string;
-  /** Reserved for UI contributions (later steps). */
+  /** UI contributions as built output (`dist/ui/<id>/`, `dist/themes/<id>.json`). */
   ui?: z.infer<typeof installedExtensionUiSchema>;
 };
 

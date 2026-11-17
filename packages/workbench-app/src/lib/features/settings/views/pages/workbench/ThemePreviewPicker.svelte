@@ -4,8 +4,8 @@ import Flame from "@lucide/svelte/icons/flame";
 import Layers from "@lucide/svelte/icons/layers";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import {
-  colorThemeKind,
-  colorThemeSchema,
+  builtInColorThemeSchema,
+  resolveColorThemeKind,
   type ColorTheme,
 } from "@nervekit/contracts/settings";
 import {
@@ -47,7 +47,7 @@ const themeOptions: Record<ColorTheme, Omit<SettingsPreviewOption, "value">> = {
 };
 
 // Family order (Nerve, Melange, Graphite, Indigo), as in `colorThemeSchema`.
-const options = colorThemeSchema.options.map((theme) => ({
+const options = builtInColorThemeSchema.options.map((theme) => ({
   ...themeOptions[theme],
   value: theme,
 }));
@@ -87,6 +87,6 @@ let {
   previewBody={themePreview}
   previewAttrs={(option) => ({
     "data-theme-preview": option.value,
-    "data-color-mode": colorThemeKind[option.value as ColorTheme],
+    "data-color-mode": resolveColorThemeKind(option.value as ColorTheme),
   })}
 />

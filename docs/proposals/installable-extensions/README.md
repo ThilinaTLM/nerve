@@ -261,7 +261,7 @@ The frame gets a typed client from `@nervekit/extension-sdk/ui`. Every message i
 | API                                                                      | Available in                   | Purpose                                                                                                                           |
 | ------------------------------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `host.file.info()`, `host.file.read({ offset?, length? })`               | previews                       | The file the preview was opened on, read through the host with range reads for large files.                                       |
-| `host.file.write(content)`, `host.mode`                                  | previews with `edit: "custom"` | Write the edited content and follow the host's preview/edit toggle (see [File previews](#file-previews)).                         |
+| `host.file.write(content)`, `host.mode` (`preview` or `edit`)            | previews with `edit: "custom"` | Write the edited content and follow the host's preview/edit toggle (see [File previews](#file-previews)).                         |
 | `host.call(method, args)`                                                | all frames                     | Call one of this extension's own backend methods (see [Calls from UI](#calls-from-ui)).                                           |
 | `host.settings.get()`                                                    | all frames                     | The extension's resolved, non-secret settings.                                                                                    |
 | `host.viewState.get()`, `host.viewState.set(json)`                       | all frames                     | Small JSON state (scroll position, sort column, selected date) kept with the tab or panel, so frames can be unloaded when hidden. |
@@ -313,7 +313,7 @@ A page is a tab pane whose content is entirely the extension's, for anything not
 
 ### Themes
 
-- A theme file is data: `{ id, label, kind: "light" | "dark", tokens: { ... } }`. The token set is the one `ui-kit/src/styles/theme.css` defines for a theme, including syntax and terminal colours; missing or unknown tokens fail validation.
+- A theme file is data: `{ id, label, kind: "light" | "dark", tokens: { ... } }`. The token set is the colour inputs `ui-kit/src/styles/theme.css` defines in every theme block (eight core colours and nine syntax roles; the derived surfaces, borders and terminal colours follow from them), a test keeps the list in sync; missing or unknown tokens fail validation. The numeric `--step-*` and `--mix-*` tuning tokens are not settable by extensions.
 - The contrast rules of `theme-contrast.test.ts` run when the theme is loaded. A theme that fails is rejected with the failing pairs.
 - No arbitrary CSS. Themes only set token values, so they cannot hide or restyle host UI.
 - `colorThemeSchema` changes from a closed enum to built-in ids plus `ext:<extension-id>/<theme-id>`. The client caches the resolved tokens of the selected theme for the pre-paint bootstrap in `index.html`, so a custom theme does not flash. If the extension disappears, the theme falls back to `nerve-dark`.

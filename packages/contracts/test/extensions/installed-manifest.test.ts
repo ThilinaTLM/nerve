@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { extensionDefinitionData } from "@nervekit/extension-api";
 import {
   compareVersions,
+  defaultPreviewEdit,
   installedExtensionManifestSchema,
   manifestDefinitionData,
   oldestCompatibleSdkVersion,
@@ -62,7 +63,12 @@ void test("the manifest is the definition's data plus version and sdkVersion; un
     { ...manifest, extra: 1 },
     { ...manifest, sdkVersion: "latest" },
     { ...manifest, id: "Not Valid" },
-    { ...manifest, ui: { panels: [] } },
+    {
+      ...manifest,
+      ui: {
+        pages: [{ id: "x", label: "X", icon: "table", entry: "src/x.svelte" }],
+      },
+    },
     {
       ...manifest,
       namespaces: [{ ...manifest.namespaces[0], id: "has-dash" }],
@@ -72,6 +78,75 @@ void test("the manifest is the definition's data plus version and sdkVersion; un
       installedExtensionManifestSchema.safeParse(bad).success,
       false,
     );
+});
+
+void test("built ui contributions have fixed output paths, unique ids and no extra fields", () => {
+  const base = {
+    ...JSON.parse(JSON.stringify(extensionDefinitionData(definition))),
+    version: "1.0.0",
+    sdkVersion: "0.41.1",
+  };
+  const ui = {
+    previews: [
+      {
+        id: "table",
+        label: "Table",
+        match: { extensions: [".csv", ".tsv"] },
+        edit: "custom",
+        entry: "ui/table/index.html",
+      },
+    ],
+    pages: [
+      {
+        id: "explorer",
+        label: "Explorer",
+        icon: "chart-bar",
+        entry: "ui/explorer/index.html",
+      },
+    ],
+    panels: [
+      {
+        id: "summary",
+        label: "Summary",
+        icon: "table",
+        entry: "ui/summary/index.html",
+      },
+    ],
+    themes: [
+      { id: "dusk", label: "Dusk", kind: "dark", file: "themes/dusk.json" },
+    ],
+  };
+  const parse = (value: unknown) =>
+    installedExtensionManifestSchema.safeParse({ ...base, ui: value }).success;
+  assert.equal(parse(ui), true);
+  assert.equal(
+    parse({ themes: [{ ...ui.themes[0], file: "../x.json" }] }),
+    false,
+  );
+  assert.equal(
+    parse({ themes: [{ id: "dusk", label: "D", file: "themes/dusk.json" }] }),
+    false,
+  );
+  assert.equal(
+    parse({
+      previews: [{ ...ui.previews[0], entry: "src/ui/csv-table.svelte" }],
+    }),
+    false,
+  );
+  assert.equal(
+    parse({
+      previews: [{ ...ui.previews[0], match: { extensions: ["csv"] } }],
+    }),
+    false,
+  );
+  assert.equal(
+    parse({ previews: [{ ...ui.previews[0], edit: "auto" }] }),
+    false,
+  );
+  assert.equal(parse({ panels: [ui.panels[0], ui.panels[0]] }), false);
+  assert.equal(parse({ ...ui, extra: [] }), false);
+  assert.equal(defaultPreviewEdit([".csv"]), "source");
+  assert.equal(defaultPreviewEdit([".pdf"]), "none");
 });
 
 void test("SDK compatibility is oldest <= sdk <= running version", () => {
