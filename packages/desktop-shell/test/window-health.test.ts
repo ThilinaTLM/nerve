@@ -34,9 +34,11 @@ function harness() {
     webContents: { isLoading: () => false, isCrashed: () => false },
   };
   const logs: Array<{ level: string; message: string; context?: unknown }> = [];
+  const recoveries: string[] = [];
   const tracker = new WindowHealthTracker({
     window,
     now: () => now,
+    recover: (step) => recoveries.push(step),
     log: (level, _component, message, data) => {
       logs.push({ level, message, context: data?.context });
     },
@@ -53,7 +55,7 @@ function harness() {
     now += ms;
     tracker.check();
   };
-  return { tracker, state, logs, advance, jump };
+  return { tracker, state, logs, recoveries, advance, jump };
 }
 
 const stallReason = (log: { context?: unknown } | undefined) =>
@@ -72,7 +74,9 @@ describe("window health tracker", () => {
     tracker.rendererReport({ visibility: "hidden", focused: false });
     advance(20_000);
 
-    const warnings = logs.filter((log) => log.level === "warn");
+    const warnings = logs.filter(
+      (log) => log.message === "Focused window is not painting",
+    );
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0]?.message, "Focused window is not painting");
     assert.equal(stallReason(warnings[0]), "renderer-hidden");
@@ -124,6 +128,45 @@ describe("window health tracker", () => {
     assert.equal(logs.at(-1)?.message, "Desktop process was paused");
     assert.equal((logs.at(-1)?.context as { gapMs?: number }).gapMs, 600_000);
     assert.equal(logs.filter((log) => log.level === "warn").length, 0);
+  });
+
+  it("recovers a stall after wake: GPU restart first, then a new window", () => {
+    const { tracker, state, recoveries, advance, jump } = harness();
+    tracker.check();
+    tracker.rendererReport({ visibility: "visible", focused: true });
+    tracker.powerEvent("suspend");
+    jump(600_000);
+    tracker.powerEvent("resume");
+    // Unfocused after wake: nothing to judge yet.
+    state.focused = false;
+    advance(60_000);
+    assert.deepEqual(recoveries, []);
+    // The renderer stays silent once the user returns.
+    state.focused = true;
+    advance(15_000);
+    assert.deepEqual(recoveries, ["restart-gpu"]);
+    advance(10_000);
+    assert.deepEqual(recoveries, ["restart-gpu"]);
+    advance(5_000);
+    assert.deepEqual(recoveries, ["restart-gpu", "recreate-window"]);
+    advance(60_000);
+    assert.equal(recoveries.length, 2);
+  });
+
+  it("stops recovering once the window paints after wake", () => {
+    const { tracker, recoveries, advance } = harness();
+    tracker.check();
+    tracker.powerEvent("resume");
+    tracker.rendererReport({ visibility: "visible", focused: true });
+    advance(5_000);
+    // A later stall is not tied to the wake, so it is only logged.
+    tracker.rendererReport({
+      visibility: "visible",
+      focused: true,
+      framePendingMs: 5_000,
+    });
+    advance(30_000);
+    assert.deepEqual(recoveries, []);
   });
 
   it("sanitizes renderer reports", () => {

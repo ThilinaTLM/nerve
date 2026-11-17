@@ -59,6 +59,8 @@ export interface DesktopWindowRegistryPort {
     isAppQuitting: () => boolean;
     closeWindowOrQuit: (window: BrowserWindowType, source?: QuitSource) => void;
     sendWindowState: (window: BrowserWindowType) => void;
+    /** Replaces the main window; used to recover a stalled window. */
+    recreateMainWindow: () => Promise<void>;
   }): BrowserWindowType;
 }
 

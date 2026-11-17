@@ -380,6 +380,7 @@ export class DesktopRuntime {
         isAppQuitting: () => runtime.#appQuitting,
         closeWindowOrQuit,
         sendWindowState,
+        recreateMainWindow,
       });
       void desktopLog("info", "window", "Opening main window");
       runtime.#mainWindow = window;
