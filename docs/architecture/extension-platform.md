@@ -88,4 +88,4 @@ The agent result policy follows the view: with a `links` section the result is p
 
 ## Not shipped
 
-The remaining design is tracked in GitHub issues: running a built-in in the QuickJS sandbox over `__hostCall` ([#598](https://github.com/ThilinaTLM/nerve/issues/598)), and installable extensions: packaging, consent, allowlist, limits on third-party agent-facing text ([#599](https://github.com/ThilinaTLM/nerve/issues/599)). MCP servers are a separate proposal ([#602](https://github.com/ThilinaTLM/nerve/issues/602)).
+The remaining design is tracked in GitHub issues: running a built-in in the QuickJS sandbox over `__hostCall` ([#598](https://github.com/ThilinaTLM/nerve/issues/598)), and installable extensions with UI contributions (the [installable extensions proposal](../proposals/installable-extensions/README.md), which supersedes [#599](https://github.com/ThilinaTLM/nerve/issues/599)). MCP servers are a separate proposal ([#602](https://github.com/ThilinaTLM/nerve/issues/602)).

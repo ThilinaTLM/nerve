@@ -56,9 +56,10 @@ Start with the codebase overview, then the conversation core.
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | Public behavior, guides, operations, protocol, and developer reference      | [`packages/website/src/content/docs/`](../packages/website/src/content/docs/)                    |
 | Cross-package architecture, its design rationale, and maintainer procedures | Root `docs/`                                                                                     |
-| Designs not yet implemented                                                 | GitHub issues, labeled as described in [`CONTRIBUTING.md`](../CONTRIBUTING.md#issues-and-labels) |
+| Designs in active development                                               | `docs/proposals/` (create when needed; delete when implemented)                                  |
+| Backlog designs (planned for later)                                         | GitHub issues, labeled as described in [`CONTRIBUTING.md`](../CONTRIBUTING.md#issues-and-labels) |
 | Package ownership and local development rules                               | Package `README.md` and `AGENTS.md` files                                                        |
 | Repository contribution and security policy                                 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) and [`SECURITY.md`](../SECURITY.md)                      |
 | Schemas, catalogs, limits, and changing behavior                            | Owning contracts, implementation, and tests                                                      |
 
-Do not copy changing schemas or catalogs into prose. Link the owning symbols and describe only stable boundaries or rationale. Superseded proposals are closed as issues.
+Do not copy changing schemas or catalogs into prose. Link the owning symbols and describe only stable boundaries or rationale. Implemented or superseded proposals are removed from `docs/proposals/` (Git history is the archive); backlog designs are closed as issues.
