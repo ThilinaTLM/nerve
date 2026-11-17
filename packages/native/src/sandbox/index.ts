@@ -3,6 +3,8 @@ import { binding } from "../binding/loader.js";
 import type { NativeSandboxBinding, NativeSandboxOutcome } from "./binding.js";
 import { BASE_PRELUDE } from "./prelude.js";
 
+export * from "./runtime.js";
+
 /** Time the engine thread gets past the script timeout to report its exit. */
 const EXIT_GRACE_MS = 5_000;
 

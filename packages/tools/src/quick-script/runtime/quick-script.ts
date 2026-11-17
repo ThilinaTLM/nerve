@@ -168,7 +168,7 @@ export async function executeQuickScript(
     const callArgs = Array.isArray(rawArgs) ? rawArgs : [];
     let prepared;
     try {
-      prepared = sdkMethod.prepare(callArgs, env);
+      prepared = await sdkMethod.prepare(callArgs, env);
     } catch (error) {
       const taught = withDeclaration(error, sdkMethod);
       record({ outcome: "failed", error: cleanMessage(taught, paths) });
@@ -265,6 +265,8 @@ export async function executeQuickScript(
   ]);
   clearTimeout(graceTimer);
   sealed = true;
+  // The run's extension code (sessions, sandbox runtimes) ends with the run.
+  await env.extensions.dispose();
 
   // QuickJS reports some out-of-memory failures as a bare `null` exception (the engine could not even allocate an Error).
   const memoryExceeded =

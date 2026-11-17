@@ -5,7 +5,7 @@ import {
   type ExtensionHostPorts,
   type QuickScriptRegistry,
 } from "@nervekit/tools/quick-script";
-import { createAvailabilityContext } from "@nervekit/tools/quick-script";
+import { openAvailabilityCode } from "@nervekit/tools/quick-script";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { createExtensionPorts, extensionStates } from "./extension-ports.js";
 import type { AccountsReader } from "../domains/accounts/accounts.service.js";
@@ -31,8 +31,7 @@ export async function extensionAvailability(
     checkSecrets: options.checkSecrets,
     ...(ports
       ? {
-          context: (extension) =>
-            createAvailabilityContext(registry, extension, ports),
+          code: (extension) => openAvailabilityCode(registry, extension, ports),
         }
       : {}),
   });

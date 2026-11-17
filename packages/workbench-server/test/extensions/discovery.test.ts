@@ -37,7 +37,11 @@ function session(conversationDir?: string) {
     namespaces,
   });
   return async (method: string, ...args: unknown[]) =>
-    String(await findSdkMethod(method, registry)!.prepare(args, env).run(env));
+    String(
+      await (
+        await findSdkMethod(method, registry)!.prepare(args, env)
+      ).run(env),
+    );
 }
 
 void test("sdk methods have risk none and need no authorization", () => {
@@ -132,9 +136,9 @@ void test("over budget, describe summarises and writes the full declarations to 
     });
     env.discovery.used = DISCOVERY_BUDGET_CHARS - 500;
     const summary = String(
-      await findSdkMethod("sdk.describe", registry)!
-        .prepare(["jira"], env)
-        .run(env),
+      await (
+        await findSdkMethod("sdk.describe", registry)!.prepare(["jira"], env)
+      ).run(env),
     );
     const file = /Full declarations: (\S+)/.exec(summary)?.[1];
     assert.ok(file, summary);
@@ -151,5 +155,5 @@ void test("over budget, describe summarises and writes the full declarations to 
 void test("a wrong argument names the method's declaration", async () => {
   const env = createSdkEnvironment({ registry, cwd: process.cwd() });
   const method = findSdkMethod("jira.issues.get", registry)!;
-  assert.throws(() => method.prepare([1, 2], env), /takes one argument/);
+  await assert.rejects(method.prepare([1, 2], env), /takes one argument/);
 });

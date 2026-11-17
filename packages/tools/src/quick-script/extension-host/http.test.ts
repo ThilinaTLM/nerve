@@ -60,6 +60,7 @@ function deps(over: Partial<HttpHostDeps> = {}): HttpHostDeps {
     },
     artifactSink: () => ({
       prepare: async () => join(await mkdtemp(join(tmpdir(), "http-")), "out"),
+      freshName: async (name, extension) => `${name}-1${extension}`,
       commit: async (path, name) => {
         written.push({ path, name });
         return {
@@ -117,25 +118,19 @@ void test("a multipart file handle is streamed by the host, beyond the in-memory
   assert.ok(call.body.subarray(start, start + size).equals(content));
 });
 
-void test("response.artifactFor streams binary responses and returns textual ones", async () => {
+void test("response artifact with inlineText streams binary responses and returns textual ones", async () => {
   const { request } = createHttp(deps());
   const binary = await request({
     url: `${base}/binary`,
-    response: {
-      artifactFor: async (type) =>
-        type.startsWith("image/") ? "p.png" : undefined,
-    },
+    response: "artifact",
+    artifact: { baseName: "pic", inlineText: true },
   });
-  assert.deepEqual(
-    (binary.body as { name: string; bytes: number }).name,
-    "p.png",
-  );
+  assert.equal((binary.body as { name: string }).name, "pic-1.png");
   assert.equal((binary.body as { bytes: number }).bytes, 3);
   const json = await request({
     url: `${base}/json`,
-    response: {
-      artifactFor: (type) => (type.startsWith("image/") ? "p.png" : undefined),
-    },
+    response: "artifact",
+    artifact: { baseName: "pic", inlineText: true },
   });
   assert.equal(json.body, '{"a":1}');
 });
@@ -242,7 +237,8 @@ void test("an attachment download follows the redirect without the credential an
     const response = await request({
       url: `${siteBase}/download/1`,
       auth: { account: "account" },
-      response: { artifact: "a.pdf" },
+      response: "artifact",
+      artifact: { name: "a.pdf" },
     });
     // 30 MB is beyond the in-memory limit but within the artifact limit.
     assert.equal((response.body as { bytes: number }).bytes, 30 * 1024 * 1024);
@@ -252,7 +248,8 @@ void test("an attachment download follows the redirect without the credential an
       request({
         url: `${siteBase}/download/1`,
         auth: { account: "account" },
-        response: { artifact: "a.pdf" },
+        response: "artifact",
+        artifact: { name: "a.pdf" },
         maxBytes: 1024,
       }),
       /larger than/,

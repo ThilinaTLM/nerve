@@ -125,7 +125,8 @@ export const demoExtension = defineExtension({
             const response = await ctx.http.request({
               url: `${(await ctx.accounts.selected("account"))!.fields.baseUrl}/items/${id}/export`,
               auth: { account: "account" },
-              response: { artifact: `item-${id}.txt` },
+              response: "artifact",
+              artifact: { name: `item-${id}.txt` },
             });
             return (response.body as { handle: string }).handle;
           },

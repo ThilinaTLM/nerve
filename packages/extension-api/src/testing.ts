@@ -39,7 +39,10 @@ export type FakeContextOptions = {
   authorize?: (
     check: FakeContextRecord["authorized"][number],
   ) => void | Promise<void>;
-  /** Answers `ctx.http.request`; throws when a test makes a request it did not expect. */
+  /**
+   * Answers `ctx.http.request`; throws when a test makes a request it did not expect.
+   * For `response: "artifact"` the fake does not stream: return the artifact reference as `body`.
+   */
   http?: (request: HttpRequest) => HttpResponse | Promise<HttpResponse>;
   /** Present: `ctx.models.image` exists. */
   image?: (request: ImageRequest) => ImageResult | Promise<ImageResult>;

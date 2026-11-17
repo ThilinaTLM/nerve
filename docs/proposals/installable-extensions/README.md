@@ -148,11 +148,17 @@ stateDiagram-v2
 
 ## Backend runtime
 
-Installed extensions always run in QuickJS, using the isolation that #598 establishes for Diagrams:
+Installed extensions always run in QuickJS, using the isolation that #598 establishes for Diagrams. `ctx` is the existing `ExtensionContext` over `__hostCall`, and the security rules in the architecture doc apply unchanged: secrets never reach extension code, credentials are injected host side, the network is the manifest allowlist with the SSRF guard, files are reached only through authorized handles and `ctx.authorize` has the risk ceiling.
 
-- One runtime per extension, with limits on memory, time per call and host calls.
-- `ctx` is the existing `ExtensionContext` over `__hostCall`. The security rules in the architecture doc apply unchanged: secrets never reach extension code, credentials are injected host side, the network is the manifest allowlist with the SSRF guard, files are reached only through authorized handles and `ctx.authorize` has the risk ceiling.
-- Built-in extensions may stay in-process; that is #598's decision.
+### Runtime design (#598)
+
+- **One persistent runtime per extension per run.** A runtime is opened on the first call into an extension during a `quick_script` run (or a direct tool call, an account test, an availability check, a UI call), evaluates the extension bundle once, serves every call of that run and is disposed when the run ends. This matches today's per-run `ExtensionRuntime` and its `session`. Runtimes are never shared between runs or conversations.
+- **Native: invoke and dispose.** The native sandbox gains a long-lived mode: `open` (bundle as a classic script, limits), `invoke(fn, args)` (returns a promise; the time limit is re-armed per invocation; the host-call budget is per invocation) and `dispose`. An idle runtime with no pending work is not an error. Extension runtimes have their own concurrency cap, separate from quick_script scripts.
+- **All extension code runs in the sandbox, hooks included.** `parse`, `authorize`, `resource`, `configuration`, `present`, `availability`, `test`, `session` and `run` execute in the runtime. Untrusted code never runs in the daemon process. Host-side `prepare` and the script scan become async, because they now call into the sandbox; they still run before any I/O and before approval.
+- **Plain data on the wire.** Bytes cross as binary (or base64 until the channel supports binary), `settings.get` reads a snapshot sent with each invocation, and `progress`, `report.*` and `log.*` are fire-and-forget host calls that do not count against the budget.
+- **No callbacks or signals across the boundary.** Cancellation is the native cancel of the invocation. The two callbacks in `ctx` are replaced with data: `http.request`'s `artifactFor` becomes a declarative option (an artifact name, with the extension resolved by the host from the content type), and `models.vision.explain` reports deltas only through its named `progress` sections.
+- **One interface, two adapters.** The host talks to extension code through one async interface. Built-ins use an in-process adapter; Diagrams, and every installed extension, use the sandbox adapter. Moving all built-ins to the sandbox is a later decision.
+- **Bundles.** Each sandboxed extension is built into one self-contained classic script (esbuild, IIFE) that registers its definition on a global. The SDK's `nerve-ext build` produces the same format.
 
 ## Agent capabilities
 

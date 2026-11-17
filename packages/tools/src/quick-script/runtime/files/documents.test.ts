@@ -107,9 +107,9 @@ void test("mammoth replaces images with a placeholder unless convertImage is giv
   assert.doesNotMatch(text, /data:image/);
 });
 
-void test("document globals are harmless to the risk scanner", () => {
+void test("document globals are harmless to the risk scanner", async () => {
   const code = `const d = new docx.Document({ sections: [] }); await mammoth.convertToHtml(b); await pptxText(b); new PptxGenJS(); JSZip.loadAsync(b);`;
-  assert.equal(classifyQuickScriptScript(code, registry).risk, "read");
+  assert.equal((await classifyQuickScriptScript(code, registry)).risk, "read");
 });
 
 void test("PptxGenJS and JSZip can be used in the same script", async () => {

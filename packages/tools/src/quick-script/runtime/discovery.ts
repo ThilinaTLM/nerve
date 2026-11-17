@@ -179,7 +179,7 @@ async function describeText(
       `// ${namespace.id}: ${namespace.summary}. No method declarations.\n${pointer}`,
     );
   }
-  const configured = !sub ? namespace.configuration?.(env) : undefined;
+  const configured = !sub ? await namespace.configuration?.(env) : undefined;
   const text =
     (configured ? `// ${configured}\n` : "") +
     pointer +

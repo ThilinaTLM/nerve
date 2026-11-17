@@ -30,7 +30,7 @@ The tool descriptions carry this split. The name `quick_script` feels like scrip
 
 ## Sandbox
 
-The engine is QuickJS in the `native` addon: a fresh runtime per script on its own thread, with caps on memory, time, output and host calls. The script has no filesystem, network or timers, only `console` and the host-call channel. Everything else, including methods, credentials and policy, belongs to the tool.
+The engine is QuickJS in the `native` addon: a fresh runtime per script on its own thread, with caps on memory, time, output and host calls. The script has no filesystem, network or timers, only `console` and the host-call channel. Everything else, including methods, credentials and policy, belongs to the tool. Extension code is reached through one asynchronous interface (`ExtensionCode`, see the [extension platform](extension-platform.md#rules)); the host prepares each call (parse, authorize) asynchronously, so the script scan that reads those authorizations (`classifyQuickScriptScript`, `classifyQuickScriptArguments`) is asynchronous as well, and permission admission awaits it while preparing (`ensureLoaded`) before the synchronous policy evaluation. A run's extension code is opened on first use and disposed when the run ends.
 
 ## Configuration
 

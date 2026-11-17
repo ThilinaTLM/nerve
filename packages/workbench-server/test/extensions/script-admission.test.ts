@@ -29,17 +29,20 @@ function scriptAdmission(
   // The script-level request: classified risk against risk-class rules.
   const script = evaluatePermissionRequest({
     policy,
-    request: normalizePermissionRequest({
-      toolName: "quick_script",
-      args: { code: "await jira.comments.add({})" },
-      roots: {
-        project: "/w",
-        nerve_home: "/n",
-        nerve_data: "/n/d",
-        plans: "/n/d/p",
-      },
-      conversationId: "conv_test",
-    }),
+    request: {
+      ...normalizePermissionRequest({
+        toolName: "quick_script",
+        args: { code: "await jira.comments.add({})" },
+        roots: {
+          project: "/w",
+          nerve_home: "/n",
+          nerve_data: "/n/d",
+          plans: "/n/d/p",
+        },
+        conversationId: "conv_test",
+      }),
+      argumentRisk: "external_write",
+    },
   });
   return composeScriptAdmission({
     script,
@@ -77,7 +80,7 @@ const allowOps = (
   decision: "allow",
 });
 
-void test("a script whose every operation is allowed by operation rules is admitted by rule", () => {
+void test("a script whose every operation is allowed by operation rules is admitted by rule", async () => {
   const admitted = scriptAdmission(
     [add("jira:issue/APP-1"), add("jira:issue/APP-2")],
     [allowOps("jira:issue/APP-*")],
@@ -90,7 +93,7 @@ void test("a script whose every operation is allowed by operation rules is admit
   );
 });
 
-void test("one uncovered operation keeps the script-level decision and suggests only that operation", () => {
+void test("one uncovered operation keeps the script-level decision and suggests only that operation", async () => {
   const admitted = scriptAdmission(
     [
       add("jira:issue/APP-1"),
@@ -119,7 +122,7 @@ void test("one uncovered operation keeps the script-level decision and suggests 
   );
 });
 
-void test("an operation rule that denies one operation denies the script", () => {
+void test("an operation rule that denies one operation denies the script", async () => {
   const deny: PermissionRule = {
     ...allowOps("jira:issue/PROD-*", "jira.comments.add"),
     id: "deny-prod",
@@ -137,7 +140,7 @@ void test("an operation rule that denies one operation denies the script", () =>
   );
 });
 
-void test("unknown targets only match target-less rules", () => {
+void test("unknown targets only match target-less rules", async () => {
   assert.equal(
     scriptAdmission([add()], [allowOps("jira:issue/APP-*")]).result.decision,
     "prompt",
@@ -152,7 +155,7 @@ void test("unknown targets only match target-less rules", () => {
   );
 });
 
-void test("operation rules cannot outrank a guardrail script-level deny, and built-in sets are unchanged", () => {
+void test("operation rules cannot outrank a guardrail script-level deny, and built-in sets are unchanged", async () => {
   const calls = [add("jira:issue/APP-1")];
   for (const id of ["supervised", "read_only", "planning", "autonomous"]) {
     const plain = scriptAdmission(calls, [], id);
@@ -170,8 +173,8 @@ void test("operation rules cannot outrank a guardrail script-level deny, and bui
   assert.equal(admitted.result.decision, "deny");
 });
 
-void test("the scan hands operation rules normalized targets, and marks scripts it cannot fully analyse", () => {
-  const scan = classifyQuickScriptScript(
+void test("the scan hands operation rules normalized targets, and marks scripts it cannot fully analyse", async () => {
+  const scan = await classifyQuickScriptScript(
     `await jira.comments.add({ key: "SCRUM-1", body: "x" }); await confluence.pages.get("12"); await jira.request("delete", "/rest/api/3/issue/A-1")`,
     registry,
   );
@@ -195,12 +198,12 @@ void test("the scan hands operation rules normalized targets, and marks scripts 
   ]);
   // A variable key: the operation is known, its targets are not.
   assert.equal(
-    classifyQuickScriptScript(`await jira.issues.get(k)`, registry).calls[0]
-      ?.targets,
+    (await classifyQuickScriptScript(`await jira.issues.get(k)`, registry))
+      .calls[0]?.targets,
     undefined,
   );
   // A raw request with a literal verb is an operation check with the call's own risk.
-  const get = classifyQuickScriptScript(
+  const get = await classifyQuickScriptScript(
     `await jira.request("GET", "/rest/api/3/myself")`,
     registry,
   );
@@ -217,7 +220,7 @@ void test("the scan hands operation rules normalized targets, and marks scripts 
     `await jira.issues.get("A-1"); eval("1")`,
   ])
     assert.equal(
-      classifyQuickScriptScript(code, registry).admissible,
+      (await classifyQuickScriptScript(code, registry)).admissible,
       false,
       code,
     );

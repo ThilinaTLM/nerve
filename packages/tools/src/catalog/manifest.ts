@@ -169,7 +169,22 @@ export function classifyToolRisk(
   args: Record<string, unknown> = {},
 ): ToolRisk {
   const definition = requireToolDefinition(name);
+  if (definition.classifyRiskAsync)
+    throw new Error(
+      `${name} is classified asynchronously; use classifyToolRiskAsync.`,
+    );
   return definition.classifyRisk?.(args) ?? definition.baseRisk;
+}
+
+/** `classifyToolRisk` for every tool, including those whose classification is asynchronous. */
+export async function classifyToolRiskAsync(
+  name: ToolName | string,
+  args: Record<string, unknown> = {},
+): Promise<ToolRisk> {
+  const definition = requireToolDefinition(name);
+  return definition.classifyRiskAsync
+    ? await definition.classifyRiskAsync(args)
+    : classifyToolRisk(name, args);
 }
 
 export function toolHasTrait(

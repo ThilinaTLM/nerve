@@ -18,6 +18,10 @@ import {
   createPinnedFetch,
 } from "../../execution/network/network-policy.js";
 import { fillTemplate, expandPatterns, originMatches } from "./network.js";
+import {
+  baseContentType,
+  getExtension,
+} from "../../execution/web/web-fetch.js";
 import { settingsPage } from "./errors.js";
 
 const MAX_REDIRECTS = 5;
@@ -60,9 +64,20 @@ export type HttpHostDeps = {
   openHandle(handle: string): Promise<{ path: string; size: number }>;
   artifactSink(): {
     prepare(): Promise<string>;
+    /** `<base>-<n><extension>`: the first name not yet taken in this run. */
+    freshName(base: string, extension: string): Promise<string>;
     commit(path: string, name: string): Promise<ArtifactRef>;
   };
 };
+
+const TEXTUAL_CONTENT_TYPE = /json|text|xml|javascript|x-www-form-urlencoded/i;
+
+/** The extension a host-named artifact gets from the response's content type. */
+function extensionFor(contentType: string): string {
+  return baseContentType(contentType) === "application/zip"
+    ? ".zip"
+    : getExtension(contentType);
+}
 
 const REDIRECT_STATUS = [301, 302, 303, 307, 308];
 
@@ -384,13 +399,15 @@ export function createHttp(deps: HttpHostDeps) {
       ((responseHeaders["content-type"] ?? "").includes("json")
         ? "json"
         : "text");
-    if (typeof mode === "object" && "artifactFor" in mode) {
-      const name = response.ok
-        ? await mode.artifactFor(responseHeaders["content-type"] ?? "")
-        : undefined;
-      mode = name === undefined ? "text" : { artifact: name };
-    }
-    if (typeof mode === "object") {
+    const contentType = responseHeaders["content-type"] ?? "";
+    // An error body, or a textual one the caller asked to keep inline, is returned as text.
+    if (
+      mode === "artifact" &&
+      req.artifact?.inlineText &&
+      (!response.ok || !contentType || TEXTUAL_CONTENT_TYPE.test(contentType))
+    )
+      mode = "text";
+    if (mode === "artifact") {
       if (!response.ok || !response.body) {
         await response.body?.cancel().catch(() => undefined);
         return { ...base, body: undefined };
@@ -417,7 +434,13 @@ export function createHttp(deps: HttpHostDeps) {
         await pipeline(source, createWriteStream(path, { mode: 0o600 }), {
           signal,
         });
-        return { ...base, body: await sink.commit(path, mode.artifact) };
+        const name =
+          req.artifact?.name ??
+          (await sink.freshName(
+            req.artifact?.baseName ?? "download",
+            req.artifact?.extension ?? extensionFor(contentType),
+          ));
+        return { ...base, body: await sink.commit(path, name) };
       } catch (error) {
         await rm(path, { force: true });
         throw error;

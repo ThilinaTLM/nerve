@@ -45,6 +45,13 @@ interface ToolDefinitionBase<TParams extends TObject = TObject> {
   baseRisk: ToolRisk;
   traits: readonly ToolTrait[];
   classifyRisk?: ToolArgumentRiskClassifier;
+  /**
+   * For a tool whose classification needs asynchronous work (`quick_script`
+   * asks extension code what its calls are authorized as). The caller awaits it
+   * before policy evaluation and passes the result as `argumentRisk` of the
+   * normalized request; `classifyRisk` stays for synchronous classifiers.
+   */
+  classifyRiskAsync?: (args: Record<string, unknown>) => Promise<ToolRisk>;
   permission?: {
     durableAllow: "never" | "tool" | "target";
     targets?: readonly ToolPermissionTargetDescriptor[];

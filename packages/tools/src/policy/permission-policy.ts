@@ -22,6 +22,7 @@ import type {
   RulePrecedence,
   StaticToolRisk,
   TargetMatcher,
+  ToolRisk,
   ValueMatcher,
 } from "@nervekit/contracts/permissions";
 import type { ToolName } from "@nervekit/contracts/tools";
@@ -54,6 +55,8 @@ export interface NormalizedPermissionRequest {
   conversationId: string;
   /** Set for a quick_script SDK operation checked by name (`jira.issues.create`), not for a script. */
   operation?: { namespace: string; baseRisk: StaticToolRisk };
+  /** Risk of the arguments of a tool classified asynchronously (`quick_script`), awaited by the caller before evaluation. */
+  argumentRisk?: ToolRisk;
 }
 
 export interface EffectivePermissionRule {
@@ -456,9 +459,13 @@ function requestMetadata(request: NormalizedPermissionRequest) {
       primaryTargetComplete: true,
     };
   if (ARGUMENT_RISK_TOOLS.has(request.toolName)) {
-    const risk = requireToolDefinition(request.toolName).classifyRisk?.(
-      request.args,
-    );
+    const definition = requireToolDefinition(request.toolName);
+    if (definition.classifyRiskAsync && request.argumentRisk === undefined)
+      throw new Error(
+        `${request.toolName}: the request needs argumentRisk (classifyToolRiskAsync) before evaluation.`,
+      );
+    const risk =
+      request.argumentRisk ?? definition.classifyRisk?.(request.args);
     return {
       ...metadata,
       baseRisk:

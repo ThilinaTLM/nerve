@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- method tables hold methods of different session and input types */
 import { image } from "@nervekit/native";
 import type {
   AccountInfo,
@@ -6,7 +5,6 @@ import type {
   ArtifactRef,
   ExtensionContext,
   ExtensionDefinition,
-  NamespaceDefinition,
   Risk,
 } from "@nervekit/extension-api";
 import { accountFieldKinds } from "@nervekit/contracts/extensions";
@@ -29,16 +27,17 @@ import {
 } from "../runtime/files/artifacts.js";
 import type { SdkEnvironment } from "../runtime/sdk-types.js";
 import { assertDeclaredRisk } from "../runtime/script-risk.js";
+import { inProcessExtensionCode, type ExtensionCode } from "./code-adapter.js";
 import { createHttp } from "./http.js";
 
 /**
  * The per-run side of the extension API: builds each extension's `ctx` through
- * the host ports (lazily, once per extension) and holds the namespace sessions
- * (created on first use). One instance per `quick_script` run.
+ * the host ports (lazily, once per extension) and opens each extension's code (and with it
+ * the namespace sessions, created on first use). One instance per `quick_script` run.
  */
 export class ExtensionRuntime {
   readonly #contexts = new Map<string, ExtensionContext>();
-  readonly #sessions = new Map<string, Promise<unknown>>();
+  readonly #code = new Map<string, Promise<ExtensionCode>>();
   /** Workspace files the run is allowed to read through `ctx.artifacts.read`: paths whose `read` check passed. */
   readonly #authorizedReads = new Set<string>();
 
@@ -50,19 +49,38 @@ export class ExtensionRuntime {
       this.#authorizedReads.add(resolveToolPath(this.env.context.cwd, path));
   }
 
-  session(
-    definition: ExtensionDefinition,
-    namespace: NamespaceDefinition<any>,
-  ): Promise<unknown> {
-    const key = `${definition.id}/${namespace.id}`;
-    let session = this.#sessions.get(key);
-    if (!session) {
-      session = Promise.resolve().then(() =>
-        namespace.session?.(this.context(definition)),
+  /**
+   * The extension's code for this run, opened on first use through the host's
+   * adapter (in-process unless the host composed another) and kept until `dispose`.
+   */
+  code(definition: ExtensionDefinition): Promise<ExtensionCode> {
+    let code = this.#code.get(definition.id);
+    if (!code) {
+      const adapter =
+        this.env.context.extensionCodeAdapter ?? inProcessExtensionCode;
+      code = Promise.resolve(
+        adapter.open(definition, {
+          context: (call) => this.context(definition, call),
+        }),
       );
-      this.#sessions.set(key, session);
+      this.#code.set(definition.id, code);
     }
-    return session;
+    return code;
+  }
+
+  /** Ends the run's extension code (sessions, sandbox runtimes). Safe to call more than once. */
+  async dispose(): Promise<void> {
+    const opened = [...this.#code.values()];
+    this.#code.clear();
+    await Promise.all(
+      opened.map(async (code) => {
+        try {
+          await (await code).dispose();
+        } catch {
+          // Nothing left to release; the run's result does not depend on it.
+        }
+      }),
+    );
   }
 
   /**
@@ -191,6 +209,7 @@ export class ExtensionRuntime {
       },
       artifactSink: () => ({
         prepare: () => artifactTempPath(env),
+        freshName: (base, extension) => freshArtifactName(env, base, extension),
         commit: async (path, name) =>
           reported(await commitArtifact(env, path, name)),
       }),

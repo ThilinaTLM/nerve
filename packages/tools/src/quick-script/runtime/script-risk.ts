@@ -578,11 +578,11 @@ const scanEnvironments = new WeakMap<
  * `authorize`, so targets are normalized exactly as at run time. Undefined when
  * an argument is not literal or the method rejects the arguments.
  */
-function literalChecks(
+async function literalChecks(
   method: NonNullable<ReturnType<typeof findSdkMethod>>,
   args: Token[][],
   registry: QuickScriptRegistry,
-): ScannedCall[] | undefined {
+): Promise<ScannedCall[] | undefined> {
   const values = args.map(literalValue);
   if (values.includes(NOT_LITERAL)) return undefined;
   try {
@@ -591,7 +591,7 @@ function literalChecks(
       scanEnvironment = createSdkEnvironment({ cwd: process.cwd(), registry });
       scanEnvironments.set(registry, scanEnvironment);
     }
-    const prepared = method.prepare(values, scanEnvironment);
+    const prepared = await method.prepare(values, scanEnvironment);
     return [
       prepared.authorization,
       ...(prepared.additionalAuthorizations ?? []),
@@ -618,18 +618,18 @@ type Found = { risk: QuickScriptRisk; targets: string[] };
  * `globalThis`, `eval` — counts as destructive, because the scanner cannot
  * tell what it reaches.
  */
-export function classifyQuickScriptScript(
+export async function classifyQuickScriptScript(
   code: string,
   registry: QuickScriptRegistry,
-): QuickScriptClassification {
+): Promise<QuickScriptClassification> {
   const [division, regex] = [
     tokenize(code, "division"),
     tokenize(code, "regex"),
   ];
-  const first = classifyTokens(division, registry);
+  const first = await classifyTokens(division, registry);
   if (JSON.stringify(division) === JSON.stringify(regex)) return first;
   // The readings disagree: report the riskier, and every operation either found.
-  const second = classifyTokens(regex, registry);
+  const second = await classifyTokens(regex, registry);
   const seen = new Set<string>();
   return {
     risk: higherRisk(first.risk, second.risk),
@@ -642,10 +642,10 @@ export function classifyQuickScriptScript(
   };
 }
 
-function classifyTokens(
+async function classifyTokens(
   tokens: Token[],
   registry: QuickScriptRegistry,
-): QuickScriptClassification {
+): Promise<QuickScriptClassification> {
   const globals = sdkGlobals(registry);
   const found = new Map<string, Found[]>();
   const scanned: ScannedCall[] = [];
@@ -737,7 +737,7 @@ function classifyTokens(
       record(name, methodRisk, targets);
     else {
       // Literal arguments: the method's own authorization decides the risk (a raw request is an external read for GET, destructive otherwise).
-      const checks = literalChecks(method, args, registry);
+      const checks = await literalChecks(method, args, registry);
       if (method.riskFromArgs && !checks) {
         record(`${name} (computed method)`, "destructive");
         continue;
@@ -771,10 +771,10 @@ function classifyTokens(
 }
 
 /** Classifies the arguments of an `quick_script` call. */
-export function classifyQuickScriptArguments(
+export async function classifyQuickScriptArguments(
   args: Record<string, unknown>,
   registry: QuickScriptRegistry,
-): QuickScriptClassification {
+): Promise<QuickScriptClassification> {
   return typeof args.code === "string"
     ? classifyQuickScriptScript(args.code, registry)
     : { risk: "destructive", operations: [], calls: [], admissible: false };

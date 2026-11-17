@@ -149,3 +149,70 @@ test("the run settles when the engine thread never reports its exit", async (t) 
   assert.equal(outcome.status, "failed");
   assert.match(outcome.error ?? "", /did not exit/);
 });
+
+// Persistent runtime through the compiled addon.
+const BUNDLE = `
+globalThis.add = ({ a, b }) => a + b;
+globalThis.search = async ({ q }, inv) => (await host.call("web.search", { q }, inv)).hits;
+globalThis.fail = () => { throw new Error("[BAD_INPUT] nope"); };
+globalThis.hold = (_, inv) => host.call("never", {}, inv);
+globalThis.leak = () => { const a = []; while (true) a.push("x".repeat(1024) + a.length); };
+`;
+
+test("persistent runtime serves invocations, host calls and errors", async () => {
+  const seen: Array<[string, string]> = [];
+  const handle = await sandbox.openSandbox({
+    preludes: [BUNDLE],
+    onHostCall: async (method, argsJson) => {
+      seen.push([method, argsJson]);
+      return JSON.stringify({ hits: [1, 2] });
+    },
+  });
+  try {
+    assert.equal(await handle.invoke("add", '{"a":1,"b":2}'), "3");
+    const [a, b] = await Promise.all([
+      handle.invoke("search", '{"q":"x"}'),
+      handle.invoke("search", '{"q":"y"}'),
+    ]);
+    assert.equal(a, "[1,2]");
+    assert.equal(b, "[1,2]");
+    assert.equal(seen.length, 2);
+    await assert.rejects(handle.invoke("fail", "null"), /\[BAD_INPUT\] nope/);
+  } finally {
+    handle.dispose();
+  }
+});
+
+test("persistent runtime: cancel, dispose and prelude errors reject", async () => {
+  await assert.rejects(
+    sandbox.openSandbox({
+      preludes: ["throw new Error('bad bundle')"],
+      onHostCall: async () => "null",
+    }),
+    /bad bundle/,
+  );
+  const handle = await sandbox.openSandbox({
+    preludes: [BUNDLE],
+    onHostCall: () => new Promise<string>(() => {}),
+  });
+  const cancelled = handle.invoke("hold", "null");
+  setTimeout(() => handle.cancel(), 50);
+  await assert.rejects(cancelled, { status: "cancelled" });
+  const pending = handle.invoke("hold", "null");
+  handle.dispose();
+  await assert.rejects(pending, { status: "disposed" });
+  await assert.rejects(handle.invoke("add", "{}"), /unusable/);
+});
+
+test("persistent runtime: memory limit poisons the runtime", async () => {
+  const handle = await sandbox.openSandbox({
+    preludes: [BUNDLE],
+    limits: { memoryBytes: 16 * 1024 * 1024 },
+    onHostCall: async () => "null",
+  });
+  await assert.rejects(handle.invoke("leak", "null"), {
+    status: "memory_limit",
+  });
+  await assert.rejects(handle.invoke("add", '{"a":1,"b":1}'), /unusable/);
+  handle.dispose();
+});

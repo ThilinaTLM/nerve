@@ -37,7 +37,8 @@ export function createQuickScriptToolDefinition(
     executionKind: "local",
     executor: (args, context) =>
       executeQuickScript(args, { ...context, registry }),
-    classifyRisk: (args) => classifyQuickScriptArguments(args, registry).risk,
+    classifyRiskAsync: async (args) =>
+      (await classifyQuickScriptArguments(args, registry)).risk,
     label: "Quick script",
     description:
       "Run a sandboxed TypeScript script (ES module, top-level await) that calls the SDK namespaces of the configured extensions; only its output returns.",

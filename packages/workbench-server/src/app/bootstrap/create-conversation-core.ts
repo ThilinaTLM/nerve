@@ -268,6 +268,14 @@ export function createConversationCore(
           bash.shellPath = shell.path;
         }
         const quickScript = input.toolName === "quick_script";
+        const scriptRisk = quickScript
+          ? (
+              await classifyQuickScriptArguments(
+                input.args as Record<string, unknown>,
+                hostRegistry,
+              )
+            ).risk
+          : undefined;
         const extensionPorts = createExtensionPorts({
           resolution: extensions,
           accounts,
@@ -330,10 +338,7 @@ export function createConversationCore(
                       admission: {
                         by: userApproved(input.toolCallId) ? "user" : "rule",
                         scriptRisk: quickScript
-                          ? classifyQuickScriptArguments(
-                              input.args as Record<string, unknown>,
-                              hostRegistry,
-                            ).risk
+                          ? scriptRisk!
                           : quickScriptToolRisk(
                               input.toolName as ToolName,
                               input.args as Record<string, unknown>,

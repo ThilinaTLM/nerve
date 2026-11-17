@@ -29,8 +29,14 @@ export type {
   DerivedAvailability,
   ExtensionState,
 } from "./extension-host/availability.js";
+export {
+  inProcessExtensionCode,
+  type ExtensionCode,
+  type ExtensionCodeAdapter,
+  type ExtensionCodeHost,
+} from "./extension-host/code-adapter.js";
 export type { ExtensionHostPorts } from "./extension-host/ports.js";
-export { createAvailabilityContext } from "./extension-host/host-context.js";
+export { openAvailabilityCode } from "./extension-host/host-context.js";
 export {
   extensionMetadata,
   extensionSettingsDefinition,

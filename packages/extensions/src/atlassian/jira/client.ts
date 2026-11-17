@@ -154,7 +154,8 @@ export async function jiraDownloadToArtifact(
   const response = await send(connection, {
     service: "jira",
     url,
-    response: { artifact: options.name },
+    response: "artifact",
+    artifact: { name: options.name },
     timeoutMs: TRANSFER_TIMEOUT_MS,
     maxBytes: options.maxBytes ?? MAX_ATTACHMENT_BYTES,
     errorPath: path,
