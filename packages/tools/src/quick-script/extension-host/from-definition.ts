@@ -10,6 +10,7 @@ import type {
 import type {
   AccountKind,
   ExtensionIcon,
+  ExtensionSource,
 } from "@nervekit/contracts/extensions";
 import { ToolExecutionError } from "../../execution/index.js";
 import type { ExtensionManifest, SdkNamespace } from "../manifest-types.js";
@@ -164,6 +165,7 @@ function toSdkNamespace(
 export function fromDefinition(
   definition: ExtensionDefinition,
   icon: ExtensionIcon,
+  source: ExtensionSource = "builtin",
 ): ExtensionManifest {
   const accounts: AccountKind[] = Object.entries(definition.accounts ?? {}).map(
     ([kind, { test, ...data }]) => ({
@@ -176,7 +178,7 @@ export function fromDefinition(
     id: definition.id,
     name: definition.name,
     description: definition.description,
-    source: "builtin",
+    source,
     icon,
     enabledByDefault: definition.enabledByDefault,
     settings: {

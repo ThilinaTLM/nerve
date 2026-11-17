@@ -218,6 +218,60 @@ export function sandboxExtensionCode(
 }
 
 /**
+ * Opens `bundle` in a throwaway sandbox runtime and returns the plain data of the definition it
+ * registers (`extensionDefinitionData`). The bundle's top level runs, but nothing can reach the
+ * host: every host call is refused. Rejects when the bundle fails to evaluate or registers nothing.
+ */
+export async function readSandboxedDefinitionData(options: {
+  /** Names the extension in errors. */
+  id: string;
+  bundle: string;
+  limits?: sandbox.SandboxLimits;
+}): Promise<unknown> {
+  if (!sandbox.isPersistentAvailable())
+    throw new Error(`${options.id}: the native sandbox is not available.`);
+  const handle = await sandbox.openSandbox({
+    preludes: [
+      readSandboxLibrarySource("extension-runtime.js"),
+      options.bundle,
+    ],
+    limits: options.limits,
+    uncountedHostMethods: [],
+    onHostCall: async () =>
+      JSON.stringify({
+        ok: false,
+        error: {
+          name: "ExtensionError",
+          code: "DENIED",
+          message: "The host is not available while the extension is read.",
+        },
+      }),
+  });
+  try {
+    const json = await handle.invoke(
+      "__nerveExtensionInvoke",
+      JSON.stringify({
+        op: "describe",
+        token: "describe",
+        settings: {},
+        models: { image: false, vision: false },
+      }),
+    );
+    const reply = JSON.parse(json) as
+      | { ok: true; value?: unknown }
+      | { ok: false; error: WireError };
+    if (!reply.ok) throw fromWireError(reply.error);
+    return decodeWire(reply.value);
+  } catch (error) {
+    if (error instanceof sandbox.SandboxInvocationError)
+      throw new Error(`${options.id}: ${error.message}`, { cause: error });
+    throw error;
+  } finally {
+    handle.dispose();
+  }
+}
+
+/**
  * The adapter a host composes: extensions `sandboxed` selects run in the
  * sandbox, the others in the host process.
  */

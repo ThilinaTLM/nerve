@@ -38,8 +38,10 @@ export function scopedTurnResources(options: {
   nerveSkills(): readonly Skill[];
   agentBrowserSkills(): readonly Skill[];
   hasChildren(id: string): boolean;
-  /** The extensions the host serves. */
-  registry: QuickScriptRegistry;
+  /** The extensions the host serves: one registry, or the registry of the conversation's project. */
+  registry:
+    | QuickScriptRegistry
+    | ((projectDir: string) => Promise<QuickScriptRegistry>);
   /** The vision model extensions' availability hooks check. */
   vision?: VisionHost;
   /** Resolved extension settings and the home's accounts, for this conversation. */
@@ -55,13 +57,17 @@ export function scopedTurnResources(options: {
     missingReferences: readonly string[] = [],
   ) => {
     const child = input.conversation.parentConversationId !== null;
+    const registry =
+      typeof options.registry === "function"
+        ? await options.registry(input.projectDir)
+        : options.registry;
     const { resolution, accounts } = await options.extensions(
       input.conversation.id,
       input.conversation.projectId,
     );
     // Direct tools of extensions are offered while the extension (and its switch) is on and its requirements are met.
     const offered = await extensionAvailability(
-      options.registry,
+      registry,
       resolution,
       accounts,
       {
@@ -84,6 +90,11 @@ export function scopedTurnResources(options: {
       (tool) =>
         !(child && blocked.has(tool.name)) &&
         isToolEnabled(tool.name, settings, missingReferences) &&
+        // A tool of an extension that this project's registry lacks (another project's) is not offered.
+        (!tool.extension ||
+          registry.tools.some(
+            (entry) => entry.definition.name === tool.name,
+          )) &&
         extensionToolOffered(offered, tool.name),
     );
     const profiles = [];
@@ -109,18 +120,13 @@ export function scopedTurnResources(options: {
       {
         namespaces: configuredNamespaces(
           (
-            await extensionAvailability(
-              options.registry,
-              resolution,
-              accounts,
-              {
-                checkSecrets: false,
-              },
-            )
+            await extensionAvailability(registry, resolution, accounts, {
+              checkSecrets: false,
+            })
           ).namespaces,
         ),
       },
-      options.registry,
+      registry,
     );
     const tools = withAgentProfiles(
       selected,

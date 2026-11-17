@@ -78,14 +78,16 @@ export type ExtensionSaveFailure =
  */
 export class ExtensionSettingsService {
   readonly store: ScopedDocumentStore<ExtensionScopeRef, ExtensionsDocument>;
-  private readonly known = new Map<string, ExtensionSettingsDefinition>();
   private readonly listeners = new Set<(scope: ExtensionScopeRef) => void>();
 
   constructor(
     private readonly options: {
       paths: AgentConfigurationPaths;
       projectMigration: ProjectMigrationService;
-      definitions: readonly ExtensionSettingsDefinition[];
+      /** The extensions' settings definitions; a function answers per project (installed extensions differ by project). */
+      definitions:
+        | readonly ExtensionSettingsDefinition[]
+        | ((projectId?: string) => readonly ExtensionSettingsDefinition[]);
       isProjectTrusted(
         projectId: string,
         path: string,
@@ -97,8 +99,6 @@ export class ExtensionSettingsService {
       >;
     },
   ) {
-    for (const definition of options.definitions)
-      this.known.set(definition.id, definition);
     this.store = new ScopedDocumentStore({
       ...options.io,
       ...projectStorePorts<ExtensionScopeRef, ExtensionsDocument>(
@@ -121,8 +121,22 @@ export class ExtensionSettingsService {
     });
   }
 
+  /** The definitions at a project (without one: every extension known so far). */
+  definitionsFor(projectId?: string): readonly ExtensionSettingsDefinition[] {
+    const { definitions } = this.options;
+    return typeof definitions === "function"
+      ? definitions(projectId)
+      : definitions;
+  }
+
   get definitions(): readonly ExtensionSettingsDefinition[] {
-    return this.options.definitions;
+    return this.definitionsFor();
+  }
+
+  private known(id: string, projectId?: string) {
+    return this.definitionsFor(projectId).find(
+      (definition) => definition.id === id,
+    );
   }
 
   /** Called after any scope's document is published. */
@@ -251,7 +265,10 @@ export class ExtensionSettingsService {
     upTo: ExtensionScopeRef["scope"] = "conversation",
   ): Promise<ExtensionResolution> {
     const { layers, diagnostics } = await this.layers(context, upTo);
-    const resolution = resolveExtensions(this.options.definitions, layers);
+    const resolution = resolveExtensions(
+      this.definitionsFor(context.projectId),
+      layers,
+    );
     return {
       ...resolution,
       diagnostics: [...diagnostics, ...resolution.diagnostics],
@@ -274,8 +291,9 @@ export class ExtensionSettingsService {
   validateEntry(
     scope: ExtensionScopeRef["scope"],
     save: SaveInput,
+    projectId?: string,
   ): { entry: ExtensionEntry | null } | { issues: SettingIssue[] } {
-    const definition = this.known.get(save.id);
+    const definition = this.known(save.id, projectId);
     if (!definition)
       return {
         issues: [
@@ -329,7 +347,11 @@ export class ExtensionSettingsService {
     expected: { revision: number; digest: string },
     save: SaveInput,
   ): Promise<{ status: "saved"; value: Generation } | ExtensionSaveFailure> {
-    const validated = this.validateEntry(scope.scope, save);
+    const validated = this.validateEntry(
+      scope.scope,
+      save,
+      scope.scope === "project" ? scope.projectId : undefined,
+    );
     if ("issues" in validated)
       return { status: "invalid", issues: validated.issues };
     return this.mutate(scope, expected, save.id, () => validated.entry);
@@ -366,7 +388,8 @@ export class ExtensionSettingsService {
       const health = await this.store.ensureLoaded(scope);
       if (health.status === "unavailable") return { status: "unavailable" };
       const stored = health.value.document.extensions[id];
-      const definition = this.known.get(id);
+      const projectId = scope.scope === "project" ? scope.projectId : undefined;
+      const definition = this.known(id, projectId);
       if (stored && definition && stored.version > definition.settingsVersion)
         return {
           status: "read-only",
@@ -379,7 +402,7 @@ export class ExtensionSettingsService {
       const { value } = await this.store.save(scope, expected, (document) => {
         const extensions: ExtensionEntries = {};
         for (const [key, existing] of Object.entries(document.extensions)) {
-          const def = this.known.get(key);
+          const def = this.known(key, projectId);
           const upgrade = def ? upgradeEntry(def, existing) : undefined;
           extensions[key] =
             upgrade?.status === "upgraded" ? upgrade.entry : existing;
@@ -413,7 +436,7 @@ export class ExtensionSettingsService {
   freezeEntries(resolution: ExtensionResolution): ExtensionEntries {
     const entries: ExtensionEntries = {};
     for (const [id, resolved] of Object.entries(resolution.extensions)) {
-      const definition = this.known.get(id);
+      const definition = this.known(id);
       if (!definition) continue;
       const settings: Record<string, unknown> = {};
       for (const [key, field] of Object.entries(resolved.fields))

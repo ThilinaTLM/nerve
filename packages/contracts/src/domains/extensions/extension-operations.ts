@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
+import { extensionCatalogEntrySchema } from "./catalog.js";
 import {
   accountKindSchema,
   extensionMetadataSchema,
@@ -101,6 +102,8 @@ export const extensionsViewSchema = z.strictObject({
     trusted: z.boolean().nullable(),
   }),
   diagnostics: z.array(diagnosticSchema),
+  /** Every extension the host knows of at the target (built-in, user and the target project's), loaded or not, with its state and diagnostics. */
+  catalog: z.array(extensionCatalogEntrySchema),
   /** Entries of extensions that are not registered; kept in the file. */
   unknown: z.array(
     z.strictObject({

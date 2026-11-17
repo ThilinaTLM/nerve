@@ -111,6 +111,8 @@ Roots, in precedence order:
 - **Scope limits contributions.** User extensions apply in every project. Project extensions apply only while their project is active. Without an open project there are no extension previews, pages or panels. Themes are user level only; a project extension's theme is ignored with a diagnostic, because the theme is app-wide and the app shows several projects.
 - Invalid extensions are omitted, not partially loaded, and are reported as diagnostics in Settings → Extensions.
 
+> **As implemented (step 2).** `manifest.json` is `extensionDefinitionData(definition)` (hooks as `true`) plus `version`, `sdkVersion` and a reserved `ui` object; `manifest.json` rejects unknown fields, `prelude` and settings `migrations`. The comparison is a deep equality of that data with what the bundle registers in a throwaway sandbox runtime, run only after the trust gate says `trusted`. The id must also start with a letter (as `extensionIdSchema` does). Account kinds, namespace ids (not runtime namespaces or host globals) and direct tool names (not core tools) are unique across scopes, and collisions are resolved built-ins, then user, then project, so a repository cannot take over a kind the user's credentials are stored under. Details: [architecture/extension-platform](../../architecture/extension-platform.md#installed-extensions).
+
 ### Registry per scope
 
 Today the host builds one registry from the built-in list at startup. It becomes: built-ins plus loaded user extensions (shared), plus the active project's extensions, composed per project. The `quick_script` tool description, direct tools and `sdk.list` read that composed registry, so a project extension's namespaces appear only in that project's conversations.
@@ -384,7 +386,7 @@ extension-creator/
 All of this ships in one release, after #598.
 
 1. **Runtime isolation (#598).** QuickJS runtime per extension over `__hostCall`, with limits.
-2. **Packaging and loading.** Folder format, generated manifest and the definition match check, discovery in both roots, precedence and collision rules, per-project registry composition, compatibility check, diagnostics.
+2. **Packaging and loading.** (Implemented, with the trust gate as a placeholder that answers `pending`.) Folder format, generated manifest and the definition match check, discovery in both roots, precedence and collision rules, per-project registry composition, compatibility check, diagnostics.
 3. **Trust and consent.** Content hashes, consent records, the update diff, plain-language summaries, limits and attribution for agent-facing text.
 4. **Packages and SDK.** Publish `extension-api` and `ui-kit`; create `extension-sdk` with `nerve-ext init`, `build`, `check`, `test` and `dev`, templates, `UPGRADING.md` and the release pipeline for lockstep publishing; the public-surface check.
 5. **UI host.** Frame serving and CSP, the bridge, file previews with both edit modes and preview selection, the page tab kind, extension dock panels, theme loading, validation and pre-paint caching.

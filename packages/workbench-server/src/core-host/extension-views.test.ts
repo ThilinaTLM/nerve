@@ -10,6 +10,7 @@ import { AgentConfigurationPaths } from "../infrastructure/configuration/agent-c
 import { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { createExtensionViews } from "./extension-views.js";
 import { hostRegistry } from "./host-tools.js";
+import { fixedRegistryProvider } from "./extension-catalog/extension-catalog.js";
 
 void test("the user view lists every built-in extension with sources, availability and read-only entries", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "extension-views-"));
@@ -45,7 +46,7 @@ void test("the user view lists every built-in extension with sources, availabili
   const views = createExtensionViews({
     extensions,
     agents: {} as never,
-    registry: hostRegistry,
+    catalog: fixedRegistryProvider(hostRegistry),
     // The account exists but has no saved token.
     accounts: {
       get: async (kind, id) =>
@@ -105,7 +106,7 @@ void test("a fresh home's view survives JSON and parses: unset fields have no va
       isProjectTrusted: () => true,
     }),
     agents: {} as never,
-    registry: hostRegistry,
+    catalog: fixedRegistryProvider(hostRegistry),
     accounts: {
       get: async () => undefined,
       list: async () => [],

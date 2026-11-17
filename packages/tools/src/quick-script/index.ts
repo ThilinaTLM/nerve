@@ -2,6 +2,7 @@ import { executeQuickScript } from "./runtime/quick-script.js";
 
 export {
   createQuickScriptRegistry,
+  reservedNamespaceIds,
   findNamespace as findQuickScriptNamespace,
 } from "./registry.js";
 export type {
@@ -38,8 +39,10 @@ export {
 export {
   routedExtensionCode,
   sandboxExtensionCode,
+  readSandboxedDefinitionData,
   type SandboxExtensionCodeOptions,
 } from "./extension-host/sandbox-adapter.js";
+export { resolveExtensionIcon } from "./extension-host/icon.js";
 export type { ExtensionHostPorts } from "./extension-host/ports.js";
 export { openAvailabilityCode } from "./extension-host/host-context.js";
 export {

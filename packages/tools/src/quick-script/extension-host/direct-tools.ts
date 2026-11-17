@@ -267,8 +267,24 @@ export function createExtensionToolDefinitions(
       agentResult: resultPolicyFor(toolViewOf(tool)),
       executionKind: "local",
       executionMode: "parallel",
-      executor: (args, context: ToolExecutionContext) =>
-        executeExtensionTool(registry, entry, args, context),
+      executor: async (args, context: ToolExecutionContext) => {
+        // The run's own registry decides (a project's extensions, reloaded code); this one is the fallback.
+        const live = (context as Partial<QuickScriptContext>).registry;
+        const liveEntry = live?.tools.find(
+          (candidate) => candidate.definition.name === tool.name,
+        );
+        if (live && !liveEntry)
+          throw new ToolExecutionError(
+            "TOOL_NOT_ENABLED",
+            `${tool.name}: not available in this project`,
+          );
+        return executeExtensionTool(
+          live ?? registry,
+          liveEntry ?? entry,
+          args,
+          context,
+        );
+      },
     };
   });
 }

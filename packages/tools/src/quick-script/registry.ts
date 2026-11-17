@@ -1,4 +1,5 @@
 import { assertUniqueAccountKinds } from "@nervekit/contracts/settings";
+import type { ExtensionSource } from "@nervekit/contracts/extensions";
 import {
   VIEW_SECTION_ID,
   type ExtensionDefinition,
@@ -45,6 +46,8 @@ export type QuickScriptRegistryOptions = {
   readExtensionAsset?: (extensionId: string, file: string) => string;
   /** Where each extension's code runs (`routedExtensionCode`); absent: every extension runs in the host process. */
   extensionCodeAdapter?: ExtensionCodeAdapter;
+  /** Where an installed extension comes from; absent: every extension is built in. */
+  extensionSource?: (definition: ExtensionDefinition) => ExtensionSource;
 };
 
 /**
@@ -59,6 +62,7 @@ export function createQuickScriptRegistry(
     fromDefinition(
       definition,
       resolveExtensionIcon(definition, options.readExtensionAsset),
+      options.extensionSource?.(definition),
     ),
   );
   assertUnique(
@@ -159,4 +163,18 @@ export function findNamespace(
   registry: QuickScriptRegistry,
 ): RegisteredNamespace | undefined {
   return registry.namespaces.find((namespace) => namespace.id === id);
+}
+
+/**
+ * Names an extension's namespace may not take: the runtime's own namespaces (`files`, `web`,
+ * `sdk`, ...) and the globals of the host runtime (`console`, `JSON`, ...), because a namespace
+ * is a global of the script sandbox.
+ */
+export function reservedNamespaceIds(): ReadonlySet<string> {
+  return new Set([
+    ...runtimeNamespaces.map((namespace) => namespace.id),
+    "sdk",
+    "host",
+    ...Object.getOwnPropertyNames(globalThis),
+  ]);
 }

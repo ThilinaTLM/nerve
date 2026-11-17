@@ -405,6 +405,9 @@ async function perform(
 ): Promise<unknown> {
   const target = payload.target as Target;
   switch (payload.op) {
+    case "describe":
+      // The data part of the registered definition, for the host's comparison with `manifest.json`.
+      return api.extensionDefinitionData(definitionOf());
     case "parse":
       return target.kind === "method"
         ? methodOf(target).parse(payload.args as unknown[])

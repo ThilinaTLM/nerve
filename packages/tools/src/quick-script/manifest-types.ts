@@ -1,5 +1,6 @@
 import type {
   AccountKind,
+  ExtensionSource,
   ExtensionIcon,
   ExtensionSettingsDefinition,
   SettingsSchema,
@@ -63,7 +64,8 @@ export type ExtensionManifest = {
   name: string;
   /** One line for the Extensions page. */
   description: string;
-  source: "builtin";
+  /** Where the extension comes from. */
+  source: ExtensionSource;
   /** The extension's mark, resolved (and, for an SVG file, read and checked) by the host. */
   icon: ExtensionIcon;
   /** Default of the implicit `enabled` switch. */

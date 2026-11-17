@@ -9,9 +9,8 @@ import {
 } from "../../paths.js";
 import { resolveKind } from "../resolve-kind.js";
 import { parseFrontmatter, type SkillFrontmatter } from "./parser.js";
+import { IGNORE_FILE_NAMES, prefixIgnorePattern } from "./ignore-rules.js";
 import { validateDescription, validateName } from "./validation.js";
-
-const IGNORE_FILE_NAMES = [".gitignore", ".ignore", ".fdignore"];
 
 type IgnoreMatcher = ReturnType<typeof ignore>;
 
@@ -233,24 +232,6 @@ async function addIgnoreRules(
       .filter((line): line is string => Boolean(line));
     if (patterns.length > 0) ig.add(patterns);
   }
-}
-
-function prefixIgnorePattern(line: string, prefix: string): string | null {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-  if (trimmed.startsWith("#") && !trimmed.startsWith("\\#")) return null;
-
-  let pattern = line;
-  let negated = false;
-  if (pattern.startsWith("!")) {
-    negated = true;
-    pattern = pattern.slice(1);
-  } else if (pattern.startsWith("\\!")) {
-    pattern = pattern.slice(1);
-  }
-  if (pattern.startsWith("/")) pattern = pattern.slice(1);
-  const prefixed = prefix ? `${prefix}${pattern}` : pattern;
-  return negated ? `!${prefixed}` : prefixed;
 }
 
 async function loadSkillFromFile(

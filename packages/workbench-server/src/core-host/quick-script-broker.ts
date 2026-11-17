@@ -59,12 +59,19 @@ function brokerableDirectTool(toolName: string): boolean {
  */
 export function createQuickScriptAuthorizer(
   prepareAdmission: PrepareAdmission,
-  registry: QuickScriptRegistry = hostRegistry,
+  /** The registry the call's namespaces come from: one registry, or the call's project's. */
+  registrySource:
+    | QuickScriptRegistry
+    | ((call: QuickScriptCall) => Promise<QuickScriptRegistry>) = hostRegistry,
 ) {
   return async (
     call: QuickScriptCall,
     request: QuickScriptRequest,
   ): Promise<void> => {
+    const registry =
+      typeof registrySource === "function"
+        ? await registrySource(call)
+        : registrySource;
     let toolName: string;
     let args: Record<string, unknown>;
     let label: string;

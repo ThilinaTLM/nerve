@@ -7,6 +7,12 @@ import {
   readBuiltinExtensionAsset,
   readBuiltinExtensionBundle,
 } from "@nervekit/extensions/assets";
+import { version as nerveVersion } from "../app/version.js";
+import {
+  ExtensionCatalog,
+  type ExtensionCatalogOptions,
+} from "./extension-catalog/extension-catalog.js";
+import { defaultTrustGate } from "./extension-catalog/trust-gate.js";
 import {
   createQuickScriptRegistry,
   routedExtensionCode,
@@ -30,6 +36,30 @@ export const hostRegistry = createQuickScriptRegistry(builtinExtensions, {
     }),
   }),
 });
+
+/**
+ * The catalog of the extensions a home serves: the built-ins, the home's user extensions and,
+ * per project, the project's own. The registries it composes are what conversations read;
+ * `hostRegistry` is its built-ins-only base.
+ */
+export function createHostExtensionCatalog(
+  options: Pick<ExtensionCatalogOptions, "home"> &
+    Partial<
+      Pick<ExtensionCatalogOptions, "trustGate" | "warn" | "nerveVersion">
+    >,
+): ExtensionCatalog {
+  return new ExtensionCatalog({
+    ...options,
+    nerveVersion: options.nerveVersion ?? nerveVersion,
+    trustGate: options.trustGate ?? defaultTrustGate(),
+    builtins: {
+      definitions: builtinExtensions,
+      readAsset: readBuiltinExtensionAsset,
+      sandboxed: sandboxedBuiltinExtensions,
+      readBundle: readBuiltinExtensionBundle,
+    },
+  });
+}
 
 /** What the settings machinery needs of every registered extension. */
 export const extensionSettingsDefinitions = hostRegistry.extensions.map(

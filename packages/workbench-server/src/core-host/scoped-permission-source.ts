@@ -29,6 +29,7 @@ import { classifyToolRisk } from "@nervekit/tools/catalog";
 import {
   classifyQuickScriptArguments,
   summarizeScannedCalls,
+  type QuickScriptRegistry,
 } from "@nervekit/tools/quick-script";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import {
@@ -64,6 +65,8 @@ export function createScopedPermissionSource(options: {
   agents: AgentConfigurationService;
   trustGeneration(): number;
   requestGenerations(id: string): Record<string, number> | undefined;
+  /** The registry of a project's extensions, for the script scan; default: the built-ins'. */
+  registryFor?(projectDirectory: string): Promise<QuickScriptRegistry>;
 }): ScopedPermissionPolicySource {
   const migrations =
     options.projectMigration ??
@@ -215,7 +218,11 @@ export function createScopedPermissionSource(options: {
           input,
           await classifyQuickScriptArguments(
             input.args as Record<string, unknown>,
-            hostRegistry,
+            options.registryFor
+              ? await options.registryFor(
+                  projectOf(input.conversationId).project.directory,
+                )
+              : hostRegistry,
           ),
         );
       while (true) {
