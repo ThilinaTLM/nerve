@@ -169,6 +169,7 @@ export default defineConfig({
           label: "Customize",
           items: [
             { label: "Themes and appearance", slug: "guides/personalize" },
+            { label: "Build an extension", slug: "guides/build-extensions" },
             { label: "Settings at a glance", slug: "guides/settings" },
             { label: "Keyboard shortcuts", slug: "reference/shortcuts" },
           ],

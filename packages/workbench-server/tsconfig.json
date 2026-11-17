@@ -32,5 +32,6 @@
       "path": "../conversation-core"
     }
   ],
-  "include": ["src/**/*.ts", "src/**/*.json"]
+  "include": ["src/**/*.ts", "src/**/*.json"],
+  "exclude": ["src/builtin-skills/builtin/*/examples/**"]
 }

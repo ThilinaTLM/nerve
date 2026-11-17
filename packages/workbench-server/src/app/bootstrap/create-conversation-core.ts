@@ -6,6 +6,7 @@ import {
 } from "../../core-host/extension-availability.js";
 import {
   createExtensionPorts,
+  extensionStates,
   selectedAccountsTarget,
 } from "../../core-host/extension-ports.js";
 import { createHostExtensionCatalog } from "../../core-host/host-tools.js";
@@ -321,6 +322,14 @@ export function createConversationCore(
           pythonRuntime: python?.available ? python : undefined,
           registry: registry,
           extensionPorts,
+          ...(quickScript
+            ? {
+                extensionAgent: extensionCatalog.agentPort({
+                  projectDir: input.projectDir ?? input.cwd,
+                  switchOf: (id) => extensionStates(extensions)(id)?.enabled,
+                }),
+              }
+            : {}),
           ...(quickScript || isExtensionTool
             ? {
                 ...(quickScript

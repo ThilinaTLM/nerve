@@ -1,4 +1,6 @@
 import { FILES_DTS_TYPES, IMAGE_CHAIN_OPS } from "./files/dts-types.js";
+import { EXTENSIONS_DTS_TYPES } from "./extensions/dts-types.js";
+import { extensionsMethods } from "./extensions/extensions-methods.js";
 import { filesMethods } from "./files/files-methods.js";
 import { imageMethods } from "./files/image-methods.js";
 import { WEB_DTS_TYPES } from "./web/dts-types.js";
@@ -60,6 +62,14 @@ export const runtimeNamespaces: SdkNamespace[] = [
     rules: ["`web.fetch` content can be up to 8 MiB: slice before printing."],
     methods: webMethods,
     types: WEB_DTS_TYPES,
+    docs: [],
+  },
+  {
+    id: "extensions",
+    summary:
+      "reload(id), status(id) for user and project extensions, built with the extension-creator skill",
+    methods: extensionsMethods,
+    types: EXTENSIONS_DTS_TYPES,
     docs: [],
   },
   {

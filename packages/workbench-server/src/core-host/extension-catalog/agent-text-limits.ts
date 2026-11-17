@@ -110,8 +110,13 @@ function shortenError(error: unknown): unknown {
   return error;
 }
 
-const guarded = (run: () => Promise<unknown>) =>
+const guardedBase = (
+  run: () => Promise<unknown>,
+  record?: (operation: string, error: unknown) => void,
+  operation = "",
+) =>
   run().catch((error) => {
+    record?.(operation, error);
     throw shortenError(error);
   });
 
@@ -119,36 +124,48 @@ const guarded = (run: () => Promise<unknown>) =>
 export function limitInstalledErrors(
   adapter: ExtensionCodeAdapter,
   installed: (definition: ExtensionDefinition) => boolean,
+  /** Told of every failure of an installed extension's code (before it is cut). */
+  record?: (
+    definition: ExtensionDefinition,
+    operation: string,
+    error: unknown,
+  ) => void,
 ): ExtensionCodeAdapter {
   return {
     async open(definition, host) {
       const code = await adapter.open(definition, host);
       if (!installed(definition)) return code;
+      const guarded = (operation: string, run: () => Promise<unknown>) =>
+        guardedBase(
+          run,
+          record && ((op, error) => record(definition, op, error)),
+          operation,
+        );
       const limited: ExtensionCode = {
-        parse: (...args) => guarded(() => code.parse(...args)),
+        parse: (...args) => guarded("parse", () => code.parse(...args)),
         authorize: (...args) =>
-          guarded(() => code.authorize(...args)) as ReturnType<
+          guarded("authorize", () => code.authorize(...args)) as ReturnType<
             ExtensionCode["authorize"]
           >,
         resource: (...args) =>
-          guarded(() => code.resource(...args)) as ReturnType<
+          guarded("resource", () => code.resource(...args)) as ReturnType<
             ExtensionCode["resource"]
           >,
-        run: (...args) => guarded(() => code.run(...args)),
+        run: (...args) => guarded("run", () => code.run(...args)),
         present: (...args) =>
-          guarded(() => code.present(...args)) as ReturnType<
+          guarded("present", () => code.present(...args)) as ReturnType<
             ExtensionCode["present"]
           >,
         configuration: (...args) =>
-          guarded(() => code.configuration(...args)) as ReturnType<
-            ExtensionCode["configuration"]
-          >,
+          guarded("configuration", () =>
+            code.configuration(...args),
+          ) as ReturnType<ExtensionCode["configuration"]>,
         availability: (...args) =>
-          guarded(() => code.availability(...args)) as ReturnType<
-            ExtensionCode["availability"]
-          >,
+          guarded("availability", () =>
+            code.availability(...args),
+          ) as ReturnType<ExtensionCode["availability"]>,
         testAccount: (...args) =>
-          guarded(() => code.testAccount(...args)) as ReturnType<
+          guarded("testAccount", () => code.testAccount(...args)) as ReturnType<
             ExtensionCode["testAccount"]
           >,
         dispose: () => code.dispose(),

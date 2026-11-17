@@ -22,9 +22,12 @@ import {
   reservedNamespaceIds,
   routedExtensionCode,
   sandboxExtensionCode,
+  type ExtensionAgentPort,
+  type ExtensionAgentStatus,
   type QuickScriptRegistry,
 } from "@nervekit/tools/quick-script";
 import { limitInstalledErrors } from "./agent-text-limits.js";
+import { ExtensionErrorLog } from "./extension-errors.js";
 import {
   loadInstalledExtension,
   type LoadedInstalledExtension,
@@ -174,6 +177,8 @@ export class ExtensionCatalog implements ExtensionUiSource {
   /** The sandbox bundle of each installed definition; only these run, and only in the sandbox. */
   readonly #bundles = new WeakMap<ExtensionDefinition, string>();
   readonly #listeners = new Set<() => void>();
+  /** Backend failures of installed extensions' code, for `extensions.status`. */
+  readonly errors = new ExtensionErrorLog();
   /** The tool scopes this catalog published to, to withdraw them on reload. */
   readonly #toolScopes = new Set<string>();
   readonly #builtinRegistry: QuickScriptRegistry;
@@ -248,6 +253,7 @@ export class ExtensionCatalog implements ExtensionUiSource {
    * grants consent. Changes apply to the next request that asks for a registry.
    */
   async reload(id?: string): Promise<void> {
+    this.errors.clear(id);
     this.#generation++;
     this.#composed.clear();
     for (const scope of this.#toolScopes) setScopedToolDefinitions(scope, []);
@@ -275,6 +281,58 @@ export class ExtensionCatalog implements ExtensionUiSource {
       this.#options.warn?.("Installed extensions could not be read", error),
     );
     for (const listener of this.#listeners) listener();
+  }
+
+  /**
+   * What `quick_script` may do to the extensions of one project: reload one and read its status.
+   * It has no consent operation; `switchOf` tells whether the extension's own switch is on.
+   */
+  agentPort(options: {
+    projectDir: string;
+    switchOf?: (id: string) => boolean | undefined;
+  }): ExtensionAgentPort {
+    const status = async (id: string): Promise<ExtensionAgentStatus> => {
+      const entries = (await this.entries(options.projectDir)).filter(
+        (entry) => entry.id === id,
+      );
+      const entry =
+        entries.find((candidate) => candidate.state !== "shadowed") ??
+        entries[0];
+      if (!entry)
+        return { id, state: "not_found", diagnostics: [], recentErrors: [] };
+      const on = options.switchOf?.(id);
+      return {
+        id,
+        state: entry.state,
+        source: entry.source,
+        ...(entry.path ? { folder: entry.path } : {}),
+        ...(entry.version ? { version: entry.version } : {}),
+        ...(entry.sdkVersion ? { sdkVersion: entry.sdkVersion } : {}),
+        consent:
+          entry.source === "builtin"
+            ? "not_required"
+            : entry.state === "pending_consent"
+              ? "pending"
+              : entry.state === "enabled"
+                ? "granted"
+                : "unknown",
+        ...(entry.state === "enabled"
+          ? { switch: on === undefined ? "unknown" : on ? "on" : "off" }
+          : {}),
+        diagnostics: entry.diagnostics.map(({ level, message }) => ({
+          level,
+          message,
+        })),
+        recentErrors: this.errors.recent(id),
+      };
+    };
+    return {
+      status,
+      reload: async (id) => {
+        await this.reload(id);
+        return await status(id);
+      },
+    };
   }
 
   // ── Scanning ────────────────────────────────────────────────────────────
@@ -541,6 +599,8 @@ export class ExtensionCatalog implements ExtensionUiSource {
           }),
         }),
         (definition) => this.#bundles.has(definition),
+        (definition, operation, error) =>
+          this.errors.record(definition.id, operation, error),
       ),
     });
   }

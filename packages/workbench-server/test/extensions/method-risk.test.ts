@@ -58,7 +58,7 @@ void test("every method has samples, and its declared risk covers every authoriz
           for (const target of check.targets)
             assert.match(
               target.value,
-              /^(jira|confluence):[a-z]+\/\S/,
+              /^(jira|confluence|extensions):[a-z]+\/\S/,
               `${name} target ${target.value}`,
             );
           continue;

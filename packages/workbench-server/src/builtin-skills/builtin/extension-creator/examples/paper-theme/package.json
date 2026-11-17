@@ -1,0 +1,15 @@
+{
+  "name": "paper-theme",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nerve-ext build",
+    "check": "nerve-ext check",
+    "test": "nerve-ext test",
+    "dev": "nerve-ext dev"
+  },
+  "dependencies": {
+    "@nervekit/extension-sdk": "*"
+  }
+}

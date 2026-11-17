@@ -44,6 +44,12 @@ export {
 } from "./extension-host/sandbox-adapter.js";
 export { resolveExtensionIcon } from "./extension-host/icon.js";
 export type { ExtensionHostPorts } from "./extension-host/ports.js";
+export type {
+  ExtensionAgentDiagnostic,
+  ExtensionAgentError,
+  ExtensionAgentPort,
+  ExtensionAgentStatus,
+} from "./extension-host/agent-port.js";
 export { openAvailabilityCode } from "./extension-host/host-context.js";
 export {
   callExtensionMethodFromUi,

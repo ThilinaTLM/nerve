@@ -1,3 +1,4 @@
+import type { ExtensionAgentPort } from "../extension-host/agent-port.js";
 import type { ExtensionHostPorts } from "../extension-host/ports.js";
 import type { ExtensionCodeAdapter } from "../extension-host/code-adapter.js";
 import type { ExtensionRuntime } from "../extension-host/runtime.js";
@@ -53,6 +54,8 @@ export interface ExtensionExecutionContext {
   registry?: QuickScriptRegistry;
   /** How the runtime reaches settings, accounts and model backends for extensions built on the extension API. */
   extensionPorts?: ExtensionHostPorts;
+  /** Reload and status of the project's installed extensions (`extensions.*`); absent: the namespace fails with FORBIDDEN. */
+  extensionAgent?: ExtensionAgentPort;
   /** How the host reaches extension code; absent: in the host process. */
   extensionCodeAdapter?: ExtensionCodeAdapter;
   /** Set while an extension's direct tool runs: streams into a live view section; false when the section is not live. */

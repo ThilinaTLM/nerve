@@ -4,6 +4,7 @@ import { loadSkills, type Skill } from "@nervekit/harness/resources";
 
 export const expectedNerveSkillNames = [
   "engineering-docs",
+  "extension-creator",
   "skill-creator",
 ] as const;
 
