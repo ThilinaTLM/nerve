@@ -14,6 +14,7 @@ import {
   nativeTheme,
   powerMonitor,
   session,
+  type BrowserWindowType,
 } from "../platform/electron/electron-api.js";
 import {
   configureDesktopNetworkSession,
@@ -26,7 +27,11 @@ import {
 import { createTrayController } from "../tray/tray.js";
 import { createWindowAppearanceStore } from "../window/window-appearance.js";
 import { createDesktopMainWindow } from "../window/main-window.js";
-import { installWindowHealthMonitor } from "../window/window-health.js";
+import { restartGpuProcess } from "../window/gpu-process.js";
+import {
+  installWindowHealthMonitor,
+  type WindowRecoveryStep,
+} from "../window/window-health.js";
 import { parseDevelopmentSlot } from "./development-marker.js";
 import { installNavigationGuards } from "../window/navigation-guards.js";
 import {
@@ -136,6 +141,9 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
           powerMonitor,
           ipcMain,
           log: desktopLog,
+          diagnose: () => describeGraphicsProcesses(window),
+          recover: (step) =>
+            recoverStalledWindow(step, windowOptions.recreateMainWindow),
         });
         return window;
       },
@@ -164,4 +172,64 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
     installPerformanceMonitor: installDesktopPerformanceMonitor,
     now: Date.now,
   };
+}
+
+/**
+ * Shows whether a stalled renderer is busy (high CPU) or blocked, for example
+ * waiting on a wedged GPU process (near-zero CPU).
+ */
+function describeGraphicsProcesses(
+  window: BrowserWindowType,
+): Record<string, unknown> {
+  try {
+    return {
+      rendererPid: window.webContents.getOSProcessId(),
+      gpuCompositing: app.getGPUFeatureStatus().gpu_compositing,
+      processes: app.getAppMetrics().map((metric) => ({
+        pid: metric.pid,
+        type: metric.type,
+        cpuPercent: Math.round(metric.cpu.percentCPUUsage),
+        idleWakeupsPerSecond: metric.cpu.idleWakeupsPerSecond,
+      })),
+    };
+  } catch (error) {
+    return { error: String(error) };
+  }
+}
+
+function recoverStalledWindow(
+  step: WindowRecoveryStep,
+  recreateMainWindow: () => Promise<void>,
+): void {
+  if (step === "restart-gpu") {
+    try {
+      const pid = restartGpuProcess({
+        getAppMetrics: () => app.getAppMetrics(),
+        kill: (target, signal) => process.kill(target, signal),
+      });
+      void desktopLog("info", "window-health", "Restarted GPU process", {
+        context: { pid },
+      });
+    } catch (error) {
+      void desktopLog(
+        "error",
+        "window-health",
+        "Failed to restart GPU process",
+        {
+          error,
+        },
+      );
+    }
+    return;
+  }
+  void recreateMainWindow().catch((error: unknown) => {
+    void desktopLog(
+      "error",
+      "window-health",
+      "Failed to recreate main window",
+      {
+        error,
+      },
+    );
+  });
 }

@@ -4,6 +4,11 @@
  * lifecycle events, and compares the native window state with what the
  * renderer reports through the preload heartbeat. If a focused window has no
  * rendered frames, that is logged as one episode.
+ *
+ * A stall that starts after a resume or unlock, before the window has painted
+ * again, is also recovered automatically. The tracker first restarts the GPU
+ * process. If the window is still stalled, it then recreates the window, like
+ * the tray's "Restart UI".
  */
 
 export const RENDERER_HEALTH_CHANNEL = "desktop.window.health";
@@ -16,8 +21,12 @@ const STALL_GRACE_MS = 10_000;
 const HEARTBEAT_MISSING_MS = 30_000;
 /** A check-timer gap this large means the process was paused (sleep, SIGSTOP). */
 const PAUSE_GAP_MS = 3 * WINDOW_HEALTH_CHECK_INTERVAL_MS;
+/** How long a GPU restart gets to fix a stall before the window is recreated. */
+const RECOVERY_ESCALATION_MS = 15_000;
 
 export type PowerEvent = "suspend" | "resume" | "lock-screen" | "unlock-screen";
+
+export type WindowRecoveryStep = "restart-gpu" | "recreate-window";
 
 /** Sent by the preload every heartbeat and on every visibility change. */
 export interface RendererHealthReport {
@@ -51,6 +60,10 @@ export interface WindowHealthTrackerOptions {
   window: HealthWindow;
   log: Log;
   now: () => number;
+  /** Extra context for stall logs, such as per-process CPU usage. */
+  diagnose?: () => Record<string, unknown>;
+  /** Runs a recovery step for a stall that started after wake. */
+  recover?: (step: WindowRecoveryStep) => void;
 }
 
 type StallReason = "renderer-hidden" | "no-frames" | "heartbeat-missing";
@@ -59,6 +72,8 @@ export class WindowHealthTracker {
   readonly #window: HealthWindow;
   readonly #log: Log;
   readonly #now: () => number;
+  readonly #diagnose: (() => Record<string, unknown>) | undefined;
+  readonly #recover: ((step: WindowRecoveryStep) => void) | undefined;
   #lastReport: RendererHealthReport | undefined;
   #lastReportAt: number | undefined;
   #lastPowerEvent: { event: PowerEvent; at: number } | undefined;
@@ -66,15 +81,23 @@ export class WindowHealthTracker {
   #stallSince: number | undefined;
   #stallReason: StallReason | undefined;
   #stallLogged = false;
+  /** Set on resume/unlock and cleared once the focused window paints again. */
+  #wokeSinceHealthy = false;
+  #recovery: { step: WindowRecoveryStep; at: number } | undefined;
 
   constructor(options: WindowHealthTrackerOptions) {
     this.#window = options.window;
     this.#log = options.log;
     this.#now = options.now;
+    this.#diagnose = options.diagnose;
+    this.#recover = options.recover;
   }
 
   powerEvent(event: PowerEvent): void {
     this.#lastPowerEvent = { event, at: this.#now() };
+    if (event === "resume" || event === "unlock-screen") {
+      this.#wokeSinceHealthy = true;
+    }
     this.#emit("info", `System ${event}`);
   }
 
@@ -110,46 +133,78 @@ export class WindowHealthTracker {
       return;
     }
 
-    const reason = this.#detectStall(now);
-    if (!reason) {
+    const state = this.#detectStall(now);
+    if (state === "unobserved" || state === "healthy") {
       if (this.#stallLogged && this.#stallSince !== undefined) {
         void this.#log("info", "window-health", "Window painting resumed", {
           durationMs: now - this.#stallSince,
-          context: this.#snapshot(now),
+          context: {
+            recoveryStep: this.#recovery?.step,
+            ...this.#snapshot(now),
+          },
         });
       }
       this.#stallSince = undefined;
       this.#stallReason = undefined;
       this.#stallLogged = false;
+      this.#recovery = undefined;
+      if (state === "healthy") this.#wokeSinceHealthy = false;
       return;
     }
     this.#stallSince ??= now;
-    this.#stallReason = reason;
-    if (!this.#stallLogged && now - this.#stallSince >= STALL_GRACE_MS) {
+    this.#stallReason = state;
+    if (now - this.#stallSince < STALL_GRACE_MS) return;
+    if (!this.#stallLogged) {
       this.#stallLogged = true;
-      this.#emit("warn", "Focused window is not painting");
+      this.#emit("warn", "Focused window is not painting", {
+        diagnostics: this.#diagnose?.(),
+      });
     }
+    this.#tryRecover(now);
   }
 
-  #detectStall(now: number): StallReason | undefined {
+  #tryRecover(now: number): void {
+    if (!this.#recover || !this.#wokeSinceHealthy) return;
+    const current = this.#recovery;
+    let step: WindowRecoveryStep;
+    if (!current) step = "restart-gpu";
+    else if (
+      current.step === "restart-gpu" &&
+      now - current.at >= RECOVERY_ESCALATION_MS
+    ) {
+      step = "recreate-window";
+    } else return;
+    this.#recovery = { step, at: now };
+    this.#emit("warn", "Recovering stalled window", {
+      recoveryStep: step,
+      diagnostics: current ? this.#diagnose?.() : undefined,
+    });
+    this.#recover(step);
+  }
+
+  /**
+   * "unobserved" means painting cannot be judged right now. "healthy" means a
+   * focused, visible window is producing frames.
+   */
+  #detectStall(now: number): StallReason | "unobserved" | "healthy" {
     const window = this.#window;
-    if (window.isDestroyed()) return undefined;
+    if (window.isDestroyed()) return "unobserved";
     // Only a focused window must paint: hidden, minimized, or covered
     // windows can legitimately stop producing frames.
     if (!window.isVisible() || window.isMinimized() || !window.isFocused()) {
-      return undefined;
+      return "unobserved";
     }
-    if (window.webContents.isLoading()) return undefined;
+    if (window.webContents.isLoading()) return "unobserved";
     const reportAge =
       this.#lastReportAt === undefined ? 0 : now - this.#lastReportAt;
     if (reportAge >= HEARTBEAT_MISSING_MS) return "heartbeat-missing";
     const report = this.#lastReport;
-    if (!report) return undefined;
+    if (!report) return "unobserved";
     if (report.visibility !== "visible") return "renderer-hidden";
     if ((report.framePendingMs ?? 0) >= WINDOW_HEALTH_CHECK_INTERVAL_MS) {
       return "no-frames";
     }
-    return undefined;
+    return "healthy";
   }
 
   #emit(
@@ -223,6 +278,8 @@ export interface WindowHealthMonitorDependencies {
   ipcMain: Emitter;
   log: Log;
   now?: () => number;
+  diagnose?: () => Record<string, unknown>;
+  recover?: (step: WindowRecoveryStep) => void;
 }
 
 /** Wires the tracker to Electron; stops itself when the window closes. */
@@ -234,6 +291,8 @@ export function installWindowHealthMonitor(
     window,
     log: dependencies.log,
     now: dependencies.now ?? Date.now,
+    diagnose: dependencies.diagnose,
+    recover: dependencies.recover,
   });
   const disposers: Array<() => void> = [];
   const listen = (emitter: Emitter, event: string, listener: Listener) => {
