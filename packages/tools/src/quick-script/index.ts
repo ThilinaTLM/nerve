@@ -35,6 +35,11 @@ export {
   type ExtensionCodeAdapter,
   type ExtensionCodeHost,
 } from "./extension-host/code-adapter.js";
+export {
+  routedExtensionCode,
+  sandboxExtensionCode,
+  type SandboxExtensionCodeOptions,
+} from "./extension-host/sandbox-adapter.js";
 export type { ExtensionHostPorts } from "./extension-host/ports.js";
 export { openAvailabilityCode } from "./extension-host/host-context.js";
 export {

@@ -14,6 +14,7 @@ import type {
   RegisteredNamespace,
 } from "./manifest-types.js";
 import { readRuntimeDoc } from "./docs-source.js";
+import type { ExtensionCodeAdapter } from "./extension-host/code-adapter.js";
 
 /**
  * Every `quick_script` namespace: the built-in capabilities, `sdk`, then the extensions'.
@@ -31,6 +32,8 @@ export type QuickScriptRegistry = {
   readonly methods: readonly SdkMethod[];
   /** Limits the extensions declare, by `{{limit:<name>}}` name. */
   readonly limits: Readonly<Record<string, number>>;
+  /** How the extensions' code is reached; absent: in the host process. A run's context can override it. */
+  readonly extensionCodeAdapter?: ExtensionCodeAdapter;
 };
 
 /** What the host provides besides the definitions. */
@@ -40,6 +43,8 @@ export type QuickScriptRegistryOptions = {
    * of an extension. Extensions only declare paths; the host reads them.
    */
   readExtensionAsset?: (extensionId: string, file: string) => string;
+  /** Where each extension's code runs (`routedExtensionCode`); absent: every extension runs in the host process. */
+  extensionCodeAdapter?: ExtensionCodeAdapter;
 };
 
 /**
@@ -108,6 +113,9 @@ export function createQuickScriptRegistry(
     namespaces,
     methods: namespaces.flatMap((namespace) => namespace.methods),
     limits: Object.assign({}, ...extensions.map((e) => e.limits ?? {})),
+    ...(options.extensionCodeAdapter
+      ? { extensionCodeAdapter: options.extensionCodeAdapter }
+      : {}),
   };
 }
 

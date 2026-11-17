@@ -101,7 +101,7 @@ Content is the script output, any error, report lines (written pages with lint f
 
 ## Cancellation and restart
 
-Cancelling the tool call aborts the sandbox and in-flight host calls; finished calls are not undone. The tool is write-capable and so not replay-safe: a call running at restart settles as indeterminate instead of being run again ([tool-call lifecycle](conversation-core/tool-call-lifecycle.md)).
+Cancelling the tool call aborts the sandbox and in-flight host calls; finished calls are not undone. Extension code that runs in its own persistent runtimes (the [sandbox adapter](extension-platform.md#sandbox-adapter)) is cancelled with the run and its runtimes are disposed when the script ends; those runtimes are separate from the script's sandbox and have their own limits. The tool is write-capable and so not replay-safe: a call running at restart settles as indeterminate instead of being run again ([tool-call lifecycle](conversation-core/tool-call-lifecycle.md)).
 
 ## Where it lives
 

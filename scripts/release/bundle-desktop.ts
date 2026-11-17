@@ -70,9 +70,11 @@ export const bundleOutputFiles = [
   "dist/sandbox-libraries/mammoth.browser.min.js",
   "dist/sandbox-libraries/pptxgen.bundle.js",
   "dist/sandbox-libraries/jszip.min.js",
+  "dist/sandbox-libraries/extension-runtime.js",
   "dist/quick-script-docs/runtime/files.md",
   "dist/extension-assets/atlassian/docs/jira-workflows.md",
   "dist/extension-assets/atlassian/icon.svg",
+  "dist/extension-assets/diagram/bundle.js",
   "build/README.md",
   "THIRD-PARTY-LICENSES.txt",
 ];

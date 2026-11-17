@@ -1,8 +1,16 @@
 import { registerToolDefinitions } from "@nervekit/tools/catalog";
-import { builtinExtensions } from "@nervekit/extensions";
-import { readBuiltinExtensionAsset } from "@nervekit/extensions/assets";
+import {
+  builtinExtensions,
+  sandboxedBuiltinExtensions,
+} from "@nervekit/extensions";
+import {
+  readBuiltinExtensionAsset,
+  readBuiltinExtensionBundle,
+} from "@nervekit/extensions/assets";
 import {
   createQuickScriptRegistry,
+  routedExtensionCode,
+  sandboxExtensionCode,
   extensionSettingsDefinition,
   quickScriptHostTools,
 } from "@nervekit/tools/quick-script";
@@ -15,6 +23,12 @@ import {
  */
 export const hostRegistry = createQuickScriptRegistry(builtinExtensions, {
   readExtensionAsset: readBuiltinExtensionAsset,
+  extensionCodeAdapter: routedExtensionCode({
+    sandboxed: (definition) => sandboxedBuiltinExtensions.has(definition.id),
+    sandbox: sandboxExtensionCode({
+      bundle: (definition) => readBuiltinExtensionBundle(definition.id),
+    }),
+  }),
 });
 
 /** What the settings machinery needs of every registered extension. */

@@ -57,7 +57,9 @@ export class ExtensionRuntime {
     let code = this.#code.get(definition.id);
     if (!code) {
       const adapter =
-        this.env.context.extensionCodeAdapter ?? inProcessExtensionCode;
+        this.env.context.extensionCodeAdapter ??
+        this.env.registry.extensionCodeAdapter ??
+        inProcessExtensionCode;
       code = Promise.resolve(
         adapter.open(definition, {
           context: (call) => this.context(definition, call),
