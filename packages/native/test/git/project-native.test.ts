@@ -184,12 +184,15 @@ test("actual native cancellation retains admission until task completion and rev
     const b = binding.createGitReadOperation().handle!;
     let c: number | undefined;
     try {
+      // Cancel before the task starts: cancelling after it could race a fast
+      // worker that finishes the whole read first. In-flight interruption is
+      // covered by the Rust unit tests.
+      binding.cancelGitReadOperation(a);
       const pending = binding.readGitProjectSnapshots(
         discovery.repositories,
         false,
         a,
       );
-      binding.cancelGitReadOperation(a);
       binding.closeGitReadOperation(a);
       assert.equal(
         binding.createGitReadOperation().error?.category,
