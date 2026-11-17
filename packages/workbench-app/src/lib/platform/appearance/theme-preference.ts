@@ -5,6 +5,7 @@ import {
   defaultColorTheme,
   type ColorTheme,
   type ColorThemeKind,
+  type ExtensionColorTheme,
 } from "@nervekit/contracts/settings";
 
 // The pre-paint bootstrap in index.html mirrors this module; the appearance
@@ -52,10 +53,17 @@ export const themeBackgrounds: Record<BuiltInColorTheme, string> = {
   indigo: "#262541",
 };
 
-/** Pre-paint background of a theme; extension themes use the default theme's until their tokens load. */
-export function themeBackground(theme: ColorTheme): string {
+/**
+ * Pre-paint background of a theme. An extension theme's comes from `extensionBackground` (its
+ * loaded or cached tokens), else the default theme's.
+ */
+export function themeBackground(
+  theme: ColorTheme,
+  extensionBackground?: (theme: ExtensionColorTheme) => string | undefined,
+): string {
   return (
     themeBackgrounds[theme as BuiltInColorTheme] ??
+    extensionBackground?.(theme as ExtensionColorTheme) ??
     themeBackgrounds[defaultColorTheme]
   );
 }

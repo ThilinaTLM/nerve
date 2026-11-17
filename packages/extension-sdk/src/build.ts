@@ -6,20 +6,23 @@ import { build as esbuild, type Message, type Plugin } from "esbuild";
 import * as api from "@nervekit/extension-api";
 import {
   extensionDefinitionData,
+  type ExtensionUi,
   type ExtensionDefinition,
   type ExtensionDefinitionData,
 } from "@nervekit/extension-api";
 import {
+  extensionUiLimits,
   installedExtensionManifestSchema,
   type InstalledExtensionManifest,
 } from "@nervekit/contracts/extensions";
 import { ExtensionProjectError, type Problem } from "./problems.js";
+import { buildFrames, copyThemes, planUi } from "./ui-build.js";
 
 /** What `dist/manifest.json` holds: the definition's plain data plus the two versions. */
 export type BuiltManifest = ExtensionDefinitionData & {
   version: string;
   sdkVersion: string;
-  /** Built UI contributions; written by the UI build (not implemented yet). */
+  /** Built UI contributions (`dist/ui/<id>/`, `dist/themes/<id>.json`). */
   ui?: InstalledExtensionManifest["ui"];
 };
 
@@ -169,6 +172,22 @@ function evaluateDefinition(bundle: string): ExtensionDefinition {
   return definition as ExtensionDefinition;
 }
 
+/** What to change for a problem in the built `ui` section, by the field the path ends in. */
+function uiFix(path: PropertyKey[], message: string): string {
+  const last = String(path[path.length - 1]);
+  if (path.includes("extensions"))
+    return `Write each file extension with its dot in lower case, for example ".csv" (at most ${extensionUiLimits.maxExtensionsPerPreview} per preview).`;
+  if (last === "id")
+    return "Use a kebab-case id (lowercase letters, digits and single hyphens), unique among the extension's contributions of that kind.";
+  if (last === "icon")
+    return 'Use a lucide icon name in kebab-case, for example "table" or "chart-bar".';
+  if (last === "label")
+    return `Use a short label of 1 to ${extensionUiLimits.maxLabelLength} characters.`;
+  if (message.includes("unique") || path.length <= 2)
+    return `Contributions are limited to ${extensionUiLimits.maxPerKind} per kind with unique ids.`;
+  return "Change the ui contribution in the definition so it matches the documented fields (previews: id, label, match.extensions, entry, edit; pages and panels: id, label, icon, entry; themes: id, label, file).";
+}
+
 /** Zod issues as problems: the path says which field of the definition is wrong. */
 function manifestProblems(
   issues: readonly {
@@ -193,7 +212,9 @@ function manifestProblems(
       : path || "(definition)";
     const unsupported = unknownKeys?.includes("prelude")
       ? "Installed extensions cannot add helper code to the script sandbox; remove `prelude`."
-      : undefined;
+      : path.startsWith("ui")
+        ? uiFix(issue.path, issue.message)
+        : undefined;
     return {
       what: unknownKeys
         ? `Unknown field ${field} in the extension definition.`
@@ -314,10 +335,16 @@ export async function buildExtension(
   const data = JSON.parse(
     JSON.stringify(extensionDefinitionData(definition)),
   ) as ExtensionDefinitionData;
+  const uiPlan = await planUi(
+    projectDir,
+    (definition as { ui?: ExtensionUi }).ui,
+  );
   const manifest = {
     ...data,
     version: project.version,
     sdkVersion: await sdkVersion(),
+    // A JSON round trip: the plan holds objects from the sandbox's realm.
+    ...(uiPlan ? { ui: JSON.parse(JSON.stringify(uiPlan.manifest)) } : {}),
   } as BuiltManifest;
 
   const parsed = installedExtensionManifestSchema.safeParse(manifest);
@@ -357,6 +384,14 @@ export async function buildExtension(
     await rm(distDir, { recursive: true, force: true });
     throw cause;
   }
+  if (uiPlan)
+    try {
+      await copyThemes(distDir, uiPlan.themes);
+      await buildFrames(projectDir, distDir, uiPlan.frames);
+    } catch (cause) {
+      await rm(distDir, { recursive: true, force: true });
+      throw cause;
+    }
   await writeFile(join(distDir, "backend.js"), bundle);
   await writeFile(join(distDir, "manifest.json"), manifestText);
   return { manifest, distDir };

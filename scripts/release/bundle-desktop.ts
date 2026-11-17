@@ -47,6 +47,8 @@ export const bundleAssets: [source: string, destination: string][] = [
   ["packages/desktop-shell/build", "build"],
   ["packages/workbench-server/dist/web", "dist/web"],
   ["packages/workbench-server/dist/builtin-skills/builtin", "dist/builtin"],
+  // The base stylesheet and fonts of installed extensions' UI frames (`/ext-frame/`).
+  ["packages/workbench-server/dist/ext-frame", "dist/ext-frame"],
   [
     "packages/tools/dist/quick-script/sandbox-libraries",
     "dist/sandbox-libraries",
@@ -64,6 +66,7 @@ export const bundleOutputFiles = [
   "dist/preload.cjs",
   "dist/web/index.html",
   "dist/builtin/skill-creator/SKILL.md",
+  "dist/ext-frame/base.css",
   "dist/sandbox-libraries/xlsx.full.min.js",
   "dist/sandbox-libraries/papaparse.min.js",
   "dist/sandbox-libraries/docx.min.js",

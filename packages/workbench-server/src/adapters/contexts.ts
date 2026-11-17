@@ -47,7 +47,9 @@ import type { InitializedStorage } from "../infrastructure/storage-bootstrap/ind
 import type {
   ExtensionManagement,
   ExtensionRegistryProvider,
+  ExtensionUiSource,
 } from "../core-host/extension-catalog/extension-catalog.js";
+import { ExtensionUiService } from "../core-host/extension-ui/extension-ui-service.js";
 import { createExtensionViews } from "../core-host/extension-views.js";
 import type { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { createPermissionConfigurationService } from "../core-host/permission-configuration.js";
@@ -80,7 +82,9 @@ export interface AdapterInfrastructure {
 /** The service capabilities adapters are projected from; the bootstrap graph satisfies this structurally. */
 export interface AdapterServices {
   /** The extensions of this home: built-ins, user extensions and per-project ones. */
-  extensionCatalog: ExtensionRegistryProvider & ExtensionManagement;
+  extensionCatalog: ExtensionRegistryProvider &
+    ExtensionManagement &
+    ExtensionUiSource;
   unreadableConversations: UnreadableConversationActivity;
   completions: UnifiedCompletionService;
   conversationTitles: ConversationTitleService;
@@ -129,6 +133,15 @@ export function createServerAdapterContexts(
     accounts: services.accounts,
     vision: services.vision,
   });
+  const extensionUi = new ExtensionUiService({
+    catalog: services.extensionCatalog,
+    extensions: services.extensionSettings,
+    accounts: services.accounts,
+    vision: services.vision,
+    project: (id) => services.conversationCore.projects.get(id) ?? undefined,
+    warn: (message, data) =>
+      void infrastructure.logger.warn(message, { context: { data } }),
+  });
   const protocol = {
     activity: {
       activities: infrastructure.activities,
@@ -143,6 +156,7 @@ export function createServerAdapterContexts(
       agentConfiguration: services.agentConfiguration,
       extensionSettings: services.extensionSettings,
       extensionViews,
+      extensionUi,
       extensionCatalog: services.extensionCatalog,
       configurationOperations: services.configurationOperations,
       admissionPolicy: services.admissionPolicy,
@@ -237,6 +251,7 @@ export function createServerAdapterContexts(
         getProject,
         storage: infrastructure.storage,
       },
+      extensionFrames: { extensionUi },
       conversationAssets: { assets: services.conversationCore.assets },
       projectAssets: { projectIcons: services.projectIcons, getProject },
       staticFiles: {

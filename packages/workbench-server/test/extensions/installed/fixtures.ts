@@ -10,7 +10,43 @@ export type FixtureOptions = {
   /** An account kind with a `test` hook. */
   accountKind?: string;
   sdkVersion?: string;
+  /** Theme files (`night.json`); each is a valid dark theme unless `badThemes` names it. */
   themes?: string[];
+  /** Themes (by file name in `themes`) whose tokens break a readability rule. */
+  lowContrastThemes?: string[];
+  /**
+   * UI contributions (frames under `dist/ui/<id>/`) and two extra backend methods in the probe
+   * namespace: `greet({ name })` and `peek(path)`, which declares a read of `path`.
+   */
+  ui?: {
+    previews?: {
+      id: string;
+      extensions: string[];
+      edit: "source" | "custom" | "none";
+    }[];
+    pages?: string[];
+    panels?: string[];
+  };
+};
+
+export const nerveDarkTokens = {
+  background: "oklch(0.264 0.018 80)",
+  foreground: "oklch(0.9 0.012 95)",
+  primary: "oklch(0.6724 0.1308 38.8)",
+  success: "oklch(0.78 0.176 149.2)",
+  warning: "oklch(0.828 0.16 70.1)",
+  info: "oklch(0.8 0.134 254.1)",
+  destructive: "oklch(0.8 0.114 25.5)",
+  "destructive-solid": "oklch(0.58 0.21 27.5)",
+  "syntax-variable": "oklch(0.88 0.015 95)",
+  "syntax-punctuation": "oklch(0.7 0.02 95)",
+  "syntax-comment": "oklch(0.66 0.03 110)",
+  "syntax-keyword": "oklch(0.76 0.13 32)",
+  "syntax-string": "oklch(0.78 0.13 150)",
+  "syntax-number": "oklch(0.79 0.12 315)",
+  "syntax-function": "oklch(0.78 0.12 265)",
+  "syntax-type": "oklch(0.8 0.09 210)",
+  "syntax-property": "oklch(0.82 0.11 85)",
 };
 
 type Json = Record<string, unknown>;
@@ -58,6 +94,24 @@ export function fixtureManifest(options: FixtureOptions): Json {
             authorize: true,
             run: true,
           },
+          ...(options.ui
+            ? {
+                greet: {
+                  risk: "none",
+                  signature: "greet(input: { name: string })",
+                  parse: true,
+                  authorize: true,
+                  run: true,
+                },
+                peek: {
+                  risk: "read",
+                  signature: "peek(path: string)",
+                  parse: true,
+                  authorize: true,
+                  run: true,
+                },
+              }
+            : {}),
         },
       },
     ],
@@ -89,18 +143,53 @@ export function fixtureManifest(options: FixtureOptions): Json {
     ],
     version: "1.0.0",
     sdkVersion: options.sdkVersion ?? "0.41.1",
-    ...(options.themes
+    ...(options.themes || options.ui
       ? {
           ui: {
-            themes: options.themes.map((file) => {
-              const id = file.replace(/\.json$/, "");
-              return {
-                id,
-                label: id,
-                kind: "dark",
-                file: `themes/${id}.json`,
-              };
-            }),
+            ...(options.ui?.previews
+              ? {
+                  previews: options.ui.previews.map((preview) => ({
+                    id: preview.id,
+                    label: preview.id,
+                    match: { extensions: preview.extensions },
+                    edit: preview.edit,
+                    entry: `ui/${preview.id}/index.html`,
+                  })),
+                }
+              : {}),
+            ...(options.ui?.pages
+              ? {
+                  pages: options.ui.pages.map((id) => ({
+                    id,
+                    label: id,
+                    icon: "table",
+                    entry: `ui/${id}/index.html`,
+                  })),
+                }
+              : {}),
+            ...(options.ui?.panels
+              ? {
+                  panels: options.ui.panels.map((id) => ({
+                    id,
+                    label: id,
+                    icon: "table",
+                    entry: `ui/${id}/index.html`,
+                  })),
+                }
+              : {}),
+            ...(options.themes
+              ? {
+                  themes: options.themes.map((file) => {
+                    const id = file.replace(/\.json$/, "");
+                    return {
+                      id,
+                      label: id,
+                      kind: "dark",
+                      file: `themes/${id}.json`,
+                    };
+                  }),
+                }
+              : {}),
           },
         }
       : {}),
@@ -155,7 +244,29 @@ globalThis.__nerveExtension = defineExtension({
         },
         authorize: ({ text }) => [{ targets: ["probe:text/" + text], summary: "echo " + text }],
         run: async (_session, { text }, ctx) => ({ greeting: ctx.settings.get("greeting"), text }),
+      }),${
+        options.ui
+          ? `
+      greet: method({
+        risk: "none",
+        signature: "greet(input: { name: string })",
+        parse: (args) => {
+          if (!args[0] || typeof args[0].name !== "string")
+            throw new ExtensionError("BAD_REQUEST", "greet needs a name.", { fix: "Pass { name }." });
+          return { name: args[0].name };
+        },
+        authorize: () => [],
+        run: async (_session, { name }, ctx) => ({ message: ctx.settings.get("greeting") + " " + name }),
       }),
+      peek: method({
+        risk: "read",
+        signature: "peek(path: string)",
+        parse: (args) => ({ path: String(args[0]) }),
+        authorize: ({ path }) => [{ toolName: "read", args: { path }, summary: "read " + path }],
+        run: async (_session, { path }) => ({ path }),
+      }),`
+          : ""
+      }
     },
   })],
   tools: [
@@ -195,5 +306,33 @@ export async function writeExtension(
     JSON.stringify(manifest, null, 2),
   );
   await writeFile(join(folder, "dist", "backend.js"), backend);
+  for (const file of options.themes ?? []) {
+    const id = file.replace(/\.json$/, "");
+    await mkdir(join(folder, "dist", "themes"), { recursive: true });
+    const tokens: Record<string, string> = { ...nerveDarkTokens };
+    // Foreground and background of the same lightness cannot be read.
+    if (options.lowContrastThemes?.includes(file))
+      tokens.foreground = tokens.background!;
+    await writeFile(
+      join(folder, "dist", "themes", file),
+      JSON.stringify({ id, label: id, kind: "dark", tokens }),
+    );
+  }
+  const frames = [
+    ...(options.ui?.previews ?? []).map((preview) => preview.id),
+    ...(options.ui?.pages ?? []),
+    ...(options.ui?.panels ?? []),
+  ];
+  for (const id of frames) {
+    await mkdir(join(folder, "dist", "ui", id), { recursive: true });
+    await writeFile(
+      join(folder, "dist", "ui", id, "index.html"),
+      `<!doctype html><script type="module" src="./app.js"></script><div id="${id}"></div>`,
+    );
+    await writeFile(
+      join(folder, "dist", "ui", id, "app.js"),
+      `export const id = ${JSON.stringify(id)};`,
+    );
+  }
   return folder;
 }

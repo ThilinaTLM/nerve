@@ -46,6 +46,12 @@ export { resolveExtensionIcon } from "./extension-host/icon.js";
 export type { ExtensionHostPorts } from "./extension-host/ports.js";
 export { openAvailabilityCode } from "./extension-host/host-context.js";
 export {
+  callExtensionMethodFromUi,
+  defaultUiCallTimeoutMs,
+  ExtensionUiCallError,
+  type ExtensionUiCall,
+} from "./extension-host/ui-call.js";
+export {
   extensionMetadata,
   extensionSettingsDefinition,
 } from "./extension-host/descriptors.js";

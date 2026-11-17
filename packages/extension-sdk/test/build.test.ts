@@ -163,7 +163,10 @@ void test("docs and the icon are copied and checked", async () => {
     });
     const file = join(folder, "src", "extension.ts");
     const source = (await readFile(file, "utf8"))
-      .replace('icon: "blocks"', 'icon: "icon.svg"')
+      .replace(
+        /icon: "[a-z-]+",\n {2}enabledByDefault/,
+        'icon: "icon.svg",\n  enabledByDefault',
+      )
       .replace(
         "namespaces: [],",
         `namespaces: [defineNamespace({ id: "assets", summary: "Assets.", types: "", methods: {}, docs: [{ id: "assets/guide", whenToRead: "before using assets", file: "docs/guide.md" }] })],`,

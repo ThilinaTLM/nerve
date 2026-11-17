@@ -12,8 +12,24 @@ import {
   type ColorTheme,
   type Oklch,
 } from "./theme-resolver.mjs";
+// The readability rules live next to the theme file contract: the host applies the same ones to
+// extension themes when it loads them.
+import {
+  composite,
+  contrastRatio as contrast,
+  maximumQuietSyntaxChroma,
+  maximumSurfaceChroma,
+  minimumPrimaryChroma,
+  minimumSyntaxRoleDistance,
+  minimumTextContrast,
+  oklabDistance,
+  oklchToLinearRgb,
+  subtleSurfaceAlpha,
+  themeRuleProblemsOf,
+  type LinearRgb,
+} from "../../../contracts/src/domains/extensions/theme-rules.js";
+import { themeTokenNames } from "../../../contracts/src/domains/extensions/theme-file.js";
 
-const minimumTextContrast = 4.5;
 const themeCss = readFileSync(
   fileURLToPath(new URL("./theme.css", import.meta.url)),
   "utf8",
@@ -25,7 +41,6 @@ const badgeSource = readFileSync(
   "utf8",
 );
 
-type LinearRgb = readonly [red: number, green: number, blue: number];
 type ThemeName = ColorTheme;
 
 const tokenNames = [
@@ -63,42 +78,6 @@ function parseTokens(theme: ColorTheme): Record<TokenName, Oklch> {
   return Object.fromEntries(
     tokenNames.map((name) => [name, resolveOklch(theme, name)]),
   ) as Record<TokenName, Oklch>;
-}
-
-function oklchToLinearRgb([lightness, chroma, hue]: Oklch): LinearRgb {
-  const hueRadians = (hue * Math.PI) / 180;
-  const a = chroma * Math.cos(hueRadians);
-  const b = chroma * Math.sin(hueRadians);
-  const l = Math.pow(lightness + 0.3963377774 * a + 0.2158037573 * b, 3);
-  const m = Math.pow(lightness - 0.1055613458 * a - 0.0638541728 * b, 3);
-  const s = Math.pow(lightness - 0.0894841775 * a - 1.291485548 * b, 3);
-  const clamp = (channel: number) => Math.max(0, Math.min(1, channel));
-
-  return [
-    clamp(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
-    clamp(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
-    clamp(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
-  ];
-}
-
-function composite(
-  foreground: LinearRgb,
-  background: LinearRgb,
-  alpha: number,
-): LinearRgb {
-  return foreground.map(
-    (channel, index) => channel * alpha + background[index]! * (1 - alpha),
-  ) as unknown as LinearRgb;
-}
-
-function relativeLuminance([red, green, blue]: LinearRgb): number {
-  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-}
-
-function contrast(left: LinearRgb, right: LinearRgb): number {
-  const lighter = Math.max(relativeLuminance(left), relativeLuminance(right));
-  const darker = Math.min(relativeLuminance(left), relativeLuminance(right));
-  return (lighter + 0.05) / (darker + 0.05);
 }
 
 function assertContrast(
@@ -141,32 +120,6 @@ const surfaceTokens = [
   "panel",
   "well",
 ] as const;
-/* Matches `--<tone>-subtle` in theme.css (asserted below). */
-const subtleSurfaceAlpha = 0.08;
-/* Surfaces stay subdued, but a theme's hue has to be visible in its chrome to
- * be a theme rather than an accent swap; these are the ceilings that keep the
- * commitment from tipping into a tint bath. */
-const maximumSurfaceChroma: Record<ColorMode, number> = {
-  light: 0.03,
-  dark: 0.05,
-};
-const minimumPrimaryChroma = 0.09;
-
-function oklabOf([lightness, chroma, hue]: Oklch): readonly [
-  number,
-  number,
-  number,
-] {
-  const radians = (hue * Math.PI) / 180;
-  return [lightness, chroma * Math.cos(radians), chroma * Math.sin(radians)];
-}
-
-function oklabDistance(left: Oklch, right: Oklch): number {
-  const a = oklabOf(left);
-  const b = oklabOf(right);
-  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-}
-
 /* Code role tokens are shared by the transcript's Shiki theme and the editor's
  * CodeMirror highlight style, so they are held to the same readability bar as
  * chrome text. Every theme must define a complete light/dark palette. */
@@ -198,13 +151,27 @@ const distinguishableSyntaxRoles = [
   "property",
   "comment",
 ] as const;
-const minimumSyntaxRoleDistance = 0.08;
 
 function parseSyntaxRoles(theme: ColorTheme): Record<SyntaxRole, Oklch> {
   return Object.fromEntries(
     syntaxRoles.map((role) => [role, resolveOklch(theme, `syntax-${role}`)]),
   ) as Record<SyntaxRole, Oklch>;
 }
+
+describe("extension theme rules", () => {
+  it("holds every built-in theme to the rules the host applies to extension themes", () => {
+    for (const theme of colorThemes) {
+      const tokens = Object.fromEntries(
+        themeTokenNames.map((name) => [name, resolveOklch(theme, name)]),
+      ) as Parameters<typeof themeRuleProblemsOf>[1];
+      assert.deepEqual(
+        themeRuleProblemsOf(colorThemeKind[theme], tokens),
+        [],
+        theme,
+      );
+    }
+  });
+});
 
 describe("syntax palette", () => {
   it("keeps every code role readable on the surfaces code blocks sit on", () => {
@@ -252,7 +219,7 @@ describe("syntax palette", () => {
         const roles = parseSyntaxRoles(theme);
         for (const role of ["plain", "variable", "punctuation"] as const) {
           assert.ok(
-            roles[role][1] <= 0.04,
+            roles[role][1] <= maximumQuietSyntaxChroma,
             `${theme} syntax-${role} chroma ${roles[role][1]} is too saturated for a token this frequent`,
           );
         }

@@ -51,6 +51,9 @@ type Props = {
   onOpenItem?: (id: string, section?: string) => void;
   /** Leaves the open extension for the list. */
   onCloseItem?: () => void;
+  /** Pages an extension contributes to the open project. */
+  pagesOf?: (extensionId: string) => { id: string; label: string }[];
+  onOpenPage?: (extensionId: string, pageId: string) => void;
 };
 
 let {
@@ -62,6 +65,8 @@ let {
   sectionId,
   onOpenItem,
   onCloseItem,
+  pagesOf,
+  onOpenPage,
 }: Props = $props();
 
 const extensions = new ScopedExtensionsState();
@@ -220,6 +225,10 @@ function resetAll(): void {
       {extensions}
       {accounts}
       models={usableModels}
+      pages={pagesOf?.(open.metadata.id) ?? []}
+      onOpenPage={onOpenPage
+        ? (pageId) => onOpenPage(open.metadata.id, pageId)
+        : undefined}
     />
   {:else}
     <SettingsEmptyState

@@ -2,6 +2,8 @@ import {
   resolveColorThemeKind,
   defaultColorTheme,
   type ColorTheme,
+  type ColorThemeKind,
+  type ExtensionColorTheme,
 } from "@nervekit/contracts/settings";
 import { reportDesktopWindowAppearance } from "../desktop/desktop-bridge.svelte";
 import {
@@ -23,6 +25,28 @@ export const appearanceState = $state({
 export const zoomState = $state({
   level: 0,
 });
+
+/** What the appearance layer needs to know about themes that extensions contribute. */
+export type ExtensionThemeResolver = {
+  kind(theme: ExtensionColorTheme): ColorThemeKind | undefined;
+  /** A hex colour for window chrome. */
+  background(theme: ExtensionColorTheme): string | undefined;
+  /** Called after a theme applies, so a resolver can keep its pre-paint cache current. */
+  applied?(theme: ColorTheme): void;
+};
+
+let extensionResolver: ExtensionThemeResolver | undefined;
+
+export function setExtensionThemeResolver(
+  resolver: ExtensionThemeResolver | undefined,
+): void {
+  extensionResolver = resolver;
+}
+
+const kindOf = (theme: ColorTheme): ColorThemeKind =>
+  resolveColorThemeKind(theme, extensionResolver?.kind.bind(extensionResolver));
+const backgroundOf = (theme: ColorTheme): string =>
+  themeBackground(theme, extensionResolver?.background.bind(extensionResolver));
 
 function readStorage(key: string): string | null | undefined {
   try {
@@ -52,13 +76,13 @@ function removeStorage(key: string): void {
 function syncDocumentTheme(theme: ColorTheme): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  const kind = resolveColorThemeKind(theme);
+  const kind = kindOf(theme);
   root.dataset.theme = theme;
   root.classList.toggle("dark", kind === "dark");
   root.style.colorScheme = kind;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", themeBackground(theme));
+    ?.setAttribute("content", backgroundOf(theme));
 }
 
 /** Applies a theme to the document without persisting it. */
@@ -66,9 +90,10 @@ export function applyAppearance(theme: ColorTheme): void {
   appearanceState.theme = theme;
   syncDocumentTheme(theme);
   reportDesktopWindowAppearance({
-    background: themeBackground(theme),
-    dark: resolveColorThemeKind(theme) === "dark",
+    background: backgroundOf(theme),
+    dark: kindOf(theme) === "dark",
   });
+  extensionResolver?.applied?.(theme);
 }
 
 /** Applies and persists the user's theme choice. */

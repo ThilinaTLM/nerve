@@ -1,5 +1,7 @@
 <script lang="ts">
 import type { GitPanelActions, GitPanelModel } from "$lib/features/git";
+import { ExtensionPanelHost } from "$lib/features/extension-ui";
+import { parseExtensionPanelViewId } from "$lib/features/extension-ui";
 import LazyViewPending from "$lib/app/shell/LazyViewPending.svelte";
 import {
   panelViewDescriptors,
@@ -49,7 +51,9 @@ const panelModule = $derived.by(() => {
 });
 </script>
 
-{#if panelModule}
+{#if parseExtensionPanelViewId(viewId)}
+  <ExtensionPanelHost {viewId} />
+{:else if panelModule}
   {#await panelModule}
     <LazyViewPending />
   {:then module}

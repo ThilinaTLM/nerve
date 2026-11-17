@@ -7,6 +7,8 @@ import type {
   ExtensionSettingsDefinition,
   ExtensionSource,
   ExtensionState,
+  InstalledExtensionManifest,
+  ThemeFile,
 } from "@nervekit/contracts/extensions";
 import type { ExtensionDefinition } from "@nervekit/extension-api";
 import {
@@ -105,10 +107,29 @@ export type ExtensionCatalogOptions = {
   warn?(message: string, data?: unknown): void;
 };
 
+/** An enabled, consented installed extension that contributes UI (frames and themes). */
+export type InstalledUiExtension = {
+  id: string;
+  name: string;
+  source: "user" | "project";
+  /** The extension's `dist/` folder: frames are served from `dist/ui/<id>/`, themes read from `dist/themes/<id>.json`. */
+  dist: string;
+  ui: NonNullable<InstalledExtensionManifest["ui"]>;
+  /** The themes that passed the theme file schema and the readability rules (user extensions only). */
+  themes: ThemeFile[];
+};
+
+/** Where the server reads the UI contributions of installed extensions from. */
+export interface ExtensionUiSource {
+  /** Loaded installed extensions with a `ui` section at a project (none: the user's extensions only). Pending, invalid and shadowed extensions are not in it. */
+  installedUi(projectDir?: string): Promise<InstalledUiExtension[]>;
+}
+
 /** The registry for one project (or none), with what the catalog knows of each extension. */
 export type ComposedExtensions = {
   registry: QuickScriptRegistry;
   entries: ExtensionCatalogEntry[];
+  ui: InstalledUiExtension[];
 };
 
 type ScannedExtension = {
@@ -142,7 +163,7 @@ const projectRootOf = (projectDir: string) =>
  * entries stay visible. There are no file watchers: `reload` re-reads, and the change applies to
  * the next request that asks for a registry.
  */
-export class ExtensionCatalog {
+export class ExtensionCatalog implements ExtensionUiSource {
   readonly #options: ExtensionCatalogOptions;
   readonly #gate: ExtensionTrustGate;
   /** Scans by root path, shared by every composition that includes the root. */
@@ -165,12 +186,17 @@ export class ExtensionCatalog {
     this.#latest.set("", {
       registry: this.#builtinRegistry,
       entries: this.#builtinEntries(),
+      ui: [],
     });
   }
 
   /** The registry for a project (none: built-ins and user extensions): what the `quick_script` description, direct tools and the permission scan read. */
   async registryFor(projectDir?: string): Promise<QuickScriptRegistry> {
     return (await this.compose(projectDir)).registry;
+  }
+
+  async installedUi(projectDir?: string): Promise<InstalledUiExtension[]> {
+    return (await this.compose(projectDir)).ui;
   }
 
   /** Every extension known at a project, loaded or not, with state, source, folder and diagnostics. */
@@ -242,6 +268,7 @@ export class ExtensionCatalog {
     this.#latest.set("", {
       registry: this.#builtinRegistry,
       entries: this.#builtinEntries(),
+      ui: [],
     });
     // The user-level extensions' account kinds are needed before the next request asks.
     await this.compose().catch((error) =>
@@ -386,6 +413,12 @@ export class ExtensionCatalog {
         message:
           "Themes of project extensions are ignored: a theme applies to the whole app, which shows several projects. Install the extension at user level to use its themes.",
       });
+    for (const theme of read.themes ?? [])
+      if ("problems" in theme)
+        base.diagnostics.push({
+          level: "warning",
+          message: `The theme '${theme.id}' is not offered: ${theme.problems.join("; ")}`,
+        });
     const candidate: InstalledExtensionCandidate = {
       id: manifest.id,
       source,
@@ -646,7 +679,27 @@ export class ExtensionCatalog {
           : {}),
       });
     }
-    return { registry, entries };
+    const ui: InstalledUiExtension[] = accepted.flatMap((scanned) => {
+      const manifest = scanned.read.manifest!;
+      return manifest.ui
+        ? [
+            {
+              id: manifest.id,
+              name: manifest.name,
+              source: scanned.source,
+              dist: join(scanned.read.folder, "dist"),
+              ui: manifest.ui,
+              themes:
+                scanned.source === "user"
+                  ? (scanned.read.themes ?? []).flatMap((theme) =>
+                      "theme" in theme ? [theme.theme] : [],
+                    )
+                  : [],
+            },
+          ]
+        : [];
+    });
+    return { registry, entries, ui };
   }
 
   /** Publishes the direct tools of the installed extensions in `registry` to the tool scope of one project. */

@@ -318,6 +318,31 @@ void test("no agent-reachable surface can grant consent", async () => {
   assert.equal(consentOperations.length, 3);
   for (const operation of consentOperations)
     assert.deepEqual(operation.allowedTargetRoles, ["workbench_server"]);
+  // The UI bridge operations (frames asking the daemon for files and backend calls) are app calls too.
+  const uiOperations = allOperationDefinitions().filter((operation) =>
+    operation.method.startsWith("extensions.ui."),
+  );
+  assert.deepEqual(uiOperations.map((operation) => operation.method).sort(), [
+    "extensions.ui.call",
+    "extensions.ui.contributions",
+    "extensions.ui.file.info",
+    "extensions.ui.file.read",
+    "extensions.ui.file.write",
+    "extensions.ui.project.info",
+    "extensions.ui.settings.get",
+    "extensions.ui.themes",
+  ]);
+  for (const operation of uiOperations)
+    assert.deepEqual(operation.allowedTargetRoles, ["workbench_server"]);
+  assert.doesNotMatch(
+    names(
+      registry.namespaces.flatMap((n) => [
+        n.id,
+        ...n.methods.map((m) => m.path),
+      ]),
+    ),
+    /extensions\.ui/,
+  );
   // And the code that tool and sandbox layers are made of never references the catalog's consent methods.
   const packages = join(import.meta.dirname, "../../../../");
   const seen: string[] = [];
@@ -329,7 +354,11 @@ void test("no agent-reachable surface can grant consent", async () => {
           await walk(path);
       } else if (/\.ts$/.test(entry.name) && !/\.test\.ts$/.test(entry.name)) {
         const text = await readFile(path, "utf8");
-        if (/grantConsent|revokeConsent|ExtensionManagement/.test(text))
+        if (
+          /grantConsent|revokeConsent|ExtensionManagement|extensions\.ui\./.test(
+            text,
+          )
+        )
           seen.push(path);
       }
     }

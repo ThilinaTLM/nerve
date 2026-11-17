@@ -6,8 +6,11 @@ import {
   extensionIdSchema,
   installedExtensionManifestSchema,
   sdkCompatibilityProblem,
+  themeFileSchema,
+  themeRuleProblems,
   type ExtensionCatalogDiagnostic,
   type InstalledExtensionManifest,
+  type ThemeFile,
 } from "@nervekit/contracts/extensions";
 import {
   listUnignoredEntries,
@@ -23,6 +26,14 @@ export const maxBundleBytes = 8 * 1024 * 1024;
 /** Largest doc topic file the host reads. */
 export const maxDocBytes = 256 * 1024;
 
+/** Largest theme file the host reads. */
+export const maxThemeBytes = 16 * 1024;
+
+/** A theme the manifest declares: the validated file, or why it cannot be offered. */
+export type ReadTheme =
+  | { id: string; theme: ThemeFile }
+  | { id: string; problems: string[] };
+
 /** What discovery found in one folder, without running any extension code. */
 export type ReadExtension = {
   /** The folder's name. */
@@ -32,6 +43,8 @@ export type ReadExtension = {
   manifest?: InstalledExtensionManifest;
   /** Reads a file of `dist/` by its declared path; throws on anything outside `dist/`. */
   readAsset?: (file: string) => string;
+  /** The themes the manifest declares, read and checked against the theme file schema and the readability rules. */
+  themes?: ReadTheme[];
   /** The resolved icon, when the manifest is valid. */
   icon?: ExtensionIcon;
   /** Errors make the extension `invalid`; an `incompatible` one has a compatibility problem instead. */
@@ -189,11 +202,51 @@ export async function readFolder(
   if (result.diagnostics.length > 0) return result;
   result.manifest = manifest;
   result.readAsset = readAsset;
+  result.themes = (manifest.ui?.themes ?? []).map((declared) =>
+    readTheme(declared, readAsset),
+  );
   result.incompatible = sdkCompatibilityProblem(
     manifest.sdkVersion,
     nerveVersion,
   );
   return result;
+}
+
+/**
+ * Reads and checks one theme file. A theme that fails is not offered and says why; it does not
+ * make the extension invalid (a theme is data, and the rest of the extension still works).
+ */
+function readTheme(
+  declared: { id: string; kind: "light" | "dark"; file: string },
+  readAsset: (file: string, maxBytes?: number) => string,
+): ReadTheme {
+  const fail = (...problems: string[]): ReadTheme => ({
+    id: declared.id,
+    problems,
+  });
+  let json: unknown;
+  try {
+    json = JSON.parse(readAsset(declared.file, maxThemeBytes));
+  } catch (cause) {
+    return fail(
+      `${declared.file} cannot be read: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+  }
+  const parsed = themeFileSchema.safeParse(json);
+  if (!parsed.success)
+    return fail(
+      ...parsed.error.issues.map(
+        (issue) =>
+          `${declared.file}: ${issue.path.length > 0 ? `${issue.path.join(".")}: ` : ""}${issue.message}`,
+      ),
+    );
+  const theme = parsed.data;
+  if (theme.id !== declared.id || theme.kind !== declared.kind)
+    return fail(
+      `${declared.file} says id '${theme.id}' and kind '${theme.kind}'; the manifest says '${declared.id}' and '${declared.kind}'.`,
+    );
+  const problems = themeRuleProblems(theme.kind, theme.tokens);
+  return problems.length > 0 ? fail(...problems) : { id: theme.id, theme };
 }
 
 /** Fields of the definition that exist but are not available to installed extensions, with the reason. */

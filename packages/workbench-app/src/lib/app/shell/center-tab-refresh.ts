@@ -26,6 +26,7 @@ export function createCenterTabRefresh(
       case "pending-conversation":
       case "launch":
       case "discover":
+      case "extension-page":
         dependencies.selectTab(tab);
         return;
       case "system-prompt":

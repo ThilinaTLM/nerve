@@ -13,6 +13,7 @@ import {
   loadAppearancePreference,
   installAppearanceStorageSync,
 } from "$lib/platform/appearance/appearance.svelte";
+import { installExtensionThemes } from "$lib/platform/appearance/extension-themes.svelte";
 import { createPoll } from "$lib/platform/polling/poll";
 import { patchChanged } from "$lib/domain/conversations/summary-patch";
 import { installClientLogging } from "$lib/platform/logging/client-logger";
@@ -54,6 +55,7 @@ export async function initializeWorkbench(): Promise<boolean> {
   const generation = beginWorkbenchStartup();
   transitionWorkbenchStartup(generation, "critical");
   stopAppearanceSync = installAppearanceStorageSync();
+  installExtensionThemes();
   applyAppearance(loadAppearancePreference());
   try {
     const config = await getClientConfig();

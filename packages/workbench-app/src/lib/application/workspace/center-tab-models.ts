@@ -128,6 +128,15 @@ export type DiscoverTabModel = {
   error?: string;
 };
 
+export type ExtensionPageTabModel = {
+  kind: "extension-page";
+  /** `<extension-id>/<page-id>[?params]`; the label and icon come from the page's contribution. */
+  id: string;
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type PrTabModel = {
   kind: "pr";
   id: string;
@@ -164,4 +173,5 @@ export type CenterTabModel =
   | SettingsTabModel
   | ProjectSettingsTabModel
   | LogsTabModel
-  | DiscoverTabModel;
+  | DiscoverTabModel
+  | ExtensionPageTabModel;

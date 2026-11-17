@@ -36,6 +36,8 @@ import InstructionsFilesPage from "$lib/features/settings/views/pages/project/In
 import LaunchSettingsPage from "$lib/features/settings/views/pages/project/LaunchSettingsPage.svelte";
 import TrustSettingsPage from "$lib/features/settings/views/pages/project/TrustSettingsPage.svelte";
 import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
+import { contributionsOf, openExtensionPage } from "$lib/features/extension-ui";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import type { SettingsPageControllers } from "./settings-page-controllers.svelte";
 
@@ -114,6 +116,14 @@ const scope = $derived(target.kind);
 const projectId = $derived(
   target.kind === "project" ? target.projectId : undefined,
 );
+// Extension pages belong to a project: this one's, or the open project's in user settings.
+const pagesProjectId = $derived(projectId ?? workspaceState.selectedProjectId);
+const extensionPagesOf = (extensionId: string) =>
+  (contributionsOf(pagesProjectId)?.pages ?? [])
+    .filter((page) => page.extensionId === extensionId)
+    .map((page) => ({ id: page.id, label: page.label }));
+const openExtensionPageTab = (extensionId: string, pageId: string) =>
+  void openExtensionPage(pagesProjectId, extensionId, pageId);
 </script>
 
 {#if settingsDraft}
@@ -182,6 +192,8 @@ const projectId = $derived(
       {sectionId}
       {onOpenItem}
       {onCloseItem}
+      pagesOf={extensionPagesOf}
+      onOpenPage={openExtensionPageTab}
     />
   {:else if page.id === "launch"}
     <LaunchSettingsPage

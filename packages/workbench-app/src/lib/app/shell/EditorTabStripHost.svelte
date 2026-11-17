@@ -29,6 +29,11 @@ import type {
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { revealFileExplorerPath } from "$lib/features/filesystem";
 import {
+  extensionIcon,
+  findLoadedExtensionPage,
+  parseExtensionPageTabId,
+} from "$lib/features/extension-ui";
+import {
   RenameConversationPopover,
   type RenameTarget,
 } from "$lib/features/projects";
@@ -177,7 +182,17 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
     model.icon = Settings;
   else if (tab.kind === "logs") model.icon = Logs;
   else if (tab.kind === "discover") model.icon = Compass;
-  else if (tab.kind === "system-prompt") model.icon = TextAlignStart;
+  else if (tab.kind === "extension-page") {
+    const ref = parseExtensionPageTabId(tab.id);
+    const page = ref
+      ? findLoadedExtensionPage(ref.extensionId, ref.pageId)
+      : undefined;
+    if (page) {
+      model.label = page.label;
+      model.title = `${page.label} · ${page.extensionName}`;
+    }
+    model.icon = extensionIcon(page?.icon);
+  } else if (tab.kind === "system-prompt") model.icon = TextAlignStart;
 
   return model;
 }

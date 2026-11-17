@@ -31,6 +31,7 @@ export type {
   CenterTabModel,
   ConversationTabModel,
   DiscoverTabModel,
+  ExtensionPageTabModel,
   DiffTabModel,
   FileTabModel,
   LogsTabModel,
@@ -46,6 +47,7 @@ import type {
   CenterTabModel,
   ConversationTabModel,
   DiscoverTabModel,
+  ExtensionPageTabModel,
   DiffTabModel,
   FileTabModel,
   LogsTabModel,
@@ -358,6 +360,20 @@ export const workspaceSelectors = {
         ]
       : [];
   },
+  get openExtensionPageTabs(): ExtensionPageTabModel[] {
+    return workspaceState.openCenterTabs.flatMap((tab) =>
+      tab.kind === "extension-page"
+        ? [
+            {
+              kind: tab.kind,
+              id: tab.id,
+              active: activeTabMatches(tab.kind, tab.id),
+              sending: false,
+            },
+          ]
+        : [],
+    );
+  },
   get openDiscoverTabs(): DiscoverTabModel[] {
     return workspaceState.openCenterTabs.some((tab) => tab.kind === "discover")
       ? [
@@ -416,6 +432,7 @@ export const workspaceSelectors = {
       this.openProjectSettingsTabs,
       this.openLogsTabs,
       this.openDiscoverTabs,
+      this.openExtensionPageTabs,
     ];
     for (const collection of collections) {
       for (const model of collection) {

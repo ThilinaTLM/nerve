@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 
@@ -31,9 +33,24 @@ export function runTests(projectDir: string): Promise<number> {
     dirname(require.resolve("vitest/package.json")),
     "vitest.mjs",
   );
+  const ownConfig = readdirSync(projectDir).some((name) =>
+    /^v(?:itest|ite)\.config\./.test(name),
+  );
+  const config = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "assets",
+    "vitest.config.mjs",
+  );
   return run(
     vitest,
-    ["run", "--root", projectDir, "--passWithNoTests"],
+    [
+      "run",
+      "--root",
+      projectDir,
+      "--passWithNoTests",
+      ...(ownConfig ? [] : ["--config", config]),
+    ],
     projectDir,
   );
 }

@@ -36,6 +36,24 @@ function refOf(
 }
 
 export const extensionMethodHandlers = define({
+  // Frames of installed extensions asking the daemon for files, settings, the project or their
+  // own backend. Only the signed-in user's app sends these (it validated the frame's request);
+  // `call` is the user's action and does not go through the permission engine.
+  "extensions.ui.contributions": (state, { projectId }) =>
+    state.extensionUi.contributions(projectId),
+  "extensions.ui.themes": (state) => state.extensionUi.themes(),
+  "extensions.ui.file.info": (state, input) =>
+    state.extensionUi.bridge("file.info", input),
+  "extensions.ui.file.read": (state, input) =>
+    state.extensionUi.bridge("file.read", input),
+  "extensions.ui.file.write": (state, input) =>
+    state.extensionUi.bridge("file.write", input),
+  "extensions.ui.settings.get": (state, input) =>
+    state.extensionUi.bridge("settings.get", input),
+  "extensions.ui.project.info": (state, input) =>
+    state.extensionUi.bridge("project.info", input),
+  "extensions.ui.call": (state, input) =>
+    state.extensionUi.bridge("call", input),
   "extensions.get": (state, { target }) => state.extensionViews.view(target),
   "extensions.save": async (state, input) => {
     const result = await state.extensionSettings.save(

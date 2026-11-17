@@ -274,6 +274,80 @@ test("the pre-paint bootstrap mirrors migrateStoredTheme", async () => {
   assert.equal(root.classes.has("dark"), true);
 });
 
+test("the pre-paint bootstrap applies a cached extension theme only for the chosen one", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const html = await readFile(
+    new URL("../../../../index.html", import.meta.url),
+    "utf8",
+  );
+  const marker = html.indexOf('"nerve-theme"');
+  const open = "<script>";
+  const start = html.lastIndexOf(open, marker) + open.length;
+  const bootstrap = html.slice(start, html.indexOf("</script>", marker));
+  const css =
+    ':root[data-theme="ext:solar/dusk"],[data-theme-preview="ext:solar/dusk"]{--background:#112233;}';
+  const cache = JSON.stringify({
+    theme: "ext:solar/dusk",
+    kind: "light",
+    background: "#112233",
+    css,
+  });
+
+  function run(stored: Record<string, string>) {
+    const values = new Map(Object.entries(stored));
+    const root = fakeRoot();
+    const styles: { id?: string; textContent?: string }[] = [];
+    let themeColor: string | undefined;
+    runInNewContext(bootstrap, {
+      document: {
+        documentElement: root,
+        head: { appendChild: (style: object) => styles.push(style) },
+        createElement: () => ({}),
+        querySelector: () => ({
+          setAttribute: (_name: string, value: string) => {
+            themeColor = value;
+          },
+        }),
+      },
+      window: {
+        localStorage: {
+          getItem: (key: string) => values.get(key) ?? null,
+          setItem: (key: string, value: string) => values.set(key, value),
+          removeItem: (key: string) => values.delete(key),
+        },
+        matchMedia: () => ({ matches: true }),
+      },
+    });
+    return { root, styles, themeColor };
+  }
+
+  const applied = run({
+    "nerve-theme": "ext:solar/dusk",
+    "nerve-extension-theme": cache,
+  });
+  assert.equal(applied.root.dataset.theme, "ext:solar/dusk");
+  assert.equal(applied.root.classes.has("dark"), false, "the cached kind wins");
+  assert.equal(applied.themeColor, "#112233");
+  assert.equal(applied.styles[0]?.textContent, css);
+
+  const fallbackCases: Record<string, string>[] = [
+    { "nerve-theme": "ext:solar/dusk" },
+    { "nerve-theme": "ext:solar/other", "nerve-extension-theme": cache },
+    {
+      "nerve-theme": "ext:solar/dusk",
+      "nerve-extension-theme": cache.replace(
+        /\{--background[^}]*\}/,
+        "{}</style>",
+      ),
+    },
+  ];
+  for (const stored of fallbackCases) {
+    const fallback = run(stored);
+    assert.equal(fallback.root.dataset.theme, "nerve-dark");
+    assert.equal(fallback.styles.length, 0);
+  }
+});
+
 test("applying a theme reports its background and kind to the desktop shell", async () => {
   const appearance = await loadAppearance();
   reports.length = 0;

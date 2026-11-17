@@ -122,6 +122,10 @@ export const SPECIAL_OWNERS: ReadonlyMap<string, SpecialOwner> = new Map([
     { owners: ["@nervekit/workbench-server"] },
   ],
   [
+    "scripts/build/build-extension-frame-css.ts",
+    { owners: ["@nervekit/workbench-server", "@nervekit/ui-kit"] },
+  ],
+  [
     "scripts/build/copy-quick-script-assets.ts",
     { owners: ["@nervekit/tools"] },
   ],

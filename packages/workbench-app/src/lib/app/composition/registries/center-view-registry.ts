@@ -12,7 +12,10 @@ export const centerViewLoaders = {
   "system-prompt": () =>
     import("$lib/features/conversations/adapters/SystemPromptCenterHost.svelte"),
   launch: () => import("$lib/features/launches/hosts/LaunchCenterHost.svelte"),
-  file: () => import("$lib/features/filesystem/hosts/FileCenterHost.svelte"),
+  file: () =>
+    import("$lib/app/composition/centers/FileCenterComposedHost.svelte"),
+  "extension-page": () =>
+    import("$lib/features/extension-ui/hosts/ExtensionPageCenterHost.svelte"),
   mermaid: () =>
     import("$lib/features/filesystem/hosts/MermaidCenterHost.svelte"),
   pr: () => import("$lib/features/git/hosts/PullRequestCenterHost.svelte"),

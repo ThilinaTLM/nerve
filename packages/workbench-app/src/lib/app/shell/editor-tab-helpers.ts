@@ -64,6 +64,9 @@ export function tabLabel(tab: CenterTabModel): string {
   if (tab.kind === "project-settings") return `${tab.project.name} settings`;
   if (tab.kind === "logs") return "Nerve Logs";
   if (tab.kind === "discover") return "Discover";
+  // The strip shows the page's own label once its contribution has loaded.
+  if (tab.kind === "extension-page")
+    return tab.id.split("?")[0].split("/").pop() ?? "Extension page";
   if (tab.kind === "pending-conversation") return tab.title;
   return conversationTitleToPlainText(tab.conversation.title);
 }
@@ -92,6 +95,8 @@ export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
     return `Project settings · ${tab.project.directory}`;
   if (tab.kind === "logs") return "Nerve application logs";
   if (tab.kind === "discover") return "Discover Nerve";
+  if (tab.kind === "extension-page")
+    return `Extension page · ${tab.id.split("?")[0]}`;
   const project = tab.project?.directory
     ? shortProjectLabel(tab.project.directory, homeDir)
     : tab.kind === "pending-conversation"

@@ -2,18 +2,27 @@
 import Coffee from "@lucide/svelte/icons/coffee";
 import Flame from "@lucide/svelte/icons/flame";
 import Layers from "@lucide/svelte/icons/layers";
+import Puzzle from "@lucide/svelte/icons/puzzle";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import {
   builtInColorThemeSchema,
+  type BuiltInColorTheme,
   resolveColorThemeKind,
   type ColorTheme,
 } from "@nervekit/contracts/settings";
+import {
+  extensionThemeKind,
+  extensionThemeState,
+} from "$lib/platform/appearance/extension-themes.svelte";
 import {
   SettingsPreviewCards,
   type SettingsPreviewOption,
 } from "$lib/presentation/settings";
 
-const themeOptions: Record<ColorTheme, Omit<SettingsPreviewOption, "value">> = {
+const themeOptions: Record<
+  BuiltInColorTheme,
+  Omit<SettingsPreviewOption, "value">
+> = {
   "nerve-light": {
     label: "Nerve Light",
     description: "Warm paper with an ember accent",
@@ -47,10 +56,20 @@ const themeOptions: Record<ColorTheme, Omit<SettingsPreviewOption, "value">> = {
 };
 
 // Family order (Nerve, Melange, Graphite, Indigo), as in `colorThemeSchema`.
-const options = builtInColorThemeSchema.options.map((theme) => ({
+const builtInOptions = builtInColorThemeSchema.options.map((theme) => ({
   ...themeOptions[theme],
   value: theme,
 }));
+// Themes contributed by installed extensions follow the built-ins.
+const options = $derived<SettingsPreviewOption[]>([
+  ...builtInOptions,
+  ...extensionThemeState.cards.map((card) => ({
+    value: card.id,
+    label: card.label,
+    description: card.extensionName,
+    icon: Puzzle,
+  })),
+]);
 
 let {
   value = $bindable(""),
@@ -87,6 +106,8 @@ let {
   previewBody={themePreview}
   previewAttrs={(option) => ({
     "data-theme-preview": option.value,
-    "data-color-mode": resolveColorThemeKind(option.value as ColorTheme),
+    "data-color-mode":
+      extensionThemeKind(option.value as ColorTheme) ??
+      resolveColorThemeKind(option.value as ColorTheme),
   })}
 />

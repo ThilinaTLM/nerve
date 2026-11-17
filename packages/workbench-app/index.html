@@ -121,7 +121,25 @@
         };
         const saved = read("nerve-theme");
         let theme = saved ?? migrate();
-        if (!valid(theme)) theme = "nerve-dark";
+        // An extension theme paints from the tokens the app cached when it was chosen
+        // (see extension-theme-cache.ts); without a matching cache the default applies.
+        let cached = null;
+        if (theme.startsWith("ext:")) {
+          try {
+            const entry = JSON.parse(read("nerve-extension-theme"));
+            if (
+              entry?.theme === theme &&
+              (entry.kind === "light" || entry.kind === "dark") &&
+              /^#[0-9a-f]{6}$/i.test(entry.background) &&
+              typeof entry.css === "string" &&
+              /^[^<{}]*\{[^<{}]*\}$/.test(entry.css)
+            )
+              cached = entry;
+          } catch {
+            // No usable cache.
+          }
+        }
+        if (!cached && !valid(theme)) theme = "nerve-dark";
         if (saved === null && storage) {
           try {
             storage.setItem("nerve-theme", theme);
@@ -137,14 +155,27 @@
             // The app retries the migration on load.
           }
         }
-        const kind = light.includes(theme) ? "light" : "dark";
+        const kind = cached
+          ? cached.kind
+          : light.includes(theme)
+            ? "light"
+            : "dark";
         const root = document.documentElement;
+        if (cached) {
+          const style = document.createElement("style");
+          style.id = "nerve-extension-themes";
+          style.textContent = cached.css;
+          (document.head ?? root).appendChild(style);
+        }
         root.dataset.theme = theme;
         root.classList.toggle("dark", kind === "dark");
         root.style.colorScheme = kind;
         document
           .querySelector('meta[name="theme-color"]')
-          ?.setAttribute("content", backgrounds[theme]);
+          ?.setAttribute(
+            "content",
+            cached ? cached.background : backgrounds[theme],
+          );
       })();
     </script>
     <meta

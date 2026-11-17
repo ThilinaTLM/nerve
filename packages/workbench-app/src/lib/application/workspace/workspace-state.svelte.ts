@@ -23,7 +23,9 @@ export type CenterTabIdentity =
   /** Project-scoped settings; the id is the project id. */
   | { kind: "project-settings"; id: string }
   | { kind: "logs"; id: "logs" }
-  | { kind: "discover"; id: "discover" };
+  | { kind: "discover"; id: "discover" }
+  /** A page contributed by an installed extension; the id is `<extension-id>/<page-id>[?params]`. */
+  | { kind: "extension-page"; id: string };
 
 export type ProjectTabSession = {
   tabs: CenterTabIdentity[];

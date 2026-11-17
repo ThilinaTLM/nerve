@@ -9,6 +9,7 @@
 <script lang="ts">
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import Library from "@lucide/svelte/icons/library";
+import PanelTop from "@lucide/svelte/icons/panel-top";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Zap from "@lucide/svelte/icons/zap";
@@ -54,6 +55,9 @@ type Props = {
   extensions: ScopedExtensionsState;
   accounts: AccountChoices;
   models?: ModelInfo[];
+  /** Pages this extension contributes to the open project. */
+  pages?: { id: string; label: string }[];
+  onOpenPage?: (pageId: string) => void;
 };
 
 let {
@@ -64,6 +68,8 @@ let {
   extensions,
   accounts,
   models = [],
+  pages = [],
+  onOpenPage,
 }: Props = $props();
 
 const id = $derived(extension.metadata.id);
@@ -300,6 +306,26 @@ function openPage(page: "tools" | "skills"): void {
               {/if}
             {/snippet}
           </SettingsItem>
+        {/each}
+      </SettingsList>
+    </SettingsSection>
+  {/if}
+  {#if pages.length > 0}
+    <SettingsSection
+      id="pages"
+      title="Pages"
+      description="Pages this extension adds to the open project. Each opens in its own tab."
+    >
+      <SettingsList ariaLabel="Pages">
+        {#each pages as page (page.id)}
+          <SettingsItem
+            title={page.label}
+            summary="Page"
+            icon={PanelTop}
+            muted={!extension.enabled.value}
+            onOpen={onOpenPage ? () => onOpenPage(page.id) : undefined}
+            openLabel={`Open ${page.label}`}
+          />
         {/each}
       </SettingsList>
     </SettingsSection>

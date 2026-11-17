@@ -37,6 +37,7 @@ test("shared UI style changes select app and website without native matrix", () 
     workspace,
   );
   assert.deepEqual(impact.packages, [
+    "@nervekit/extension-sdk",
     "@nervekit/ui-kit",
     "@nervekit/workbench-app",
   ]);

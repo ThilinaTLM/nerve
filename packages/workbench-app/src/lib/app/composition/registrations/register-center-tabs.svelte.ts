@@ -33,6 +33,10 @@ import {
   closeLaunchTab,
   selectCenterLaunchTab,
 } from "$lib/features/launches/state/launch-tabs.svelte";
+import {
+  closeExtensionPageTab,
+  selectCenterExtensionPageTab,
+} from "$lib/features/extension-ui";
 import { registerCenterTabDispatch } from "$lib/application/workspace/center-tabs.svelte";
 
 registerCenterTabDispatch({
@@ -53,6 +57,7 @@ registerCenterTabDispatch({
     "project-settings": (tab) => setActiveCenterTab(tab),
     logs: () => selectCenterLogsTab(),
     discover: () => selectCenterDiscoverTab(),
+    "extension-page": (tab) => selectCenterExtensionPageTab(tab.id),
   },
   close: {
     conversation: (tab) => closeCenterTabs([tab]),
@@ -68,5 +73,6 @@ registerCenterTabDispatch({
     "project-settings": (tab) => closeCenterTabs([tab]),
     logs: () => closeLogsTab(),
     discover: () => closeDiscoverTab(),
+    "extension-page": (tab) => closeExtensionPageTab(tab.id),
   },
 });
