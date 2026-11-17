@@ -198,8 +198,6 @@ export const grantExtensionConsentRequestSchema =
     contentHash: z.string().min(1),
   });
 export const revokeExtensionConsentRequestSchema = installedExtensionRefSchema;
-export const setInstalledExtensionEnabledRequestSchema =
-  installedExtensionRefSchema.extend({ enabled: z.boolean() });
 export const reloadExtensionsRequestSchema = z.strictObject({
   target: installedExtensionRefSchema.shape.target,
   /** One extension folder; absent: every installed extension. */
@@ -270,15 +268,6 @@ export const extensionOperationDefinitions = [
     "none",
     host,
     "operation.extensions.revokeConsent",
-  ),
-  defineOperation(
-    "extensions.setInstalledEnabled",
-    setInstalledExtensionEnabledRequestSchema,
-    installedExtensionResultSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.extensions.setInstalledEnabled",
   ),
   defineOperation(
     "extensions.reload",

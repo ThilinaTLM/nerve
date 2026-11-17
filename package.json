@@ -14,7 +14,7 @@
     "build:native": "pnpm --filter @nervekit/native build:native",
     "build:workbench-runtime": "pnpm --filter @nervekit/workbench-app... --filter @nervekit/workbench-server... build && tsx scripts/build/copy-workbench-app-dist-to-workbench-server.ts",
     "fix": "pnpm --filter @nervekit/native fix:native && oxfmt && eslint . --fix && oxfmt",
-    "check": "oxfmt --check && eslint . && tsc -p scripts && tsx scripts/checks/check-package-boundaries.ts && pnpm migrations:check && pnpm -r check",
+    "check": "oxfmt --check && eslint . && tsc -p scripts && tsx scripts/checks/check-package-boundaries.ts && tsx scripts/checks/check-lockstep-versions.ts && pnpm migrations:check && pnpm -r check",
     "fix:focused": "tsx scripts/checks/run-focused.ts fix",
     "check:focused": "tsx scripts/checks/run-focused.ts check",
     "test:focused": "tsx scripts/testing/run-focused-tests.ts",

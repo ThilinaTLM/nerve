@@ -13,11 +13,15 @@ import { readRustReleaseVersions } from "./release-version.ts";
 
 /**
  * Workspace packages that must stay version-locked to the root release
- * version. ui-kit and website intentionally are not listed here; they are not
- * part of the tagged release surface.
+ * version. website intentionally is not listed here; it is not part of the
+ * tagged release surface. extension-api, ui-kit and extension-sdk are also
+ * published on their own (manually, see docs/runbooks/release.md) and share
+ * Nerve's version because the version tracks extension compatibility.
  */
 export const versionLockedPackages = [
   "extension-api",
+  "ui-kit",
+  "extension-sdk",
   "contracts",
   "native",
   "protocol",

@@ -42,8 +42,6 @@ export type ExtensionTrustRecord = z.infer<typeof recordSchema>;
 const fileSchema = z.object({
   version: z.literal(1),
   records: z.record(z.string(), recordSchema),
-  /** Keys the user turned off. */
-  disabled: z.array(z.string()),
 });
 type TrustFile = z.infer<typeof fileSchema>;
 
@@ -60,7 +58,6 @@ export const trustKey = (key: InstalledExtensionKey) =>
  * - A user extension keeps consent through a code-only change; a change that adds anything to
  *   its grants (network, accounts, capabilities, namespaces and operations, tools, UI) is pending
  *   again, with the new grants as the review. Removed grants need no consent.
- * - Disabling is separate from consent and survives it.
  */
 export class ExtensionTrust implements ExtensionTrustGate {
   readonly #path: string;
@@ -75,10 +72,9 @@ export class ExtensionTrust implements ExtensionTrustGate {
 
   async decide(
     candidate: InstalledExtensionCandidate,
-  ): Promise<"trusted" | "disabled" | ExtensionTrustVerdict> {
+  ): Promise<"trusted" | ExtensionTrustVerdict> {
     const key = trustKey(candidate);
     const file = await this.#load();
-    if (file.disabled.includes(key)) return "disabled";
     const record = file.records[key];
     const contentHash = await hashExtensionContent(candidate.folder);
     if (record?.contentHash === contentHash) return "trusted";
@@ -129,23 +125,11 @@ export class ExtensionTrust implements ExtensionTrustGate {
     });
   }
 
-  async setEnabled(
-    key: InstalledExtensionKey,
-    enabled: boolean,
-  ): Promise<void> {
-    const name = trustKey(key);
-    await this.#write((file) => {
-      const rest = file.disabled.filter((entry) => entry !== name);
-      file.disabled = enabled ? rest : [...rest, name];
-    });
-  }
-
   #load(): Promise<TrustFile> {
     // Missing or unreadable: nothing is consented (never the other way around); the next write replaces it.
     this.#file ??= readJsonFile(this.#path, fileSchema).catch(() => ({
       version: 1 as const,
       records: {},
-      disabled: [],
     }));
     return this.#file;
   }

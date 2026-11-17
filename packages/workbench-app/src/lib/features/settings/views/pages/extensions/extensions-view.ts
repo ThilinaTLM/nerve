@@ -648,8 +648,6 @@ export function installedStateBadge(
   switch (state) {
     case "pending_consent":
       return { label: "Pending consent", variant: "warning" };
-    case "disabled":
-      return { label: "Disabled", variant: "neutral" };
     case "incompatible":
       return { label: "Incompatible", variant: "warning" };
     case "invalid":
@@ -682,15 +680,4 @@ export function installedProblem(
       ? entry.diagnostics[0]
       : undefined);
   return diagnostic?.message;
-}
-
-/** The switch is the user's on/off; it exists only where on and off are both possible. */
-export function installedSwitch(
-  entry: ExtensionCatalogEntry,
-): boolean | undefined {
-  return entry.state === "enabled"
-    ? true
-    : entry.state === "disabled"
-      ? false
-      : undefined;
 }

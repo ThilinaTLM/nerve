@@ -6,14 +6,13 @@ export type ExtensionSource = z.infer<typeof extensionSourceSchema>;
 
 /**
  * What the host did with a discovered extension: `enabled` (loaded), `pending_consent` (valid, not
- * trusted, so its code is not opened), `disabled` (turned off by the user), `incompatible`
+ * trusted, so its code is not opened), `incompatible`
  * (outside the supported SDK range), `invalid` (failed validation or collides with another
  * extension) or `shadowed` (a higher-precedence root has the same id).
  */
 export const extensionStateSchema = z.enum([
   "enabled",
   "pending_consent",
-  "disabled",
   "incompatible",
   "invalid",
   "shadowed",

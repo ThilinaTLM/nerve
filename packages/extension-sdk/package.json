@@ -1,0 +1,68 @@
+{
+  "name": "@nervekit/extension-sdk",
+  "version": "0.41.1",
+  "description": "SDK and build tooling (`nerve-ext`) for Nerve extensions.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/extension-sdk"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
+  "bin": {
+    "nerve-ext": "./bin/nerve-ext.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "ui",
+    "README.md",
+    "UPGRADING.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    },
+    "./build": {
+      "types": "./dist/build.d.ts",
+      "import": "./dist/build.js"
+    },
+    "./ui": "./ui/index.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b && node scripts/bundle.mjs",
+    "check": "tsc -b --pretty false",
+    "prepack": "node ../../scripts/release/copy-license.mjs",
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "e2e": "tsx scripts/e2e-npm.ts"
+  },
+  "dependencies": {
+    "@nervekit/extension-api": "workspace:*",
+    "@nervekit/ui-kit": "workspace:*",
+    "esbuild": "0.28.1",
+    "svelte": "5.57.3",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@nervekit/contracts": "workspace:*",
+    "@types/node": "24.10.1",
+    "tsx": "4.22.4"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

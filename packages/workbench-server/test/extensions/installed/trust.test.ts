@@ -208,7 +208,7 @@ void test("user extensions keep consent through code-only changes and ask again 
   );
 });
 
-void test("disabling is separate from consent and survives it", async () => {
+void test("trust is per folder: the same id elsewhere has no consent", async () => {
   const { configDir, extensions } = await world();
   await writeExtension(extensions, { id: "sw" });
   const trust = new ExtensionTrust({ configDir });
@@ -217,17 +217,10 @@ void test("disabling is separate from consent and survives it", async () => {
     await candidate(extensions, "sw"),
     first.consent!.contentHash,
   );
-  await trust.setEnabled(await candidate(extensions, "sw"), false);
-  assert.equal(
-    await trust.decide(await candidate(extensions, "sw")),
-    "disabled",
-  );
-  await trust.setEnabled(await candidate(extensions, "sw"), true);
   assert.equal(
     await trust.decide(await candidate(extensions, "sw")),
     "trusted",
   );
-  // Trust is per folder: the same id elsewhere has no consent.
   const other = await world();
   await writeExtension(other.extensions, { id: "sw" });
   assert.equal(

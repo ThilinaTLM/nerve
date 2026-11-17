@@ -52,6 +52,12 @@
       // Resolved by @tailwindcss/vite (peer); kept explicit in the app.
       "ignoreDependencies": ["tailwindcss"],
     },
+    "packages/extension-sdk": {
+      "entry": ["scripts/*.{ts,mjs}", "test/**/*.test.ts"],
+      // zod: imported by the inlined contracts schema in dist/. svelte: peer of the ui-kit sources
+      // that extension UI builds compile.
+      "ignoreDependencies": ["zod", "svelte"],
+    },
     "packages/harness": {
       "entry": ["{test,src}/**/*.test.ts"],
     },

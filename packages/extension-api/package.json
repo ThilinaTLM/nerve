@@ -1,7 +1,6 @@
 {
   "name": "@nervekit/extension-api",
   "version": "0.41.1",
-  "private": true,
   "description": "Nerve extension API: manifest types, define helpers, the host context interface and a fake context for tests.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
@@ -30,7 +29,8 @@
   "scripts": {
     "build": "tsc -b",
     "check": "tsc -b --pretty false",
-    "test": "tsx --test \"test/**/*.test.ts\""
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "prepack": "node ../../scripts/release/copy-license.mjs"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
@@ -38,5 +38,8 @@
   },
   "engines": {
     "node": ">=24.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

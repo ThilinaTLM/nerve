@@ -25,8 +25,8 @@ import ExtensionMark from "./ExtensionMark.svelte";
 import {
   installedProblem,
   installedStateBadge,
+  entryWithEnabled,
   installedSummary,
-  installedSwitch,
   type AccountChoices,
   type InstalledGroup,
 } from "./extensions-view";
@@ -84,7 +84,6 @@ function review(entry: ExtensionCatalogEntry): void {
         {@const view =
           entry.state === "enabled" ? registered.get(entry.id) : undefined}
         {@const badge = installedStateBadge(entry.state)}
-        {@const on = installedSwitch(entry)}
         <SettingsItem
           title={entry.name ?? entry.id}
           summary={view
@@ -95,11 +94,15 @@ function review(entry: ExtensionCatalogEntry): void {
           problemAction={entry.state === "pending_consent" && entry.consent
             ? { label: "Review", onclick: () => review(entry) }
             : undefined}
-          checked={on}
-          disabled={extensions.saving}
+          checked={view?.enabled.value}
+          disabled={extensions.saving || view?.readOnly}
+          lockedBy={view?.enabled.source.locked
+            ? (view.enabled.source.profile ?? "profile")
+            : undefined}
           switchLabel={`Enable ${entry.name ?? entry.id}`}
           onCheckedChange={(next) =>
-            void extensions.setInstalledEnabled(entry, next)}
+            view &&
+            void extensions.save(entry.id, entryWithEnabled(view, next))}
           muted={entry.state !== "enabled"}
           onOpen={view && onOpenItem
             ? () => onOpenItem(entry.id)
@@ -121,7 +124,7 @@ function review(entry: ExtensionCatalogEntry): void {
             {#if badge}<Badge variant={badge.variant}>{badge.label}</Badge>{/if}
           {/snippet}
           {#snippet actions()}
-            {#if entry.state === "enabled" || entry.state === "disabled"}
+            {#if entry.state === "enabled"}
               <IconAction
                 icon={ShieldOff}
                 label={`Revoke consent for ${entry.name ?? entry.id}`}

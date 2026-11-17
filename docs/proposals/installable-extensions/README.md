@@ -136,8 +136,7 @@ stateDiagram-v2
   Discovered --> PendingConsent: valid
   PendingConsent --> Enabled: user consents in UI
   Enabled --> PendingConsent: content changed (rules below)
-  Enabled --> Disabled: user turns off
-  Disabled --> Enabled: user turns on
+  Enabled --> Enabled: user toggles the settings switch (not part of consent)
 ```
 
 - **Nothing runs before consent.** A discovered extension is listed with its consent summary; its backend is not loaded and its frames are not served until the user consents.
@@ -378,7 +377,7 @@ extension-creator/
 ## Settings → Extensions
 
 - Grouped by source: Built-in, User, Project (#599 planned this once `metadata.source` exists).
-- Each installed extension shows its state (badges for pending consent, disabled, incompatible, invalid and shadowed; enabled shows none, the switch says it), its folder and diagnostics. A pending extension opens a consent review (Allow / Not now; for an update, only what is new). The row's switch is the on/off that is separate from consent; a loaded extension opens its settings. Reload re-reads all installed extensions; consent can be revoked per row. Contributions are listed in the detail view once UI contributions exist.
+- Each installed extension shows its state (badges for pending consent, incompatible, invalid and shadowed; enabled shows none, the switch says it), its folder and diagnostics. A pending extension opens a consent review (Allow / Not now; for an update, only what is new). The row's switch is the same settings `enabled` value the detail header uses (scoped user, project and conversation, like a built-in), separate from consent; a loaded extension opens its settings. Reload re-reads all installed extensions; consent can be revoked per row. Contributions are listed in the detail view once UI contributions exist.
 - Settings and accounts keep working as today: generated from the manifest, stored in `config/extensions.json` and the account store.
 
 ## Work breakdown

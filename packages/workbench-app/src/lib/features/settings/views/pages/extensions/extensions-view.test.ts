@@ -20,7 +20,6 @@ import {
   installedEntries,
   installedProblem,
   installedStateBadge,
-  installedSwitch,
   fieldSections,
   namespaceProblem,
   parseNumberInput,
@@ -654,17 +653,10 @@ describe("installed extensions", () => {
     );
   });
 
-  it("badges states that need attention and offers the switch only where on and off are possible", () => {
+  it("badges states that need attention", () => {
     assert.equal(installedStateBadge("enabled"), undefined);
     assert.equal(installedStateBadge("pending_consent")?.variant, "warning");
     assert.equal(installedStateBadge("invalid")?.variant, "destructive");
-    assert.equal(installedSwitch(entry({ state: "enabled" })), true);
-    assert.equal(installedSwitch(entry({ state: "disabled" })), false);
-    assert.equal(
-      installedSwitch(entry({ state: "pending_consent" })),
-      undefined,
-    );
-    assert.equal(installedSwitch(entry({ state: "invalid" })), undefined);
   });
 
   it("explains pending consent and surfaces the first error", () => {

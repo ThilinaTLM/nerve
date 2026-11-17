@@ -8,9 +8,7 @@ export type ExtensionTrustDecision =
   /** The user consented: the extension may be registered and its code opened. */
   | "trusted"
   /** Nothing has been consented to: the extension is listed, but never registered or run. */
-  | "pending"
-  /** The user turned the extension off. */
-  | "disabled";
+  | "pending";
 
 /** An installed extension as the gate sees it: read and validated, no code run. */
 export type InstalledExtensionCandidate = {
@@ -54,8 +52,6 @@ export interface ExtensionTrustGate {
   ): Promise<boolean>;
   /** Withdraws consent: the extension is pending again. */
   revoke?(key: InstalledExtensionKey): Promise<void>;
-  /** The user's on/off switch, separate from consent. */
-  setEnabled?(key: InstalledExtensionKey, enabled: boolean): Promise<void>;
 }
 
 /** Nothing installed runs. A gate for tests that need the safe default. */

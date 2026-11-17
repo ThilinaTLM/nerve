@@ -91,15 +91,6 @@ export const extensionMethodHandlers = define({
       view: await state.extensionViews.view(input.target),
     };
   },
-  "extensions.setInstalledEnabled": async (state, input) => {
-    const ref = refOf(state, { ...input, source: input.source });
-    if (!ref || !(await state.extensionCatalog.setEnabled(ref, input.enabled)))
-      return { status: "not_found" as const };
-    return {
-      status: "saved" as const,
-      view: await state.extensionViews.view(input.target),
-    };
-  },
   "extensions.reload": async (state, input) => {
     await state.extensionCatalog.reload(input.id);
     return {

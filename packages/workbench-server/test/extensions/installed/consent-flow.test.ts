@@ -55,7 +55,7 @@ async function world() {
 }
 
 void test(
-  "consent through the catalog: pending, grant, disable, revoke; each reload publishes a change",
+  "consent through the catalog: pending, grant, revoke; each reload publishes a change",
   { skip },
   async () => {
     const { home, userRoot } = await world();
@@ -82,20 +82,13 @@ void test(
     assert.ok(
       (await catalog.registryFor()).extensions.some((e) => e.id === "flow"),
     );
-    assert.equal(await catalog.setEnabled(ref, false), true);
-    assert.equal((await entryOf()).state, "disabled");
-    assert.ok(
-      !(await catalog.registryFor()).extensions.some((e) => e.id === "flow"),
-    );
-    assert.equal(await catalog.setEnabled(ref, true), true);
-    assert.equal((await entryOf()).state, "enabled");
     assert.equal(await catalog.revokeConsent(ref), true);
     assert.equal((await entryOf()).state, "pending_consent");
     assert.equal(
       await catalog.grantConsent({ source: "user", id: "nope" }, "x"),
       "not_found",
     );
-    assert.ok(changes >= 5, `reloads notify subscribers (${changes})`);
+    assert.ok(changes >= 2, `reloads notify subscribers (${changes})`);
   },
 );
 
@@ -320,11 +313,9 @@ void test("no agent-reachable surface can grant consent", async () => {
   );
   // The operations that change consent are addressed to the workbench server only, as app calls.
   const consentOperations = allOperationDefinitions().filter((operation) =>
-    /^extensions\.(grantConsent|revokeConsent|setInstalledEnabled|reload)$/.test(
-      operation.method,
-    ),
+    /^extensions\.(grantConsent|revokeConsent|reload)$/.test(operation.method),
   );
-  assert.equal(consentOperations.length, 4);
+  assert.equal(consentOperations.length, 3);
   for (const operation of consentOperations)
     assert.deepEqual(operation.allowedTargetRoles, ["workbench_server"]);
   // And the code that tool and sandbox layers are made of never references the catalog's consent methods.
@@ -418,21 +409,6 @@ void test(
     assert.equal(
       (await catalog.entries(p.dir)).find((e) => e.id === "api-ext")!.state,
       "enabled",
-    );
-    assert.equal(
-      (
-        await handlers["extensions.setInstalledEnabled"]!(state, {
-          target,
-          source: "project",
-          id: "api-ext",
-          enabled: false,
-        })
-      ).status,
-      "saved",
-    );
-    assert.equal(
-      (await catalog.entries(p.dir)).find((e) => e.id === "api-ext")!.state,
-      "disabled",
     );
     assert.equal(
       (

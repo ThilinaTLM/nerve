@@ -2,7 +2,14 @@
   "name": "@nervekit/ui-kit",
   "version": "0.41.1",
   "description": "Contract-free Nerve UI primitives, renderers, utilities, and theme styles.",
-  "private": true,
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/ui-kit"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
   "type": "module",
   "svelte": "./src/lib/index.ts",
   "exports": {
@@ -34,7 +41,8 @@
     "build": "svelte-check --tsconfig ./tsconfig.json",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "tsx --test \"src/**/!(*.svelte).test.ts\"",
-    "test:components": "vitest run"
+    "test:components": "vitest run",
+    "prepack": "node ../../scripts/release/copy-license.mjs"
   },
   "dependencies": {
     "@fontsource/iosevka": "^5.2.5",
@@ -77,5 +85,16 @@
   },
   "engines": {
     "node": ">=24.0.0"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.svelte",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

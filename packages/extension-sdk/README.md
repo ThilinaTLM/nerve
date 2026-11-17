@@ -1,0 +1,26 @@
+# `@nervekit/extension-sdk`
+
+The one dependency of a Nerve extension project: the extension API, the test helpers and the `nerve-ext` build tool. Its version is Nerve's version.
+
+```sh
+npx @nervekit/extension-sdk init csv-viewer --kind integration   # or: nerve-ext init
+cd csv-viewer && npm install
+npx nerve-ext check
+```
+
+| Command                                                                                          | Does                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nerve-ext init <id> --kind preview\|page\|panel\|theme\|integration [--dir <path>] [--install]` | Writes the project: `package.json` pinned to this SDK version, `tsconfig.json`, `src/extension.ts`, a Vitest test with a fake `ctx`, `fixtures/`. |
+| `nerve-ext build`                                                                                | Bundles `src/extension.ts` into `dist/backend.js`, writes `dist/manifest.json`, copies `docs/` and the icon.                                      |
+| `nerve-ext check`                                                                                | `tsc --noEmit`, build and validate, `vitest run`. One command for the agent.                                                                      |
+| `nerve-ext test`                                                                                 | `vitest run`.                                                                                                                                     |
+| `nerve-ext dev`                                                                                  | Rebuilds `dist/` when `src/`, `docs/` or `package.json` change.                                                                                   |
+
+Errors name what is wrong, where, and the fix.
+
+- `@nervekit/extension-sdk`: re-exports `@nervekit/extension-api` (`defineExtension`, `defineNamespace`, `method`, types).
+- `@nervekit/extension-sdk/testing`: `createFakeContext` and Vitest's `describe`, `it`, `expect`, `vi`.
+- `@nervekit/extension-sdk/build`: `buildExtension({ projectDir })`, the function behind `nerve-ext build`.
+- `@nervekit/extension-sdk/ui`: re-exports `@nervekit/ui-kit` (the bridge client follows).
+
+The backend is bundled as one IIFE that registers its definition on `globalThis.__nerveExtension`. `@nervekit/extension-api` is not bundled: Nerve's sandbox provides it at runtime. See [UPGRADING.md](./UPGRADING.md) when moving between SDK versions.

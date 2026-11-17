@@ -156,23 +156,6 @@ export class ScopedExtensionsState {
     );
   }
 
-  /** Turns an installed extension on or off; consent is separate. */
-  setInstalledEnabled(
-    entry: ExtensionCatalogEntry,
-    enabled: boolean,
-  ): Promise<boolean> {
-    return this.installed(
-      (target, source) =>
-        requestWorkbench("extensions.setInstalledEnabled", {
-          target,
-          source,
-          id: entry.id,
-          enabled,
-        }),
-      entry,
-    );
-  }
-
   /** Re-reads installed extensions from disk: one, or all. A reload never grants consent. */
   reloadInstalled(id?: string): Promise<boolean> {
     return this.installed((target) =>

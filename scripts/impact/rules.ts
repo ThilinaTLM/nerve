@@ -57,6 +57,7 @@
 
 export const CORE_PACKAGES: ReadonlySet<string> = new Set([
   "@nervekit/extension-api",
+  "@nervekit/extension-sdk",
   "@nervekit/contracts",
   "@nervekit/desktop-shell",
   "@nervekit/harness",

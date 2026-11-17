@@ -45,7 +45,7 @@ export interface ExtensionRegistryProvider {
 }
 
 /**
- * What changes consent, the enabled switch and what is loaded. Reachable only from the signed-in
+ * What changes consent and what is loaded. Reachable only from the signed-in
  * user's Settings page (the `extensions.*` operations of the workbench protocol); no agent tool,
  * `quick_script` namespace or extension port exposes it.
  */
@@ -55,7 +55,6 @@ export interface ExtensionManagement {
     contentHash: string,
   ): Promise<"granted" | "changed" | "not_found">;
   revokeConsent(ref: InstalledExtensionRef): Promise<boolean>;
-  setEnabled(ref: InstalledExtensionRef, enabled: boolean): Promise<boolean>;
   reload(id?: string): Promise<void>;
 }
 
@@ -298,17 +297,6 @@ export class ExtensionCatalog {
     return true;
   }
 
-  async setEnabled(
-    ref: InstalledExtensionRef,
-    enabled: boolean,
-  ): Promise<boolean> {
-    const found = await this.#find(ref);
-    if (!found?.candidate) return false;
-    await this.#gate.setEnabled?.(found.candidate, enabled);
-    await this.reload(ref.id);
-    return true;
-  }
-
   async #find(
     ref: InstalledExtensionRef,
   ): Promise<ScannedExtension | undefined> {
@@ -423,7 +411,6 @@ export class ExtensionCatalog {
           },
         ],
       };
-    if (decision === "disabled") return { ...base, state: "disabled" };
     const loaded = await loadInstalledExtension(read.folder, manifest);
     if ("error" in loaded)
       return {

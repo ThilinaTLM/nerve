@@ -24,6 +24,7 @@ test("every workspace package has an explicit export policy", () => {
     "@nervekit/conversation-core",
     "@nervekit/desktop-shell",
     "@nervekit/extension-api",
+    "@nervekit/extension-sdk",
     "@nervekit/extensions",
     "@nervekit/harness",
     "@nervekit/native",

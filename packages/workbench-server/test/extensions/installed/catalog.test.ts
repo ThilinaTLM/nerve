@@ -77,10 +77,6 @@ void test("the test gates answer per extension; the pending gate never trusts", 
   const candidate = { id: "x" } as InstalledExtensionCandidate;
   assert.equal(await pendingConsentGate.decide(candidate), "pending");
   assert.equal(await overrideTrustGate().decide(candidate), "trusted");
-  assert.equal(
-    await overrideTrustGate(() => "disabled").decide(candidate),
-    "disabled",
-  );
 });
 
 void test(
@@ -408,7 +404,7 @@ void test(
 );
 
 void test(
-  "the trust gate decides per extension, before any code is opened; disabled stays out",
+  "the trust gate decides per extension, before any code is opened",
   { skip },
   async () => {
     const { home, userRoot } = await world();
@@ -435,17 +431,13 @@ void test(
         asked.push(candidate.id);
         assert.equal(candidate.source, "user");
         assert.equal(candidate.manifest.id, candidate.id);
-        return candidate.id === "gate-on"
-          ? "trusted"
-          : candidate.id === "gate-off"
-            ? "disabled"
-            : "pending";
+        return candidate.id === "gate-on" ? "trusted" : "pending";
       }),
     });
     const entries = await catalog.entries();
     assert.deepEqual(asked.sort(), ["gate-off", "gate-on", "gate-wait"]);
     assert.equal(entry(entries, "gate-on").state, "enabled");
-    assert.equal(entry(entries, "gate-off").state, "disabled");
+    assert.equal(entry(entries, "gate-off").state, "pending_consent");
     assert.equal(entry(entries, "gate-wait").state, "pending_consent");
   },
 );
