@@ -253,13 +253,15 @@ export class ScopedExtensionsState {
   }
 }
 
-/** Id and name of every registered extension, for the settings breadcrumb. */
-export async function loadExtensionItems(): Promise<
-  { id: string; label: string }[]
-> {
-  const view = await requestWorkbench("extensions.get", {
-    target: { scope: "user" },
-  });
+/**
+ * Id and name of every extension registered for a scope, for the settings
+ * breadcrumb and detail routing. A project scope also has that project's
+ * installed extensions, which the user scope does not.
+ */
+export async function loadExtensionItems(
+  target: EditableTarget = { scope: "user" },
+): Promise<{ id: string; label: string }[]> {
+  const view = await requestWorkbench("extensions.get", { target });
   return view.extensions.map(({ metadata }) => ({
     id: metadata.id,
     label: metadata.name,
