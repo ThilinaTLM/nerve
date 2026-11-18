@@ -5,7 +5,6 @@ export { default as ExtensionPreviewBar } from "./views/ExtensionPreviewBar.svel
 export {
   contributionsOf,
   findLoadedExtensionPage,
-  type ExtensionPage,
   type ExtensionPanel,
 } from "./state/extension-ui.svelte";
 export {
@@ -13,20 +12,15 @@ export {
   openExtensionPage,
   selectCenterExtensionPageTab,
 } from "./state/page-tabs.svelte";
-export {
-  registerExtensionHostActions,
-  type ExtensionHostActions,
-} from "./state/host-actions";
+export { registerExtensionHostActions } from "./state/host-actions";
 export {
   defaultPreviewChoice,
   fileExtensionOf,
   matchingPreviews,
   previewKey,
   selectPreview,
-  type ExtensionPreview,
 } from "./model/preview-selection";
 export {
-  extensionPageTabId,
   extensionPanelViewId,
   parseExtensionPageTabId,
   parseExtensionPanelViewId,

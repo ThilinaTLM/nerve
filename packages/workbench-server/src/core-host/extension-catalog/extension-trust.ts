@@ -37,7 +37,6 @@ const recordSchema = z.object({
   grants: grantsSchema,
   consentedAt: z.string(),
 });
-export type ExtensionTrustRecord = z.infer<typeof recordSchema>;
 
 const fileSchema = z.object({
   version: z.literal(1),

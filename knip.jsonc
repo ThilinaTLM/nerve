@@ -13,10 +13,13 @@
     },
     "packages/workbench-server": {
       // The doccheck script is shipped in the engineering-docs skill and invoked by the agent, not imported.
+      // The extension-creator scripts are run by the agent; its examples are scaffolded into user extensions.
       "entry": [
         "scripts/**/*.ts",
         "{test,src}/**/*.test.ts",
         "src/builtin-skills/builtin/engineering-docs/scripts/doccheck.mjs",
+        "src/builtin-skills/builtin/extension-creator/scripts/*.mjs",
+        "src/builtin-skills/builtin/extension-creator/examples/**/src/*.ts",
       ],
     },
     "packages/website": {
@@ -24,9 +27,11 @@
     },
     "packages/tools": {
       // Spawned as a worker by path string in git-isolated-reader.ts.
+      // The extension sandbox runtime is bundled into an asset, not imported.
       "entry": [
         "{test,src}/**/*.test.ts",
         "src/git/read/git-isolated-reader-helper.ts",
+        "src/quick-script/extension-host/sandbox-runtime/extension-runtime.ts",
       ],
       // Types for shell-quote are consumed implicitly by tsc, not by an import.
       // Sandbox libraries are copied as assets by scripts/build/copy-quick-script-assets.ts, not imported.
@@ -53,10 +58,27 @@
       "ignoreDependencies": ["tailwindcss"],
     },
     "packages/extension-sdk": {
-      "entry": ["scripts/*.{ts,mjs}", "test/**/*.test.ts"],
+      // assets/ are copied into extension projects (frame.css, vitest config), not imported.
+      "entry": [
+        "scripts/*.{ts,mjs}",
+        "test/**/*.test.ts",
+        "assets/frame.css",
+        "assets/vitest.config.mjs",
+      ],
       // zod: imported by the inlined contracts schema in dist/. svelte: peer of the ui-kit sources
-      // that extension UI builds compile.
-      "ignoreDependencies": ["zod", "svelte"],
+      // that extension UI builds compile. shadcn-svelte, tw-animate-css, tailwindcss: imported by
+      // ui-kit's app.css, which the generated Vite/Tailwind build resolves from this package.
+      "ignoreDependencies": [
+        "zod",
+        "svelte",
+        "shadcn-svelte",
+        "tw-animate-css",
+        "tailwindcss",
+      ],
+    },
+    "packages/extensions": {
+      // Bundled into a browser asset by the build, not imported.
+      "entry": ["{test,src}/**/*.test.ts", "src/diagram/bundle.ts"],
     },
     "packages/harness": {
       "entry": ["{test,src}/**/*.test.ts"],
