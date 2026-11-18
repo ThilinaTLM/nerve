@@ -28,6 +28,8 @@ import { createProfileTransitions } from "../../infrastructure/configuration/age
 import { agentConfigurationOperations } from "../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { BashToolSettings } from "@nervekit/contracts/settings";
+import { conversationAgentBlocked } from "./conversation-agent-blocked.js";
+import { createConfigurationAgentPort } from "../../core-host/configuration-agent-port.js";
 import { createScopedPermissionSource } from "../../core-host/scoped-permission-source.js";
 import { resolveAgentModel } from "@nervekit/harness/models";
 import { scopedConversationCreation } from "../../core-host/scoped-conversation-creation.js";
@@ -195,30 +197,13 @@ export function createConversationCore(
         input.signal.throwIfAborted();
         const credentialVersion = credentialEpoch;
         let isCurrent = () => true;
-        const blocked = (code: string, pointer = "") => ({
-          kind: "configuration_blocked" as const,
-          request: {
-            diagnostics: [
-              {
-                scope: "conversation" as const,
-                scopeId: input.conversationId,
-                document: "agent.json",
-                path: agentConfiguration.paths.agent({
-                  scope: "conversation",
-                  conversationId: input.conversationId,
-                }),
-                code,
-                pointer,
-                affectedCapability: "tool-execution",
-                recoveryChoices: [
-                  "retry" as const,
-                  "reload" as const,
-                  "repair" as const,
-                ],
-              },
-            ],
-          },
-        });
+        const blocked = (code: string, pointer = "") =>
+          conversationAgentBlocked(
+            agentConfiguration,
+            input.conversationId,
+            code,
+            pointer,
+          );
         let settings: LeadSettingsOverrides;
         let resources: Awaited<ReturnType<typeof captureExecutionResources>>;
         if (input.requestCaptureId) {
@@ -328,6 +313,13 @@ export function createConversationCore(
           extensionPorts,
           ...(quickScript
             ? {
+                configurationAgent: createConfigurationAgentPort({
+                  service: agentConfiguration,
+                  policy: admissionPolicy,
+                  home: deps.storage.paths.home,
+                  conversationId: input.conversationId,
+                  trustedResources: storage.trustedResources,
+                }),
                 extensionAgent: extensionCatalog.agentPort({
                   projectDir: input.projectDir ?? input.cwd,
                   switchOf: (id) => extensionStates(extensions)(id)?.enabled,

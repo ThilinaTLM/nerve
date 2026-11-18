@@ -22,7 +22,7 @@ Define tool name/schema/risk/execution mode in the owning manifest, implement a 
 
 ## Built-in extensions
 
-An extension is a unit of capability with its own settings, accounts, and permissions. It contributes `quick_script` namespaces and optionally direct tools. The built-ins are Web Search, Atlassian, Diagrams, Image generation, and Image explanation; users manage them under [Extensions](/integrations/extensions/). Nerve doesn't load third-party extensions.
+An extension is a unit of capability with its own settings, accounts, and permissions. It contributes `quick_script` namespaces and optionally direct tools. The built-ins are Web Search, Atlassian, Diagrams, Image generation, and Image explanation; users manage them under [Extensions](/integrations/extensions/). Users and projects can also install their own extensions as folders; see [Extension locations and trust](/reference/extensions/). The extension API is documented in the type declarations of the [`@nervekit/extension-sdk`](https://www.npmjs.com/package/@nervekit/extension-sdk) package, and the built-in **configure-nerve** skill builds extensions by chat.
 
 Each is one folder in `packages/extensions/src/<id>/`: a definition written with `@nervekit/extension-api` and method code that reaches the world only through its `ctx`. The definition declares:
 
@@ -32,11 +32,11 @@ Each is one folder in `packages/extensions/src/<id>/`: a definition written with
 - **Direct tools** such as `web_search` and `explain_image`, with a declarative card view.
 - **Permissions**: the network origins it may reach and the host capabilities it uses (`models.image`, `models.vision`).
 
-The package depends on `extension-api` and nothing else. The workbench server owns the list of built-ins (`builtinExtensions`), builds the registry from it, and reads the declared doc files. A repository check rejects any mention of an extension outside its folder and the built-in list, so permission rule sets select extension operations by risk (`external_read`, `external_write`), not by name. Settings live in `config/extensions.json` and accounts in `config/accounts.json` ([configuration](/operations/configuration/#extension-settings-and-accounts)). The runtime and nested authorization are described in the repository's `docs/architecture/code-mode.md` and `extension-platform.md`.
+The package depends on `extension-api` and nothing else. The workbench server owns the list of built-ins (`builtinExtensions`), builds the registry from it, and reads the declared doc files. A repository check rejects any mention of an extension outside its folder and the built-in list, so permission rule sets select extension operations by risk (`external_read`, `external_write`), not by name. Settings live in `config/extensions.json` and accounts in `config/accounts.json` ([configuration](/operations/configuration/#extension-settings-and-accounts)). Declarations of every field and `ctx` service are in `packages/extension-api/src/types.ts`; the runtime and nested authorization are described in the repository's `docs/architecture/code-mode.md` and `extension-platform.md`.
 
 ## Content extensions
 
-Skills and AGENTS/SYSTEM resources extend instructions without code changes. Official disabled-by-default Nerve skills live in `@nervekit/workbench-server` (`src/builtin-skills/`); generic parsing and prompt formatting stay in `@nervekit/harness`, while executable capabilities stay in `@nervekit/tools`. Prompt suggestions add contextual reusable prompts and optional explicitly trusted predicates. These content sources require clear precedence and trust documentation.
+Skills and AGENTS/SYSTEM resources extend instructions without code changes. Official built-in Nerve skills live in `@nervekit/workbench-server` (`src/builtin-skills/`; `configure-nerve` is on by default, the others are off); generic parsing and prompt formatting stay in `@nervekit/harness`, while executable capabilities stay in `@nervekit/tools`. Prompt suggestions add contextual reusable prompts and optional explicitly trusted predicates. These content sources require clear precedence and trust documentation.
 
 ## Package boundaries
 

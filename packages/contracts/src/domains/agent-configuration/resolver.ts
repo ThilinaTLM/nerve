@@ -60,7 +60,7 @@ const builtin: LeadSettingsOverrides = {
   skills: {
     defaults: { file: true, nerve: false, agentBrowser: false },
     file: {},
-    nerve: {},
+    nerve: { "configure-nerve": true },
     agentBrowser: {},
   },
 };

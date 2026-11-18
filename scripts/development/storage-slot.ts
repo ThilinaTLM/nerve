@@ -102,7 +102,7 @@ export function developmentEnvironment(
     // Benchmarks set 0 to measure the production (unvalidated) read path.
     NERVE_VALIDATE_TRUSTED_RESULTS:
       inherited.NERVE_VALIDATE_TRUSTED_RESULTS ?? "1",
-    // The extension-creator skill builds against this checkout's SDK (npm links
+    // The configure-nerve skill builds against this checkout's SDK (npm links
     // the folder; its own dependencies resolve through the workspace), so
     // extension work on a dev slot tests local SDK changes. Set it to override.
     NERVE_EXTENSION_SDK_SPEC:

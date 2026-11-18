@@ -1,23 +1,13 @@
-// The built-in `extension-creator` skill (packages/workbench-server/src/builtin-skills/builtin/
-// extension-creator) mirrors this SDK in prose. These tests keep the parts that mirror code from
-// drifting, build the skill's examples with the SDK, and cover the skill's plain-Node scripts.
+// The built-in `configure-nerve` skill (packages/workbench-server/src/builtin-skills/builtin/
+// configure-nerve) points at this SDK's declarations and quotes a few of its facts. These tests keep
+// those from drifting, build the skill's examples with the SDK, and cover the skill's plain-Node scripts.
 import assert from "node:assert/strict";
 import { cp, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import {
-  bridgeErrorCodeSchema,
-  bridgeEvents,
-  bridgeLimits,
-  bridgeMethodNames,
-  extensionUiLimits,
-  installedExtensionManifestSchema,
-  themeTokenNames,
-} from "@nervekit/contracts/extensions";
-import { EXTENSION_ERROR_CODES } from "@nervekit/extension-api";
-import { createFakeContext } from "@nervekit/extension-api/testing";
+import { themeTokenNames } from "@nervekit/contracts/extensions";
 import { buildExtension } from "../src/build.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -29,10 +19,10 @@ const skill = join(
   "src",
   "builtin-skills",
   "builtin",
-  "extension-creator",
+  "configure-nerve",
 );
 const reference = (name: string) =>
-  readFile(join(skill, "references", `${name}.md`), "utf8");
+  readFile(join(skill, "reference", "extensions", `${name}.md`), "utf8");
 
 function assertMentions(text: string, names: readonly string[], where: string) {
   const missing = names.filter((name) => !text.includes(`\`${name}`));
@@ -43,86 +33,54 @@ function assertMentions(text: string, names: readonly string[], where: string) {
   );
 }
 
-void test("the references mention every bridge method, event, error code and component", async () => {
-  const ui = await reference("ui");
-  assertMentions(ui, bridgeMethodNames, "references/ui.md");
-  assertMentions(
-    ui,
-    Object.keys(bridgeEvents).map(eventHandler),
-    "ui.md events",
-  );
-  assertMentions(ui, bridgeErrorCodeSchema.options, "references/ui.md");
-  const components = await readFile(
-    join(here, "..", "src", "ui", "components.d.ts"),
-    "utf8",
-  );
-  const names = [
-    ...components.matchAll(/^export (?:const|function) (\w+)/gm),
-  ].map((match) => match[1]!);
-  assert.ok(names.length > 20);
-  assertMentions(ui, names, "references/ui.md components");
-  // Numbers the prose quotes.
-  for (const text of [
-    String(bridgeLimits.maxMenuItems),
-    String(extensionUiLimits.maxExtensionsPerPreview),
-  ])
-    assert.ok(ui.includes(text), `ui.md must state the limit ${text}`);
-  assert.ok(
-    (await reference("manifest")).includes(
-      String(extensionUiLimits.maxPerKind),
-    ),
-  );
-});
-
-// `onFileChange` for `fileChanged`, and so on.
-function eventHandler(event: string): string {
-  return `host.on${event[0]!.toUpperCase()}${event
-    .slice(1)
-    .replace(/ed$/, "")
-    .replace(/Chang$/, "Change")}`;
-}
-
 void test("themes.md lists every theme token", async () => {
   const themes = await reference("themes");
   assertMentions(themes, themeTokenNames, "references/themes.md");
   assert.ok(themes.includes(`all ${themeTokenNames.length} tokens`));
 });
 
-void test("backend.md covers every ctx service, risk and error code", async () => {
-  const backend = await reference("backend");
-  const { ctx } = createFakeContext({
-    vision: { explain: () => ({ text: "", model: "" }) },
-  });
-  assertMentions(
-    backend,
-    Object.keys(ctx).map((key) => `ctx.${key}`),
-    "references/backend.md",
-  );
-  assertMentions(
-    backend,
-    ["none", "read", "external_read", "write", "external_write", "destructive"],
-    "references/backend.md risks",
-  );
-  assertMentions(
-    backend,
-    EXTENSION_ERROR_CODES,
-    "references/backend.md errors",
-  );
+// The prose points at declarations as `Symbol` (`reference/extensions/api/<package>/<file>.d.ts`);
+// the build copies those files from this SDK and extension-api, so check each pointer against the sources.
+void test("every declaration pointer in the references names an export of that file", async () => {
+  const sources: Record<string, string> = {
+    "extension-api": join(here, "..", "..", "extension-api", "src"),
+    "extension-sdk": join(here, "..", "src"),
+  };
+  const files = [
+    join(skill, "guide", "extensions.md"),
+    ...(await readdir(join(skill, "reference", "extensions")))
+      .filter((name) => name.endsWith(".md"))
+      .map((name) => join(skill, "reference", "extensions", name)),
+  ];
+  let count = 0;
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+    for (const [, symbol, pkg, path] of text.matchAll(
+      /`(\w+)` \(`reference\/extensions\/api\/(extension-api|extension-sdk)\/([\w/-]+)\.d\.ts`\)/g,
+    )) {
+      const base = join(sources[pkg!]!, path!);
+      const source = await readFile(`${base}.ts`, "utf8").catch(() =>
+        readFile(`${base}.d.ts`, "utf8"),
+      );
+      assert.match(
+        source,
+        new RegExp(
+          `export (?:declare )?(?:const|function|type|interface|class|let) ${symbol}\\b`,
+        ),
+        `${file}: ${symbol} is not exported by ${pkg}/${path}`,
+      );
+      count++;
+    }
+  }
+  assert.ok(count >= 20, `only ${count} pointers found`);
 });
 
-void test("manifest.md mentions every field of manifest.json", async () => {
-  const manifest = await reference("manifest");
-  assertMentions(
-    manifest,
-    Object.keys(installedExtensionManifestSchema.shape),
-    "references/manifest.md",
-  );
-});
-
-void test("SKILL.md links only to files that exist", async () => {
-  const text = await readFile(join(skill, "SKILL.md"), "utf8");
+void test("extensions guide links only to files that exist", async () => {
+  const text = await readFile(join(skill, "guide", "extensions.md"), "utf8");
   const paths = [
-    ...text.matchAll(/`((?:references|scripts|examples)\/[\w./-]+?)`/g),
+    ...text.matchAll(
+      /`((?:reference\/extensions|scripts|examples\/extensions)\/[\w./-]+?)`/g,
+    ),
   ].map((match) => match[1]!);
   assert.ok(paths.length >= 6, paths.join(", "));
   for (const path of paths) await stat(join(skill, path.replace(/\/$/, "")));
@@ -134,7 +92,7 @@ const examples = ["csv-preview", "paper-theme"];
 
 for (const name of examples)
   void test(`the example ${name} builds`, async () => {
-    const folder = join(skill, "examples", name);
+    const folder = join(skill, "examples", "extensions", name);
     const entries = await readdir(folder);
     assert.ok(!entries.includes("node_modules") && !entries.includes("dist"));
     const root = await mkdtemp(join(tmpdir(), "nerve-skill-example-"));

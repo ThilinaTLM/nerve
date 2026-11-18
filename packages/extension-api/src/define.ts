@@ -4,30 +4,43 @@ import type {
   MethodDefinition,
   NamespaceDefinition,
   ToolDefinition,
-} from "./types.js";
+} from "./definition.js";
 
-/** Declares an extension. Returns the definition unchanged; the host reads it. */
+/**
+ * Declares an extension: `export default defineExtension({...})` in `src/extension.ts`. Returns
+ * the definition unchanged (it only checks the types); `nerve-ext build` and the host read it.
+ */
 export function defineExtension(
   definition: ExtensionDefinition,
 ): ExtensionDefinition {
   return definition;
 }
 
-/** Declares a namespace; `Session` is what `session(ctx)` returns and methods receive. */
+/**
+ * Declares a `quick_script` namespace. `Session` is what `session(ctx)` returns and every method's
+ * `run` receives as its first argument; leave it out when the namespace has no `session`.
+ * Returns the definition unchanged.
+ */
 export function defineNamespace<Session = undefined>(
   definition: NamespaceDefinition<Session>,
 ): NamespaceDefinition<Session> {
   return definition;
 }
 
-/** Declares a namespace method; the input type flows from `parse` into `authorize` and `run`. */
+/**
+ * Declares a namespace method; the input type flows from `parse` into `authorize` and `run`.
+ * `Input` is what `parse` returns, `Output` what `run` returns. Returns the definition unchanged.
+ */
 export function method<Input, Output = unknown, Session = any>(
   definition: MethodDefinition<Session, Input, Output>,
 ): MethodDefinition<Session, Input, Output> {
   return definition;
 }
 
-/** Declares a direct tool, bound to a namespace method (`method`) or with its own `parse`/`authorize`/`run`. */
+/**
+ * Declares a direct tool the model calls by name: bound to a namespace method (`method`: `"<namespace>.<method>"`)
+ * or with its own `risk`, `parse`, `authorize` and `run`. Returns the definition unchanged.
+ */
 export function defineTool<const T extends ToolDefinition>(definition: T): T {
   return definition;
 }

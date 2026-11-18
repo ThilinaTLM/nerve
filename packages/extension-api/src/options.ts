@@ -1,11 +1,17 @@
-import { ExtensionError } from "./types.js";
+import { ExtensionError } from "./errors.js";
 
 /**
  * The calling convention of a namespace method taking named options: one
  * argument, an options object (or a bare string when `bare` names the option it
  * stands for). Unknown names fail with the list of valid ones, so aliases from
  * other APIs teach the right name. A bound direct tool passes its arguments
- * object as that single argument.
+ * object as that single argument. Call it from a method's `parse`:
+ * `args` is the `parse` argument, `method` the name used in error messages,
+ * `spec.options` the valid option names and `spec.bare` the option a bare string
+ * (or number, as its text) stands for; without `bare` a bare value is rejected.
+ * `null` or `undefined` mean no options. Returns the options object; values are not validated
+ * (use `nonEmptyString`). Throws `ExtensionError("BAD_REQUEST")` for more than one argument,
+ * a non-object argument and unknown option names.
  */
 export function parseOptions(
   method: string,
@@ -39,7 +45,7 @@ export function parseOptions(
   return options;
 }
 
-/** A non-empty string option (numbers are accepted as their text). */
+/** A non-empty string option (numbers are accepted as their text; strings are trimmed). Throws `ExtensionError("BAD_REQUEST", "<name> must be a non-empty string.")` otherwise. */
 export function nonEmptyString(value: unknown, name: string): string {
   const text =
     typeof value === "number"

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- the projection walks definitions of any shape */
-import type { ExtensionDefinition } from "./types.js";
+import type { ExtensionDefinition } from "./definition.js";
 
 /**
  * The plain-data shape of a definition: every hook (a function) is replaced by `true`, so the
@@ -38,7 +38,8 @@ function toData(value: unknown): unknown {
 /**
  * The plain-data part of a definition, as `nerve-ext build` writes it to `dist/manifest.json`:
  * hooks (`parse`, `authorize`, `run`, `present`, `session`, `configuration`, `availability`,
- * `test`, settings `migrations`) become `true`, everything else is kept; `ui` is left out. The host compares it
+ * `test`, settings `migrations`) become `true`, everything else is kept (`undefined` entries
+ * are dropped); `ui` is left out. The host compares it
  * with the data of the definition the extension's code registers, so the manifest cannot
  * understate what the code does.
  */

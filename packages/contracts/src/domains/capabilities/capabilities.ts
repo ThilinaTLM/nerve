@@ -21,6 +21,10 @@ export type CapabilityToolName = z.infer<typeof capabilityToolNameSchema>;
 const skillNameSchema = z.string().trim().min(1).max(256);
 const skillOverridesSchema = z
   .record(skillNameSchema, z.boolean())
+  .meta({
+    description:
+      "Skill name to true (enable) or false (disable). At most 512 entries.",
+  })
   .refine(
     (value) => Object.keys(value).length <= 512,
     "At most 512 skill overrides are allowed.",

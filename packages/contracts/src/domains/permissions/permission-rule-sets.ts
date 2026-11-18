@@ -13,59 +13,70 @@ const primitiveValueSchema = z.union([
   z.boolean(),
 ]);
 
-export const permissionDecisionSchema = z.enum(["allow", "prompt", "deny"]);
+export const permissionDecisionSchema = z
+  .enum(["allow", "prompt", "deny"])
+  .meta({
+    description:
+      "`allow` runs the call, `prompt` asks the user, `deny` refuses it.",
+  });
 export type PermissionDecision = z.infer<typeof permissionDecisionSchema>;
 export type RuleDecision = PermissionDecision;
 
-export const ruleEnforcementSchema = z.enum(["overridable", "guardrail"]);
+export const ruleEnforcementSchema = z.enum(["overridable", "guardrail"]).meta({
+  description:
+    "`overridable` rules are ordered by scope and priority. A `guardrail` beats every overridable rule, may only `prompt` or `deny`, and is allowed only in user overlays.",
+});
 export type RuleEnforcement = z.infer<typeof ruleEnforcementSchema>;
 
-export const toolKindSchema = z.enum([
-  "filesystem",
-  "command",
-  "code",
-  "external_read",
-  "interaction",
-  "orchestration",
-  "deployment",
-  "integration",
-  "other",
-]);
+export const toolKindSchema = z
+  .enum([
+    "filesystem",
+    "command",
+    "code",
+    "external_read",
+    "interaction",
+    "orchestration",
+    "deployment",
+    "integration",
+    "other",
+  ])
+  .meta({ description: "Static category of a tool." });
 export type ToolKind = z.infer<typeof toolKindSchema>;
 
 /**
  * Static category of a tool (what rule sets match on). The effective risk of a
  * specific call is `ToolRisk`; map with `effectiveRiskForCategory`.
  */
-export const staticToolRiskSchema = z.enum([
-  "read",
-  "write",
-  "external_read",
-  "external_write",
-  "secret",
-  "destructive",
-  "deployment",
-  "agent_spawn",
-  "interaction",
-  "unknown",
-]);
+export const staticToolRiskSchema = z
+  .enum([
+    "read",
+    "write",
+    "external_read",
+    "external_write",
+    "secret",
+    "destructive",
+    "deployment",
+    "agent_spawn",
+    "interaction",
+    "unknown",
+  ])
+  .meta({
+    description:
+      "Risk class of a tool call. `bash` and `python_exec` calls are always `unknown`; match them by tool name and argument.",
+  });
 export type StaticToolRisk = z.infer<typeof staticToolRiskSchema>;
 
-export const permissionTargetKindSchema = z.enum([
-  "path",
-  "url",
-  "agent",
-  "resource",
-  "whole_tool",
-]);
+export const permissionTargetKindSchema = z
+  .enum(["path", "url", "agent", "resource", "whole_tool"])
+  .meta({ description: "Kind of target a call touches." });
 export type PermissionTargetKind = z.infer<typeof permissionTargetKindSchema>;
 
-export const pathRootSchema = z.enum([
-  "project",
-  "nerve_home",
-  "nerve_data",
-  "plans",
-]);
+export const pathRootSchema = z
+  .enum(["project", "nerve_home", "nerve_data", "plans"])
+  .meta({
+    description:
+      "Directory a path target is relative to: the project directory, the Nerve home, its data directory or the plans directory.",
+  });
 export type PathRoot = z.infer<typeof pathRootSchema>;
 
 const relativePathSchema = z
@@ -150,76 +161,113 @@ export const permissionTargetSchema = z.union([
 ]);
 export type PermissionTarget = z.infer<typeof permissionTargetSchema>;
 
-export const comparableValueSchema = z.union([
-  primitiveValueSchema,
-  z.array(primitiveValueSchema).max(256),
-]);
+export const comparableValueSchema = z
+  .union([primitiveValueSchema, z.array(primitiveValueSchema).max(256)])
+  .meta({
+    description: "String, number, boolean or an array of those (at most 256).",
+  });
 export type PrimitiveValue = z.infer<typeof primitiveValueSchema>;
 export type ComparableValue = z.infer<typeof comparableValueSchema>;
 
-export const valueMatcherSchema = z.discriminatedUnion("operator", [
-  z
-    .object({
-      operator: z.enum(["equals", "not_equals"]),
-      value: comparableValueSchema,
-    })
-    .strict(),
-  z
-    .object({
-      operator: z.literal("in"),
-      value: z.array(primitiveValueSchema).min(1).max(256),
-    })
-    .strict(),
-  z
-    .object({
-      operator: z.literal("glob"),
-      value: z.string().max(8_192),
-    })
-    .strict(),
-  z.object({ operator: z.literal("exists"), value: z.boolean() }).strict(),
-]);
+const operatorDescription =
+  "Operators: `equals`/`not_equals` compare the whole value; `in` matches any listed value; `glob` matches a pattern against the whole value (`*` stays within one `/` segment, `**` spans segments, `{a,b}` alternates); `exists` tests presence (`value` true or false).";
+const inValuesSchema = z
+  .array(primitiveValueSchema)
+  .min(1)
+  .max(256)
+  .meta({ description: "Values to match; the call matches any of them." });
+const globValueSchema = z
+  .string()
+  .max(8_192)
+  .meta({ description: "Glob pattern, matched against the whole value." });
+export const valueMatcherSchema = z
+  .discriminatedUnion("operator", [
+    z
+      .object({
+        operator: z.enum(["equals", "not_equals"]),
+        value: comparableValueSchema,
+      })
+      .strict(),
+    z
+      .object({
+        operator: z.literal("in"),
+        value: inValuesSchema,
+      })
+      .strict(),
+    z
+      .object({
+        operator: z.literal("glob"),
+        value: globValueSchema,
+      })
+      .strict(),
+    z
+      .object({
+        operator: z.literal("exists"),
+        value: z.boolean().meta({
+          description: "`true` matches when present, `false` when absent.",
+        }),
+      })
+      .strict(),
+  ])
+  .meta({
+    description: `Compares a single value, such as the tool's primary argument. ${operatorDescription} Command lines are one value, so a glob like \`pnpm test*\` also matches \`pnpm test && rm -rf x\`; prefer \`equals\` or \`in\` for commands.`,
+  });
 export type ValueMatcher = z.infer<typeof valueMatcherSchema>;
 
 const argumentPathSchema = z
   .string()
   .min(6)
   .max(512)
-  .regex(/^args\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/);
-export const argumentMatcherSchema = z.discriminatedUnion("operator", [
-  z
-    .object({
-      path: argumentPathSchema,
-      operator: z.enum(["equals", "not_equals"]),
-      value: comparableValueSchema,
-    })
-    .strict(),
-  z
-    .object({
-      path: argumentPathSchema,
-      operator: z.literal("in"),
-      value: z.array(primitiveValueSchema).min(1).max(256),
-    })
-    .strict(),
-  z
-    .object({
-      path: argumentPathSchema,
-      operator: z.literal("glob"),
-      value: z.string().max(8_192),
-    })
-    .strict(),
-  z
-    .object({
-      path: argumentPathSchema,
-      operator: z.literal("exists"),
-      value: z.boolean(),
-    })
-    .strict(),
-]);
+  .regex(/^args\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/)
+  .meta({
+    description:
+      "Path to a tool argument: `args.<name>` or nested `args.<name>.<name>`.",
+  });
+export const argumentMatcherSchema = z
+  .discriminatedUnion("operator", [
+    z
+      .object({
+        path: argumentPathSchema,
+        operator: z.enum(["equals", "not_equals"]),
+        value: comparableValueSchema,
+      })
+      .strict(),
+    z
+      .object({
+        path: argumentPathSchema,
+        operator: z.literal("in"),
+        value: inValuesSchema,
+      })
+      .strict(),
+    z
+      .object({
+        path: argumentPathSchema,
+        operator: z.literal("glob"),
+        value: globValueSchema,
+      })
+      .strict(),
+    z
+      .object({
+        path: argumentPathSchema,
+        operator: z.literal("exists"),
+        value: z.boolean().meta({
+          description: "`true` matches when present, `false` when absent.",
+        }),
+      })
+      .strict(),
+  ])
+  .meta({
+    description: `Compares one named argument of the tool call. ${operatorDescription}`,
+  });
 export type ArgumentMatcher = z.infer<typeof argumentMatcherSchema>;
 
 const targetPatternSchema = z
   .string()
   .max(8_192)
+  .meta({
+    description:
+      "Single-line glob over the path relative to its root, the full URL, the agent id or the resource value. Path patterns are relative POSIX globs: no leading `/`, no `..`, no backslashes.",
+  })
   .superRefine((value, context) => {
     if (/\r|\n|\0/.test(value)) {
       context.addIssue({
@@ -232,12 +280,30 @@ const targetPatternSchema = z
 export const targetMatcherSchema = z
   .object({
     kind: permissionTargetKindSchema.optional(),
-    access: z.enum(["read", "write"]).optional(),
-    scope: z.enum(["exact", "tree"]).optional(),
-    root: pathRootSchema.optional(),
+    access: z
+      .enum(["read", "write"])
+      .meta({ description: "Whether the call reads or writes the target." })
+      .optional(),
+    scope: z
+      .enum(["exact", "tree"])
+      .meta({
+        description:
+          "Paths only: `exact` for one file, `tree` for a directory and everything below it.",
+      })
+      .optional(),
+    root: pathRootSchema
+      .meta({
+        description:
+          "Paths only: `project` (the project directory), `nerve_home`, `nerve_data` or `plans`. A path outside every root has no root and matches only matchers without `root` and `pattern`.",
+      })
+      .optional(),
     pattern: targetPatternSchema.optional(),
   })
   .strict()
+  .meta({
+    description:
+      "Matches one target of a call. Every present field must match. `scope` and `root` need `kind` `path` or no `kind`.",
+  })
   .superRefine((matcher, context) => {
     const hasPathField =
       matcher.scope !== undefined || matcher.root !== undefined;
@@ -266,35 +332,97 @@ export type TargetMatcher = z.infer<typeof targetMatcherSchema>;
 
 export const permissionRuleFilterSchema = z
   .object({
-    toolNames: z.array(boundedStringSchema).min(1).max(256).optional(),
-    toolKinds: z.array(toolKindSchema).min(1).max(16).optional(),
-    toolGroups: z.array(boundedStringSchema).min(1).max(256).optional(),
-    baseRisks: z.array(staticToolRiskSchema).min(1).max(16).optional(),
-    primaryArgument: valueMatcherSchema.optional(),
-    primaryTarget: targetMatcherSchema.optional(),
+    toolNames: z
+      .array(boundedStringSchema)
+      .min(1)
+      .max(256)
+      .meta({ description: "The tool name is one of these." })
+      .optional(),
+    toolKinds: z
+      .array(toolKindSchema)
+      .min(1)
+      .max(16)
+      .meta({ description: "The tool's kind is one of these." })
+      .optional(),
+    toolGroups: z
+      .array(boundedStringSchema)
+      .min(1)
+      .max(256)
+      .meta({
+        description:
+          "The tool's group, or the quick_script namespace of an SDK operation, is one of these.",
+      })
+      .optional(),
+    baseRisks: z
+      .array(staticToolRiskSchema)
+      .min(1)
+      .max(16)
+      .meta({ description: "The call's risk is one of these." })
+      .optional(),
+    primaryArgument: valueMatcherSchema
+      .meta({
+        description:
+          "Matcher on the tool's primary argument (for `bash`, the command line).",
+      })
+      .optional(),
+    primaryTarget: targetMatcherSchema
+      .meta({ description: "Matcher on the call's first target." })
+      .optional(),
     targets: z
       .object({
-        quantifier: z.enum(["any", "all"]),
+        quantifier: z.enum(["any", "all"]).meta({
+          description:
+            "`any`: at least one target matches. `all`: the call has targets and every one matches; use it for `allow` rules so a call touching an allowed and another path is not allowed.",
+        }),
         matcher: targetMatcherSchema,
       })
       .strict()
+      .meta({ description: "Matcher applied to all targets of the call." })
       .optional(),
-    arguments: z.array(argumentMatcherSchema).min(1).max(64).optional(),
+    arguments: z
+      .array(argumentMatcherSchema)
+      .min(1)
+      .max(64)
+      .meta({ description: "Matchers on named arguments; all must match." })
+      .optional(),
   })
-  .strict();
+  .strict()
+  .meta({
+    description:
+      "Selects calls. Every present field must match; `{}` matches every call.",
+  });
 export type PermissionRuleFilter = z.infer<typeof permissionRuleFilterSchema>;
 
 export const permissionRuleSchema = z
   .object({
-    id: identifierSchema,
-    description: z.string().trim().min(1).max(1_024).optional(),
-    enabled: z.boolean(),
-    priority: z.number().int().min(-1_000).max(1_000),
+    id: identifierSchema.meta({
+      description:
+        "Lowercase letters, digits, `.`, `_`, `-`; starts and ends with a letter or digit; at most 128. Unique within the document.",
+    }),
+    description: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1_024)
+      .meta({
+        description:
+          "Shown to the user as the reason when this rule decides; write it for them.",
+      })
+      .optional(),
+    enabled: z.boolean().meta({ description: "Disabled rules are ignored." }),
+    priority: z.number().int().min(-1_000).max(1_000).meta({
+      description:
+        "Higher wins among rules of the same scope and enforcement. Unique per enforcement class within one document.",
+    }),
     enforcement: ruleEnforcementSchema,
     when: permissionRuleFilterSchema,
     decision: permissionDecisionSchema,
   })
   .strict()
+  .meta({
+    description:
+      "One permission rule. A `guardrail` rule may only `prompt` or `deny`.",
+  })
   .superRefine((rule, context) => {
     if (rule.enforcement === "guardrail" && rule.decision === "allow") {
       context.addIssue({
@@ -341,15 +469,40 @@ function validateRules(
 
 export const permissionRuleSetSchema = z
   .object({
-    schemaVersion: z.literal(1),
-    id: identifierSchema,
-    name: z.string().trim().min(1).max(128),
-    description: z.string().trim().min(1).max(1_024).optional(),
-    source: ruleSetSourceSchema,
-    enabled: z.boolean(),
-    rules: z.array(permissionRuleSchema).min(1).max(256),
+    schemaVersion: z.literal(1).meta({ description: "Always 1." }),
+    id: identifierSchema.meta({
+      description:
+        "Rule set id; equals the file name without `.json`. Same format as a rule id. Must not reuse a built-in id: the built-in wins.",
+    }),
+    name: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .meta({ description: "Name shown in the permission picker." }),
+    description: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1_024)
+      .meta({ description: "What the rule set is for." })
+      .optional(),
+    source: ruleSetSourceSchema.meta({
+      description: "Always `user` for files you write.",
+    }),
+    enabled: z
+      .boolean()
+      .meta({ description: "A disabled rule set cannot be selected." }),
+    rules: z.array(permissionRuleSchema).min(1).max(256).meta({
+      description:
+        "All rules must be `overridable`. End with a catch-all rule (`when: {}`) so every call gets a deliberate decision. A rule set used by sub-agents must have no enabled `prompt` rule.",
+    }),
   })
   .strict()
+  .meta({
+    description:
+      "A user permission rule set, `<home>/config/rule-sets/<id>.json`. Not expressible here: rule ids are unique, priorities are unique per enforcement class, and rules may not be `guardrail`.",
+  })
   .superRefine((ruleSet, context) => {
     validateRules(ruleSet.rules, context);
     for (const [index, rule] of ruleSet.rules.entries()) {
@@ -366,19 +519,33 @@ export type PermissionRuleSet = z.infer<typeof permissionRuleSetSchema>;
 
 export const permissionOverlaySchema = z
   .object({
-    ruleSetId: permissionRuleSetIdSchema,
-    rules: z.array(permissionRuleSchema).max(256),
+    ruleSetId: permissionRuleSetIdSchema.meta({
+      description:
+        "Id of the rule set these rules extend. They apply only while that rule set is selected.",
+    }),
+    rules: z
+      .array(permissionRuleSchema)
+      .max(256)
+      .meta({ description: "Rules added on top of the rule set." }),
   })
   .strict()
+  .meta({ description: "Extra rules bound to one rule set." })
   .superRefine((overlay, context) => validateRules(overlay.rules, context));
 export type PermissionOverlay = z.infer<typeof permissionOverlaySchema>;
 
 export const permissionOverlayDocumentSchema = z
   .object({
-    schemaVersion: z.literal(2),
-    overlays: z.array(permissionOverlaySchema).max(256),
+    schemaVersion: z.literal(2).meta({ description: "Always 2." }),
+    overlays: z.array(permissionOverlaySchema).max(256).meta({
+      description:
+        "One entry per rule set id; add rules to the existing entry. At most 256 rules in the whole document.",
+    }),
   })
   .strict()
+  .meta({
+    description:
+      "Permission overlays (`permissions.json`). Not expressible here: `ruleSetId` is unique per document, rule ids are unique and priorities are unique per enforcement class within each overlay, and the document holds at most 256 rules in total.",
+  })
   .superRefine((document, context) => {
     const ruleSetIds = new Set<string>();
     let ruleCount = 0;

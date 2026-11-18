@@ -97,13 +97,26 @@ const permissionSettingsSchema = z.object({
 });
 
 const bashAutoPromotionSettingsSchema = z.object({
-  enabled: z.boolean(),
-  afterMs: z.number().int().positive().max(86_400_000),
+  enabled: z
+    .boolean()
+    .meta({ description: "Turn background promotion on or off." }),
+  afterMs: z.number().int().positive().max(86_400_000).meta({
+    description:
+      "Milliseconds a command runs in the foreground before it is moved to the background.",
+  }),
 });
 
 export const pythonExecToolSettingsSchema = z
   .object({
-    interpreterPath: z.string().trim().min(1).optional(),
+    interpreterPath: z
+      .string()
+      .trim()
+      .min(1)
+      .meta({
+        description:
+          "Absolute path of the Python interpreter. Omit to use the default interpreter.",
+      })
+      .optional(),
   })
   .strict();
 export type PythonExecToolSettings = z.infer<
@@ -111,7 +124,10 @@ export type PythonExecToolSettings = z.infer<
 >;
 export const planPresentToolSettingsSchema = z
   .object({
-    approvalProfile: agentProfileNameSchema,
+    approvalProfile: agentProfileNameSchema.meta({
+      description:
+        "Name of the lead agent profile that applies when the user approves a plan.",
+    }),
   })
   .strict();
 export type PlanPresentToolSettings = z.infer<
@@ -119,9 +135,29 @@ export type PlanPresentToolSettings = z.infer<
 >;
 
 export const bashToolSettingsSchema = z.object({
-  shellPath: z.string().trim().min(1).optional(),
-  autoPromotion: bashAutoPromotionSettingsSchema,
-  maxTimeoutMs: z.number().int().min(1000).max(3_600_000).default(900_000),
+  shellPath: z
+    .string()
+    .trim()
+    .min(1)
+    .meta({
+      description:
+        "Absolute path of the shell that runs commands. Omit for the default shell.",
+    })
+    .optional(),
+  autoPromotion: bashAutoPromotionSettingsSchema.meta({
+    description:
+      "Moves a foreground command that runs too long to the background instead of blocking the agent.",
+  }),
+  maxTimeoutMs: z
+    .number()
+    .int()
+    .min(1000)
+    .max(3_600_000)
+    .meta({
+      description:
+        "Longest time in milliseconds a command may run (1000-3600000). Default 900000.",
+    })
+    .default(900_000),
 });
 
 export type BashToolSettings = z.infer<typeof bashToolSettingsSchema>;

@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- method tables hold methods of different session and input types */
 /*
- * The extension contract: manifest, namespace, method and tool shapes, and the
- * `ExtensionContext` (`ctx`) the host hands to extension code.
+ * The `ExtensionContext` (`ctx`) the host hands to extension code, and the data its services
+ * exchange (HTTP, artifacts, models).
  *
  * Every `ctx` call is async and exchanges plain data (JSON values,
  * `Uint8Array`, handles), so extension code can later run in a sandbox. An
@@ -9,220 +8,108 @@
  * `ctx.http` requests.
  */
 
-// ── Risk, authorization ──────────────────────────────────────────────────────
-
-/**
- * What a method can do at most: `none` has no external effect, `read` reads
- * local data, `external_read` reads through an integration, `write` changes
- * workspace files, `external_write` changes things in an integration,
- * `destructive` deletes or cannot be analysed.
- */
-export type Risk =
-  | "none"
-  | "read"
-  | "external_read"
-  | "write"
-  | "external_write"
-  | "destructive";
-
-/** A resource a call acts on, normalized `<system>:<type>/<id>`: `jira:issue/APP-12`. */
-export type OperationTarget = { kind: "resource"; value: string };
-
-/** What the permission policy checks for a call: an operation on targets. */
-export type OperationAuthorization = {
-  /** Defaults to `<namespace>.<method>`. */
-  operation?: string;
-  targets: readonly (OperationTarget | string)[];
-  /** Defaults to the method's declared risk; never lower than it. */
-  risk?: Risk;
-  /** Short label for approvals and records (JQL, issue key, ...). */
-  summary: string;
-};
-
-/**
- * A call checked as a host tool, e.g. `{ toolName: "read", args: { path } }`
- * for a workspace file the method will read through `ctx.artifacts.read`.
- */
-export type ToolAuthorization = {
-  toolName: string;
-  args: Record<string, unknown>;
-  summary: string;
-};
-
-export type Authorization = OperationAuthorization | ToolAuthorization;
-
-/** What `authorize` returns: one check, several (every one must pass) or none. */
-export type AuthorizeResult =
-  | Authorization
-  | readonly Authorization[]
-  | undefined;
-
-// ── Settings and accounts ────────────────────────────────────────────────────
-
-export type SettingScope = "user" | "project" | "conversation";
-
-type FieldBase = {
-  label: string;
-  description?: string;
-  section?: string;
-  /** All three unless narrowed. */
-  scopes?: SettingScope[];
-  visibleWhen?: { field: string; equals: string | boolean };
-  advanced?: boolean;
-};
-
-export type SettingField =
-  | (FieldBase & { type: "boolean"; default: boolean })
-  | (FieldBase & {
-      type: "string";
-      default?: string;
-      format?: "url" | "text";
-      placeholder?: string;
-      maxLength?: number;
-    })
-  | (FieldBase & {
-      type: "number";
-      default?: number;
-      min?: number;
-      max?: number;
-      step?: number;
-      unit?: string;
-    })
-  | (FieldBase & {
-      type: "enum";
-      default: string;
-      options: {
-        value: string;
-        label: string;
-        description?: string;
-      }[];
-    })
-  /**
-   * Id of a user account of this kind, or of any of several kinds (one
-   * provider each; read `AccountInfo.kind` to tell them apart).
-   */
-  | (FieldBase & { type: "account"; kind: string | string[] })
-  | (FieldBase & { type: "model"; capability?: "image" | "vision" });
-
-export type SettingsSchema = {
-  sections?: { id: string; title: string; description?: string }[];
-  fields: Record<string, SettingField>;
-};
-
-export type ExtensionSettings = SettingsSchema & {
-  /** Bump when a field changes meaning. */
-  version: number;
-  /** `migrations[n]` converts version n-1 settings to version n, on read. */
-  migrations?: Readonly<
-    Record<
-      number,
-      (settings: Record<string, unknown>) => Record<string, unknown>
-    >
-  >;
-};
-
-/** How `ctx.http` injects an account's credential. */
-export type AccountAuth =
-  | {
-      /** `Authorization: Basic base64(<account field>:<secret>)`. */
-      scheme: "basic";
-      /** Account field holding the user name (`email`). */
-      user: string;
-    }
-  | { scheme: "bearer" }
-  | {
-      /** The secret is sent as this header's value. */
-      scheme: "header";
-      name: string;
-    };
-
-export type AccountInfo = {
-  id: string;
-  name: string;
-  kind: string;
-  fields: Record<string, unknown>;
-};
-
-/**
- * What a kind's `test` hook reports. A failure says why when it can:
- * `rejected` (credentials refused, the default), `restricted` (authenticated
- * without access), `unavailable` (the service is not provided) or
- * `unreachable` (network or server failure; the credentials could not be judged).
- * A `test` hook throws `ExtensionError("BAD_REQUEST")` when the account lacks
- * what the test needs (a site URL).
- */
-export type AccountTestResult =
-  | { ok: true; message?: string }
-  | {
-      ok: false;
-      message: string;
-      fix?: string;
-      reason?: "rejected" | "restricted" | "unavailable" | "unreachable";
-    };
-
-/** The serializable part of an account kind; contracts validate it. */
-export type AccountKindData = {
-  label: string;
-  /** Non-secret fields stored with the account. */
-  fields: Record<string, SettingField>;
-  secret: { label: string; help?: string };
-  auth?: AccountAuth;
-  /**
-   * Origins the credential is sent to: URL origins, with `{<field>}`
-   * templates filled from the account's fields (`{site}`).
-   */
-  origins?: string[];
-};
-
-export type AccountKind = AccountKindData & {
-  /** Settings "Test" button. */
-  test?: (
-    account: AccountInfo,
-    ctx: ExtensionContext,
-  ) => Promise<AccountTestResult>;
-};
+import type { Risk } from "./authorization.js";
+import type { AccountInfo } from "./settings.js";
 
 // ── Context ──────────────────────────────────────────────────────────────────
 
+/** A file of the conversation, kept by the host. Pass the `handle` on instead of the bytes. */
 export type ArtifactRef = {
-  /** `artifact:<name>` */
+  /** `artifact:<name>`; accepted wherever a file is (`ctx.artifacts.read`, `FormPart.data`). */
   handle: string;
+  /** Artifact name; see `isArtifactName`. */
   name: string;
+  /** Size in bytes. */
   bytes: number;
+  /** MIME type (`image/png`). */
   mediaType: string;
 };
 
-export type ArtifactInfo = ArtifactRef & { width?: number; height?: number };
+/** `ArtifactRef` plus image dimensions. */
+export type ArtifactInfo = ArtifactRef & {
+  /** Pixels; set for images. */
+  width?: number;
+  /** Pixels; set for images. */
+  height?: number;
+};
 
 /** A multipart form field: a text value or a file (bytes or an artifact/workspace handle). */
 export type FormPart =
-  | { name: string; value: string }
   | {
+      /** Form field name. */
       name: string;
+      /** Text value. */
+      value: string;
+    }
+  | {
+      /** Form field name. */
+      name: string;
+      /** File name sent to the server. */
       filename: string;
+      /** MIME type of the file. Absent: the host's default. */
       mediaType?: string;
-      data: Uint8Array | { handle: string };
+      /** The bytes, or a handle (`artifact:<name>` or a workspace path the call was authorized to read) the host streams without loading it into the sandbox. */
+      data:
+        | Uint8Array
+        | {
+            /** `artifact:<name>` or a workspace path the call was authorized to read. */
+            handle: string;
+          };
     };
 
+/**
+ * One `ctx.http.request`. The host allows only origins listed in `permissions.network`
+ * (else `DENIED`), blocks private and local addresses unless the origin was filled from a
+ * `{settings.<key>}` or `{account.<field>}` template (the user's own server), follows at most 5 redirects (each hop is checked again; `303` and
+ * a `POST` answered with `301`/`302` become a body-less `GET`) and sends `User-Agent: nerve/1.0`.
+ * A non-2xx status is returned, not thrown (check `HttpResponse.ok`), except `401`/`403`
+ * from an origin that got the account's credential: `UNAUTHORIZED` / `FORBIDDEN`.
+ * Other errors: `BAD_REQUEST` (invalid URL; `auth` names no account setting or no account is
+ * selected or it has no saved credential; more than 5 redirects; body over the size limit),
+ * `DENIED` (origin not allowed; credential not allowed for the origin), `SERVER_ERROR`
+ * (`response: "json"` and the body is not JSON).
+ */
 export type HttpRequest = {
-  /** Must match `permissions.network`. */
+  /** Absolute URL; its origin must match `permissions.network`. */
   url: string;
+  /** HTTP method, case-insensitive. Default `GET`. `GET` and `HEAD` send no body. */
   method?: string;
+  /** Request headers. The host sets `content-type` for `json` and `form` bodies when absent, and replaces the credential header when `auth` is set. */
   headers?: Record<string, string>;
+  /** `string` and `Uint8Array` are sent as given; `{ json }` is serialized with `application/json`; `{ form }` is `multipart/form-data`. */
   body?:
     | string
     | Uint8Array
-    | { json: unknown }
-    | { form: readonly FormPart[] };
-  /** Account whose credential the host injects (per the kind's `auth`, only for the kind's `origins`). */
-  auth?: { account: string };
+    | {
+        /** Any JSON value; sent with `content-type: application/json`. */
+        json: unknown;
+      }
+    | {
+        /** Parts of a `multipart/form-data` body. */
+        form: readonly FormPart[];
+      };
+  /**
+   * Key of an `account` setting of this extension. The host injects the selected account's
+   * credential as its kind's `auth` says, only toward the kind's `origins`; a request to any
+   * other origin fails with `DENIED`. The secret never reaches the extension.
+   */
+  auth?: {
+    /** Key of the `account` setting that selects the account. */
+    account: string;
+  };
+  /** Time limit for the whole request, in milliseconds. Default 60000, clamped to 1–300000. */
   timeoutMs?: number;
-  /** Largest accepted response body; the host's limit applies when absent or larger. */
+  /**
+   * Largest accepted response body in bytes. Defaults to and is capped at 20 MiB in memory
+   * and 100 MiB with `response: "artifact"`; a larger body fails with `BAD_REQUEST`.
+   */
   maxBytes?: number;
   /**
-   * How the body is returned; `json` by default for JSON content, else `text`.
-   * `"artifact"` streams a successful response to an artifact (up to 100 MB)
-   * and returns its reference; `artifact` says how it is named.
+   * How the body is returned in `HttpResponse.body`. Default: `json` when the response's
+   * content type contains `json`, else `text`. `json` parses (an empty body gives `undefined`),
+   * `text` decodes UTF-8, `bytes` returns a `Uint8Array` (bytes cross the sandbox as base64,
+   * so prefer `artifact` for large files). `"artifact"` streams a successful response to an
+   * artifact and returns its `ArtifactRef` as `body`; an error status leaves `body` `undefined`.
    */
   response?: "json" | "text" | "bytes" | "artifact";
   /** Naming of the artifact for `response: "artifact"`. */
@@ -231,28 +118,31 @@ export type HttpRequest = {
 
 /** Plain data: the host names the artifact, nothing is decided by a callback. */
 export type HttpArtifactOptions = {
-  /** The exact artifact name. Without it the host picks a fresh `<baseName>-<n><extension>`. */
+  /** The exact artifact name (see `isArtifactName`). Without it the host picks a fresh `<baseName>-<n><extension>`. */
   name?: string;
   /** Start of a host-picked name; `download` by default. */
   baseName?: string;
   /** Extension of a host-picked name (with the dot); by default the host derives it from the response's content type (`.bin` when unknown). */
   extension?: string;
-  /** A textual response (JSON, text, XML, JavaScript, form data) is returned as `text` instead of an artifact. */
+  /** A textual response (JSON, text, XML, JavaScript, form data) or an error response is returned as `text` instead of an artifact. */
   inlineText?: boolean;
 };
 
+/** What `ctx.http.request` returns. */
 export type HttpResponse = {
+  /** HTTP status code. */
   status: number;
-  /** 2xx. */
+  /** `true` for 2xx. */
   ok: boolean;
-  /** Lower-cased names. */
+  /** Response headers, names lower-cased. */
   headers: Record<string, string>;
   /** Final URL after redirects. */
   url: string;
-  /** Parsed JSON (undefined when empty), text, bytes, or the artifact written. */
+  /** Parsed JSON (undefined when empty), text, bytes, or the artifact written; see `HttpRequest.response`. */
   body: unknown;
 };
 
+/** The label of an entity in the run footer (`ctx.report`): a name or key such as `PROJ-12`. */
 export type ReportEntry = string;
 
 /** Image generation backends the host can run; a member of the Image generation extension's `backend` setting. */
@@ -260,30 +150,58 @@ export type ImageBackend = "openai-codex";
 
 /** Image generation the host provides when the manifest declares `models.image`: every option is final (call overrides applied). */
 export type ImageOptions = {
+  /** Backend that runs the request. */
   backend: ImageBackend;
+  /** Model id on that backend. */
   model: string;
+  /** Quality level; the values the backend accepts, `auto` lets it choose. */
   quality: string;
+  /** `auto` or `<width>x<height>` (`1536x1024`); the backend sets the valid sizes. */
   size: string;
+  /** `auto`, `opaque` or `transparent`, as the backend supports. */
   background: string;
 };
-/** What the host's backend adapter executes. */
+
+/** What the host's backend adapter executes. Host-internal; extensions use `ImageRequest`. */
 export type ImageBackendRequest = ImageOptions;
 
+/** One `ctx.models.image.generate` call. */
 export type ImageRequest = {
+  /** What to draw. */
   prompt: string;
   /** Reference images; only backends that accept them get any. */
-  inputs: readonly { data: Uint8Array; mimeType: string }[];
+  inputs: readonly {
+    /** Image bytes. */
+    data: Uint8Array;
+    /** MIME type (`image/png`). */
+    mimeType: string;
+  }[];
+  /** Final options. */
   options: ImageOptions;
 };
 
+/** What `ctx.models.image.generate` returns. */
 export type ImageResult = {
+  /** Provider name. */
   provider: string;
+  /** Model that produced the images. */
   model: string;
-  images: readonly { data: Uint8Array; revisedPrompt?: string }[];
+  /** The images in order. */
+  images: readonly {
+    /** Image bytes; write them with `ctx.artifacts.write`. */
+    data: Uint8Array;
+    /** The prompt as the model rewrote it, when it reports one. */
+    revisedPrompt?: string;
+  }[];
 };
 
-/** `ImageRequest` as the host's backend adapters receive it (the run's abort signal added). */
-export type ImageGenerateRequest = ImageRequest & { signal?: AbortSignal };
+/** `ImageRequest` as the host's backend adapters receive it (the run's abort signal added). Host-internal. */
+export type ImageGenerateRequest = ImageRequest & {
+  /** Cancellation of the run. */
+  signal?: AbortSignal;
+};
+
+/** `ImageResult` as the host's backend adapters return it. Host-internal. */
 export type ImageGenerateResponse = ImageResult;
 
 /**
@@ -296,44 +214,83 @@ export type VisionRequest = {
   image: Uint8Array;
   /** What to focus on. */
   prompt?: string;
-  /** Live sections of the running direct tool the model's thinking and text stream into. */
-  progress?: { thinking?: string; text?: string };
+  /** Live sections of the running direct tool the model's thinking and text stream into (`ToolView` section ids with `live`). */
+  progress?: {
+    /** Section id that receives the model's reasoning. */
+    thinking?: string;
+    /** Section id that receives the answer as it is written. */
+    text?: string;
+  };
 };
-export type VisionResult = { text: string; model: string };
 
-/** `VisionRequest` as the host receives it. */
+/** What `ctx.models.vision.explain` returns. */
+export type VisionResult = {
+  /** The explanation. */
+  text: string;
+  /** Model that wrote it. */
+  model: string;
+};
+
+/** `VisionRequest` as the host receives it. Host-internal; extensions use `VisionRequest`. */
 export type VisionExplainRequest = {
+  /** Id of the calling extension. */
   extensionId: string;
+  /** Image bytes. */
   image: Uint8Array;
+  /** What to focus on. */
   prompt?: string;
   /** Host-internal: the host wires the request's `progress` sections to this. */
   onDelta?: (update: { kind: "thinking" | "text"; delta: string }) => void;
+  /** Cancellation of the run. */
   signal?: AbortSignal;
 };
 
+/**
+ * The host services of extension code, passed to every hook as `ctx`. Every call is async
+ * (except `settings.get`, `report`, `progress` and `log`) and exchanges plain data, because the
+ * backend of an installed extension runs in a sandbox (QuickJS) with no Node.js built-ins,
+ * filesystem, network or timers. Take `ctx` from the hook's own arguments every time: a `ctx`
+ * kept in a `session` belongs to the call that opened it and is not valid later.
+ */
 export interface ExtensionContext {
-  /** Resolved values of this extension's own settings (user → project → conversation). */
-  settings: { get<T = unknown>(key: string): T | undefined };
+  /** Resolved values of this extension's own settings (manifest default → user → project → conversation). */
+  settings: {
+    /** Value of the field `key`; `undefined` when the field has no default and no scope sets it. Cast with `T`. */
+    get<T = unknown>(key: string): T | undefined;
+  };
 
+  /** Accounts the user added in Settings. The secret is never returned. */
   accounts: {
     /** The account an `account` setting points at; undefined when unset or deleted. */
     selected(field: string): Promise<AccountInfo | undefined>;
   };
 
-  http: { request(request: HttpRequest): Promise<HttpResponse> };
+  /** The only network access. */
+  http: {
+    /** Sends a request; see `HttpRequest` for limits and errors. Rejects with an `ExtensionError`. */
+    request(request: HttpRequest): Promise<HttpResponse>;
+  };
 
+  /** Files of the conversation (`artifact:<name>`). Pass handles on instead of bytes: bytes cross the sandbox boundary as base64. */
   artifacts: {
+    /** Stores a file under `name` (see `isArtifactName`) and returns its reference. `mediaType` defaults to `application/octet-stream`. A string is stored as UTF-8. */
     write(
       name: string,
       data: Uint8Array | string,
       mediaType?: string,
     ): Promise<ArtifactRef>;
-    /** An artifact handle, or a workspace path the call was authorized to read. */
-    read(
-      handle: string,
-    ): Promise<{ bytes: Uint8Array; mediaType: string; name: string }>;
+    /** Reads an artifact handle, or a workspace path the call was authorized to read (`authorize` returning a `read` `ToolAuthorization`). */
+    read(handle: string): Promise<{
+      /** Content. */
+      bytes: Uint8Array;
+      /** MIME type. */
+      mediaType: string;
+      /** File name. */
+      name: string;
+    }>;
+    /** Size, type and (for images) dimensions of an artifact, without its bytes. */
     info(handle: string): Promise<ArtifactInfo>;
-    /** An artifact name not yet used in this conversation: `<base>-<n><extension>` (`diagram-1.png`). */
+    /** An artifact name not yet used in this conversation: `<base>-<n><extension>` (`diagram-1.png`). `extension` includes the dot. */
     freshName(base: string, extension: string): Promise<string>;
   };
 
@@ -350,25 +307,41 @@ export interface ExtensionContext {
    * known from the arguments belongs in the method's `authorize` instead.
    */
   authorize(check: {
+    /** Operation name rules match on (`confluence.updatePage`). */
     operation: string;
+    /** Resources as `<system>:<type>/<id>`. */
     targets: readonly string[];
+    /** Risk of the operation; not above the method's declared `risk`. */
     risk: Risk;
   }): Promise<void>;
 
-  /** Listed in the run footer. Use one label per entity across created/updated/deleted. */
+  /**
+   * Entities the run changed, listed in the run footer. Use one label per entity across
+   * created/updated/deleted so the footer can merge them.
+   */
   report: {
+    /** The run created `entry`. */
     created(entry: ReportEntry): void;
+    /** The run changed `entry`. */
     updated(entry: ReportEntry): void;
+    /** The run deleted `entry`. */
     deleted(entry: ReportEntry): void;
+    /** A free-text line for the footer. */
     note(text: string): void;
   };
 
-  /** Only capabilities the manifest declares. */
+  /** Model services; each exists only when the manifest's `permissions.capabilities` lists it (`models.image`, `models.vision`). */
   models: {
-    image?: { generate(request: ImageRequest): Promise<ImageResult> };
+    /** Image generation (`models.image`); options come from the extension's settings. */
+    image?: {
+      /** Generates images; rejects when the backend fails or no credentials are set up. */
+      generate(request: ImageRequest): Promise<ImageResult>;
+    };
+    /** Image explanation (`models.vision`) with the model chosen in the extension's settings. */
     vision?: {
+      /** Explains an image; streams into the sections `request.progress` names. */
       explain(request: VisionRequest): Promise<VisionResult>;
-      /** Whether the selected model resolves, with credentials, and accepts images. */
+      /** Whether the selected model resolves, with credentials, and accepts images. Use it in `availability`. */
       ready(): Promise<boolean>;
     };
   };
@@ -386,355 +359,11 @@ export interface ExtensionContext {
    */
   signal: AbortSignal;
 
+  /** Writes to the host log (not shown to the agent). Never log secrets. */
   log: {
+    /** Diagnostic detail. `data` is any JSON-serializable value. */
     debug(message: string, data?: unknown): void;
+    /** Something unexpected that did not fail the call. */
     warn(message: string, data?: unknown): void;
   };
 }
-
-// ── Artifact names ───────────────────────────────────────────────────────────
-
-/** Artifact names: 1–128 letters, digits, spaces, `.`, `_` or `-`; no folders, no leading dot or space, no trailing space. */
-export function isArtifactName(name: string): boolean {
-  return (
-    /^[\p{L}\p{N}_][\p{L}\p{N} ._-]{0,127}$/u.test(name) && !name.endsWith(" ")
-  );
-}
-
-// ── Errors ───────────────────────────────────────────────────────────────────
-
-/** What a script sees as `e.code`. */
-export const EXTENSION_ERROR_CODES = [
-  "BAD_REQUEST",
-  "NOT_FOUND",
-  "CONFLICT",
-  "FORBIDDEN",
-  "DENIED",
-  "RATE_LIMITED",
-  "UNAUTHORIZED",
-  "SERVER_ERROR",
-] as const;
-export type ExtensionErrorCode = (typeof EXTENSION_ERROR_CODES)[number];
-
-/**
- * A failure the agent can act on. `fix` says what the user must do ("Ask the
- * user to …"); the host appends it to the message.
- */
-export class ExtensionError extends Error {
-  readonly code: ExtensionErrorCode;
-  readonly fix?: string;
-
-  constructor(
-    code: ExtensionErrorCode,
-    message: string,
-    options: { fix?: string; cause?: unknown } = {},
-  ) {
-    super(
-      message,
-      options.cause === undefined ? undefined : { cause: options.cause },
-    );
-    this.name = "ExtensionError";
-    this.code = code;
-    if (options.fix !== undefined) this.fix = options.fix;
-  }
-}
-
-// ── Methods, namespaces, tools ───────────────────────────────────────────────
-
-export type MethodDefinition<
-  Session = unknown,
-  Input = unknown,
-  Output = unknown,
-> = {
-  risk: Risk;
-  /**
-   * The risk depends on argument values (a raw request: `GET` reads, anything else writes), so
-   * `authorize` returns the call's own risk (never above `risk`). The script scanner needs literal
-   * arguments to decide it; a call whose arguments it cannot read counts as destructive and is
-   * not handed to operation rules.
-   */
-  riskFromArgs?: boolean;
-  /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates what `sdk.describe` serves. */
-  signature: string;
-  /** Validates the script's positional arguments; throws on bad input. Synchronous and pure. */
-  parse(args: readonly unknown[]): Input;
-  /** What the call is authorized as. Synchronous and pure, so it runs before any I/O. */
-  authorize?(input: Input): AuthorizeResult;
-  /** What a 403 refers to, e.g. `project APP`; defaults to the authorization summary. */
-  resource?(input: Input): string;
-  run(
-    session: Session,
-    input: Input,
-    ctx: ExtensionContext,
-  ): Promise<Output> | Output;
-};
-
-/** The reason an optional `availability` hook gives when a namespace or tool cannot be used. */
-export type Availability =
-  | { available: true }
-  | {
-      available: false;
-      reason: string;
-      /** What the user must do ("Ask the user to …"). */
-      fix: string;
-    };
-
-export type DocTopic = {
-  /** Full topic id (`jira/workflows`). */
-  id: string;
-  whenToRead: string;
-  /** Relative to the extension's docs folder. */
-  file: string;
-};
-
-export type Requires = {
-  /** Name of an `account` setting that must point at an existing account with a saved secret. */
-  account?: string;
-};
-
-export type NamespaceDefinition<Session = unknown> = {
-  /** Global name in the sandbox: `jira`. */
-  id: string;
-  /** Title on the Extensions page; the id when absent. */
-  label?: string;
-  /** Boolean setting of the extension that switches this namespace, or several (any one enables it). Absent: it follows the extension. */
-  enabledBy?: string | readonly string[];
-  requires?: Requires;
-  /** A supporting namespace (`storage` builders, a site `defaults()`): usable by scripts, not listed to the user. */
-  helper?: boolean;
-  /** One line in the `quick_script` description. */
-  summary: string;
-  /** At most three short lines, added to the description whenever the namespace is configured. */
-  rules?: readonly string[];
-  /** Shared declarations for `sdk.describe`: the shapes methods return. */
-  types: string;
-  docs?: readonly DocTopic[];
-  /** Once per quick_script run, on first use; holds clients and caches. */
-  session?: (ctx: ExtensionContext) => Promise<Session> | Session;
-  methods: Readonly<Record<string, MethodDefinition<Session, any, any>>>;
-  /** One line `sdk.describe` prints above the declarations: how the namespace is configured now. */
-  configuration?: (ctx: ExtensionContext) => string | undefined;
-  /** Extra checks the declarations cannot express. */
-  availability?: (
-    ctx: ExtensionContext,
-  ) => Promise<Availability> | Availability;
-};
-
-/**
- * How a section of a direct tool's card renders its value; the app has one
- * renderer per type. `text` and `markdown`: a string. `links`:
- * `{ title, url, snippet? }[]`. `table`: rows of records, or
- * `{ columns, rows }`. `artifacts`: artifact handles or references (absent:
- * every artifact the call wrote).
- */
-export type ViewSectionType =
-  | "text"
-  | "markdown"
-  | "links"
-  | "table"
-  | "artifacts";
-export const VIEW_SECTION_TYPES: readonly ViewSectionType[] = [
-  "text",
-  "markdown",
-  "links",
-  "table",
-  "artifacts",
-];
-
-/** Section ids: also the stream ids `ctx.progress` writes to. */
-export const VIEW_SECTION_ID = /^[a-z][a-z0-9_-]{0,31}$/;
-
-export type ViewSection = {
-  /** Unique per tool; matches `VIEW_SECTION_ID`. */
-  id: string;
-  type: ViewSectionType;
-  /** Small title, shown when the card has more than one visible section. */
-  label?: string;
-  /**
-   * Text a running call streams into the section with `ctx.progress` (`text`
-   * and `markdown` only): `stream` is replaced by the final value, `transient`
-   * is shown only while the call runs (thinking).
-   */
-  live?: "stream" | "transient";
-};
-
-/**
- * How the transcript card shows a direct tool, in every state: the header and
- * facts come from the arguments (drafting, approval, running, done), the
- * sections from live progress and the result. The app renders it with its own
- * components; an extension ships no UI code.
- */
-export type ToolView = {
-  /** The argument the card header shows; `path` resolves it against the working directory and makes it openable. */
-  header?: { argument: string; format?: "text" | "path" };
-  /** Arguments shown as small facts after the header (at most 3). */
-  meta?: readonly string[];
-  sections: readonly ViewSection[];
-};
-
-/** The view of a tool that declares none: the first argument as header, the output as text. */
-export const DEFAULT_TOOL_VIEW: ToolView = {
-  sections: [{ id: "result", type: "text" }],
-};
-
-/** JSON Schema object for a tool's arguments, as the model sees it. */
-export type JsonSchemaObject = {
-  type: "object";
-  properties?: Record<string, unknown>;
-  required?: readonly string[];
-  additionalProperties?: boolean;
-  [key: string]: unknown;
-};
-
-type ToolBase = {
-  /** Unique across core and extension tools. */
-  name: string;
-  /** Shown on the Tools page; defaults to the name. */
-  label?: string;
-  /** Agent-facing description. */
-  description: string;
-  parameters: JsonSchemaObject;
-  /** How the transcript shows the call; `DEFAULT_TOOL_VIEW` when absent. */
-  view?: ToolView;
-  /** Boolean setting of the extension that switches this tool, in addition to the extension. */
-  enabledBy?: string;
-  requires?: Requires;
-  availability?: (
-    ctx: ExtensionContext,
-  ) => Promise<Availability> | Availability;
-};
-
-/** A tool bound to a namespace method (`web.search`): same parse → authorize → run. */
-export type MethodToolDefinition = ToolBase & { method: string };
-
-/** A tool with its own implementation. */
-export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
-  risk: Risk;
-  parse(args: Record<string, unknown>): Input;
-  authorize?(input: Input): AuthorizeResult;
-  run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
-  /**
-   * Splits the output into what the agent reads (`text`) and what each view
-   * section renders (`sections`, by section id). Without it, or without
-   * `sections`, both are the output (the first section gets it). `details`
-   * adds fields to the result's details; the agent projection of a tool with a
-   * `links` section reads `query` and `answer` from them (a header above the results).
-   */
-  present?(output: Output): {
-    text: string;
-    sections?: Record<string, unknown>;
-    details?: { query?: string; answer?: string };
-  };
-};
-
-export type ToolDefinition = MethodToolDefinition | OwnToolDefinition;
-
-export function isMethodTool(
-  tool: ToolDefinition,
-): tool is MethodToolDefinition {
-  return "method" in tool;
-}
-
-export type Capability = "models.image" | "models.vision";
-
-export type ExtensionPermissions = {
-  /**
-   * Origins `ctx.http` may reach: URL origins with `*` for one host label
-   * (`https://*.atlassian.net`), `{account.<field>}` templates for the
-   * selected account's fields and `{settings.<key>}` for a setting of the
-   * extension. The entry `*` alone means any public `http(s)` origin (the host's
-   * SSRF guard still applies). Absent: no network.
-   */
-  network?: string[];
-  capabilities?: Capability[];
-};
-
-/** How a file preview edits its file (see the proposal's "File previews"). */
-export type PreviewEditMode = "source" | "custom" | "none";
-
-/** A rendered view of a file type, shown in the file's tab. */
-export type PreviewContribution = {
-  /** Kebab-case, unique among the extension's previews. */
-  id: string;
-  label: string;
-  match: {
-    /** Lower-case file extensions with the dot (`.csv`). */
-    extensions: readonly string[];
-  };
-  /** Source path of the frame's entry (`src/ui/csv-table.svelte`); `nerve-ext build` compiles it. */
-  entry: string;
-  /**
-   * `"source"`: Nerve's source editor; `"custom"`: the frame edits and writes through the bridge;
-   * `"none"`: no edit toggle. Default: `"source"` for text files, `"none"` for binary ones.
-   */
-  edit?: PreviewEditMode;
-};
-
-/** A tab pane with fully custom content, not bound to a file. */
-export type PageContribution = {
-  id: string;
-  label: string;
-  /** A lucide icon name. */
-  icon: string;
-  /** List the page in the new-tab menu (the chevron next to +). Default: true. */
-  newMenu?: boolean;
-  /** Source path of the frame's entry. */
-  entry: string;
-};
-
-/** A dock panel like Files or Git. */
-export type PanelContribution = {
-  id: string;
-  label: string;
-  /** A lucide icon name. */
-  icon: string;
-  /** Source path of the frame's entry. */
-  entry: string;
-};
-
-/** A colour theme: token values in a JSON file. */
-export type ThemeContribution = {
-  id: string;
-  label: string;
-  /** Source path of the theme file (`themes/solarized-dark.json`). */
-  file: string;
-};
-
-/** UI contributions. Previews, pages and panels run in sandboxed frames; themes are data. */
-export type ExtensionUi = {
-  previews?: readonly PreviewContribution[];
-  pages?: readonly PageContribution[];
-  panels?: readonly PanelContribution[];
-  themes?: readonly ThemeContribution[];
-};
-
-export type ExtensionDefinition = {
-  /** Stable, kebab-case; settings, accounts and operations are keyed by it. */
-  id: string;
-  apiVersion: 1;
-  name: string;
-  /** One line for the Extensions page. */
-  description: string;
-  /**
-   * The extension's mark: a lucide icon name (`blocks`, `globe`, `image-plus`, `layers`,
-   * `workflow`) or the path of an SVG file in the extension's folder ending in `.svg`
-   * (`icon.svg`; at most 16 KB, square `viewBox`, no scripts or external references).
-   * The host reads and checks it at registry creation and fails loudly on a bad value.
-   */
-  icon: string;
-  /** Default of the implicit `enabled` switch. */
-  enabledByDefault: boolean;
-  settings: ExtensionSettings;
-  /** Account kinds this extension defines, by kind. Kinds are unique across extensions. */
-  accounts?: Readonly<Record<string, AccountKind>>;
-  permissions?: ExtensionPermissions;
-  namespaces: readonly NamespaceDefinition<any>[];
-  /** Direct tools. */
-  tools?: readonly ToolDefinition[];
-  /** Pure sandbox-side helper source (storage builders), evaluated after the SDK prelude; no host access. */
-  prelude?: string;
-  /** UI contributions. The build compiles them; the manifest carries the built paths. */
-  ui?: ExtensionUi;
-  /** Byte limits, filled into `{{limit:<name>}}` placeholders of docs and rules. */
-  limits?: Readonly<Record<string, number>>;
-};

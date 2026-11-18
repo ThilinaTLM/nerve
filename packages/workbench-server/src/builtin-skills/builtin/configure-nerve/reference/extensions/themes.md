@@ -11,7 +11,7 @@ A theme extension has `ui.themes: [{ id, label, file: "themes/<id>.json" }]` and
 }
 ```
 
-`id` and `kind` (`light` or `dark`) must equal the manifest's entry. Other fields and tokens fail validation, as do missing ones. The numeric `--step-*` and `--mix-*` tuning tokens are not settable. Surfaces, borders, muted tones and terminal colors are derived from these 17.
+`id` and `label` must equal the `ui.themes` entry in `defineExtension`. `kind` (`light` or `dark`) is set only in the theme file; the build copies it into the manifest. Other fields and tokens fail validation, as do missing ones. The numeric `--step-*` and `--mix-*` tuning tokens are not settable. Surfaces, borders, muted tones and terminal colors are derived from these 17.
 
 ## Tokens
 
@@ -31,4 +31,4 @@ A theme that fails is not offered and shows as a warning in `extensions.status`;
 - The roles `syntax-keyword`, `-string`, `-number`, `-function`, `-type`, `-property` and `-comment` differ pairwise by at least 0.08 (distance in OKLab), so they read as different roles.
 - `syntax-variable` and `syntax-punctuation` are the most frequent on screen and stay nearly grey (chroma at most 0.04).
 
-Start from `examples/paper-theme/themes/paper-theme.json` and adjust lightness and hue; run `nerve-ext check` and read each reported pair.
+Start from `examples/extensions/paper-theme/themes/paper-theme.json` and adjust lightness and hue; run `nerve-ext check` and read each reported pair.

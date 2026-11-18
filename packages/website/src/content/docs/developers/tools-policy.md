@@ -21,7 +21,7 @@ The server composes Baseline with one selected permission rule set:
 - **Supervised** allows interaction and local inspection, then prompts for other capabilities, external reads included;
 - **Autonomous** allows valid requests unless a scoped overlay or guardrail replaces the decision;
 - **Planning** allows research (including external reads), interaction, sub-agent delegation, and plan-file writes, prompts for local analysis commands, and denies other mutations;
-- custom user rule sets can define another ordered policy; all enabled sets appear in the permission picker.
+- custom user rule sets (`<NERVE_HOME>/config/rule-sets/<id>.json`) can define another ordered policy; all enabled sets appear in the permission picker.
 
 Sub-agent delegation under Read only and Planning is not tied to the lead's profile: a lead may assign any profile, and each sub-agent runs under its own profile's rule set.
 

@@ -5,12 +5,12 @@ sidebar:
   order: 15
 ---
 
-An extension adds to Nerve: a viewer for a file type, a page or side panel, a color theme, or tools and a Quick script namespace for a service. You describe what you want and the agent builds it with the built-in **extension-creator** skill.
+An extension adds to Nerve: a viewer for a file type, a page or side panel, a color theme, or tools and a Quick script namespace for a service. You describe what you want and the agent builds it with the built-in **configure-nerve** skill.
 
 ## Before you start
 
 - **Node.js 24 or newer**, with npm or pnpm, on the computer running Nerve. If one is missing, the agent tells you how to install it.
-- Turn on the **extension-creator** skill in **Settings → Skills**. Built-in skills are off by default. See [Skills and project resources](/guides/skills-and-resources/).
+- The **configure-nerve** skill is on by default; you can turn it off in **Settings → Skills**. See [Skills and project resources](/guides/skills-and-resources/).
 
 ## Ask the agent
 
@@ -45,3 +45,7 @@ Ask for the change in plain words: "make the table sort by column". The agent ed
 - **With one person:** send the folder without `node_modules/`. They put it in their own extensions folder and allow it.
 
 Accounts and secrets are never part of the folder.
+
+## For developers
+
+The agent builds on the [`@nervekit/extension-sdk`](https://www.npmjs.com/package/@nervekit/extension-sdk) package, and you can use it directly. Its README covers the workflow, and the API is documented in the package's type declarations.

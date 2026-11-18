@@ -9,7 +9,9 @@ export {
   type BridgeTransport,
 } from "./ui/client.js";
 export type {
+  BridgeErrorCode,
   BridgeJson,
+  BridgeMethods,
   ConfirmOptions,
   ContributionKind,
   FileChange,
@@ -17,6 +19,7 @@ export type {
   FileInfo,
   FrameInit,
   MenuItem,
+  MethodName,
   Mode,
   NotifyLevel,
   PreviewEdit,

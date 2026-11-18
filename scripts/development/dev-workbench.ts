@@ -46,7 +46,7 @@ try {
         ? [
             "--filter",
             "@nervekit/conversation-core",
-            // The extension-creator skill runs this checkout's SDK on dev slots.
+            // The configure-nerve skill runs this checkout's SDK on dev slots.
             "--filter",
             "@nervekit/extension-sdk...",
           ]
