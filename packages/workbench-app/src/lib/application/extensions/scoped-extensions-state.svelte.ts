@@ -1,5 +1,7 @@
 import type {
+  ExtensionCatalogEntry,
   ExtensionMutationResult,
+  InstalledExtensionResult,
   ExtensionsView,
   ExtensionTarget,
 } from "@nervekit/contracts/extensions";
@@ -126,6 +128,78 @@ export class ScopedExtensionsState {
     }
   }
 
+  /** The user allows what was reviewed (`entry.consent`); only an installed, pending extension has it. */
+  grantConsent(entry: ExtensionCatalogEntry): Promise<boolean> {
+    const contentHash = entry.consent?.contentHash;
+    if (!contentHash) return Promise.resolve(false);
+    return this.installed(
+      (target, source) =>
+        requestWorkbench("extensions.grantConsent", {
+          target,
+          source,
+          id: entry.id,
+          contentHash,
+        }),
+      entry,
+    );
+  }
+
+  revokeConsent(entry: ExtensionCatalogEntry): Promise<boolean> {
+    return this.installed(
+      (target, source) =>
+        requestWorkbench("extensions.revokeConsent", {
+          target,
+          source,
+          id: entry.id,
+        }),
+      entry,
+    );
+  }
+
+  /** Re-reads installed extensions from disk: one, or all. A reload never grants consent. */
+  reloadInstalled(id?: string): Promise<boolean> {
+    return this.installed((target) =>
+      requestWorkbench("extensions.reload", {
+        target,
+        ...(id ? { id } : {}),
+      }),
+    );
+  }
+
+  private async installed(
+    run: (
+      target: EditableTarget,
+      source: "user" | "project",
+    ) => Promise<InstalledExtensionResult>,
+    entry?: ExtensionCatalogEntry,
+  ): Promise<boolean> {
+    const target = this.target;
+    if (!target || this.saving) return false;
+    const source = entry?.source === "project" ? "project" : "user";
+    this.saving = true;
+    try {
+      const result = await run(target, source);
+      if (this.target !== target) return false;
+      if (result.status === "not_found") {
+        this.error = "That extension is no longer there. Reload and try again.";
+        await this.load(target);
+        return false;
+      }
+      this.view = result.view;
+      publishUserExtensions(result.view);
+      this.error =
+        result.status === "changed"
+          ? "The extension's files changed while you reviewed them. Review it again."
+          : undefined;
+      return result.status === "saved";
+    } catch (cause) {
+      this.error = cause instanceof Error ? cause.message : String(cause);
+      return false;
+    } finally {
+      this.saving = false;
+    }
+  }
+
   private async mutate(
     run: (
       target: EditableTarget,
@@ -179,13 +253,15 @@ export class ScopedExtensionsState {
   }
 }
 
-/** Id and name of every registered extension, for the settings breadcrumb. */
-export async function loadExtensionItems(): Promise<
-  { id: string; label: string }[]
-> {
-  const view = await requestWorkbench("extensions.get", {
-    target: { scope: "user" },
-  });
+/**
+ * Id and name of every extension registered for a scope, for the settings
+ * breadcrumb and detail routing. A project scope also has that project's
+ * installed extensions, which the user scope does not.
+ */
+export async function loadExtensionItems(
+  target: EditableTarget = { scope: "user" },
+): Promise<{ id: string; label: string }[]> {
+  const view = await requestWorkbench("extensions.get", { target });
   return view.extensions.map(({ metadata }) => ({
     id: metadata.id,
     label: metadata.name,

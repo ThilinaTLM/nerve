@@ -9,10 +9,14 @@
 <script lang="ts">
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import Library from "@lucide/svelte/icons/library";
+import PanelTop from "@lucide/svelte/icons/panel-top";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Zap from "@lucide/svelte/icons/zap";
-import type { ExtensionView } from "@nervekit/contracts/extensions";
+import type {
+  ExtensionCatalogEntry,
+  ExtensionView,
+} from "@nervekit/contracts/extensions";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
@@ -33,6 +37,7 @@ import {
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
 import AccountsSection from "./AccountsSection.svelte";
 import ExtensionFieldRow from "./ExtensionFieldRow.svelte";
+import ExtensionInstalledSections from "./ExtensionInstalledSections.svelte";
 import {
   detailLayout,
   entryWithSetting,
@@ -47,6 +52,8 @@ import {
 
 type Props = {
   extension: ExtensionView;
+  /** The catalog entry of an installed (user or project) extension. */
+  installed?: ExtensionCatalogEntry;
   /** The user's view of the same extension, while a project is shown. */
   inherited?: ExtensionView;
   scope: ExtensionsScope;
@@ -54,16 +61,22 @@ type Props = {
   extensions: ScopedExtensionsState;
   accounts: AccountChoices;
   models?: ModelInfo[];
+  /** Pages this extension contributes to the open project. */
+  pages?: { id: string; label: string }[];
+  onOpenPage?: (pageId: string) => void;
 };
 
 let {
   extension,
+  installed,
   inherited,
   scope,
   projectId,
   extensions,
   accounts,
   models = [],
+  pages = [],
+  onOpenPage,
 }: Props = $props();
 
 const id = $derived(extension.metadata.id);
@@ -304,6 +317,26 @@ function openPage(page: "tools" | "skills"): void {
       </SettingsList>
     </SettingsSection>
   {/if}
+  {#if pages.length > 0}
+    <SettingsSection
+      id="pages"
+      title="Pages"
+      description="Pages this extension adds to the open project. Each opens in its own tab."
+    >
+      <SettingsList ariaLabel="Pages">
+        {#each pages as page (page.id)}
+          <SettingsItem
+            title={page.label}
+            summary="Page"
+            icon={PanelTop}
+            muted={!extension.enabled.value}
+            onOpen={onOpenPage ? () => onOpenPage(page.id) : undefined}
+            openLabel={`Open ${page.label}`}
+          />
+        {/each}
+      </SettingsList>
+    </SettingsSection>
+  {/if}
   {#if listKinds.length > 0}
     {#if scope === "user"}
       {#each listKinds as kind (kind.kind)}
@@ -323,5 +356,8 @@ function openPage(page: "tools" | "skills"): void {
         </SettingsRow>
       </SettingsSection>
     {/if}
+  {/if}
+  {#if installed}
+    <ExtensionInstalledSections entry={installed} {extensions} />
   {/if}
 </div>

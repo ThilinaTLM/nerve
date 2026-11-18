@@ -2,6 +2,7 @@ import { Type } from "typebox";
 import type { ToolDefinition } from "../catalog/index.js";
 import { createExtensionToolDefinitions } from "./extension-host/direct-tools.js";
 import type { QuickScriptRegistry } from "./registry.js";
+import type { QuickScriptContext } from "./runtime/sdk-types.js";
 import { executeQuickScript } from "./runtime/quick-script.js";
 import { classifyQuickScriptArguments } from "./runtime/script-risk.js";
 
@@ -35,9 +36,14 @@ export function createQuickScriptToolDefinition(
     baseRisk: "external_read",
     traits: ["write_capable", "credentialed", "long_running"],
     executionKind: "local",
+    // The run's own registry decides (a project's installed extensions); this one is the fallback.
     executor: (args, context) =>
-      executeQuickScript(args, { ...context, registry }),
-    classifyRisk: (args) => classifyQuickScriptArguments(args, registry).risk,
+      executeQuickScript(args, {
+        ...context,
+        registry: (context as Partial<QuickScriptContext>).registry ?? registry,
+      }),
+    classifyRiskAsync: async (args) =>
+      (await classifyQuickScriptArguments(args, registry)).risk,
     label: "Quick script",
     description:
       "Run a sandboxed TypeScript script (ES module, top-level await) that calls the SDK namespaces of the configured extensions; only its output returns.",

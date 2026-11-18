@@ -54,6 +54,27 @@ for (const { name, file, ...options } of libraries) {
   );
 }
 
+// The runtime library of sandboxed extensions: evaluated before an extension's bundle
+// (see extension-host/sandbox-adapter.ts); it carries the extension API for the bundle.
+await build({
+  entryPoints: [
+    join(
+      packageRoot,
+      "src",
+      "quick-script",
+      "extension-host",
+      "sandbox-runtime",
+      "extension-runtime.ts",
+    ),
+  ],
+  outfile: join(destination, "extension-runtime.js"),
+  bundle: true,
+  format: "iife",
+  target: "es2020",
+  legalComments: "none",
+  logLevel: "warning",
+});
+
 // Runtime doc topics (Markdown beside the code that owns them) -> dist/quick-script/quick-script-docs/runtime/.
 // Extensions ship their own topics (scripts/build/copy-extension-assets.ts).
 const docsDestination = join(

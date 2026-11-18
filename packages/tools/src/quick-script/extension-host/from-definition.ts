@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- method tables hold methods of different session and input types */
 import type {
   Authorization,
-  AuthorizeResult,
   ExtensionDefinition,
   MethodDefinition,
   NamespaceDefinition,
@@ -11,6 +10,7 @@ import type {
 import type {
   AccountKind,
   ExtensionIcon,
+  ExtensionSource,
 } from "@nervekit/contracts/extensions";
 import { ToolExecutionError } from "../../execution/index.js";
 import type { ExtensionManifest, SdkNamespace } from "../manifest-types.js";
@@ -20,14 +20,8 @@ import type {
   SdkEnvironment,
   SdkMethod,
 } from "../runtime/sdk-types.js";
+import type { CodeTarget } from "./code-adapter.js";
 import { toHostError } from "./errors.js";
-
-const asArray = (result: AuthorizeResult): Authorization[] =>
-  result === undefined
-    ? []
-    : Array.isArray(result)
-      ? [...(result as readonly Authorization[])]
-      : [result as Authorization];
 
 /** An authorization as the executor's nested check: the operation defaults to `<namespace>.<method>`, the risk to the method's. */
 export function toNestedCheck(
@@ -93,33 +87,32 @@ function toSdkMethod(
     risk: method.risk,
     ...(method.riskFromArgs ? { riskFromArgs: true } : {}),
     signature: method.signature,
-    prepare(args, env): PreparedCall {
+    async prepare(args, env): Promise<PreparedCall> {
       assertNamespaceAvailable(namespace.id, env);
-      const input = method.parse(args);
+      const target: CodeTarget = {
+        kind: "method",
+        namespace: namespace.id,
+        path,
+      };
+      const code = await env.extensions.code(definition);
+      // Parse and authorize complete before any I/O of the call and before approval.
+      const input = await code.parse(target, args);
       const checks = orderedChecks(
-        asArray(method.authorize?.(input)).map((authorization) =>
+        (await code.authorize(target, input)).map((authorization) =>
           toNestedCheck(authorization, operation, method.risk),
         ),
       );
       return {
         authorization: checks[0],
         additionalAuthorizations: checks.slice(1),
-        resource: method.resource?.(input) ?? checks[0]?.summary ?? "",
+        resource:
+          (await code.resource(target, input)) ?? checks[0]?.summary ?? "",
         run: async (runEnv) => {
           runEnv.extensions.allowReads(declaredReadPaths(checks));
           try {
-            const session = await runEnv.extensions.session(
-              definition,
-              namespace,
-            );
-            return await method.run(
-              session,
-              input,
-              runEnv.extensions.context(definition, {
-                name: operation,
-                risk: method.risk,
-              }),
-            );
+            return await (
+              await runEnv.extensions.code(definition)
+            ).run(target, input, { name: operation, risk: method.risk });
           } catch (error) {
             throw toHostError(error);
           }
@@ -146,7 +139,7 @@ function toSdkNamespace(
       : {}),
     ...(namespace.requires ? { requires: namespace.requires } : {}),
     ...(namespace.helper ? { helper: true } : {}),
-    ...(namespace.availability ? { availability: namespace.availability } : {}),
+    ...(namespace.availability ? { availability: true as const } : {}),
     summary: namespace.summary,
     ...(namespace.rules ? { rules: [...namespace.rules] } : {}),
     methods: Object.entries(namespace.methods).map(([path, method]) =>
@@ -155,9 +148,11 @@ function toSdkNamespace(
     ...(namespace.configuration
       ? {
           // Without host ports (a bare runtime) there is nothing to describe.
-          configuration: (env) =>
+          configuration: async (env) =>
             env.context.extensionPorts
-              ? namespace.configuration!(env.extensions.context(definition))
+              ? await (
+                  await env.extensions.code(definition)
+                ).configuration(namespace.id)
               : undefined,
         }
       : {}),
@@ -170,6 +165,7 @@ function toSdkNamespace(
 export function fromDefinition(
   definition: ExtensionDefinition,
   icon: ExtensionIcon,
+  source: ExtensionSource = "builtin",
 ): ExtensionManifest {
   const accounts: AccountKind[] = Object.entries(definition.accounts ?? {}).map(
     ([kind, { test, ...data }]) => ({
@@ -182,7 +178,7 @@ export function fromDefinition(
     id: definition.id,
     name: definition.name,
     description: definition.description,
-    source: "builtin",
+    source,
     icon,
     enabledByDefault: definition.enabledByDefault,
     settings: {
@@ -221,10 +217,12 @@ export function sdkMethodForOwnTool(
     path: tool.name,
     risk: tool.risk,
     signature: "",
-    prepare(args): PreparedCall {
-      const input = tool.parse((args[0] ?? {}) as Record<string, unknown>);
+    async prepare(args, env): Promise<PreparedCall> {
+      const target: CodeTarget = { kind: "tool", name: tool.name };
+      const code = await env.extensions.code(definition);
+      const input = await code.parse(target, args);
       const checks = orderedChecks(
-        asArray(tool.authorize?.(input)).map((authorization) =>
+        (await code.authorize(target, input)).map((authorization) =>
           toNestedCheck(authorization, operation, tool.risk),
         ),
       );
@@ -235,13 +233,9 @@ export function sdkMethodForOwnTool(
         run: async (runEnv) => {
           runEnv.extensions.allowReads(declaredReadPaths(checks));
           try {
-            return await tool.run(
-              input,
-              runEnv.extensions.context(definition, {
-                name: operation,
-                risk: tool.risk,
-              }),
-            );
+            return await (
+              await runEnv.extensions.code(definition)
+            ).run(target, input, { name: operation, risk: tool.risk });
           } catch (error) {
             throw toHostError(error);
           }

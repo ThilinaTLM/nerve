@@ -22,6 +22,7 @@ import {
   hidePanelView,
   movePanelView,
   resizeDock,
+  setExtensionPanelViews,
   setSheetOpen,
   shellLayout,
   shellSheets,
@@ -30,6 +31,11 @@ import {
 import { createWorkbenchGitPanelAdapter } from "$lib/features/git";
 import BrowserNotificationPrompt from "$lib/application/notifications/BrowserNotificationPrompt.svelte";
 import CriticalErrorDialog from "$lib/application/notifications/CriticalErrorDialog.svelte";
+import {
+  contributionsOf,
+  createExtensionUiSync,
+} from "$lib/features/extension-ui";
+import { extensionPanelDescriptors } from "$lib/app/composition/registries/extension-panel-descriptors";
 import { DiscoverStartupHost } from "$lib/app/discover";
 import { GuideOverlayHost } from "$lib/app/discover/guides";
 import { maintenance, workspaceSelectors } from "$lib/application/workspace";
@@ -39,8 +45,19 @@ import { workspaceState } from "$lib/application/workspace/workspace-state.svelt
 
 const launchActivity = createLaunchCatalogActivity();
 createAccountsActivity();
+createExtensionUiSync(() => workspaceSelectors.activeProject?.id);
+const extensionPanels = $derived(
+  extensionPanelDescriptors(
+    contributionsOf(workspaceSelectors.activeProject?.id)?.panels ?? [],
+  ),
+);
+// Once the project's contributions are known, its extension panels join (or leave) the layout.
+$effect(() => {
+  if (contributionsOf(workspaceSelectors.activeProject?.id))
+    setExtensionPanelViews(extensionPanels);
+});
 const descriptors = $derived(
-  panelViewDescriptors.map((descriptor) =>
+  [...panelViewDescriptors, ...extensionPanels].map((descriptor) =>
     descriptor.id === "launches"
       ? {
           ...descriptor,

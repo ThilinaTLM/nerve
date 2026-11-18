@@ -25,7 +25,7 @@ Timestamps are ISO-8601 UTC **text** columns, so compare them as strings. IDs ar
 | `async_bash`             | background commands: `status` (`running`/`completed`/`failed`/`timed_out`/`cancelled`/`lost`), `tool_call_id`, `exit_code`, `process_ref`                                                                                                                     |
 | `asset`                  | managed files: `category` (`payload`/`report`/`image`/`plan`/`bash_output`), `logical_path` relative to `<home>/data/`, `byte_length`, owners `event_id`/`tool_call_id`/`async_bash_id`                                                                       |
 | `conversation_reference` | external resources a conversation referenced or created (GitHub and similar)                                                                                                                                                                                  |
-| `trusted_resource`       | digest-bound trust decisions for skills, profiles, project permissions and suggestions                                                                                                                                                                        |
+| `trusted_resource`       | digest-bound trust decisions (`kind`, `project_id`, `resource_key`, `content_digest` as `sha256:<hex>`, `status`, optional `grants`) for profiles, project permissions/capabilities, suggestions and extensions                                               |
 | `scratch_note`           | project notes (not agent history)                                                                                                                                                                                                                             |
 | `schema_migrations`      | applied core SQL steps with checksums                                                                                                                                                                                                                         |
 
@@ -69,7 +69,8 @@ The `pendingWork` and `pendingInput` summary fields are computed when read acros
 <home>/data/nerve.sqlite(-wal,-shm)  core database
 <home>/data/conversations/<conv>/config/agent.json      applied profile snapshot, overrides, frozen child defaults
 <home>/data/conversations/<conv>/tool-calls/<tool_call_id>/...  result.json (payload), files/… (reports, including async bash output)
-<home>/data/{images,plans,agent-profiles}/
+<home>/data/{images,plans}/
+<home>/agent/{agent-profiles,extensions,skills,suggestions}/   user resources (not state)
 <home>/data/launches/<run>/              launch log bundles (persist; run state itself is memory-only)
 <home>/logs/application-YYYY-MM-DD.jsonl   daemon log (fields: ts, level, source, component, message, context, error, conversationId?)
 <home>/logs/desktop-YYYY-MM-DD.jsonl       desktop shell log; startup.jsonl; performance-*.jsonl

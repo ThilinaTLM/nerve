@@ -1,9 +1,11 @@
 import {
-  colorThemeKind,
+  resolveColorThemeKind,
+  type BuiltInColorTheme,
   colorThemeSchema,
   defaultColorTheme,
   type ColorTheme,
   type ColorThemeKind,
+  type ExtensionColorTheme,
 } from "@nervekit/contracts/settings";
 
 // The pre-paint bootstrap in index.html mirrors this module; the appearance
@@ -42,7 +44,7 @@ const kindDefaults: Record<ColorThemeKind, ColorTheme> = {
 };
 
 /** Keep in sync with each theme's `--background` in ui-kit theme.css. */
-export const themeBackgrounds: Record<ColorTheme, string> = {
+export const themeBackgrounds: Record<BuiltInColorTheme, string> = {
   "nerve-light": "#f6f3eb",
   "nerve-dark": "#272521",
   "melange-light": "#f4f0ed",
@@ -50,6 +52,21 @@ export const themeBackgrounds: Record<ColorTheme, string> = {
   graphite: "#1d1a18",
   indigo: "#262541",
 };
+
+/**
+ * Pre-paint background of a theme. An extension theme's comes from `extensionBackground` (its
+ * loaded or cached tokens), else the default theme's.
+ */
+export function themeBackground(
+  theme: ColorTheme,
+  extensionBackground?: (theme: ExtensionColorTheme) => string | undefined,
+): string {
+  return (
+    themeBackgrounds[theme as BuiltInColorTheme] ??
+    extensionBackground?.(theme as ExtensionColorTheme) ??
+    themeBackgrounds[defaultColorTheme]
+  );
+}
 
 export function parseColorTheme(value: unknown): ColorTheme {
   return colorThemeSchema.safeParse(value).data ?? defaultColorTheme;
@@ -79,7 +96,9 @@ export function migrateStoredTheme(
   };
   const storedSlot = (kind: ColorThemeKind): ColorTheme | undefined => {
     const parsed = colorThemeSchema.safeParse(slots[kind]).data;
-    return parsed && colorThemeKind[parsed] === kind ? parsed : undefined;
+    return parsed && resolveColorThemeKind(parsed) === kind
+      ? parsed
+      : undefined;
   };
   const slotTheme = (kind: ColorThemeKind): ColorTheme =>
     storedSlot(kind) ?? kindDefaults[kind];

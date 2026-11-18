@@ -13,15 +13,19 @@ import type { AccountTester } from "./integration-health.service.js";
  * (a site URL) is a client error, not a stored result.
  */
 export function extensionAccountTester(input: {
-  registry: QuickScriptRegistry;
+  /** Where the kinds come from: a registry, or a provider of the user-level one (built-ins and user extensions). */
+  registry: QuickScriptRegistry | (() => Promise<QuickScriptRegistry>);
   accounts: AccountsReader;
   warn?: (extensionId: string, message: string, data?: unknown) => void;
 }): AccountTester {
-  const { registry, accounts, warn } = input;
+  const { accounts, warn } = input;
   return async (account) => {
     try {
       return await testExtensionAccount({
-        registry,
+        registry:
+          typeof input.registry === "function"
+            ? await input.registry()
+            : input.registry,
         account,
         ports: {
           accounts: {

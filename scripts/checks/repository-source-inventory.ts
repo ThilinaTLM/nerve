@@ -124,6 +124,8 @@ export function resolvedImportPath(file: string, specifier: string) {
   return posix.normalize(posix.join(posix.dirname(file), specifier));
 }
 
+const skillExamples = /\/builtin-skills\/builtin\/[^/]+\/examples\//;
+
 /** One inventory of tracked and non-ignored untracked source files, excluding deleted paths. */
 export function createRepositorySourceInventory(
   repoRoot: string,
@@ -141,12 +143,16 @@ export function createRepositorySourceInventory(
     if (result.error) throw result.error;
     if (result.status !== 0)
       throw new Error(`git ls-files failed with exit code ${result.status}`);
-    return result.stdout
-      .split("\0")
-      .filter(Boolean)
-      .map((path) => path.split(sep).join("/"))
-      .filter((path) => existsSync(join(repoRoot, path)))
-      .sort();
+    return (
+      result.stdout
+        .split("\0")
+        .filter(Boolean)
+        .map((path) => path.split(sep).join("/"))
+        .filter((path) => existsSync(join(repoRoot, path)))
+        // Skill examples are extension projects of their own (they import the published SDK).
+        .filter((path) => !skillExamples.test(path))
+        .sort()
+    );
   }
 
   function read(file: string): string {

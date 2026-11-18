@@ -8,14 +8,17 @@ export type GallerySurface =
 </script>
 
 <script lang="ts">
-import { colorThemeKind, colorThemeSchema } from "@nervekit/contracts/settings";
+import {
+  colorThemeKind,
+  builtInColorThemeSchema,
+} from "@nervekit/contracts/settings";
 import LayoutGridIcon from "@lucide/svelte/icons/layout-grid";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { Snippet } from "svelte";
 
 /** Every theme the app ships; derived so new themes appear without edits. */
-const COMPARE_THEMES = colorThemeSchema.options;
+const COMPARE_THEMES = builtInColorThemeSchema.options;
 
 /**
  * One labelled specimen: a component (or a family of states) rendered on a

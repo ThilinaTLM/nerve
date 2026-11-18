@@ -1,4 +1,5 @@
 import { assertUniqueAccountKinds } from "@nervekit/contracts/settings";
+import type { ExtensionSource } from "@nervekit/contracts/extensions";
 import {
   VIEW_SECTION_ID,
   type ExtensionDefinition,
@@ -14,6 +15,7 @@ import type {
   RegisteredNamespace,
 } from "./manifest-types.js";
 import { readRuntimeDoc } from "./docs-source.js";
+import type { ExtensionCodeAdapter } from "./extension-host/code-adapter.js";
 
 /**
  * Every `quick_script` namespace: the built-in capabilities, `sdk`, then the extensions'.
@@ -31,6 +33,8 @@ export type QuickScriptRegistry = {
   readonly methods: readonly SdkMethod[];
   /** Limits the extensions declare, by `{{limit:<name>}}` name. */
   readonly limits: Readonly<Record<string, number>>;
+  /** How the extensions' code is reached; absent: in the host process. A run's context can override it. */
+  readonly extensionCodeAdapter?: ExtensionCodeAdapter;
 };
 
 /** What the host provides besides the definitions. */
@@ -40,6 +44,10 @@ export type QuickScriptRegistryOptions = {
    * of an extension. Extensions only declare paths; the host reads them.
    */
   readExtensionAsset?: (extensionId: string, file: string) => string;
+  /** Where each extension's code runs (`routedExtensionCode`); absent: every extension runs in the host process. */
+  extensionCodeAdapter?: ExtensionCodeAdapter;
+  /** Where an installed extension comes from; absent: every extension is built in. */
+  extensionSource?: (definition: ExtensionDefinition) => ExtensionSource;
 };
 
 /**
@@ -54,6 +62,7 @@ export function createQuickScriptRegistry(
     fromDefinition(
       definition,
       resolveExtensionIcon(definition, options.readExtensionAsset),
+      options.extensionSource?.(definition),
     ),
   );
   assertUnique(
@@ -83,6 +92,9 @@ export function createQuickScriptRegistry(
           source: "extension",
           extension: extension.name,
           owner: extension.id,
+          ...(extension.source !== "builtin"
+            ? { attribution: `${extension.id}, ${extension.source} extension` }
+            : {}),
           readDoc: (file) => {
             if (!options.readExtensionAsset)
               throw new Error(
@@ -108,6 +120,9 @@ export function createQuickScriptRegistry(
     namespaces,
     methods: namespaces.flatMap((namespace) => namespace.methods),
     limits: Object.assign({}, ...extensions.map((e) => e.limits ?? {})),
+    ...(options.extensionCodeAdapter
+      ? { extensionCodeAdapter: options.extensionCodeAdapter }
+      : {}),
   };
 }
 
@@ -151,4 +166,18 @@ export function findNamespace(
   registry: QuickScriptRegistry,
 ): RegisteredNamespace | undefined {
   return registry.namespaces.find((namespace) => namespace.id === id);
+}
+
+/**
+ * Names an extension's namespace may not take: the runtime's own namespaces (`files`, `web`,
+ * `sdk`, ...) and the globals of the host runtime (`console`, `JSON`, ...), because a namespace
+ * is a global of the script sandbox.
+ */
+export function reservedNamespaceIds(): ReadonlySet<string> {
+  return new Set([
+    ...runtimeNamespaces.map((namespace) => namespace.id),
+    "sdk",
+    "host",
+    ...Object.getOwnPropertyNames(globalThis),
+  ]);
 }

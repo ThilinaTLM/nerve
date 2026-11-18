@@ -17,6 +17,7 @@ import {
   permissionMetadataForTool,
   registerExtensionToolMetadata,
 } from "./permission-metadata.js";
+import { scopedToolDefinition } from "./tool-scope.js";
 import {
   type HostToolDefinition,
   isHostToolDefinition,
@@ -138,14 +139,21 @@ export function registerToolDefinitions(
   }
 }
 
+/** A tool by name: the project `scope`'s installed-extension tools first, then core and built-in tools. */
 export function toolDefinitionByName(
   name: ToolName | string,
+  scope?: string,
 ): ToolDefinition | undefined {
-  return definitionByName.get(name as ToolName);
+  return (
+    scopedToolDefinition(name, scope) ?? definitionByName.get(name as ToolName)
+  );
 }
 
-export function requireToolDefinition(name: ToolName | string): ToolDefinition {
-  const definition = toolDefinitionByName(name);
+export function requireToolDefinition(
+  name: ToolName | string,
+  scope?: string,
+): ToolDefinition {
+  const definition = toolDefinitionByName(name, scope);
   if (!definition) throw new Error(`Unknown tool: ${name}`);
   return definition;
 }
@@ -167,9 +175,26 @@ export function hostToolDefinitions(): readonly HostToolDefinition[] {
 export function classifyToolRisk(
   name: ToolName | string,
   args: Record<string, unknown> = {},
+  scope?: string,
 ): ToolRisk {
-  const definition = requireToolDefinition(name);
+  const definition = requireToolDefinition(name, scope);
+  if (definition.classifyRiskAsync)
+    throw new Error(
+      `${name} is classified asynchronously; use classifyToolRiskAsync.`,
+    );
   return definition.classifyRisk?.(args) ?? definition.baseRisk;
+}
+
+/** `classifyToolRisk` for every tool, including those whose classification is asynchronous. */
+export async function classifyToolRiskAsync(
+  name: ToolName | string,
+  args: Record<string, unknown> = {},
+  scope?: string,
+): Promise<ToolRisk> {
+  const definition = requireToolDefinition(name, scope);
+  return definition.classifyRiskAsync
+    ? await definition.classifyRiskAsync(args)
+    : classifyToolRisk(name, args, scope);
 }
 
 export function toolHasTrait(

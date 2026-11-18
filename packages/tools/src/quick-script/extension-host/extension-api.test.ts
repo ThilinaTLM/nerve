@@ -12,6 +12,7 @@ import type { QuickScriptContext } from "../runtime/sdk-types.js";
 import type { QuickScriptNestedRequest } from "../../execution/index.js";
 import { createQuickScriptRegistry } from "../registry.js";
 import { deriveAvailability } from "./availability.js";
+import { inProcessExtensionCode } from "./code-adapter.js";
 import { createExtensionToolDefinitions } from "./direct-tools.js";
 import { demoExtension, demoSessions } from "./test-extension.js";
 
@@ -267,8 +268,19 @@ void test("availability is derived from switches, the selected account, its secr
       extension: () => state,
       accounts: accounts(options.secret ?? true, options.exists ?? true),
       checkSecrets: options.checkSecrets ?? true,
-      context: () =>
-        ({ settings: { get: (key: string) => state.settings[key] } }) as never,
+      code: async () =>
+        ({
+          availability: async () =>
+            await (
+              await inProcessExtensionCode.open(demoExtension, {
+                context: () =>
+                  ({
+                    settings: { get: (key: string) => state.settings[key] },
+                  }) as never,
+              })
+            ).availability({ kind: "namespace", id: "demo" }),
+          dispose: async () => undefined,
+        }) as never,
     });
   const base = { account: "acc1", items: true, maintenance: false };
 

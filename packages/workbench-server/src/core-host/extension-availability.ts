@@ -5,8 +5,9 @@ import {
   type ExtensionHostPorts,
   type QuickScriptRegistry,
 } from "@nervekit/tools/quick-script";
-import { createAvailabilityContext } from "@nervekit/tools/quick-script";
+import { openAvailabilityCode } from "@nervekit/tools/quick-script";
 import { ToolExecutionError } from "@nervekit/tools/execution";
+import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import { createExtensionPorts, extensionStates } from "./extension-ports.js";
 import type { AccountsReader } from "../domains/accounts/accounts.service.js";
 import type { VisionHost } from "./vision-models.js";
@@ -31,8 +32,7 @@ export async function extensionAvailability(
     checkSecrets: options.checkSecrets,
     ...(ports
       ? {
-          context: (extension) =>
-            createAvailabilityContext(registry, extension, ports),
+          code: (extension) => openAvailabilityCode(registry, extension, ports),
         }
       : {}),
   });
@@ -55,7 +55,15 @@ export async function assertExtensionToolOffered(
   accounts: AccountsReader,
   vision?: VisionHost,
 ): Promise<void> {
-  if (!registry.tools.some((tool) => tool.definition.name === toolName)) return;
+  if (!registry.tools.some((tool) => tool.definition.name === toolName)) {
+    // A tool another project's extension contributed is in the global catalog but not offered here.
+    if (toolDefinitionByName(toolName)?.extension)
+      throw new ToolExecutionError(
+        "TOOL_NOT_ENABLED",
+        `${toolName}: not available in this project`,
+      );
+    return;
+  }
   const offered = await extensionAvailability(registry, resolution, accounts, {
     checkSecrets: true,
     ports: createExtensionPorts({

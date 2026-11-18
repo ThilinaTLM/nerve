@@ -1,16 +1,12 @@
 import { accountFieldKinds } from "@nervekit/contracts/extensions";
-import type {
-  AccountInfo,
-  Availability,
-  ExtensionContext,
-  Requires,
-} from "@nervekit/extension-api";
+import type { AccountInfo, Requires } from "@nervekit/extension-api";
 import type {
   ExtensionManifest,
   NamespaceAvailability,
   QuickScriptAvailability,
 } from "../manifest-types.js";
 import type { QuickScriptRegistry } from "../registry.js";
+import type { AvailabilityTarget, ExtensionCode } from "./code-adapter.js";
 import { settingsPage } from "./errors.js";
 
 /**
@@ -35,8 +31,8 @@ export type AvailabilityInput = {
   };
   /** Check that a selected account has a saved secret. Off for the tool description, which only needs `configured`. */
   checkSecrets: boolean;
-  /** Builds `ctx` for `availability(ctx)` hooks; without it hooks are skipped. */
-  context?(extension: ExtensionManifest): ExtensionContext;
+  /** Opens the extension's code for its `availability` hooks (outside any run); without it hooks are skipped. `deriveAvailability` disposes what it opens. */
+  code?(extension: ExtensionManifest): Promise<ExtensionCode>;
 };
 
 export type DerivedAvailability = {
@@ -49,9 +45,10 @@ export type DerivedAvailability = {
 type Gate = {
   enabledBy?: string | readonly string[];
   requires?: Requires;
-  availability?: (
-    ctx: ExtensionContext,
-  ) => Availability | Promise<Availability>;
+  /** The gate has an `availability` hook; its verdict comes from the extension's code. */
+  availability?: unknown;
+  /** What the hook belongs to. */
+  target: AvailabilityTarget;
 };
 
 const labelOf = (extension: ExtensionManifest, key: string): string => {
@@ -130,9 +127,11 @@ async function stateOf(
         fix: `Ask the user to check the account and its ${kind.secret.label} in ${where}.`,
       };
   }
-  if (gate.availability && input.context) {
-    const verdict = await gate.availability(input.context(extension));
-    if (!verdict.available)
+  if (gate.availability && input.code) {
+    const verdict = await (
+      await input.code(extension)
+    ).availability(gate.target);
+    if (verdict && !verdict.available)
       return {
         configured: true,
         available: false,
@@ -150,18 +149,53 @@ export async function deriveAvailability(
 ): Promise<DerivedAvailability> {
   const namespaces: Record<string, NamespaceAvailability> = {};
   const tools: Record<string, NamespaceAvailability> = {};
-  for (const extension of registry.extensions) {
-    const state = input.extension(extension.id);
-    if (!state) continue;
-    for (const namespace of extension.contributes.sdk ?? [])
-      namespaces[namespace.id] = await stateOf(
-        extension,
-        state,
-        namespace,
-        input,
-      );
-    for (const tool of extension.tools ?? [])
-      tools[tool.name] = await stateOf(extension, state, tool, input);
+  // One opened code per extension for this derivation, disposed at its end.
+  const opened = new Map<string, Promise<ExtensionCode>>();
+  const gated: AvailabilityInput = input.code
+    ? {
+        ...input,
+        code: (extension) => {
+          let code = opened.get(extension.id);
+          if (!code) {
+            code = input.code!(extension);
+            opened.set(extension.id, code);
+          }
+          return code;
+        },
+      }
+    : input;
+  try {
+    for (const extension of registry.extensions) {
+      const state = input.extension(extension.id);
+      if (!state) continue;
+      for (const namespace of extension.contributes.sdk ?? [])
+        namespaces[namespace.id] = await stateOf(
+          extension,
+          state,
+          {
+            ...namespace,
+            target: { kind: "namespace", id: namespace.id },
+          },
+          gated,
+        );
+      for (const tool of extension.tools ?? [])
+        tools[tool.name] = await stateOf(
+          extension,
+          state,
+          { ...tool, target: { kind: "tool", name: tool.name } },
+          gated,
+        );
+    }
+  } finally {
+    await Promise.all(
+      [...opened.values()].map(async (code) => {
+        try {
+          await (await code).dispose();
+        } catch {
+          // Nothing left to release.
+        }
+      }),
+    );
   }
   return { namespaces, tools };
 }

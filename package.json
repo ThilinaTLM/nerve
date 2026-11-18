@@ -14,7 +14,7 @@
     "build:native": "pnpm --filter @nervekit/native build:native",
     "build:workbench-runtime": "pnpm --filter @nervekit/workbench-app... --filter @nervekit/workbench-server... build && tsx scripts/build/copy-workbench-app-dist-to-workbench-server.ts",
     "fix": "pnpm --filter @nervekit/native fix:native && oxfmt && eslint . --fix && oxfmt",
-    "check": "oxfmt --check && eslint . && tsc -p scripts && tsx scripts/checks/check-package-boundaries.ts && pnpm migrations:check && pnpm -r check",
+    "check": "oxfmt --check && eslint . && tsc -p scripts && tsx scripts/checks/check-package-boundaries.ts && tsx scripts/checks/check-lockstep-versions.ts && pnpm migrations:check && pnpm -r check",
     "fix:focused": "tsx scripts/checks/run-focused.ts fix",
     "check:focused": "tsx scripts/checks/run-focused.ts check",
     "test:focused": "tsx scripts/testing/run-focused-tests.ts",
@@ -39,6 +39,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@playwright/test": "^1.63.0",
+    "@tailwindcss/vite": "4.3.1",
     "@types/node": "25.9.5",
     "@types/ws": "8.18.1",
     "c8": "^12.0.0",
@@ -54,6 +55,7 @@
     "tsx": "4.22.4",
     "typescript": "5.9.3",
     "typescript-eslint": "8.63.0",
+    "vite": "8.3.5",
     "ws": "8.21.0",
     "zod": "4.6.7"
   },

@@ -8,11 +8,17 @@ export {
   trustedResourceKindSchema,
   trustedResourceStatusSchema,
   trustedResourceSchema,
+  trustedContentDigestSchema,
+  toTrustedDigest,
+  trustedResourceGrantsSchema,
+  trustDecisionSchema,
 } from "./trusted-resource.js";
 export type {
   TrustedResourceKind,
   TrustedResourceStatus,
   TrustedResource,
+  TrustedResourceGrants,
+  TrustDecision,
 } from "./trusted-resource.js";
 export {
   conversationStatusSchema,

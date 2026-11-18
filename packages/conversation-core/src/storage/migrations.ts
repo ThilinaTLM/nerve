@@ -3,11 +3,13 @@ import type { CoreDatabase } from "./database.js";
 import { coreSchemaV1 } from "./schema.js";
 import { coreSchemaV2, applyCoreSchemaV2 } from "./schema-v2.js";
 import { coreSchemaV3 } from "./schema-v3.js";
+import { coreSchemaV4 } from "./schema-v4.js";
 
 export const coreMigrations = [
   { version: 1, name: "conversation core foundation", sql: coreSchemaV1 },
   { version: 2, name: "agent profiles", sql: coreSchemaV2 },
   { version: 3, name: "remove command preparation", sql: coreSchemaV3 },
+  { version: 4, name: "trust decisions v3", sql: coreSchemaV4 },
 ] as const;
 
 export function migrate(db: CoreDatabase): void {

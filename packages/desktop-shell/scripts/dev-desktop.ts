@@ -21,6 +21,12 @@ async function main(args: string[]): Promise<void> {
   await createSlotParent(slot);
   await runCommand("pnpm", ["-w", "build:native"], options);
   await runCommand("pnpm", ["-w", "build:workbench-runtime"], options);
+  // The extension-creator skill runs this checkout's SDK on dev slots.
+  await runCommand(
+    "pnpm",
+    ["--filter", "@nervekit/extension-sdk...", "build"],
+    options,
+  );
   await runCommand(
     "pnpm",
     ["--filter", "@nervekit/desktop-shell", "build"],

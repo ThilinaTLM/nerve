@@ -9,7 +9,6 @@ import type { UnifiedCompletionService } from "../domains/completions/unified-co
 import type { ConversationTitleService } from "../domains/conversation-titles/title.service.js";
 import type { PrSyncService } from "../domains/git/pr-sync/pr-sync-service.js";
 import type { GitWorkspaceSync } from "../domains/git/workspace-sync/git-workspace-sync-service.js";
-import { hostRegistry } from "../core-host/host-tools.js";
 import type { AccountsService } from "../domains/accounts/index.js";
 import type { IntegrationHealthService } from "../domains/auth/integration-health.service.js";
 import type { WorkspaceMonitor } from "../domains/monitoring/workspace-monitor.js";
@@ -45,6 +44,12 @@ import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { WorkbenchNoticePublisher } from "../infrastructure/events/index.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage-bootstrap/index.js";
+import type {
+  ExtensionManagement,
+  ExtensionRegistryProvider,
+  ExtensionUiSource,
+} from "../core-host/extension-catalog/extension-catalog.js";
+import { ExtensionUiService } from "../core-host/extension-ui/extension-ui-service.js";
 import { createExtensionViews } from "../core-host/extension-views.js";
 import type { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
 import { createPermissionConfigurationService } from "../core-host/permission-configuration.js";
@@ -76,6 +81,10 @@ export interface AdapterInfrastructure {
 
 /** The service capabilities adapters are projected from; the bootstrap graph satisfies this structurally. */
 export interface AdapterServices {
+  /** The extensions of this home: built-ins, user extensions and per-project ones. */
+  extensionCatalog: ExtensionRegistryProvider &
+    ExtensionManagement &
+    ExtensionUiSource;
   unreadableConversations: UnreadableConversationActivity;
   completions: UnifiedCompletionService;
   conversationTitles: ConversationTitleService;
@@ -118,9 +127,20 @@ export function createServerAdapterContexts(
   const extensionViews = createExtensionViews({
     extensions: services.extensionSettings,
     agents: services.agentConfiguration,
-    registry: hostRegistry,
+    catalog: services.extensionCatalog,
+    projectDirectory: (projectId) =>
+      services.conversationCore.projects.get(projectId)?.directory,
     accounts: services.accounts,
     vision: services.vision,
+  });
+  const extensionUi = new ExtensionUiService({
+    catalog: services.extensionCatalog,
+    extensions: services.extensionSettings,
+    accounts: services.accounts,
+    vision: services.vision,
+    project: (id) => services.conversationCore.projects.get(id) ?? undefined,
+    warn: (message, data) =>
+      void infrastructure.logger.warn(message, { context: { data } }),
   });
   const protocol = {
     activity: {
@@ -136,6 +156,8 @@ export function createServerAdapterContexts(
       agentConfiguration: services.agentConfiguration,
       extensionSettings: services.extensionSettings,
       extensionViews,
+      extensionUi,
+      extensionCatalog: services.extensionCatalog,
       configurationOperations: services.configurationOperations,
       admissionPolicy: services.admissionPolicy,
       workspaceMonitor: services.workspaceMonitor,
@@ -229,6 +251,7 @@ export function createServerAdapterContexts(
         getProject,
         storage: infrastructure.storage,
       },
+      extensionFrames: { extensionUi },
       conversationAssets: { assets: services.conversationCore.assets },
       projectAssets: { projectIcons: services.projectIcons, getProject },
       staticFiles: {

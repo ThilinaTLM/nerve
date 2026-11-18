@@ -1,6 +1,7 @@
 import {
   accountFieldKinds,
   fieldScopes,
+  type ExtensionCatalogEntry,
   type ExtensionView,
   type SettingField,
 } from "@nervekit/contracts/extensions";
@@ -621,4 +622,112 @@ export function parseNumberInput(text: string): number | undefined | "invalid" {
   if (trimmed === "") return undefined;
   const value = Number(trimmed);
   return Number.isFinite(value) ? value : "invalid";
+}
+
+// ── Installed extensions (user and project folders) ─────────────────────────
+
+export type InstalledGroup = "user" | "project";
+
+/** The catalog entries of one installed source, in the catalog's order. */
+export function installedEntries(
+  catalog: readonly ExtensionCatalogEntry[],
+  source: InstalledGroup,
+): ExtensionCatalogEntry[] {
+  return catalog.filter((entry) => entry.source === source);
+}
+
+export type StateBadge = {
+  label: string;
+  variant: "neutral" | "warning" | "destructive";
+};
+
+/** The badge of a state that needs attention; enabled shows nothing (the switch says it). */
+export function installedStateBadge(
+  state: ExtensionCatalogEntry["state"],
+): StateBadge | undefined {
+  switch (state) {
+    case "pending_consent":
+      return { label: "Pending consent", variant: "warning" };
+    case "incompatible":
+      return { label: "Incompatible", variant: "warning" };
+    case "invalid":
+      return { label: "Invalid", variant: "destructive" };
+    case "shadowed":
+      return { label: "Shadowed", variant: "neutral" };
+    case "enabled":
+      return undefined;
+  }
+}
+
+/** The row's status line: version and folder. */
+export function installedSummary(entry: ExtensionCatalogEntry): string {
+  return [entry.version ? `v${entry.version}` : "", entry.path ?? ""]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** What the row says is wrong: the first error, or the first warning of a state that needs care. */
+export function installedProblem(
+  entry: ExtensionCatalogEntry,
+): string | undefined {
+  if (entry.state === "pending_consent")
+    return entry.consent?.update
+      ? "Changed since you allowed it. Review what is new."
+      : "Waiting for your consent. Nothing runs until you allow it.";
+  const diagnostic =
+    entry.diagnostics.find((candidate) => candidate.level === "error") ??
+    (entry.state === "shadowed" || entry.state === "incompatible"
+      ? entry.diagnostics[0]
+      : undefined);
+  return diagnostic?.message;
+}
+
+/** One line of an installed extension's Source section. */
+export type SourceRow = { label: string; value: string; mono?: boolean };
+
+/** Where an installed extension lives and what it is, for the detail's Source section. */
+export function installedSourceRows(entry: ExtensionCatalogEntry): SourceRow[] {
+  const rows: SourceRow[] = [
+    {
+      label: "Installed for",
+      value: entry.source === "user" ? "User" : "Project",
+    },
+  ];
+  if (entry.path) rows.push({ label: "Folder", value: entry.path, mono: true });
+  if (entry.version) rows.push({ label: "Version", value: entry.version });
+  if (entry.sdkVersion)
+    rows.push({ label: "SDK version", value: entry.sdkVersion });
+  return rows;
+}
+
+/** The consent state in words; `canRevoke` when it can be withdrawn. */
+export function consentState(entry: ExtensionCatalogEntry): {
+  label: string;
+  description: string;
+  canRevoke: boolean;
+  canReview: boolean;
+} {
+  const review =
+    entry.state === "pending_consent" && entry.consent !== undefined;
+  if (entry.state === "enabled")
+    return {
+      label: "Allowed",
+      description:
+        "You allowed what it adds. Revoking stops it until you allow it again.",
+      canRevoke: true,
+      canReview: false,
+    };
+  if (entry.state === "pending_consent")
+    return {
+      label: "Waiting for your consent",
+      description: "Nothing runs until you allow it.",
+      canRevoke: false,
+      canReview: review,
+    };
+  return {
+    label: "Not running",
+    description: "The extension is not loaded; see the diagnostics below.",
+    canRevoke: false,
+    canReview: false,
+  };
 }

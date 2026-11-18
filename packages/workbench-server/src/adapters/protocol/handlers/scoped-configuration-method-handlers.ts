@@ -1,3 +1,4 @@
+import { toTrustedDigest } from "@nervekit/contracts/core";
 import { createConfigurationReload } from "../../../core-host/configuration-reload.js";
 import { readFile } from "node:fs/promises";
 import {
@@ -82,8 +83,8 @@ async function trust(state: Context, input: ScopedTrustRequest) {
           input.target.document === "agent"
             ? "Agent configuration"
             : input.target.name,
-        path: file,
-        contentDigest: input.expectedDigest,
+        resourceKey: file,
+        contentDigest: toTrustedDigest(input.expectedDigest),
         status: input.trusted ? "trusted" : "rejected",
       });
     });

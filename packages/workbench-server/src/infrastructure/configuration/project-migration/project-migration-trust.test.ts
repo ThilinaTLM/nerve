@@ -11,10 +11,7 @@ const digest = (bytes: Buffer) =>
   `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 for (const kind of ["project_permissions", "project_capabilities"] as const)
   void test(`only exact same-file trusted bytes carry over; changed bindings and reset cannot grant trust (${kind})`, async (t) => {
-    const approvalDigest = (bytes: Buffer) =>
-      kind === "project_permissions"
-        ? digest(bytes)
-        : digest(bytes).slice("sha256:".length);
+    const approvalDigest = digest;
     const root = await mkdtemp(join(tmpdir(), "migration-trust-"));
     t.after(() => rm(root, { recursive: true, force: true }));
     const path = join(root, "config.json");
@@ -28,8 +25,9 @@ for (const kind of ["project_permissions", "project_capabilities"] as const)
       id: "trust_one",
       kind,
       projectId: "proj_one",
-      path,
+      resourceKey: path,
       name: "config.json",
+      grants: null,
       contentDigest: approvalDigest(source),
       status: "trusted",
       createdAt: "2026-10-30T00:00:00.000Z",
@@ -39,7 +37,7 @@ for (const kind of ["project_permissions", "project_capabilities"] as const)
       transaction: (fn: () => void) => fn(),
       trustedResources: {
         find: (_kind: string, _projectId: string, query: string) =>
-          record?.path === query ? { ...record } : null,
+          record?.resourceKey === query ? { ...record } : null,
         update: (_id: string, patch: Partial<TrustedResource>) => {
           record = { ...record!, ...patch };
         },
@@ -58,22 +56,22 @@ for (const kind of ["project_permissions", "project_capabilities"] as const)
     );
     const revoked = (await trust.capture(input))!;
     await revoked(other, output);
-    assert.equal(record.contentDigest, approvalDigest(source));
+    assert.equal(record?.contentDigest, approvalDigest(source));
     record.status = "rejected";
     await writeFile(path, output);
     await revoked(target, output);
-    assert.equal(record.contentDigest, approvalDigest(source));
+    assert.equal(record?.contentDigest, approvalDigest(source));
     assert.equal(await trust.capture(input), undefined);
     record.status = "trusted";
     await writeFile(path, source);
     const carry = (await trust.capture(input))!;
     await writeFile(target, "external edit");
     await carry(target, output);
-    assert.equal(record.path, path);
+    assert.equal(record?.resourceKey, path);
     await writeFile(target, output);
     await carry(target, await readFile(target));
-    assert.equal(record.path, target);
-    assert.equal(record.contentDigest, approvalDigest(output));
+    assert.equal(record?.resourceKey, target);
+    assert.equal(record?.contentDigest, approvalDigest(output));
     await trust.revoke!({
       type: "permissions",
       projectId: "proj_one",
@@ -110,10 +108,10 @@ void test("a file created through Nerve is trusted unless the binding changed; p
   await writeFile(path, output);
   await create(path, output);
   assert.equal(record?.status, "trusted");
-  assert.equal(record?.contentDigest, digest(output).slice("sha256:".length));
+  assert.equal(record?.contentDigest, digest(output));
   // A decision recorded while the write was in flight wins.
   const stale = (await trust.capture({ ...input, type: "extensions" }))!;
   record = { ...record, status: "rejected" };
   await stale(path, output);
-  assert.equal(record.status, "rejected");
+  assert.equal(record?.status, "rejected");
 });

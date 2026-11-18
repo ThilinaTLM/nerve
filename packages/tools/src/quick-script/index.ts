@@ -2,6 +2,7 @@ import { executeQuickScript } from "./runtime/quick-script.js";
 
 export {
   createQuickScriptRegistry,
+  reservedNamespaceIds,
   findNamespace as findQuickScriptNamespace,
 } from "./registry.js";
 export type {
@@ -29,8 +30,33 @@ export type {
   DerivedAvailability,
   ExtensionState,
 } from "./extension-host/availability.js";
+export {
+  inProcessExtensionCode,
+  type ExtensionCode,
+  type ExtensionCodeAdapter,
+  type ExtensionCodeHost,
+} from "./extension-host/code-adapter.js";
+export {
+  routedExtensionCode,
+  sandboxExtensionCode,
+  readSandboxedDefinitionData,
+  type SandboxExtensionCodeOptions,
+} from "./extension-host/sandbox-adapter.js";
+export { resolveExtensionIcon } from "./extension-host/icon.js";
 export type { ExtensionHostPorts } from "./extension-host/ports.js";
-export { createAvailabilityContext } from "./extension-host/host-context.js";
+export type {
+  ExtensionAgentDiagnostic,
+  ExtensionAgentError,
+  ExtensionAgentPort,
+  ExtensionAgentStatus,
+} from "./extension-host/agent-port.js";
+export { openAvailabilityCode } from "./extension-host/host-context.js";
+export {
+  callExtensionMethodFromUi,
+  defaultUiCallTimeoutMs,
+  ExtensionUiCallError,
+  type ExtensionUiCall,
+} from "./extension-host/ui-call.js";
 export {
   extensionMetadata,
   extensionSettingsDefinition,

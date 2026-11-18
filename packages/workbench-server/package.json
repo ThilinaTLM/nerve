@@ -31,7 +31,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -b && tsx ../../scripts/build/copy-skills-assets.ts",
+    "build": "tsc -b && tsx ../../scripts/build/copy-skills-assets.ts && tsx ../../scripts/build/build-extension-frame-css.ts",
     "check": "tsc -b --pretty false",
     "dev": "tsx src/main.ts",
     "pretest": "tsx ../../scripts/build/copy-skills-assets.ts",

@@ -29,12 +29,14 @@ import ExtensionMark from "./ExtensionMark.svelte";
 import ExtensionDetail from "./ExtensionDetail.svelte";
 import ExtensionDetailHeader from "./ExtensionDetailHeader.svelte";
 import ExtensionsTrustNotice from "./ExtensionsTrustNotice.svelte";
+import InstalledExtensionsSection from "./InstalledExtensionsSection.svelte";
 import {
   entryWithEnabled,
   extensionChanges,
   extensionFix,
   extensionProblem,
   extensionSummary,
+  installedEntries,
 } from "./extensions-view";
 
 type Props = {
@@ -49,6 +51,9 @@ type Props = {
   onOpenItem?: (id: string, section?: string) => void;
   /** Leaves the open extension for the list. */
   onCloseItem?: () => void;
+  /** Pages an extension contributes to the open project. */
+  pagesOf?: (extensionId: string) => { id: string; label: string }[];
+  onOpenPage?: (extensionId: string, pageId: string) => void;
 };
 
 let {
@@ -60,6 +65,8 @@ let {
   sectionId,
   onOpenItem,
   onCloseItem,
+  pagesOf,
+  onOpenPage,
 }: Props = $props();
 
 const extensions = new ScopedExtensionsState();
@@ -107,6 +114,18 @@ const rows = $derived(
       fix: extensionFix(extension, accounts),
     };
   }),
+);
+const catalog = $derived(view?.catalog ?? []);
+const registered = $derived(
+  new Map(
+    (view?.extensions ?? []).map((extension) => [
+      extension.metadata.id,
+      extension,
+    ]),
+  ),
+);
+const builtinRows = $derived(
+  rows.filter((row) => row.extension.metadata.source === "builtin"),
 );
 const differing = $derived(
   scope === "project"
@@ -200,12 +219,21 @@ function resetAll(): void {
   {#if open && openRow}
     <ExtensionDetail
       extension={open}
+      installed={catalog.find(
+        (entry) =>
+          entry.id === open.metadata.id &&
+          entry.source === open.metadata.source,
+      )}
       inherited={openRow.inherited}
       {scope}
       {projectId}
       {extensions}
       {accounts}
       models={usableModels}
+      pages={pagesOf?.(open.metadata.id) ?? []}
+      onOpenPage={onOpenPage
+        ? (pageId) => onOpenPage(open.metadata.id, pageId)
+        : undefined}
     />
   {:else}
     <SettingsEmptyState
@@ -216,7 +244,7 @@ function resetAll(): void {
     />
   {/if}
 {:else}
-  <div bind:this={listElement} class="grid min-w-0">
+  <div bind:this={listElement} class="grid min-w-0 gap-6">
     <SettingsSection id="builtin" title="Built-in">
       {#snippet actions()}
         {#if differing > 0}
@@ -232,7 +260,7 @@ function resetAll(): void {
         {/if}
       {/snippet}
       <SettingsList ariaLabel="Built-in extensions">
-        {#each rows as row (row.extension.metadata.id)}
+        {#each builtinRows as row (row.extension.metadata.id)}
           {@const extension = row.extension}
           <SettingsItem
             title={extension.metadata.name}
@@ -282,6 +310,24 @@ function resetAll(): void {
         {/each}
       </SettingsList>
     </SettingsSection>
+    <InstalledExtensionsSection
+      source="user"
+      entries={installedEntries(catalog, "user")}
+      {registered}
+      {extensions}
+      {accounts}
+      {onOpenItem}
+    />
+    {#if scope === "project"}
+      <InstalledExtensionsSection
+        source="project"
+        entries={installedEntries(catalog, "project")}
+        {registered}
+        {extensions}
+        {accounts}
+        {onOpenItem}
+      />
+    {/if}
   </div>
   <ConfirmDialog
     bind:open={confirmReset}

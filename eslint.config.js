@@ -13,6 +13,8 @@ export default tseslint.config(
       "**/.vite/**",
       // Gitignored runtime data and generated captures are not source code.
       "data/**",
+      // Skill examples are extension projects built with their own toolchain (`nerve-ext`).
+      "packages/workbench-server/src/builtin-skills/builtin/*/examples/**",
       // Local git worktrees are separate checkouts with their own tsconfigs;
       // linting them from the root corrupts type-aware rule resolution.
       ".worktrees/**",

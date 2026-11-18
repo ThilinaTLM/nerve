@@ -4,13 +4,13 @@ import { openCoreDatabase } from "./database.js";
 import { migrate } from "./migrations.js";
 
 // A fresh database exercises the canonical schema, not a previously migrated server copy.
-test("fresh core schema accepts agent-profile trust and rejects its retired kind", () => {
+test("fresh core schema stores trust kinds without a SQL CHECK", () => {
   const db = openCoreDatabase(":memory:");
   try {
     migrate(db);
     const insert = db.sqlite.prepare(`INSERT INTO trusted_resource
-      (id, kind, project_id, path, name, content_digest, status, created_at, updated_at)
-      VALUES (?, ?, NULL, '/profiles/coding', 'coding', 'digest', 'trusted', 'now', 'now')`);
+      (id, kind, project_id, resource_key, name, content_digest, status, created_at, updated_at)
+      VALUES (?, ?, NULL, '/profiles/coding', 'coding', 'sha256:abc', 'trusted', 'now', 'now')`);
     insert.run("new-profile", "agent_profile");
     assert.equal(
       db.sqlite
@@ -18,10 +18,8 @@ test("fresh core schema accepts agent-profile trust and rejects its retired kind
         .get("new-profile")?.kind,
       "agent_profile",
     );
-    assert.throws(
-      () => insert.run("old-profile", "subagent_profile"),
-      /CHECK constraint failed/,
-    );
+    // Kinds are validated in code, not by SQL.
+    insert.run("future", "future_kind");
     migrate(db); // The persisted checksum must agree on reopen/recheck.
   } finally {
     db.close();

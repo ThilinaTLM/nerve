@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ExtensionView } from "@nervekit/contracts/extensions";
+import type {
+  ExtensionCatalogEntry,
+  ExtensionView,
+} from "@nervekit/contracts/extensions";
 import {
   accountChoicesFor,
   activeNamespaces,
@@ -14,6 +17,11 @@ import {
   extensionFix,
   extensionProblem,
   extensionSummary,
+  consentState,
+  installedEntries,
+  installedSourceRows,
+  installedProblem,
+  installedStateBadge,
   fieldSections,
   namespaceProblem,
   parseNumberInput,
@@ -617,5 +625,111 @@ describe("account fields accepting several kinds", () => {
 
   it("shows the selected account whichever kind it is", () => {
     assert.equal(displayValue(field, "b", accounts), "Brave one");
+  });
+});
+
+describe("installed extensions", () => {
+  const entry = (
+    patch: Partial<ExtensionCatalogEntry>,
+  ): ExtensionCatalogEntry => ({
+    id: "csv-tools",
+    source: "user",
+    state: "enabled",
+    diagnostics: [],
+    ...patch,
+  });
+
+  it("groups catalog entries by source", () => {
+    const catalog = [
+      entry({ source: "builtin", id: "diagram" }),
+      entry({ id: "a" }),
+      entry({ id: "b", source: "project" }),
+    ];
+    assert.deepEqual(
+      installedEntries(catalog, "user").map((e) => e.id),
+      ["a"],
+    );
+    assert.deepEqual(
+      installedEntries(catalog, "project").map((e) => e.id),
+      ["b"],
+    );
+  });
+
+  it("badges states that need attention", () => {
+    assert.equal(installedStateBadge("enabled"), undefined);
+    assert.equal(installedStateBadge("pending_consent")?.variant, "warning");
+    assert.equal(installedStateBadge("invalid")?.variant, "destructive");
+  });
+
+  it("explains pending consent and surfaces the first error", () => {
+    const consent = { update: true, contentHash: "h", items: [], text: "" };
+    assert.match(
+      installedProblem(entry({ state: "pending_consent", consent })) ?? "",
+      /Changed since you allowed it/,
+    );
+    assert.match(
+      installedProblem(entry({ state: "pending_consent" })) ?? "",
+      /Nothing runs until you allow it/,
+    );
+    assert.equal(
+      installedProblem(
+        entry({
+          state: "invalid",
+          diagnostics: [
+            { level: "warning", message: "w" },
+            { level: "error", message: "e" },
+          ],
+        }),
+      ),
+      "e",
+    );
+    assert.equal(installedProblem(entry({})), undefined);
+  });
+});
+
+describe("installed extension detail", () => {
+  const entry = (
+    patch: Partial<ExtensionCatalogEntry>,
+  ): ExtensionCatalogEntry => ({
+    id: "csv-table",
+    source: "user",
+    state: "enabled",
+    diagnostics: [],
+    ...patch,
+  });
+
+  it("lists source rows only for what is known", () => {
+    assert.deepEqual(installedSourceRows(entry({})), [
+      { label: "Installed for", value: "User" },
+    ]);
+    assert.deepEqual(
+      installedSourceRows(
+        entry({
+          source: "project",
+          path: "/p/.nerve/extensions/x",
+          version: "1.2.0",
+          sdkVersion: "0.3.0",
+        }),
+      ).map((row) => [row.label, row.value]),
+      [
+        ["Installed for", "Project"],
+        ["Folder", "/p/.nerve/extensions/x"],
+        ["Version", "1.2.0"],
+        ["SDK version", "0.3.0"],
+      ],
+    );
+  });
+
+  it("offers Revoke when allowed and Review only with a pending summary", () => {
+    assert.equal(consentState(entry({})).canRevoke, true);
+    const pending = consentState(
+      entry({
+        state: "pending_consent",
+        consent: { update: false, contentHash: "h", items: [], text: "" },
+      }),
+    );
+    assert.equal(pending.canReview, true);
+    assert.equal(pending.canRevoke, false);
+    assert.equal(consentState(entry({ state: "invalid" })).canReview, false);
   });
 });

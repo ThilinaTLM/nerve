@@ -20,16 +20,17 @@ export class TrustedResourceRepository {
     const row = trustedResourceSchema.parse(input);
     this.db.sqlite
       .prepare(
-        "INSERT INTO trusted_resource (id, kind, project_id, path, name, content_digest, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO trusted_resource (id, kind, project_id, resource_key, name, content_digest, status, grants, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .run(
         row.id,
         row.kind,
         row.projectId,
-        row.path,
+        row.resourceKey,
         row.name,
         row.contentDigest,
         row.status,
+        row.grants ? JSON.stringify(row.grants) : null,
         row.createdAt,
         row.updatedAt,
       );
@@ -45,14 +46,15 @@ export class TrustedResourceRepository {
     const row = trustedResourceSchema.parse({ ...existing, ...patch });
     this.db.sqlite
       .prepare(
-        "UPDATE trusted_resource SET kind = ?, path = ?, name = ?, content_digest = ?, status = ?, updated_at = ? WHERE id = ?",
+        "UPDATE trusted_resource SET kind = ?, resource_key = ?, name = ?, content_digest = ?, status = ?, grants = ?, updated_at = ? WHERE id = ?",
       )
       .run(
         row.kind,
-        row.path,
+        row.resourceKey,
         row.name,
         row.contentDigest,
         row.status,
+        row.grants ? JSON.stringify(row.grants) : null,
         row.updatedAt,
         id,
       );
@@ -65,7 +67,7 @@ export class TrustedResourceRepository {
   ): TrustedResource[] {
     return this.db.sqlite
       .prepare(
-        "SELECT * FROM trusted_resource WHERE project_id IS ? AND (? IS NULL OR kind = ?) ORDER BY path, id",
+        "SELECT * FROM trusted_resource WHERE project_id IS ? AND (? IS NULL OR kind = ?) ORDER BY resource_key, id",
       )
       .all(projectId, kind ?? null, kind ?? null)
       .map(mapTrustedResource);
@@ -74,13 +76,13 @@ export class TrustedResourceRepository {
   find(
     kind: TrustedResourceKind,
     projectId: string | null,
-    path: string,
+    resourceKey: string,
   ): TrustedResource | null {
     const row = this.db.sqlite
       .prepare(
-        "SELECT * FROM trusted_resource WHERE kind = ? AND project_id IS ? AND path = ?",
+        "SELECT * FROM trusted_resource WHERE kind = ? AND project_id IS ? AND resource_key = ?",
       )
-      .get(kind, projectId, path);
+      .get(kind, projectId, resourceKey);
     return row ? mapTrustedResource(row) : null;
   }
 
@@ -96,10 +98,11 @@ function mapTrustedResource(
     id: row.id,
     kind: row.kind,
     projectId: row.project_id,
-    path: row.path,
+    resourceKey: row.resource_key,
     name: row.name,
     contentDigest: row.content_digest,
     status: row.status,
+    grants: typeof row.grants === "string" ? JSON.parse(row.grants) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });

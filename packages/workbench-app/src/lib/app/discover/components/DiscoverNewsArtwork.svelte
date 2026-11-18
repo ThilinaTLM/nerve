@@ -1,5 +1,8 @@
 <script lang="ts">
-import { colorThemeKind, colorThemeSchema } from "@nervekit/contracts/settings";
+import {
+  colorThemeKind,
+  builtInColorThemeSchema,
+} from "@nervekit/contracts/settings";
 import type { DiscoverArtwork } from "../content/entries.js";
 
 type Props = {
@@ -411,7 +414,7 @@ const swatchPosition = [
   {:else if artwork === "themes"}
     <div class="flex size-full items-center justify-center">
       <div class="flex items-center -space-x-3">
-        {#each colorThemeSchema.options as theme, index (theme)}
+        {#each builtInColorThemeSchema.options as theme, index (theme)}
           <div
             data-theme-preview={theme}
             data-color-mode={colorThemeKind[theme]}

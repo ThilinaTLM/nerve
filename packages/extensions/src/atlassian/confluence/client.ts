@@ -146,7 +146,9 @@ const DIRECT_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024;
 async function sendDownload(
   connection: ConfluenceConnection,
   downloadLink: string,
-  response: "bytes" | { artifact: string },
+  response:
+    | { response: "bytes" }
+    | { response: "artifact"; artifact: { name: string } },
   maxBytes: number,
 ) {
   const url = resolveConfluenceDownloadUrl(connection, downloadLink);
@@ -154,7 +156,7 @@ async function sendDownload(
     service: "confluence",
     url,
     headers: { Accept: "*/*" },
-    response,
+    ...response,
     timeoutMs: TRANSFER_TIMEOUT_MS,
     maxBytes,
     errorPath: url.pathname,
@@ -168,7 +170,7 @@ export async function confluenceDownload(
   const response = await sendDownload(
     connection,
     downloadLink,
-    "bytes",
+    { response: "bytes" },
     DIRECT_DOWNLOAD_MAX_BYTES,
   );
   return response.body instanceof Uint8Array
@@ -185,7 +187,7 @@ export async function confluenceDownloadToArtifact(
   const response = await sendDownload(
     connection,
     downloadLink,
-    { artifact: options.name },
+    { response: "artifact", artifact: { name: options.name } },
     options.maxBytes ?? MAX_ATTACHMENT_BYTES,
   );
   return response.body as ArtifactRef;

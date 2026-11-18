@@ -42,8 +42,7 @@ export async function testExtensionAccount(input: {
     (candidate) => candidate.definition?.accounts?.[account.kind]?.test,
   );
   const definition = extension?.definition;
-  const test = definition?.accounts?.[account.kind]?.test;
-  if (!definition || !test)
+  if (!definition || !definition.accounts?.[account.kind]?.test)
     throw new ToolExecutionError(
       "ACCOUNT_NOT_TESTABLE",
       `Accounts of kind '${account.kind}' cannot be tested.`,
@@ -66,7 +65,13 @@ export async function testExtensionAccount(input: {
     },
   });
   try {
-    const result = await test(account, env.extensions.context(definition));
+    const code = await env.extensions.code(definition);
+    let result;
+    try {
+      result = await code.testAccount(account.kind, account);
+    } finally {
+      await env.extensions.dispose();
+    }
     if (result.ok)
       return {
         status: "verified",

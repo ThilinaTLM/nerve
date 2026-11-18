@@ -23,6 +23,9 @@ const RULES = `Rules: methods take one argument, a bare string (key, id, JQL, CQ
 const DISCOVER =
   'Discover before first use of a namespace: sdk.describe("<namespace>"), sdk.docs("<namespace>"), sdk.search("<words>"), sdk.list().';
 
+const attributed = (namespace: { attribution?: string }) =>
+  namespace.attribution ? ` (${namespace.attribution})` : "";
+
 export function quickScriptDescription(
   { namespaces: configured = [] }: QuickScriptCapabilities = {},
   registry: QuickScriptRegistry,
@@ -40,9 +43,11 @@ export function quickScriptDescription(
       INTRO,
       RULES,
       ...listed.flatMap((namespace) =>
-        (namespace.rules ?? []).map((rule) => `${namespace.id}: ${rule}`),
+        (namespace.rules ?? []).map(
+          (rule) => `${namespace.id}${attributed(namespace)}: ${rule}`,
+        ),
       ),
-      `Namespaces: ${listed.map((namespace) => `${namespace.id} (${namespace.summary})`).join("; ")}.`,
+      `Namespaces: ${listed.map((namespace) => `${namespace.id} (${namespace.attribution ? `${namespace.attribution}: ` : ""}${namespace.summary})`).join("; ")}.`,
       libraries ? `Libraries: ${libraries.summary}.` : "",
       DISCOVER,
     ]

@@ -1,3 +1,5 @@
+import { consentSourcesOf } from "../../core-host/extension-catalog/extension-consent.js";
+import { toTrustedDigest } from "@nervekit/contracts/core";
 import {
   createdPrReference,
   referenceMatchesRepository,
@@ -13,7 +15,11 @@ import {
 } from "../../infrastructure/configuration/project-migration/descriptors.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
 import { allToolDescriptors } from "@nervekit/tools/catalog";
-import { hostRegistry, registerHostTools } from "../../core-host/host-tools.js";
+import {
+  createHostExtensionCatalog,
+  registerHostTools,
+} from "../../core-host/host-tools.js";
+import type { ExtensionCatalog } from "../../core-host/extension-catalog/extension-catalog.js";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { UnifiedCompletionService } from "../../domains/completions/unified-completion-service.js";
 import { createCompletionDependencies } from "./create-completion-dependencies.js";
@@ -70,12 +76,21 @@ export interface RuntimeDeps {
   agentBrowserSkills: AgentBrowserSkillCatalog;
   performanceDiagnostics: PerformanceDiagnosticsPort;
   resources: ResourceLimits & { controlWorkConcurrency: number };
+  /** The extensions this home serves; default: the built-ins plus the home's and projects' installed extensions behind the host's trust gate. */
+  extensionCatalog?: ExtensionCatalog;
 }
 export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
 
 export function createRuntimeServices(deps: RuntimeDeps) {
   registerHostTools();
   const { storage, events, auth, logger } = deps;
+  const extensionCatalog =
+    deps.extensionCatalog ??
+    createHostExtensionCatalog({
+      home: storage.paths.home,
+      consent: consentSourcesOf(() => conversationCore),
+      warn: (message, data) => void logger.warn(message, { context: { data } }),
+    });
   const activities = new ActivityService((activity, removed) =>
     events.publish("activity.updated", { activity, removed }),
   );
@@ -118,8 +133,11 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       await events.publish(type, data);
     },
   );
-  const accountKinds = () =>
-    hostRegistry.extensions.flatMap((extension) => extension.accounts ?? []);
+  // Reads the user's extensions once, so their account kinds are known early.
+  void extensionCatalog.compose().catch((error) => {
+    void logger.warn("Installed extensions could not be read", { error });
+  });
+  const accountKinds = () => extensionCatalog.accountKinds();
   const accounts = new AccountsService({ storage, auth, kinds: accountKinds });
   const {
     conversationTitles,
@@ -132,7 +150,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scopedConfiguration,
     admissionPolicy,
   } = createConversationCore(
-    { ...deps, accounts },
+    { ...deps, accounts, extensionCatalog },
     { launches, definitions: launchDefinitions },
     // Lazy: completion project lookup depends on the constructed core.
     async (projectId) => {
@@ -163,7 +181,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     accounts,
     kinds: accountKinds,
     test: extensionAccountTester({
-      registry: hostRegistry,
+      registry: () => extensionCatalog.registryFor(),
       accounts,
       warn: (extensionId, message, data) =>
         void deps.logger.warn("Extension warning", {
@@ -362,7 +380,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
             "project_capabilities",
             projectId,
             path,
-            digest,
+            toTrustedDigest(digest),
           ),
         tools: allToolDescriptors(),
         skills: async (scope) =>
@@ -386,6 +404,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     }),
   );
   return {
+    extensionCatalog,
     unreadableConversations,
     projectMigration,
     completions,

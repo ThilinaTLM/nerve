@@ -307,12 +307,7 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
         path,
         body,
         query,
-        binary: {
-          base: "confluence-response",
-          extensionFor: (type) =>
-            BINARY_EXTENSIONS[type.split(";")[0].trim().toLowerCase()] ??
-            ".bin",
-        },
+        binary: { base: "confluence-response" },
       });
     },
   }),
@@ -325,12 +320,3 @@ function usesAtlasDocFormat(body: unknown): boolean {
       "atlas_doc_format" || inner?.representation === "atlas_doc_format"
   );
 }
-
-const BINARY_EXTENSIONS: Record<string, string> = {
-  "image/png": ".png",
-  "image/jpeg": ".jpg",
-  "image/gif": ".gif",
-  "image/webp": ".webp",
-  "application/pdf": ".pdf",
-  "application/zip": ".zip",
-};

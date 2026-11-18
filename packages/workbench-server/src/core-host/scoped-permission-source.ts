@@ -29,6 +29,7 @@ import { classifyToolRisk } from "@nervekit/tools/catalog";
 import {
   classifyQuickScriptArguments,
   summarizeScannedCalls,
+  type QuickScriptRegistry,
 } from "@nervekit/tools/quick-script";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import {
@@ -64,6 +65,8 @@ export function createScopedPermissionSource(options: {
   agents: AgentConfigurationService;
   trustGeneration(): number;
   requestGenerations(id: string): Record<string, number> | undefined;
+  /** The registry of a project's extensions, for the script scan; default: the built-ins'. */
+  registryFor?(projectDirectory: string): Promise<QuickScriptRegistry>;
 }): ScopedPermissionPolicySource {
   const migrations =
     options.projectMigration ??
@@ -78,6 +81,11 @@ export function createScopedPermissionSource(options: {
   const normalized = new WeakMap<
     Parameters<AdmissionPolicySource["ensureLoaded"]>[0],
     ReturnType<typeof normalizePermissionRequest>
+  >();
+  /** The script scan of a `quick_script` request, computed (asynchronously) in `ensureLoaded` and read by the synchronous `evaluate`. */
+  const scans = new WeakMap<
+    Parameters<AdmissionPolicySource["ensureLoaded"]>[0],
+    Awaited<ReturnType<typeof classifyQuickScriptArguments>>
   >();
   const files = new Map<string, Promise<Loaded>>();
   let catalog:
@@ -205,6 +213,22 @@ export function createScopedPermissionSource(options: {
       if (paths) await Promise.all(paths.map(read));
     },
     async ensureLoaded(input) {
+      // Composing the project's extensions publishes their direct tools for the request below.
+      await options.registryFor?.(
+        projectOf(input.conversationId).project.directory,
+      );
+      if (input.toolName === "quick_script" && !nestedOperation(input))
+        scans.set(
+          input,
+          await classifyQuickScriptArguments(
+            input.args as Record<string, unknown>,
+            options.registryFor
+              ? await options.registryFor(
+                  projectOf(input.conversationId).project.directory,
+                )
+              : hostRegistry,
+          ),
+        );
       while (true) {
         const trustVersion = options.trustGeneration();
         const context = projectOf(input.conversationId);
@@ -222,6 +246,7 @@ export function createScopedPermissionSource(options: {
                 args: input.args as Record<string, unknown>,
                 conversationId: input.conversationId,
                 projectId: context.project.id,
+                toolScope: context.project.directory,
                 cwd: input.cwd,
                 roots: {
                   project: context.project.directory,
@@ -231,6 +256,8 @@ export function createScopedPermissionSource(options: {
                 },
               }),
         );
+        const scan = scans.get(input);
+        if (scan) normalized.get(input)!.argumentRisk = scan.risk;
 
         const existing = policies.get(input.conversationId);
         if (existing?.epoch === epoch && existing.current().kind !== "stale")
@@ -360,7 +387,7 @@ export function createScopedPermissionSource(options: {
                   throw new Error("Permission request was not prepared");
                 const scanned =
                   actual.toolName === "quick_script" && !request.operation
-                    ? classifyQuickScriptArguments(request.args, hostRegistry)
+                    ? scans.get(actual)
                     : undefined;
                 const script = evaluatePermissionRequest({ policy, request });
                 // A complete scan lets operation rules decide the script.
@@ -383,12 +410,21 @@ export function createScopedPermissionSource(options: {
                       : evaluated.decision,
                   effectiveRisk: request.operation
                     ? operationEffectiveRisk(request.args.risk)
-                    : classifyToolRisk(actual.toolName, request.args),
+                    : scanned
+                      ? scanned.risk
+                      : classifyToolRisk(
+                          actual.toolName,
+                          request.args,
+                          request.toolScope,
+                        ),
                   reason:
                     actual.toolName === "quick_script" &&
                     !request.operation &&
                     evaluated.decision !== "allow"
-                      ? withScriptOperations(evaluated.reason, request.args)
+                      ? withScriptOperations(
+                          evaluated.reason,
+                          scanned?.operations ?? [],
+                        )
                       : evaluated.reason,
                   ...(scanned && scanned.calls.length > 0
                     ? { operations: summarizeScannedCalls(scanned.calls) }
@@ -467,9 +503,8 @@ export function createScopedPermissionSource(options: {
 /** Names the SDK operations a quick-script script contains, so the approval shows what it does. */
 function withScriptOperations(
   reason: string,
-  args: Record<string, unknown>,
+  operations: readonly string[],
 ): string {
-  const { operations } = classifyQuickScriptArguments(args, hostRegistry);
   return operations.length > 0
     ? `${reason} Script operations: ${operations.join(", ")}.`
     : reason;

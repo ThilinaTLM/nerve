@@ -4,6 +4,7 @@ import type {
   ToolKind,
 } from "@nervekit/contracts/permissions";
 import type { ToolName } from "@nervekit/contracts/tools";
+import { scopedToolDefinition } from "./tool-scope.js";
 
 export interface ToolPermissionMetadata {
   kind: ToolKind;
@@ -142,9 +143,12 @@ export function registerExtensionToolMetadata(
 
 export function permissionMetadataForTool(
   name: ToolName,
+  scope?: string,
 ): ToolPermissionMetadata {
   const metadata =
-    toolPermissionMetadata[name] ?? extensionToolMetadata.get(name);
+    scopedToolDefinition(name, scope)?.permissionMetadata ??
+    toolPermissionMetadata[name] ??
+    extensionToolMetadata.get(name);
   if (!metadata) throw new Error(`Unknown tool: ${name}`);
   return metadata;
 }

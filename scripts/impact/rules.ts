@@ -57,6 +57,7 @@
 
 export const CORE_PACKAGES: ReadonlySet<string> = new Set([
   "@nervekit/extension-api",
+  "@nervekit/extension-sdk",
   "@nervekit/contracts",
   "@nervekit/desktop-shell",
   "@nervekit/harness",
@@ -119,6 +120,10 @@ export const SPECIAL_OWNERS: ReadonlyMap<string, SpecialOwner> = new Map([
   [
     "scripts/build/copy-skills-assets.ts",
     { owners: ["@nervekit/workbench-server"] },
+  ],
+  [
+    "scripts/build/build-extension-frame-css.ts",
+    { owners: ["@nervekit/workbench-server", "@nervekit/ui-kit"] },
   ],
   [
     "scripts/build/copy-quick-script-assets.ts",

@@ -29,6 +29,10 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
     ],
   ],
   ["@nervekit/ui-kit", []],
+  [
+    "@nervekit/extension-sdk",
+    ["@nervekit/extension-api", "@nervekit/ui-kit", "@nervekit/contracts"],
+  ],
   ["@nervekit/website", []],
   [
     "@nervekit/workbench-server",

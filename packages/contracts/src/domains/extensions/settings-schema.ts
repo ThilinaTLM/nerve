@@ -196,7 +196,8 @@ export const extensionMetadataSchema = z.strictObject({
   name: z.string().min(1),
   description: z.string(),
   icon: extensionIconSchema,
-  source: z.enum(["builtin"]),
+  /** Where the extension comes from; the Extensions page groups by it. */
+  source: z.enum(["builtin", "user", "project"]),
   settingsVersion: z.number().int().positive(),
   /** Default of the implicit `enabled` switch. */
   enabledByDefault: z.boolean(),

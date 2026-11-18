@@ -30,7 +30,7 @@ const env = createSdkEnvironment({
   web: { enabled: true, search: true },
 });
 
-void test("every method has samples, and its declared risk covers every authorization it produces", () => {
+void test("every method has samples, and its declared risk covers every authorization it produces", async () => {
   assert.deepEqual(
     Object.keys(SAMPLES).sort(),
     [...sdkMethodNames(registry)].sort(),
@@ -38,7 +38,7 @@ void test("every method has samples, and its declared risk covers every authoriz
   for (const [name, calls] of Object.entries(SAMPLES)) {
     const method = findSdkMethod(name, registry)!;
     for (const args of calls) {
-      const prepared = method.prepare(args, env);
+      const prepared = await method.prepare(args, env);
       const checks = [
         ...(prepared.authorization ? [prepared.authorization] : []),
         ...(prepared.additionalAuthorizations ?? []),
@@ -58,7 +58,7 @@ void test("every method has samples, and its declared risk covers every authoriz
           for (const target of check.targets)
             assert.match(
               target.value,
-              /^(jira|confluence):[a-z]+\/\S/,
+              /^(jira|confluence|extensions):[a-z]+\/\S/,
               `${name} target ${target.value}`,
             );
           continue;
@@ -79,7 +79,7 @@ void test("every method has samples, and its declared risk covers every authoriz
   }
 });
 
-void test("the guard refuses a declaration below the authorization's risk", () => {
+void test("the guard refuses a declaration below the authorization's risk", async () => {
   const direct = (toolName: string, args: Record<string, unknown>) => ({
     toolName,
     args,
@@ -110,7 +110,7 @@ void test("the guard refuses a declaration below the authorization's risk", () =
   );
 });
 
-void test("effective tool risks map conservatively onto the quick-script scale", () => {
+void test("effective tool risks map conservatively onto the quick-script scale", async () => {
   for (const [risk, expected] of [
     ["read", "read"],
     ["external_read", "external_read"],
@@ -126,37 +126,41 @@ void test("effective tool risks map conservatively onto the quick-script scale",
     assert.equal(quickScriptRiskOfToolRisk(risk), expected, risk);
 });
 
-void test("scripts are classified from the method table: adding is a write, deleting destructive", () => {
-  const risk = (code: string) => classifyQuickScriptScript(code, registry).risk;
+void test("scripts are classified from the method table: adding is a write, deleting destructive", async () => {
+  const risk = async (code: string) =>
+    (await classifyQuickScriptScript(code, registry)).risk;
   assert.equal(
-    risk(`await jira.comments.add({ key: "A-1", body: "x" })`),
+    await risk(`await jira.comments.add({ key: "A-1", body: "x" })`),
     "external_write",
   );
   assert.equal(
-    risk(`await jira.issues.transition({ key: "A-1", to: "Done" })`),
+    await risk(`await jira.issues.transition({ key: "A-1", to: "Done" })`),
     "external_write",
   );
   assert.equal(
-    risk(`await jira.comments.delete({ key: "A-1", id: "1" })`),
+    await risk(`await jira.comments.delete({ key: "A-1", id: "1" })`),
     "destructive",
   );
   assert.equal(
-    risk(`await jira.projects.get({ key: "A", include: ["epics"] })`),
+    await risk(`await jira.projects.get({ key: "A", include: ["epics"] })`),
     "external_read",
   );
 });
 
-void test("raw requests are checked as the request operation: GET is an external read, anything else destructive, with method and path as the target", () => {
+void test("raw requests are checked as the request operation: GET is an external read, anything else destructive, with method and path as the target", async () => {
   for (const product of ["jira", "confluence"]) {
     const request = findSdkMethod(`${product}.request`, registry)!;
-    assert.deepEqual(request.prepare(["get", "/x"], env).authorization, {
-      operation: `${product}.request`,
-      targets: [{ kind: "resource", value: `${product}:request/GET /x` }],
-      risk: "external_read",
-      summary: "GET /x",
-    });
+    assert.deepEqual(
+      (await request.prepare(["get", "/x"], env)).authorization,
+      {
+        operation: `${product}.request`,
+        targets: [{ kind: "resource", value: `${product}:request/GET /x` }],
+        risk: "external_read",
+        summary: "GET /x",
+      },
+    );
     for (const verb of ["POST", "PUT", "PATCH", "DELETE"]) {
-      const write = request.prepare([verb, "/x/1"], env).authorization!;
+      const write = (await request.prepare([verb, "/x/1"], env)).authorization!;
       assert.equal(isOperationCheck(write) && write.risk, "destructive");
       assert.equal(write.summary, `${verb} /x/1`);
     }

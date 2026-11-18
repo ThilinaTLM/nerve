@@ -37,3 +37,35 @@ export const BASE_PRELUDE = String.raw`
   });
 })();
 `;
+
+/**
+ * Trusted script evaluated before the preludes of a persistent runtime: a no-op
+ * `console` (persistent runtimes have no output channel) and `host.call(method,
+ * args, invocation)` over `__hostCall` with JSON transport. `invocation` is the id
+ * the runtime passes to the invoked function as its second argument; it attributes
+ * the call to that invocation's budget. It may be omitted only while exactly one
+ * invocation is active.
+ */
+export const PERSISTENT_PRELUDE = String.raw`
+(() => {
+  const hostCall = __hostCall;
+  delete globalThis.__hostCall;
+  const noop = () => {};
+  globalThis.console = Object.freeze({
+    log: noop, info: noop, warn: noop, error: noop, debug: noop, table: noop,
+  });
+  globalThis.host = Object.freeze({
+    async call(method, args, invocation) {
+      let json;
+      try {
+        json = await hostCall(String(method), JSON.stringify(args ?? null), invocation);
+      } catch (message) {
+        const error = new Error(String(message));
+        error.name = "HostError";
+        throw error;
+      }
+      return JSON.parse(json);
+    },
+  });
+})();
+`;

@@ -9,7 +9,7 @@ import { createPermissionConfigurationService } from "./permission-configuration
 
 type Trust = {
   id: string;
-  path: string;
+  resourceKey: string;
   contentDigest: string;
   status: "trusted" | "rejected";
   updatedAt: string;
@@ -39,7 +39,7 @@ async function fixture() {
     transaction: (fn: () => void) => fn(),
     trustedResources: {
       find: (_kind: string, _projectId: string, path: string) =>
-        records.find((record) => record.path === path),
+        records.find((record) => record.resourceKey === path),
       insert: (record: Trust) => records.push(record),
       update: (id: string, patch: Partial<Trust>) =>
         Object.assign(records.find((record) => record.id === id)!, patch),

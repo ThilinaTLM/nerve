@@ -1,0 +1,11 @@
+/* Tailwind for an extension frame: Nerve's utilities (`bg-card`, `text-muted-foreground`,
+ * `text-ui`) resolve to CSS variables, but no token has a value here. The host injects the
+ * theme's tokens and its base stylesheet (derived surfaces, fonts) into the frame at runtime, so
+ * a theme change needs no rebuild. `nerve-ext build` appends ui-kit's `@theme` blocks, its
+ * animation and popover partials and the `@source` hints (see src/ui-build.ts). */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@import "tw-animate-css";
+@import "shadcn-svelte/tailwind.css";

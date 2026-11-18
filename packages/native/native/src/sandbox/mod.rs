@@ -1,4 +1,5 @@
-//! Embedded QuickJS sandbox: one fresh runtime per script on a dedicated thread.
+//! Embedded QuickJS sandbox: one fresh runtime per script on a dedicated thread
+//! (`run`), or a long-lived runtime serving many invocations (`persistent`).
 //!
 //! The script sees only ECMAScript built-ins plus what the caller binds: `__print`
 //! for output and `__hostCall` for async host requests. It has no filesystem,
@@ -6,6 +7,7 @@
 //! methods exist, permissions and approvals.
 
 pub(crate) mod napi;
+pub(crate) mod persistent;
 
 use rquickjs::{
     CaughtError, Context, Ctx, Function, Module, Persistent, Promise, Runtime, Value,

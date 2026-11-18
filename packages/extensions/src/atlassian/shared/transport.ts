@@ -39,6 +39,7 @@ export type SendOptions = {
   headers?: Record<string, string>;
   body?: HttpRequest["body"];
   response?: Exclude<HttpRequest["response"], "json" | undefined>;
+  artifact?: HttpRequest["artifact"];
   timeoutMs?: number;
   maxBytes?: number;
   /** Path shown in errors (never the query). */
@@ -72,6 +73,7 @@ export async function send(
     ...(options.body === undefined ? {} : { body: options.body }),
     auth: { account: ACCOUNT_SETTING },
     response: options.response ?? "text",
+    ...(options.artifact ? { artifact: options.artifact } : {}),
     ...(options.timeoutMs === undefined
       ? {}
       : { timeoutMs: options.timeoutMs }),

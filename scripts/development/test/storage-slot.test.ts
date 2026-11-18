@@ -131,6 +131,19 @@ test("UI-only overrides keep the requested token home and target paired", () => 
   assert.equal(developmentEnvironment(slot, {}, true).NERVE_HOME, slot.home);
 });
 
+test("dev slots build extensions against this checkout's SDK unless overridden", () => {
+  const slot = resolveStorageSlot([], "/repo");
+  assert.equal(
+    developmentEnvironment(slot, {}).NERVE_EXTENSION_SDK_SPEC,
+    `file:${join(slot.repo, "packages", "extension-sdk")}`,
+  );
+  assert.equal(
+    developmentEnvironment(slot, { NERVE_EXTENSION_SDK_SPEC: "/tmp/sdk.tgz" })
+      .NERVE_EXTENSION_SDK_SPEC,
+    "/tmp/sdk.tgz",
+  );
+});
+
 test("redirected development directories fail before creating anything in their target", async (t) => {
   const root = await temporary(t);
   const outside = await temporary(t);

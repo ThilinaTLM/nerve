@@ -1,12 +1,11 @@
 import type {
   AccountKind,
+  ExtensionSource,
   ExtensionIcon,
   ExtensionSettingsDefinition,
   SettingsSchema,
 } from "@nervekit/contracts/extensions";
 import type {
-  Availability,
-  ExtensionContext,
   ExtensionDefinition,
   ExtensionPermissions,
   Requires,
@@ -32,17 +31,15 @@ export type SdkNamespace = {
   requires?: Requires;
   /** Supporting namespace, not listed to the user. */
   helper?: boolean;
-  /** Extra availability check (extension-API namespaces only). */
-  availability?: (
-    ctx: ExtensionContext,
-  ) => Availability | Promise<Availability>;
+  /** The namespace has an extra availability hook (extension-API namespaces only); the host asks the extension's code for the verdict. */
+  availability?: true;
   /** One line in the `quick_script` description. */
   summary: string;
   /** At most three short lines, added to the description whenever the namespace is configured. */
   rules?: string[];
   methods: SdkMethod[];
   /** One line `sdk.describe` prints above the declarations: how the namespace is configured now (the backend an extension uses). */
-  configuration?: (env: SdkEnvironment) => string | undefined;
+  configuration?: (env: SdkEnvironment) => Promise<string | undefined>;
   /** Shared declarations for `sdk.describe`: the shapes methods return. */
   types: string;
   docs: DocTopic[];
@@ -67,7 +64,8 @@ export type ExtensionManifest = {
   name: string;
   /** One line for the Extensions page. */
   description: string;
-  source: "builtin";
+  /** Where the extension comes from. */
+  source: ExtensionSource;
   /** The extension's mark, resolved (and, for an SVG file, read and checked) by the host. */
   icon: ExtensionIcon;
   /** Default of the implicit `enabled` switch. */
@@ -127,6 +125,8 @@ export type RegisteredNamespace = SdkNamespace & {
   extension?: string;
   /** Extension id, or `runtime`. */
   owner: string;
+  /** Who vouches for the text of an installed extension's namespace (`csv-tools, user extension`); absent for built-ins. */
+  attribution?: string;
   /** Reads one of this namespace's doc topic files. */
   readDoc: (file: string) => string;
 };

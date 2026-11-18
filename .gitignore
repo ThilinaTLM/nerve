@@ -1,11 +1,20 @@
 node_modules/
 dist/
+# Prebuilt by the SDK for the server's installed-extension tests
+!/packages/workbench-server/test/extensions/installed/sdk-fixture/*/dist/
 .svelte-kit/
 .astro/
 .vite/
 .DS_Store
 *.tsbuildinfo
 packages/desktop-shell/build/
+# Copied by `prepack` (scripts/release/copy-license.mjs)
+/packages/extension-api/LICENSE
+/packages/extension-api/NOTICE
+/packages/ui-kit/LICENSE
+/packages/ui-kit/NOTICE
+/packages/extension-sdk/LICENSE
+/packages/extension-sdk/NOTICE
 packages/desktop-shell/release/
 packages/native/prebuilds/
 target/

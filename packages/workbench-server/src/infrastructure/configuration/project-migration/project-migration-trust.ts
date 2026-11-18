@@ -6,10 +6,8 @@ import type { CoreStorage } from "@nervekit/conversation-core";
 import type { TrustedResourceKind } from "@nervekit/contracts/core";
 import type { ProjectMigrationTrust } from "./project-migration.js";
 
-const digest = (bytes: Buffer) =>
-  createHash("sha256").update(bytes).digest("hex");
-const approval = (kind: TrustedResourceKind, bytes: Buffer) =>
-  `${kind === "project_permissions" ? "sha256:" : ""}${digest(bytes)}`;
+const approval = (bytes: Buffer) =>
+  `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 
 /**
  * Carries an exact-byte approval to bytes Nerve writes to the same file: a
@@ -40,7 +38,7 @@ export function projectMigrationTrust(
       if (
         source !== undefined &&
         (before?.status !== "trusted" ||
-          before.contentDigest.replace(/^sha256:/, "") !== digest(source))
+          before.contentDigest !== approval(source))
       )
         return undefined;
       return async (targetPath, output) => {
@@ -57,7 +55,7 @@ export function projectMigrationTrust(
           const now = new Date().toISOString();
           if (before)
             storage.trustedResources.update(before.id, {
-              contentDigest: approval(kind, output),
+              contentDigest: approval(output),
               status: "trusted",
               updatedAt: now,
             });
@@ -66,9 +64,10 @@ export function projectMigrationTrust(
               id: createId("trust"),
               kind,
               projectId,
-              path,
+              resourceKey: path,
               name: null,
-              contentDigest: approval(kind, output),
+              grants: null,
+              contentDigest: approval(output),
               status: "trusted",
               createdAt: now,
               updatedAt: now,

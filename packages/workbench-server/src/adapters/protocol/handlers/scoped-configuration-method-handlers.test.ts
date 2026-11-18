@@ -72,7 +72,10 @@ async function fixture(t: TestContext) {
     digest: string,
   ) => {
     const decision = decisions.get(key(kind, projectId, file));
-    return decision?.status === "trusted" && decision.contentDigest === digest;
+    return (
+      decision?.status === "trusted" &&
+      decision.contentDigest === `sha256:${digest}`
+    );
   };
   const service = new AgentConfigurationService({
     home,
@@ -96,11 +99,14 @@ async function fixture(t: TestContext) {
         decide(input: {
           kind: string;
           projectId: string;
-          path: string;
+          resourceKey: string;
           status: string;
           contentDigest: string;
         }) {
-          decisions.set(key(input.kind, input.projectId, input.path), input);
+          decisions.set(
+            key(input.kind, input.projectId, input.resourceKey),
+            input,
+          );
         },
       },
       retryConfigurationBlocked: async () => {},
@@ -340,9 +346,9 @@ void test("project profile and agent trust/revoke bind exact bytes and repair ne
   assert.equal(applied.status, "saved");
   assert.notEqual(applied.digest, digestBytes(bytes));
   const decision = [...f.decisions.values()].find(
-    (entry) => entry.contentDigest === digestBytes(bytes),
+    (entry) => entry.contentDigest === `sha256:${digestBytes(bytes)}`,
   )!;
-  assert.equal(decision.contentDigest, digestBytes(bytes));
+  assert.equal(decision.contentDigest, `sha256:${digestBytes(bytes)}`);
 });
 
 void test("repair preview has no writes; apply is source/candidate bound, backs up exact originals, and receipt retry never rewrites", async (t) => {

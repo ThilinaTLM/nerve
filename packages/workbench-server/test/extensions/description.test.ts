@@ -18,7 +18,7 @@ void test("without extensions the description lists the runtime only", () => {
   assert.match(text, /^Run a sandboxed TypeScript script/);
   assert.match(
     text,
-    /Namespaces: files \([^)]*\); image \(.*\); web \([^)]*\)\./,
+    /Namespaces: files \([^)]*\); image \(.*\); web \([^)]*\); extensions \(.*\)\./,
   );
   assert.match(
     text,

@@ -1,3 +1,5 @@
+import { consentSourcesOf } from "../../core-host/extension-catalog/extension-consent.js";
+import { toTrustedDigest } from "@nervekit/contracts/core";
 import { ConversationTitleService } from "../../domains/conversation-titles/title.service.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import {
@@ -6,13 +8,14 @@ import {
 } from "../../core-host/extension-availability.js";
 import {
   createExtensionPorts,
+  extensionStates,
   selectedAccountsTarget,
 } from "../../core-host/extension-ports.js";
-import { hostRegistry } from "../../core-host/host-tools.js";
+import { createHostExtensionCatalog } from "../../core-host/host-tools.js";
+import type { ExtensionCatalog } from "../../core-host/extension-catalog/extension-catalog.js";
 import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
 import { conversationExtensions } from "../../core-host/conversation-extensions.js";
 import { ExtensionSettingsService } from "../../infrastructure/configuration/extensions/extension-settings-service.js";
-import { extensionSettingsDefinitions } from "../../core-host/host-tools.js";
 import { type QuickScriptContext } from "@nervekit/tools/quick-script";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
@@ -58,7 +61,6 @@ import {
   classifyQuickScriptArguments,
   quickScriptToolRisk,
 } from "@nervekit/tools/quick-script";
-import type { ToolName } from "@nervekit/contracts/tools";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
 import { createVisionHost } from "../../core-host/vision-models.js";
@@ -73,7 +75,10 @@ import { ImageGenerationService } from "../../domains/image-generation/image-gen
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
 
 export function createConversationCore(
-  deps: RuntimeDeps & { accounts: AccountsReader },
+  deps: RuntimeDeps & {
+    accounts: AccountsReader;
+    extensionCatalog?: ExtensionCatalog;
+  },
   launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
   processHost?: CoreProcessHost,
@@ -105,6 +110,15 @@ export function createConversationCore(
       return view.resolution.settings.tools?.bash?.settings?.shellPath;
     });
   const { accounts } = deps;
+  const extensionCatalog =
+    deps.extensionCatalog ??
+    createHostExtensionCatalog({
+      home: deps.storage.paths.home,
+      consent: consentSourcesOf(() => core),
+    });
+  /** The directory of a project, to find its own extensions. */
+  const projectDirectory = (projectId: string) =>
+    core.projects.get(projectId)?.directory;
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(deps.auth),
   ]);
@@ -267,7 +281,19 @@ export function createConversationCore(
             );
           bash.shellPath = shell.path;
         }
+        // The extensions of the conversation's project: its own, the user's and the built-ins.
+        const registry = await extensionCatalog.registryFor(
+          input.projectDir ?? input.cwd,
+        );
         const quickScript = input.toolName === "quick_script";
+        const scriptRisk = quickScript
+          ? (
+              await classifyQuickScriptArguments(
+                input.args as Record<string, unknown>,
+                registry,
+              )
+            ).risk
+          : undefined;
         const extensionPorts = createExtensionPorts({
           resolution: extensions,
           accounts,
@@ -278,12 +304,12 @@ export function createConversationCore(
               context: { extension: extensionId, message, data },
             }),
         });
-        const isExtensionTool = hostRegistry.tools.some(
+        const isExtensionTool = registry.tools.some(
           (tool) => tool.definition.name === input.toolName,
         );
         // Direct tools of extensions: offered only while available (advertising is not authorization).
         await assertExtensionToolOffered(
-          hostRegistry,
+          registry,
           input.toolName,
           extensions,
           accounts,
@@ -298,15 +324,23 @@ export function createConversationCore(
           cwd: input.cwd,
           shellPath: bash.shellPath,
           pythonRuntime: python?.available ? python : undefined,
-          registry: hostRegistry,
+          registry: registry,
           extensionPorts,
+          ...(quickScript
+            ? {
+                extensionAgent: extensionCatalog.agentPort({
+                  projectDir: input.projectDir ?? input.cwd,
+                  switchOf: (id) => extensionStates(extensions)(id)?.enabled,
+                }),
+              }
+            : {}),
           ...(quickScript || isExtensionTool
             ? {
                 ...(quickScript
                   ? {
                       namespaces: (
                         await extensionAvailability(
-                          hostRegistry,
+                          registry,
                           extensions,
                           accounts,
                           { checkSecrets: true, ports: extensionPorts },
@@ -330,13 +364,11 @@ export function createConversationCore(
                       admission: {
                         by: userApproved(input.toolCallId) ? "user" : "rule",
                         scriptRisk: quickScript
-                          ? classifyQuickScriptArguments(
-                              input.args as Record<string, unknown>,
-                              hostRegistry,
-                            ).risk
+                          ? scriptRisk!
                           : quickScriptToolRisk(
-                              input.toolName as ToolName,
+                              input.toolName,
                               input.args as Record<string, unknown>,
+                              input.projectDir ?? input.cwd,
                             ),
                       },
                     },
@@ -363,7 +395,7 @@ export function createConversationCore(
                     extensions: extensions.extensions,
                     // Switching an extension's account (or its site) ends approvals.
                     accounts: await selectedAccountsTarget(
-                      hostRegistry,
+                      registry,
                       extensions,
                       accounts,
                     ),
@@ -436,7 +468,10 @@ export function createConversationCore(
         id,
         path,
       );
-      return row?.status === "trusted" && row.contentDigest === digest;
+      return (
+        row?.status === "trusted" &&
+        row.contentDigest === toTrustedDigest(digest)
+      );
     },
     publish: (domain, scope) => {
       admissionPolicy.invalidate();
@@ -454,7 +489,12 @@ export function createConversationCore(
           });
     },
     isProfileTrusted: (projectId, path, digest) =>
-      core.trust.isTrusted("agent_profile", projectId, path, digest),
+      core.trust.isTrusted(
+        "agent_profile",
+        projectId,
+        path,
+        toTrustedDigest(digest),
+      ),
     prepareResources: (projectId) => {
       const key = `${projectId}:${storage.projects.get(projectId)!.directory}`;
       let pending = discoveries.get(key);
@@ -515,12 +555,32 @@ export function createConversationCore(
       };
     },
   });
+  // A reload changes what the next prepared request sees.
+  extensionCatalog.subscribe(() => {
+    extensionEpoch++;
+    // Consent, the switch and reloads change what every non-conversation view lists.
+    void deps.events
+      .publish("extensions.changed", { scope: { scope: "user" } })
+      .catch((error) => {
+        void deps.logger.warn("Extension change notification failed", {
+          error,
+        });
+      });
+  });
   const extensionSettings = new ExtensionSettingsService({
     paths: agentConfiguration.paths,
     projectMigration,
-    definitions: extensionSettingsDefinitions,
+    definitions: (projectId) =>
+      extensionCatalog.settingsDefinitions(
+        projectId ? projectDirectory(projectId) : undefined,
+      ),
     isProjectTrusted: (projectId, path, digest) =>
-      core.trust.isTrusted("project_capabilities", projectId, path, digest),
+      core.trust.isTrusted(
+        "project_capabilities",
+        projectId,
+        path,
+        toTrustedDigest(digest),
+      ),
   });
   extensionSettings.subscribe((scope) => {
     // A conversation's own file is written while that conversation is created
@@ -568,7 +628,7 @@ export function createConversationCore(
       agentBrowserSkills: () => deps.agentBrowserSkills.skills,
       hasChildren: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
-      registry: hostRegistry,
+      registry: (projectDir) => extensionCatalog.registryFor(projectDir),
       vision,
       extensions: async (id, projectId) => ({
         resolution: await conversationExtensionSettings(id, projectId),
@@ -583,6 +643,8 @@ export function createConversationCore(
     agents: agentConfiguration,
     trustGeneration: () => core.trust.generation + core.projects.generation,
     requestGenerations: (id) => scopedConfiguration.getCapture(id)?.generations,
+    registryFor: (projectDirectory) =>
+      extensionCatalog.registryFor(projectDirectory),
   });
   const userApproved = (toolCallId: string) => {
     const supervision = storage.toolCalls.get(toolCallId)?.supervision;
@@ -592,7 +654,7 @@ export function createConversationCore(
   };
   const authorizeQuickScriptCall = createQuickScriptAuthorizer(
     createExecutionAdmission(admissionPolicy),
-    hostRegistry,
+    (call) => extensionCatalog.registryFor(call.projectDir),
   );
   const conversationTitles = new ConversationTitleService({
     settings: () => deps.storage.settings.conversationTitles,

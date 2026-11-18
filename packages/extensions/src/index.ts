@@ -13,3 +13,8 @@ export const builtinExtensions: readonly ExtensionDefinition[] = [
   imagegenExtension,
   imageExplanationExtension,
 ];
+
+/** The built-in extensions whose code runs in the sandbox (each has a `bundle.js` asset); the rest run in the host process. */
+export const sandboxedBuiltinExtensions: ReadonlySet<string> = new Set([
+  diagramExtension.id,
+]);

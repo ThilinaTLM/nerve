@@ -61,4 +61,10 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
       // Earlier drafts moved accounts without reshaping them; those homes rerun
       // this step. It is idempotent, so no previous checksums are listed.
     },
+    {
+      step: { id: "0006-agent-resource-layout" },
+      checksum:
+        "cc01bd8e6c556e94c62414c52fef1e1916953ded67ac74ec9248e15dbf49299c",
+      stage: "draft",
+    },
   ]);

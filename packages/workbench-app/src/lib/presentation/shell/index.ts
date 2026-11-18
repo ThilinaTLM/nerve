@@ -6,6 +6,7 @@ export * from "./shell-layout.js";
 export * from "./status-bar-chip.js";
 export type {
   DockId,
+  NewTabMenuSection,
   PanelViewDescriptor,
   PanelViewDropTarget,
   ShellLayout,

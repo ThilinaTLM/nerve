@@ -221,20 +221,24 @@ export type HttpRequest = {
   maxBytes?: number;
   /**
    * How the body is returned; `json` by default for JSON content, else `text`.
-   * `{ artifact }` streams a successful response to that artifact (up to 100 MB).
-   * `{ artifactFor }` decides from the response's content type: a name streams
-   * it to that artifact, `undefined` returns the body as `text`.
+   * `"artifact"` streams a successful response to an artifact (up to 100 MB)
+   * and returns its reference; `artifact` says how it is named.
    */
-  response?:
-    | "json"
-    | "text"
-    | "bytes"
-    | { artifact: string }
-    | {
-        artifactFor(
-          contentType: string,
-        ): string | undefined | Promise<string | undefined>;
-      };
+  response?: "json" | "text" | "bytes" | "artifact";
+  /** Naming of the artifact for `response: "artifact"`. */
+  artifact?: HttpArtifactOptions;
+};
+
+/** Plain data: the host names the artifact, nothing is decided by a callback. */
+export type HttpArtifactOptions = {
+  /** The exact artifact name. Without it the host picks a fresh `<baseName>-<n><extension>`. */
+  name?: string;
+  /** Start of a host-picked name; `download` by default. */
+  baseName?: string;
+  /** Extension of a host-picked name (with the dot); by default the host derives it from the response's content type (`.bin` when unknown). */
+  extension?: string;
+  /** A textual response (JSON, text, XML, JavaScript, form data) is returned as `text` instead of an artifact. */
+  inlineText?: boolean;
 };
 
 export type HttpResponse = {
@@ -302,6 +306,7 @@ export type VisionExplainRequest = {
   extensionId: string;
   image: Uint8Array;
   prompt?: string;
+  /** Host-internal: the host wires the request's `progress` sections to this. */
   onDelta?: (update: { kind: "thinking" | "text"; delta: string }) => void;
   signal?: AbortSignal;
 };
@@ -374,6 +379,11 @@ export interface ExtensionContext {
    */
   progress(section: string, chunk: string): void;
 
+  /**
+   * The run's cancellation, for in-process code. Sandboxed extension code
+   * cannot hold a signal across the host boundary; the host cancels its
+   * invocation natively. Do not build new code on it.
+   */
   signal: AbortSignal;
 
   log: {
@@ -639,6 +649,65 @@ export type ExtensionPermissions = {
   capabilities?: Capability[];
 };
 
+/** How a file preview edits its file (see the proposal's "File previews"). */
+export type PreviewEditMode = "source" | "custom" | "none";
+
+/** A rendered view of a file type, shown in the file's tab. */
+export type PreviewContribution = {
+  /** Kebab-case, unique among the extension's previews. */
+  id: string;
+  label: string;
+  match: {
+    /** Lower-case file extensions with the dot (`.csv`). */
+    extensions: readonly string[];
+  };
+  /** Source path of the frame's entry (`src/ui/csv-table.svelte`); `nerve-ext build` compiles it. */
+  entry: string;
+  /**
+   * `"source"`: Nerve's source editor; `"custom"`: the frame edits and writes through the bridge;
+   * `"none"`: no edit toggle. Default: `"source"` for text files, `"none"` for binary ones.
+   */
+  edit?: PreviewEditMode;
+};
+
+/** A tab pane with fully custom content, not bound to a file. */
+export type PageContribution = {
+  id: string;
+  label: string;
+  /** A lucide icon name. */
+  icon: string;
+  /** List the page in the new-tab menu (the chevron next to +). Default: true. */
+  newMenu?: boolean;
+  /** Source path of the frame's entry. */
+  entry: string;
+};
+
+/** A dock panel like Files or Git. */
+export type PanelContribution = {
+  id: string;
+  label: string;
+  /** A lucide icon name. */
+  icon: string;
+  /** Source path of the frame's entry. */
+  entry: string;
+};
+
+/** A colour theme: token values in a JSON file. */
+export type ThemeContribution = {
+  id: string;
+  label: string;
+  /** Source path of the theme file (`themes/solarized-dark.json`). */
+  file: string;
+};
+
+/** UI contributions. Previews, pages and panels run in sandboxed frames; themes are data. */
+export type ExtensionUi = {
+  previews?: readonly PreviewContribution[];
+  pages?: readonly PageContribution[];
+  panels?: readonly PanelContribution[];
+  themes?: readonly ThemeContribution[];
+};
+
 export type ExtensionDefinition = {
   /** Stable, kebab-case; settings, accounts and operations are keyed by it. */
   id: string;
@@ -664,6 +733,8 @@ export type ExtensionDefinition = {
   tools?: readonly ToolDefinition[];
   /** Pure sandbox-side helper source (storage builders), evaluated after the SDK prelude; no host access. */
   prelude?: string;
+  /** UI contributions. The build compiles them; the manifest carries the built paths. */
+  ui?: ExtensionUi;
   /** Byte limits, filled into `{{limit:<name>}}` placeholders of docs and rules. */
   limits?: Readonly<Record<string, number>>;
 };

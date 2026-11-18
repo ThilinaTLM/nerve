@@ -14,8 +14,8 @@ import {
 import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
 import { permissionExceptionListSchema } from "../permissions/permissions.js";
 
-/** The client's single theme choice, ordered by family for pickers. */
-export const colorThemeSchema = z.enum([
+/** The built-in themes, ordered by family for pickers. */
+export const builtInColorThemeSchema = z.enum([
   "nerve-light",
   "nerve-dark",
   "melange-light",
@@ -23,15 +23,47 @@ export const colorThemeSchema = z.enum([
   "graphite",
   "indigo",
 ]);
-export type ColorTheme = z.infer<typeof colorThemeSchema>;
+export type BuiltInColorTheme = z.infer<typeof builtInColorThemeSchema>;
+
+/** A theme contributed by an installed extension: `ext:<extension-id>/<theme-id>`. */
+export type ExtensionColorTheme = `ext:${string}/${string}`;
+export const extensionColorThemeSchema = z
+  .string()
+  .regex(
+    /^ext:[a-z][a-z0-9]*(?:-[a-z0-9]+)*\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/,
+    "must look like ext:<extension-id>/<theme-id>",
+  )
+  .max(140) as z.ZodType<ExtensionColorTheme>;
+
+/** The client's single theme choice: a built-in id or an extension theme. */
+export const colorThemeSchema = z.union([
+  builtInColorThemeSchema,
+  extensionColorThemeSchema,
+]);
+export type ColorTheme = BuiltInColorTheme | ExtensionColorTheme;
 export const defaultColorTheme = "nerve-dark" satisfies ColorTheme;
+
+export const extensionColorThemeId = (
+  extensionId: string,
+  themeId: string,
+): ExtensionColorTheme => `ext:${extensionId}/${themeId}`;
+
+/** Splits an extension theme id; `undefined` for built-ins and malformed values. */
+export function parseExtensionColorTheme(
+  theme: string,
+): { extensionId: string; themeId: string } | undefined {
+  if (!extensionColorThemeSchema.safeParse(theme).success) return undefined;
+  const [extensionId, themeId] = theme.slice("ext:".length).split("/");
+  return { extensionId: extensionId, themeId: themeId };
+}
 
 /**
  * Each theme is either light or dark; the kind drives the mode-dependent
  * globals (`.dark`, `color-scheme`) for the chosen theme.
  */
 export type ColorThemeKind = "light" | "dark";
-export const colorThemeKind: Record<ColorTheme, ColorThemeKind> = {
+/** The kinds of the built-in themes. Extension themes declare theirs; see `resolveColorThemeKind`. */
+export const colorThemeKind: Record<BuiltInColorTheme, ColorThemeKind> = {
   "nerve-light": "light",
   "nerve-dark": "dark",
   "melange-light": "light",
@@ -39,6 +71,23 @@ export const colorThemeKind: Record<ColorTheme, ColorThemeKind> = {
   graphite: "dark",
   indigo: "dark",
 };
+
+/**
+ * The kind of any theme. Built-ins use `colorThemeKind`; an extension theme's kind is known only
+ * at runtime, so the caller passes `extensionKinds` (a lookup of loaded extension themes). An
+ * extension theme that is not loaded falls back to the kind of `defaultColorTheme`.
+ */
+export function resolveColorThemeKind(
+  theme: ColorTheme,
+  extensionKinds?: (theme: ExtensionColorTheme) => ColorThemeKind | undefined,
+): ColorThemeKind {
+  if (theme in colorThemeKind)
+    return colorThemeKind[theme as BuiltInColorTheme];
+  return (
+    extensionKinds?.(theme as ExtensionColorTheme) ??
+    colorThemeKind[defaultColorTheme]
+  );
+}
 
 export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);
 export type HeaderType = z.infer<typeof headerTypeSchema>;

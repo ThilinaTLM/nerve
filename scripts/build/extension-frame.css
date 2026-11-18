@@ -1,0 +1,11 @@
+/* Entry of the extension frame base stylesheet (see build-extension-frame-css.ts).
+ * `__STYLES__` is ui-kit's src/styles; `./theme.css` is its theme.css without the theme blocks. */
+@import "tailwindcss" source(none);
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/outfit/600.css";
+@import "./theme.css";
+@import "__STYLES__/base.css";
+@import "__STYLES__/animation.css";
+@import "__STYLES__/components.css";
+/* __IOSEVKA__ */

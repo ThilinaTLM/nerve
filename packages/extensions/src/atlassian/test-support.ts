@@ -122,12 +122,23 @@ async function toInit(
   return { method: (request.method ?? "GET").toUpperCase(), headers, body };
 }
 
+const TEXTUAL_CONTENT_TYPE = /json|text|xml|javascript|x-www-form-urlencoded/i;
+const BINARY_EXTENSIONS: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "application/pdf": ".pdf",
+  "application/zip": ".zip",
+};
+
 /** `fetch`'s `Response` as the host's `ctx.http` returns it, including its 401/403 errors. */
 async function toHttpResponse(
   request: HttpRequest,
   response: Response,
   url: URL,
   write: ExtensionContext["artifacts"]["write"],
+  freshName: ExtensionContext["artifacts"]["freshName"],
 ): Promise<HttpResponse> {
   if (request.auth && (response.status === 401 || response.status === 403)) {
     await response.body?.cancel();
@@ -153,18 +164,28 @@ async function toHttpResponse(
   let mode =
     request.response ??
     ((headers["content-type"] ?? "").includes("json") ? "json" : "text");
-  if (typeof mode === "object" && "artifactFor" in mode) {
-    const name = response.ok
-      ? await mode.artifactFor(headers["content-type"] ?? "")
-      : undefined;
-    mode = name === undefined ? "text" : { artifact: name };
-  }
-  if (typeof mode === "object") {
+  const contentType = headers["content-type"] ?? "";
+  if (
+    mode === "artifact" &&
+    request.artifact?.inlineText &&
+    (!response.ok || !contentType || TEXTUAL_CONTENT_TYPE.test(contentType))
+  )
+    mode = "text";
+  if (mode === "artifact") {
     if (!response.ok) return { ...base, body: undefined };
     const bytes = new Uint8Array(await response.arrayBuffer());
+    const artifact = request.artifact ?? {};
+    const name =
+      artifact.name ??
+      (await freshName(
+        artifact.baseName ?? "download",
+        artifact.extension ??
+          BINARY_EXTENSIONS[contentType.split(";")[0].trim().toLowerCase()] ??
+          ".bin",
+      ));
     return {
       ...base,
-      body: await write(mode.artifact, bytes, headers["content-type"]),
+      body: await write(name, bytes, contentType || undefined),
     };
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -308,6 +329,7 @@ export function createHarness(options: HarnessOptions = {}) {
         response,
         current,
         ctx.artifacts.write,
+        ctx.artifacts.freshName,
       );
     },
   });

@@ -40,6 +40,7 @@ const defaultGlobs = ["test/**/*.test.ts"];
 
 export const TEST_RUNNERS: ReadonlyMap<string, TestRunner> = new Map([
   ["@nervekit/extension-api", tsxRunner(defaultGlobs)],
+  ["@nervekit/extension-sdk", tsxRunner(defaultGlobs)],
   ["@nervekit/contracts", tsxRunner(defaultGlobs)],
   ["@nervekit/protocol", tsxRunner(defaultGlobs)],
   ["@nervekit/harness", tsxRunner(defaultGlobs)],

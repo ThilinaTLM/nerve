@@ -1,3 +1,4 @@
+import Puzzle from "@lucide/svelte/icons/puzzle";
 import {
   activateShellView,
   type DockId,
@@ -5,6 +6,7 @@ import {
   isDockVisible,
   moveShellView,
   normalizeShellLayout,
+  type PanelViewDescriptor,
   type PanelViewDropTarget,
   setShellDockSize,
   type ShellLayout,
@@ -23,6 +25,32 @@ const RESIZE_PERSIST_DEBOUNCE_MS = 200;
 // the left dock next to Conversations.
 const LAYOUT_DEFAULTS = { collapsed: ["bottom"] as const };
 
+/**
+ * Extension panels are `ext:<extension-id>/<panel-id>` views that exist only while the project's
+ * extensions contribute them. Hydration runs before contributions load, so ids found in the
+ * stored layout stay as placeholders (nothing renders for them) until `setExtensionPanelViews`
+ * settles the set.
+ */
+function storedExtensionViews(raw: unknown): PanelViewDescriptor[] {
+  const docks = (raw as { docks?: Record<string, { views?: unknown }> } | null)
+    ?.docks;
+  if (!docks || typeof docks !== "object") return [];
+  const ids = Object.values(docks).flatMap((dock) =>
+    Array.isArray(dock?.views)
+      ? dock.views.filter(
+          (id): id is string => typeof id === "string" && id.startsWith("ext:"),
+        )
+      : [],
+  );
+  return ids.map((id, index) => ({
+    id,
+    title: id,
+    icon: Puzzle,
+    defaultDock: "right" as const,
+    defaultOrder: 100 + index,
+  }));
+}
+
 function hydrate(): ShellLayout {
   if (typeof localStorage === "undefined")
     return normalizeShellLayout(undefined, panelViewDescriptors, {
@@ -34,9 +62,11 @@ function hydrate(): ShellLayout {
   } catch {
     raw = undefined;
   }
-  return normalizeShellLayout(raw, panelViewDescriptors, {
-    collapsed: [...LAYOUT_DEFAULTS.collapsed],
-  });
+  return normalizeShellLayout(
+    raw,
+    [...panelViewDescriptors, ...storedExtensionViews(raw)],
+    { collapsed: [...LAYOUT_DEFAULTS.collapsed] },
+  );
 }
 
 const state = $state<{ layout: ShellLayout }>({ layout: hydrate() });
@@ -87,6 +117,21 @@ export function restoreShellPresentation(snapshot: ShellPresentationSnapshot) {
   shellSheets.primary = snapshot.sheets.primary;
   shellSheets.secondary = snapshot.sheets.secondary;
   persist();
+}
+
+/**
+ * Sets the extension panels of the active project: new ones join the right dock, ones that
+ * are gone leave the layout. Placement made while they exist persists with the layout.
+ */
+export function setExtensionPanelViews(
+  views: readonly PanelViewDescriptor[],
+): void {
+  const next = normalizeShellLayout(
+    state.layout,
+    [...panelViewDescriptors, ...views],
+    { collapsed: [...LAYOUT_DEFAULTS.collapsed] },
+  );
+  if (JSON.stringify(next) !== JSON.stringify(state.layout)) commit(next);
 }
 
 export function activatePanelView(viewId: string) {

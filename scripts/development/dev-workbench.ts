@@ -42,7 +42,15 @@ try {
       "@nervekit/tools",
       "--filter",
       "@nervekit/extensions",
-      ...(!uiOnly ? ["--filter", "@nervekit/conversation-core"] : []),
+      ...(!uiOnly
+        ? [
+            "--filter",
+            "@nervekit/conversation-core",
+            // The extension-creator skill runs this checkout's SDK on dev slots.
+            "--filter",
+            "@nervekit/extension-sdk...",
+          ]
+        : []),
       "build",
     ],
     options,

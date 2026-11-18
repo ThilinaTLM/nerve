@@ -1,5 +1,7 @@
+import { toTrustedDigest } from "@nervekit/contracts/core";
 import { readFile } from "node:fs/promises";
 import type { ExtensionTarget } from "@nervekit/contracts/extensions";
+import type { InstalledExtensionRef } from "../../../core-host/extension-catalog/extension-catalog.js";
 import { withFileMutation } from "../../../infrastructure/storage-bootstrap/file-mutations.js";
 import { digestBytes } from "../../../infrastructure/configuration/scoped-store/scoped-document-store.js";
 import { toScopeRef } from "../../../core-host/extension-views.js";
@@ -15,7 +17,44 @@ async function lockedFor(state: Context, target: ExtensionTarget, id: string) {
   return state.extensionSettings.lockedFields(context.appliedProfile, id);
 }
 
+/** The project directory of a target, which names whose project extensions an operation is about. */
+function refOf(
+  state: Context,
+  input: {
+    target: { scope: "user" } | { scope: "project"; projectId: string };
+    source: "user" | "project";
+    id: string;
+  },
+): InstalledExtensionRef | undefined {
+  if (input.source === "user") return { source: "user", id: input.id };
+  if (input.target.scope !== "project") return undefined;
+  const directory = state.conversationCore.projects.get(
+    input.target.projectId,
+  )?.directory;
+  return directory
+    ? { source: "project", id: input.id, projectDir: directory }
+    : undefined;
+}
+
 export const extensionMethodHandlers = define({
+  // Frames of installed extensions asking the daemon for files, settings, the project or their
+  // own backend. Only the signed-in user's app sends these (it validated the frame's request);
+  // `call` is the user's action and does not go through the permission engine.
+  "extensions.ui.contributions": (state, { projectId }) =>
+    state.extensionUi.contributions(projectId),
+  "extensions.ui.themes": (state) => state.extensionUi.themes(),
+  "extensions.ui.file.info": (state, input) =>
+    state.extensionUi.bridge("file.info", input),
+  "extensions.ui.file.read": (state, input) =>
+    state.extensionUi.bridge("file.read", input),
+  "extensions.ui.file.write": (state, input) =>
+    state.extensionUi.bridge("file.write", input),
+  "extensions.ui.settings.get": (state, input) =>
+    state.extensionUi.bridge("settings.get", input),
+  "extensions.ui.project.info": (state, input) =>
+    state.extensionUi.bridge("project.info", input),
+  "extensions.ui.call": (state, input) =>
+    state.extensionUi.bridge("call", input),
   "extensions.get": (state, { target }) => state.extensionViews.view(target),
   "extensions.save": async (state, input) => {
     const result = await state.extensionSettings.save(
@@ -46,6 +85,38 @@ export const extensionMethodHandlers = define({
       view: await state.extensionViews.view(input.target),
     };
   },
+  // Consent, the on/off switch and reload: user-initiated operations of Settings → Extensions. They
+  // are protocol methods of the authenticated app connection; agents reach tools and `quick_script`
+  // namespaces only, and neither has an operation like these.
+  "extensions.grantConsent": async (state, input) => {
+    const ref = refOf(state, input);
+    if (!ref) return { status: "not_found" as const };
+    const outcome = await state.extensionCatalog.grantConsent(
+      ref,
+      input.contentHash,
+    );
+    if (outcome === "not_found") return { status: "not_found" as const };
+    return {
+      status: outcome === "granted" ? ("saved" as const) : ("changed" as const),
+      view: await state.extensionViews.view(input.target),
+    };
+  },
+  "extensions.revokeConsent": async (state, input) => {
+    const ref = refOf(state, input);
+    if (!ref || !(await state.extensionCatalog.revokeConsent(ref)))
+      return { status: "not_found" as const };
+    return {
+      status: "saved" as const,
+      view: await state.extensionViews.view(input.target),
+    };
+  },
+  "extensions.reload": async (state, input) => {
+    await state.extensionCatalog.reload(input.id);
+    return {
+      status: "saved" as const,
+      view: await state.extensionViews.view(input.target),
+    };
+  },
   "extensions.trustProject": async (state, input) => {
     const scope = { scope: "project" as const, projectId: input.projectId };
     const read = await state.extensionSettings.read(scope);
@@ -59,8 +130,8 @@ export const extensionMethodHandlers = define({
         kind: "project_capabilities",
         projectId: input.projectId,
         name: "Extension settings",
-        path: read.path,
-        contentDigest: input.expectedDigest,
+        resourceKey: read.path,
+        contentDigest: toTrustedDigest(input.expectedDigest),
         status: input.trusted ? "trusted" : "rejected",
       });
       return "saved";

@@ -1,0 +1,64 @@
+{
+  "id": "sdk-probe",
+  "apiVersion": 1,
+  "name": "Sdk Probe",
+  "description": "Reads data from a server the user configures.",
+  "icon": "globe",
+  "enabledByDefault": false,
+  "settings": {
+    "version": 1,
+    "fields": {
+      "server": {
+        "type": "string",
+        "label": "Server",
+        "description": "Base URL of the server; requests are sent to it.",
+        "format": "url",
+        "default": "https://example.com"
+      }
+    }
+  },
+  "permissions": {
+    "network": [
+      "{settings.server}"
+    ]
+  },
+  "namespaces": [
+    {
+      "id": "sdkProbe",
+      "label": "Sdk Probe",
+      "summary": "Sdk Probe: get(path) reads JSON from the configured server.",
+      "types": "",
+      "methods": {
+        "get": {
+          "risk": "external_read",
+          "signature": "/** GET a path on the configured server and return the parsed JSON (or text). */ get(path: string): Promise<unknown>",
+          "parse": true,
+          "authorize": true,
+          "run": true
+        }
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "sdk_probe_get",
+      "description": "Read JSON from the configured Sdk Probe server.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path starting with '/'."
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "method": "sdkProbe.get"
+    }
+  ],
+  "version": "0.1.0",
+  "sdkVersion": "0.41.1"
+}

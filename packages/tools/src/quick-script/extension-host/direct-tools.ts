@@ -25,9 +25,11 @@ import { createSdkEnvironment, findSdkMethod } from "../runtime/sdk.js";
 import {
   isOperationCheck,
   type QuickScriptContext,
+  type SdkEnvironment,
   type SdkMethod,
 } from "../runtime/sdk-types.js";
 import { hostErrorCode } from "../runtime/errors.js";
+import type { CodePresentation } from "./code-adapter.js";
 import {
   assertNamespaceAvailable,
   sdkMethodForOwnTool,
@@ -84,7 +86,7 @@ async function executeExtensionTool(
   args: Record<string, unknown>,
   context: QuickScriptContext,
 ): Promise<ToolExecutionResult> {
-  const { definition: tool, extension } = entry;
+  const { definition: tool } = entry;
   const view = toolViewOf(tool);
   const liveSections = new Set(
     view.sections
@@ -102,10 +104,27 @@ async function executeExtensionTool(
       return true;
     },
   });
+  try {
+    return await runExtensionTool(registry, entry, args, context, env);
+  } finally {
+    // The run's extension code (sessions, sandbox runtimes) ends with the call.
+    await env.extensions.dispose();
+  }
+}
+
+async function runExtensionTool(
+  registry: QuickScriptRegistry,
+  entry: RegisteredTool,
+  args: Record<string, unknown>,
+  context: QuickScriptContext,
+  env: SdkEnvironment,
+): Promise<ToolExecutionResult> {
+  const { definition: tool, extension } = entry;
+  const view = toolViewOf(tool);
   const method = methodOf(registry, entry);
   const namespace = isMethodTool(tool) ? tool.method.split(".")[0] : undefined;
   if (namespace) assertNamespaceAvailable(namespace, env);
-  const prepared = method.prepare([args], env);
+  const prepared = await method.prepare([args], env);
   const checks = [
     ...(prepared.authorization ? [prepared.authorization] : []),
     ...(prepared.additionalAuthorizations ?? []),
@@ -148,14 +167,14 @@ async function executeExtensionTool(
     raw: [],
   });
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
-  const presented: {
-    text: string;
-    sections?: Record<string, unknown>;
-    details?: { query?: string; answer?: string };
-  } =
-    value !== undefined && !isMethodTool(tool) && tool.present
-      ? tool.present(value)
-      : { text: render(value) };
+  const code =
+    value !== undefined && !isMethodTool(tool)
+      ? await env.extensions.code(extension.definition!)
+      : undefined;
+  const presented: CodePresentation = (await code?.present(
+    tool.name,
+    value,
+  )) ?? { text: render(value) };
   const text = presented.text;
   const first = view.sections[0];
   // Without values per section, the first section shows the output (text sections its text).
@@ -248,8 +267,24 @@ export function createExtensionToolDefinitions(
       agentResult: resultPolicyFor(toolViewOf(tool)),
       executionKind: "local",
       executionMode: "parallel",
-      executor: (args, context: ToolExecutionContext) =>
-        executeExtensionTool(registry, entry, args, context),
+      executor: async (args, context: ToolExecutionContext) => {
+        // The run's own registry decides (a project's extensions, reloaded code); this one is the fallback.
+        const live = (context as Partial<QuickScriptContext>).registry;
+        const liveEntry = live?.tools.find(
+          (candidate) => candidate.definition.name === tool.name,
+        );
+        if (live && !liveEntry)
+          throw new ToolExecutionError(
+            "TOOL_NOT_ENABLED",
+            `${tool.name}: not available in this project`,
+          );
+        return executeExtensionTool(
+          live ?? registry,
+          liveEntry ?? entry,
+          args,
+          context,
+        );
+      },
     };
   });
 }

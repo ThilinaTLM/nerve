@@ -8,6 +8,8 @@ import FolderTreeIcon from "@lucide/svelte/icons/folder-tree";
 import GitBranchIcon from "@lucide/svelte/icons/git-branch";
 import GitPullRequestIcon from "@lucide/svelte/icons/git-pull-request";
 import MessageSquareIcon from "@lucide/svelte/icons/message-square";
+import KanbanIcon from "@lucide/svelte/icons/kanban";
+import PenLineIcon from "@lucide/svelte/icons/pen-line";
 import NotebookIcon from "@lucide/svelte/icons/notebook";
 import SettingsIcon from "@lucide/svelte/icons/settings";
 import SquareTerminalIcon from "@lucide/svelte/icons/square-terminal";
@@ -590,7 +592,7 @@ function openWhileVisible(
       title="EditorTabStrip"
       source="presentation/shell/EditorTabStrip"
       usage="2 files · shell"
-      description="Active, running, needs approval, failed, draft (unsaved dot), long name (wide), non-closeable. Click, close, drag to reorder, right-click."
+      description="Active, running, needs approval, failed, draft (unsaved dot), long name (wide), non-closeable. The + is a split button: the chevron lists extension pages. Click, close, drag to reorder, right-click."
       surface="panel"
       layout="stack"
     >
@@ -606,6 +608,24 @@ function openWhileVisible(
           onCloseLeft={noop}
           onCloseRight={noop}
           onNew={noop}
+          newMenuSections={[
+            {
+              entries: [
+                {
+                  key: "canvas",
+                  label: "Drawing Canvas",
+                  icon: PenLineIcon,
+                  onSelect: noop,
+                },
+                {
+                  key: "board",
+                  label: "Task Board",
+                  icon: KanbanIcon,
+                  onSelect: noop,
+                },
+              ],
+            },
+          ]}
         />
       </div>
       <Button

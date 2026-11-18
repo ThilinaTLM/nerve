@@ -79,12 +79,10 @@ function isArtifactRef(body: unknown): body is ArtifactRef {
   );
 }
 
-const TEXTUAL_CONTENT_TYPE = /json|text|xml|javascript|x-www-form-urlencoded/i;
-
-/** Names the artifact a binary response is saved as: `<base>-<n><extension>`. */
+/** Names the artifact a binary response is saved as: `<base>-<n><extension>`; the host derives the extension from the content type when none is given. */
 export type BinaryNaming = {
   base: string;
-  extensionFor: (contentType: string) => string;
+  extension?: string;
 };
 
 /**
@@ -114,17 +112,16 @@ export async function sendRaw(
     method: options.method,
     ...(hasBody ? { body: { json: options.body } } : {}),
     // Non-textual responses stream to an artifact (up to 100 MB); textual ones stay in memory.
-    response: binary
+    response: binary ? "artifact" : "text",
+    ...(binary
       ? {
-          artifactFor: async (contentType) =>
-            contentType && !TEXTUAL_CONTENT_TYPE.test(contentType)
-              ? await connection.ctx.artifacts.freshName(
-                  binary.base,
-                  binary.extensionFor(contentType),
-                )
-              : undefined,
+          artifact: {
+            baseName: binary.base,
+            ...(binary.extension ? { extension: binary.extension } : {}),
+            inlineText: true,
+          },
         }
-      : "text",
+      : {}),
     errorPath: options.url.pathname,
   });
   if (isArtifactRef(response.body)) return response.body.handle;

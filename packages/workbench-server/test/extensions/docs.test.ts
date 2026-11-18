@@ -27,7 +27,7 @@ const rendered = topics.map(({ namespace, topic }) => ({
 async function run(method: string, ...args: unknown[]) {
   const env = createSdkEnvironment({ registry, cwd: process.cwd() });
   return String(
-    await findSdkMethod(method, registry)!.prepare(args, env).run(env),
+    await (await findSdkMethod(method, registry)!.prepare(args, env)).run(env),
   );
 }
 

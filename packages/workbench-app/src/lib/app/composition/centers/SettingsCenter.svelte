@@ -9,6 +9,7 @@ import {
   settingsPageDetail,
 } from "$lib/features/settings/registry/settings-page-data";
 import { loadExtensionItems } from "$lib/application/extensions/scoped-extensions-state.svelte";
+import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
@@ -64,12 +65,25 @@ const skillsProjectId = $derived(
   target.kind === "project" ? target.projectId : undefined,
 );
 
-// The breadcrumb names the open extension; the list is known once the daemon answers.
+// The breadcrumb names the open extension, and the shell opens only listed
+// items, so the list follows this tab's scope (project extensions included)
+// and refreshes when extensions change (install, consent, reload).
 let extensionItems = $state<{ id: string; label: string }[]>();
+let extensionItemsStale = $state(true);
+$effect(() =>
+  onEvent("extensions.changed", () => {
+    extensionItemsStale = true;
+  }),
+);
 $effect(() => {
-  if (pageId !== "extensions" || extensionItems) return;
+  if (pageId !== "extensions" || !extensionItemsStale) return;
   if (!workbenchStartupState.progressiveActive) return;
-  void loadExtensionItems()
+  extensionItemsStale = false;
+  void loadExtensionItems(
+    target.kind === "project"
+      ? { scope: "project", projectId: target.projectId }
+      : { scope: "user" },
+  )
     .then((items) => (extensionItems = items))
     .catch(() => undefined);
 });

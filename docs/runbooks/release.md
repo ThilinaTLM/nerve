@@ -96,6 +96,20 @@ Tagged releases use GitHub OIDC trusted publishing with provenance and no stored
 
 After a release is published and clean-machine startup is verified, confirm npm `latest` points to it. Do not unpublish legacy packages or desktop versions: pinned older desktop installs may still require them.
 
+## Extension packages (manual publish)
+
+`@nervekit/extension-api`, `@nervekit/ui-kit` and `@nervekit/extension-sdk` are public packages for extension authors. They carry Nerve's version (`pnpm release:tag` bumps them with every other workspace package, and `scripts/checks/check-lockstep-versions.ts`, part of `pnpm check`, fails when one differs from the root). The Publish Release workflow does **not** publish them; publish by hand after the tagged release is out:
+
+```sh
+pnpm build
+pnpm --filter @nervekit/extension-sdk e2e      # packs the three, installs them with npm, runs `nerve-ext check` (needs network)
+for pkg in extension-api ui-kit extension-sdk; do
+  (cd packages/$pkg && pnpm publish --access public --no-git-checks)
+done
+```
+
+Publish `extension-api` and `ui-kit` before the SDK (it depends on both at the exact version). `pnpm publish` runs `prepack`, which copies `LICENSE` and `NOTICE` into the package, and rewrites `workspace:*` dependencies to the exact version. When a release breaks extensions, add a section to `packages/extension-sdk/UPGRADING.md` first.
+
 ## Scope and cleanup
 
 The npm launcher supports Linux, Windows, and macOS. Signed/notarized app bundles and native installers remain explicit non-goals. Every smoke must use temporary homes and workspaces, random loopback ports, terminate child processes, and remove temporary install projects it promises to clean.

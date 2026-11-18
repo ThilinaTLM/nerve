@@ -87,7 +87,7 @@ export class AgentConfigurationPaths {
   }
   profiles(scope: PreferenceScope): string {
     if (scope.scope === "user")
-      return path.join(this.locations.home, "data", "agent-profiles");
+      return path.join(this.locations.home, "agent", "agent-profiles");
     // Reuse project ownership validation even though catalogs are outside config/.
     return path.join(
       path.dirname(path.dirname(this.creation(scope))),

@@ -32,7 +32,7 @@ import { Separator } from "@nervekit/ui-kit/components/ui/separator";
 import * as Sheet from "@nervekit/ui-kit/components/ui/sheet";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Toaster } from "@nervekit/ui-kit/components/ui/sonner";
-import { colorThemeKind } from "@nervekit/contracts/settings";
+import { resolveColorThemeKind } from "@nervekit/contracts/settings";
 import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
@@ -110,7 +110,7 @@ const rows = Array.from({ length: 14 }, (_, i) => `Row ${i + 1}`);
   <Toaster
     position="bottom-right"
     closeButton
-    theme={colorThemeKind[appearanceState.theme]}
+    theme={resolveColorThemeKind(appearanceState.theme)}
   />
 {/if}
 

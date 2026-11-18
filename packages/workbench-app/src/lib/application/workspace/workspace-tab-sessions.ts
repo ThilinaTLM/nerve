@@ -267,6 +267,7 @@ function isIdentity(value: unknown): value is CenterTabIdentity {
     "mermaid",
     "pr",
     "diff",
+    "extension-page",
   ].includes(tab.kind);
 }
 

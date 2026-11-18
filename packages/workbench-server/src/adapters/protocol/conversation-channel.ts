@@ -217,6 +217,12 @@ export function createConversationProtocolSession(
     },
     "trust.list": ({ projectId, kind }) => core.trust.list(projectId, kind),
     "trust.decide": (input) => {
+      // Extension consent needs the reviewed content hash (`extensions.grantConsent`); here the
+      // user can only withdraw it.
+      if (input.kind === "extension" && input.status === "trusted")
+        throw new Error(
+          "Extensions are trusted by reviewing them in Settings.",
+        );
       const result = core.trust.decide(input);
       configurationPublished();
       return result;

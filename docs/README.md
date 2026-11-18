@@ -14,10 +14,11 @@ Start with the codebase overview, then the conversation core.
 
 - [Codebase architecture](architecture/codebase.md) — packages, layers and allowed dependencies.
 - [Startup and reconnection](architecture/startup.md) — daemon early bind, shell supervision, storage failure handoff and client reconnect.
-- [Storage architecture](architecture/storage.md) — `NERVE_HOME` areas, SQLite versus files versus memory, restart behavior and settings health.
+- [Storage architecture](architecture/storage.md) — `NERVE_HOME` areas and the home layout standard (`agent/`, `config/`, `data/`), SQLite versus files versus memory, restart behavior and settings health.
 - [Storage migrations](architecture/migrations.md) — home upgrades, damage isolation and rollback.
 - [Access and authentication](architecture/access.md) — principals, device credentials, pairing, owner passkeys, public URL and proxy trust, and the audit log.
 - [Scoped configuration](architecture/configuration.md) — user/project/conversation scopes, save guarantees and when changes take effect.
+- [Trust and consent](architecture/trust.md) — the `trusted_resource` table, trust kinds, what each approval covers and when it must be given again.
 
 **Conversations and agents**
 
@@ -56,9 +57,10 @@ Start with the codebase overview, then the conversation core.
 | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | Public behavior, guides, operations, protocol, and developer reference      | [`packages/website/src/content/docs/`](../packages/website/src/content/docs/)                    |
 | Cross-package architecture, its design rationale, and maintainer procedures | Root `docs/`                                                                                     |
-| Designs not yet implemented                                                 | GitHub issues, labeled as described in [`CONTRIBUTING.md`](../CONTRIBUTING.md#issues-and-labels) |
+| Designs in active development                                               | `docs/proposals/` (create when needed; delete when implemented)                                  |
+| Backlog designs (planned for later)                                         | GitHub issues, labeled as described in [`CONTRIBUTING.md`](../CONTRIBUTING.md#issues-and-labels) |
 | Package ownership and local development rules                               | Package `README.md` and `AGENTS.md` files                                                        |
 | Repository contribution and security policy                                 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) and [`SECURITY.md`](../SECURITY.md)                      |
 | Schemas, catalogs, limits, and changing behavior                            | Owning contracts, implementation, and tests                                                      |
 
-Do not copy changing schemas or catalogs into prose. Link the owning symbols and describe only stable boundaries or rationale. Superseded proposals are closed as issues.
+Do not copy changing schemas or catalogs into prose. Link the owning symbols and describe only stable boundaries or rationale. Implemented or superseded proposals are removed from `docs/proposals/` (Git history is the archive); backlog designs are closed as issues.

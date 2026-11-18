@@ -100,7 +100,7 @@ function listText(
     const facts = [
       namespace.source === "builtin"
         ? "built-in"
-        : `${namespace.extension} extension`,
+        : (namespace.attribution ?? `${namespace.extension} extension`),
       ...(usable ? [] : ["unavailable"]),
       ...(namespace.methods.length > 0
         ? [
@@ -179,7 +179,7 @@ async function describeText(
       `// ${namespace.id}: ${namespace.summary}. No method declarations.\n${pointer}`,
     );
   }
-  const configured = !sub ? namespace.configuration?.(env) : undefined;
+  const configured = !sub ? await namespace.configuration?.(env) : undefined;
   const text =
     (configured ? `// ${configured}\n` : "") +
     pointer +
@@ -288,7 +288,10 @@ function searchText(
 }
 
 function topicIndex(namespace: RegisteredNamespace): string[] {
-  return namespace.docs.map((topic) => `- ${topic.id}: ${topic.whenToRead}`);
+  return namespace.docs.map(
+    (topic) =>
+      `- ${topic.id}: ${topic.whenToRead}${namespace.attribution ? ` (${namespace.attribution})` : ""}`,
+  );
 }
 
 async function docsText(
@@ -338,7 +341,11 @@ async function docsText(
   }
   const state = stateOf(owner, env);
   if (!available(state)) return unavailableText(owner, state!);
-  const text = renderLimits(owner.readDoc(entry.file), env.registry.limits);
+  const body = renderLimits(owner.readDoc(entry.file), env.registry.limits);
+  // Text an installed extension wrote says so: it is that extension's claim, not Nerve's.
+  const text = owner.attribution
+    ? `[Source: ${owner.attribution}]\n\n${body}`
+    : body;
   if (text.length <= Math.max(remaining(env), WHOLE_ITEM_CHARS))
     return spend(env, text);
 

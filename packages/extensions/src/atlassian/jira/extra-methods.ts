@@ -49,7 +49,7 @@ export async function fetchJiraMe(
 /** `jira.request` binary responses: saved as `response-<n>` with the path's file extension. */
 export function rawBinaryNaming(path: unknown): BinaryNaming {
   const extension = extname(String(path).split("?")[0] ?? "") || ".bin";
-  return { base: "response", extensionFor: () => extension };
+  return { base: "response", extension };
 }
 
 export const jiraExtraMethods: PathedMethod<JiraSession>[] = [
