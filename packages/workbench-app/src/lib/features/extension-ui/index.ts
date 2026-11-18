@@ -25,4 +25,5 @@ export {
   parseExtensionPageTabId,
   parseExtensionPanelViewId,
 } from "./model/page-tab-id";
+export { newTabMenuGroups } from "./model/new-tab-menu";
 export { extensionIcon } from "./model/extension-icons";

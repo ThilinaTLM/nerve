@@ -23,14 +23,19 @@ import Workflow from "@lucide/svelte/icons/workflow";
 import X from "@lucide/svelte/icons/x";
 import { EditorTabStrip } from "$lib/presentation/shell";
 import type {
+  NewTabMenuSection,
   WorkbenchTabIdentity,
   WorkbenchTabModel,
 } from "$lib/presentation/shell";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { revealFileExplorerPath } from "$lib/features/filesystem";
 import {
+  contributionsOf,
   extensionIcon,
   findLoadedExtensionPage,
+  newTabMenuGroups,
+  openExtensionPage,
   parseExtensionPageTabId,
 } from "$lib/features/extension-ui";
 import {
@@ -100,6 +105,22 @@ const closeShortcut = getShortcutLabel("pane.close");
 const closeOthersShortcut = getShortcutLabel("pane.closeOthers");
 const newShortcut = getShortcutLabel("conversation.new");
 const newShortcutAria = getShortcutAriaLabel("conversation.new");
+
+const newMenuSections = $derived.by((): NewTabMenuSection[] => {
+  const projectId = workspaceState.selectedProjectId;
+  return newTabMenuGroups(contributionsOf(projectId)?.pages ?? []).map(
+    (group) => ({
+      heading: group.heading,
+      entries: group.pages.map((page) => ({
+        key: `${page.extensionId}/${page.id}`,
+        label: page.label,
+        icon: extensionIcon(page.icon),
+        onSelect: () =>
+          void openExtensionPage(projectId, page.extensionId, page.id),
+      })),
+    }),
+  );
+});
 
 const workbenchTabs = $derived(tabs.map(toWorkbenchTab));
 let pendingRename = $state<
@@ -383,6 +404,7 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
   onCloseRight={(tab) => onCloseRight?.(castIdentity(tab))}
   onCloseLeft={(tab) => onCloseLeft?.(castIdentity(tab))}
   {onNew}
+  {newMenuSections}
   onReorder={(tab, targetIndex) => onReorder?.(castIdentity(tab), targetIndex)}
 />
 

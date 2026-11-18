@@ -26,6 +26,7 @@ import {
   type ExtensionAgentStatus,
   type QuickScriptRegistry,
 } from "@nervekit/tools/quick-script";
+import { consentItems, grantSnapshot } from "./consent-summary.js";
 import { limitInstalledErrors } from "./agent-text-limits.js";
 import { ExtensionErrorLog } from "./extension-errors.js";
 import {
@@ -730,6 +731,7 @@ export class ExtensionCatalog implements ExtensionUiSource {
               description: manifest.description,
               version: manifest.version,
               sdkVersion: manifest.sdkVersion,
+              adds: consentItems(grantSnapshot(manifest), manifest),
             }
           : {}),
         ...(outcome.shadowedBy ? { shadowedBy: outcome.shadowedBy } : {}),

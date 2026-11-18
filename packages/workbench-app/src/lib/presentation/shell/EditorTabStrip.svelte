@@ -3,16 +3,21 @@ import ChevronLeft from "@lucide/svelte/icons/chevron-left";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import MoveLeft from "@lucide/svelte/icons/move-left";
 import MoveRight from "@lucide/svelte/icons/move-right";
+import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import Plus from "@lucide/svelte/icons/plus";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import X from "@lucide/svelte/icons/x";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
+import { buttonVariants } from "@nervekit/ui-kit/components/ui/button";
+import { cn } from "@nervekit/ui-kit/utils";
 import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import ConversationActivityIndicator from "../conversations/ConversationActivityIndicator.svelte";
 import type {
+  NewTabMenuSection,
   WorkbenchTabIdentity,
   WorkbenchTabMenuBuilder,
   WorkbenchTabModel,
@@ -38,6 +43,8 @@ let {
   onCloseRight,
   onCloseLeft,
   onNew,
+  newMenuSections = [],
+  newMenuLabel = "More ways to open a tab",
   onReorder,
 }: {
   tabs?: WorkbenchTabModel[];
@@ -55,6 +62,9 @@ let {
   onCloseRight?: (tab: WorkbenchTabIdentity) => void;
   onCloseLeft?: (tab: WorkbenchTabIdentity) => void;
   onNew?: () => void;
+  /** Extra entries under the chevron; no chevron when empty. */
+  newMenuSections?: NewTabMenuSection[];
+  newMenuLabel?: string;
   onReorder?: (tab: WorkbenchTabIdentity, targetIndex: number) => void;
 } = $props();
 
@@ -470,6 +480,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
       <Button
         variant="ghost"
         size="icon"
+        class={newMenuSections.length > 0 ? "rounded-r-none" : undefined}
         ariaLabel={newLabel}
         aria-keyshortcuts={newShortcutAria}
         data-tour-id="tab-new-conversation"
@@ -478,6 +489,45 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
       >
         <Plus size={13} strokeWidth={2.25} />
       </Button>
+      {#if newMenuSections.length > 0}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger
+            class={cn(
+              buttonVariants({ variant: "ghost", size: "icon" }),
+              "w-4 rounded-l-none",
+            )}
+            aria-label={newMenuLabel}
+            title={newMenuLabel}
+            data-tour-id="tab-new-menu"
+          >
+            <ChevronDown size={11} strokeWidth={2.25} />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="start" class="min-w-48">
+            <DropdownMenu.Item onSelect={onNew}>
+              <Plus aria-hidden="true" />
+              <span class="flex-1">{newLabel}</span>
+              {#if newShortcut}
+                <span class="ml-4 text-muted-foreground">{newShortcut}</span>
+              {/if}
+            </DropdownMenu.Item>
+            {#each newMenuSections as section, index (index)}
+              <DropdownMenu.Separator />
+              {#if section.heading}
+                <div class="px-1.5 py-1 text-caption text-muted-foreground">
+                  {section.heading}
+                </div>
+              {/if}
+              {#each section.entries as entry (entry.key)}
+                {@const EntryIcon = entry.icon}
+                <DropdownMenu.Item onSelect={entry.onSelect}>
+                  {#if EntryIcon}<EntryIcon size={14} />{/if}
+                  {entry.label}
+                </DropdownMenu.Item>
+              {/each}
+            {/each}
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+      {/if}
     </div>
   {/if}
   <span class="sr-only" aria-live="polite">{announcement}</span>

@@ -85,12 +85,16 @@ export const extensionUiFrameItemSchema = z.strictObject({
   /** A lucide icon name. */
   icon: z.string(),
 });
+export const extensionUiPageSchema = extensionUiFrameItemSchema.extend({
+  /** Listed in the new-tab menu. */
+  newMenu: z.boolean(),
+});
 
 export const extensionUiContributionsSchema = z.strictObject({
   /** URL of the base stylesheet every frame loads (the same for all frames). */
   baseCssUrl: frameUrl,
   previews: z.array(extensionUiPreviewSchema),
-  pages: z.array(extensionUiFrameItemSchema),
+  pages: z.array(extensionUiPageSchema),
   panels: z.array(extensionUiFrameItemSchema),
 });
 export type ExtensionUiContributions = z.infer<

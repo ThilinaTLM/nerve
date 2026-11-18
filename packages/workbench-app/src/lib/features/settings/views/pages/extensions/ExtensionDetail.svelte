@@ -13,7 +13,10 @@ import PanelTop from "@lucide/svelte/icons/panel-top";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Zap from "@lucide/svelte/icons/zap";
-import type { ExtensionView } from "@nervekit/contracts/extensions";
+import type {
+  ExtensionCatalogEntry,
+  ExtensionView,
+} from "@nervekit/contracts/extensions";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
@@ -34,6 +37,7 @@ import {
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
 import AccountsSection from "./AccountsSection.svelte";
 import ExtensionFieldRow from "./ExtensionFieldRow.svelte";
+import ExtensionInstalledSections from "./ExtensionInstalledSections.svelte";
 import {
   detailLayout,
   entryWithSetting,
@@ -48,6 +52,8 @@ import {
 
 type Props = {
   extension: ExtensionView;
+  /** The catalog entry of an installed (user or project) extension. */
+  installed?: ExtensionCatalogEntry;
   /** The user's view of the same extension, while a project is shown. */
   inherited?: ExtensionView;
   scope: ExtensionsScope;
@@ -62,6 +68,7 @@ type Props = {
 
 let {
   extension,
+  installed,
   inherited,
   scope,
   projectId,
@@ -349,5 +356,8 @@ function openPage(page: "tools" | "skills"): void {
         </SettingsRow>
       </SettingsSection>
     {/if}
+  {/if}
+  {#if installed}
+    <ExtensionInstalledSections entry={installed} {extensions} />
   {/if}
 </div>

@@ -676,6 +676,8 @@ export type PageContribution = {
   label: string;
   /** A lucide icon name. */
   icon: string;
+  /** List the page in the new-tab menu (the chevron next to +). Default: true. */
+  newMenu?: boolean;
   /** Source path of the frame's entry. */
   entry: string;
 };

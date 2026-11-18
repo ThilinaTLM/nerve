@@ -17,7 +17,9 @@ import {
   extensionFix,
   extensionProblem,
   extensionSummary,
+  consentState,
   installedEntries,
+  installedSourceRows,
   installedProblem,
   installedStateBadge,
   fieldSections,
@@ -682,5 +684,52 @@ describe("installed extensions", () => {
       "e",
     );
     assert.equal(installedProblem(entry({})), undefined);
+  });
+});
+
+describe("installed extension detail", () => {
+  const entry = (
+    patch: Partial<ExtensionCatalogEntry>,
+  ): ExtensionCatalogEntry => ({
+    id: "csv-table",
+    source: "user",
+    state: "enabled",
+    diagnostics: [],
+    ...patch,
+  });
+
+  it("lists source rows only for what is known", () => {
+    assert.deepEqual(installedSourceRows(entry({})), [
+      { label: "Installed for", value: "User" },
+    ]);
+    assert.deepEqual(
+      installedSourceRows(
+        entry({
+          source: "project",
+          path: "/p/.nerve/extensions/x",
+          version: "1.2.0",
+          sdkVersion: "0.3.0",
+        }),
+      ).map((row) => [row.label, row.value]),
+      [
+        ["Installed for", "Project"],
+        ["Folder", "/p/.nerve/extensions/x"],
+        ["Version", "1.2.0"],
+        ["SDK version", "0.3.0"],
+      ],
+    );
+  });
+
+  it("offers Revoke when allowed and Review only with a pending summary", () => {
+    assert.equal(consentState(entry({})).canRevoke, true);
+    const pending = consentState(
+      entry({
+        state: "pending_consent",
+        consent: { update: false, contentHash: "h", items: [], text: "" },
+      }),
+    );
+    assert.equal(pending.canReview, true);
+    assert.equal(pending.canRevoke, false);
+    assert.equal(consentState(entry({ state: "invalid" })).canReview, false);
   });
 });

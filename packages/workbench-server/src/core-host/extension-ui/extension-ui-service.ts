@@ -162,6 +162,7 @@ export class ExtensionUiService {
         (extension.ui.pages ?? []).map((page) => ({
           ...base(extension, page),
           icon: page.icon,
+          newMenu: page.newMenu,
         })),
       ),
       panels: extensions.flatMap((extension) =>

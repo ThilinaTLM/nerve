@@ -303,6 +303,32 @@ void test("preview edit defaults to none for binary formats and keeps an explici
   });
 });
 
+void test("page newMenu defaults to true and keeps an explicit false", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "new-menu",
+      kind: "page",
+      cwd: root,
+    });
+    const file = join(folder, "src", "extension.ts");
+    const source = await readFile(file, "utf8");
+    assert.equal(
+      (await buildExtension({ projectDir: folder })).manifest.ui?.pages?.[0]
+        ?.newMenu,
+      true,
+    );
+    await writeFile(
+      file,
+      source.replace("entry:", "newMenu: false,\n        entry:"),
+    );
+    assert.equal(
+      (await buildExtension({ projectDir: folder })).manifest.ui?.pages?.[0]
+        ?.newMenu,
+      false,
+    );
+  });
+});
+
 void test("extractThemeBlocks keeps the @theme mappings and none of the token values", () => {
   const blocks = extractThemeBlocks(`:root { --background: red; }
 @theme {

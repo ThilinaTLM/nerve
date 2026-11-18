@@ -20,7 +20,7 @@ const sdkRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const contributionKeys = {
   previews: ["id", "label", "match", "entry", "edit"],
-  pages: ["id", "label", "icon", "entry"],
+  pages: ["id", "label", "icon", "entry", "newMenu"],
   panels: ["id", "label", "icon", "entry"],
   themes: ["id", "label", "file"],
 } as const;
@@ -165,6 +165,7 @@ export async function planUi(
           id,
           label: item["label"],
           icon: item["icon"],
+          ...(kind === "pages" ? { newMenu: item["newMenu"] ?? true } : {}),
           entry: uiEntryPath(id),
         });
     }

@@ -193,18 +193,30 @@ const previewSchema = z
     message: "must be ui/<id>/index.html",
   });
 
-const framePageSchema = (kind: "page" | "panel") =>
-  z
-    .strictObject({
-      id: uiContributionIdSchema,
-      label: uiLabelSchema,
-      icon: uiIconSchema,
-      entry: z.string(),
-    })
-    .refine((item) => item.entry === uiEntryPath(item.id), {
-      path: ["entry"],
-      message: `${kind} entry must be ui/<id>/index.html`,
-    });
+const frameItemShape = {
+  id: uiContributionIdSchema,
+  label: uiLabelSchema,
+  icon: uiIconSchema,
+  entry: z.string(),
+};
+const entryRefinement = (kind: "page" | "panel") => ({
+  path: ["entry"],
+  message: `${kind} entry must be ui/<id>/index.html`,
+});
+
+const pageSchema = z
+  .strictObject({ ...frameItemShape, newMenu: z.boolean().default(true) })
+  .refine(
+    (item) => item.entry === uiEntryPath(item.id),
+    entryRefinement("page"),
+  );
+
+const panelSchema = z
+  .strictObject(frameItemShape)
+  .refine(
+    (item) => item.entry === uiEntryPath(item.id),
+    entryRefinement("panel"),
+  );
 
 const themeSchema = z
   .strictObject({
@@ -230,8 +242,8 @@ const list = <T extends z.ZodType<{ id: string }>>(item: T) =>
 /** The built UI contributions of an installed extension (paths relative to `dist/`). */
 export const installedExtensionUiSchema = z.strictObject({
   previews: list(previewSchema).optional(),
-  pages: list(framePageSchema("page")).optional(),
-  panels: list(framePageSchema("panel")).optional(),
+  pages: list(pageSchema).optional(),
+  panels: list(panelSchema).optional(),
   themes: list(themeSchema).optional(),
 });
 

@@ -681,3 +681,53 @@ export function installedProblem(
       : undefined);
   return diagnostic?.message;
 }
+
+/** One line of an installed extension's Source section. */
+export type SourceRow = { label: string; value: string; mono?: boolean };
+
+/** Where an installed extension lives and what it is, for the detail's Source section. */
+export function installedSourceRows(entry: ExtensionCatalogEntry): SourceRow[] {
+  const rows: SourceRow[] = [
+    {
+      label: "Installed for",
+      value: entry.source === "user" ? "User" : "Project",
+    },
+  ];
+  if (entry.path) rows.push({ label: "Folder", value: entry.path, mono: true });
+  if (entry.version) rows.push({ label: "Version", value: entry.version });
+  if (entry.sdkVersion)
+    rows.push({ label: "SDK version", value: entry.sdkVersion });
+  return rows;
+}
+
+/** The consent state in words; `canRevoke` when it can be withdrawn. */
+export function consentState(entry: ExtensionCatalogEntry): {
+  label: string;
+  description: string;
+  canRevoke: boolean;
+  canReview: boolean;
+} {
+  const review =
+    entry.state === "pending_consent" && entry.consent !== undefined;
+  if (entry.state === "enabled")
+    return {
+      label: "Allowed",
+      description:
+        "You allowed what it adds. Revoking stops it until you allow it again.",
+      canRevoke: true,
+      canReview: false,
+    };
+  if (entry.state === "pending_consent")
+    return {
+      label: "Waiting for your consent",
+      description: "Nothing runs until you allow it.",
+      canRevoke: false,
+      canReview: review,
+    };
+  return {
+    label: "Not running",
+    description: "The extension is not loaded; see the diagnostics below.",
+    canRevoke: false,
+    canReview: false,
+  };
+}

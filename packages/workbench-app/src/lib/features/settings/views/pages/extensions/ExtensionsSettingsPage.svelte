@@ -219,6 +219,11 @@ function resetAll(): void {
   {#if open && openRow}
     <ExtensionDetail
       extension={open}
+      installed={catalog.find(
+        (entry) =>
+          entry.id === open.metadata.id &&
+          entry.source === open.metadata.source,
+      )}
       inherited={openRow.inherited}
       {scope}
       {projectId}

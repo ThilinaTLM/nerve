@@ -12,6 +12,8 @@ ui: {
 
 A project is always open: user extensions contribute to every project, project extensions to their own. A frame has no network; fetch remote data through a backend method with `host.call`.
 
+Pages are listed in the new-tab menu (the chevron next to +) unless `newMenu: false`.
+
 ## Previews
 
 `match.extensions` are lower-case with the dot (at most 32). `edit` chooses editing:

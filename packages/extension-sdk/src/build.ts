@@ -186,7 +186,7 @@ function uiFix(path: PropertyKey[], message: string): string {
     return `Use a short label of 1 to ${extensionUiLimits.maxLabelLength} characters.`;
   if (message.includes("unique") || path.length <= 2)
     return `Contributions are limited to ${extensionUiLimits.maxPerKind} per kind with unique ids.`;
-  return "Change the ui contribution in the definition so it matches the documented fields (previews: id, label, match.extensions, entry, edit; pages and panels: id, label, icon, entry; themes: id, label, file).";
+  return "Change the ui contribution in the definition so it matches the documented fields (previews: id, label, match.extensions, entry, edit; pages: id, label, icon, entry, newMenu; panels: id, label, icon, entry; themes: id, label, file).";
 }
 
 /** Zod issues as problems: the path says which field of the definition is wrong. */

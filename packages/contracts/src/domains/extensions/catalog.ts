@@ -73,6 +73,8 @@ export const extensionCatalogEntrySchema = z.strictObject({
   /** `shadowed` only: the source that has the id. */
   shadowedBy: extensionSourceSchema.optional(),
   diagnostics: z.array(extensionCatalogDiagnosticSchema),
+  /** Installed extensions: everything the manifest adds or asks for, in plain language. */
+  adds: z.array(extensionConsentItemSchema).optional(),
   /** `pending_consent` only: what to review before allowing. */
   consent: extensionConsentSchema.optional(),
 });

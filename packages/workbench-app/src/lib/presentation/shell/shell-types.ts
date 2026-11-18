@@ -131,3 +131,16 @@ export type PanelViewMenuBuilder = (input: {
   views: PanelViewDescriptor[];
   defaultItems: ContextMenuItem[];
 }) => ContextMenuItem[];
+
+/** One entry of the new-tab menu, besides "New conversation". */
+export type NewTabMenuEntry = {
+  key: string;
+  label: string;
+  icon?: Component<{ size?: number; class?: string }>;
+  onSelect: () => void;
+};
+
+export type NewTabMenuSection = {
+  heading?: string;
+  entries: NewTabMenuEntry[];
+};
