@@ -1,8 +1,9 @@
 // Build-time reference files of the built-in `configure-nerve` skill. The skill has no Nerve source at
 // runtime, so exact shapes ship as generated files instead of prose: JSON Schemas from the zod
 // schemas in `packages/contracts` and the public `.d.ts` files of the extension API and SDK.
-import { cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import ts from "typescript";
 import { z } from "zod";
 import {
   agentPreferencesSchema,
@@ -91,11 +92,50 @@ async function copyDeclarations(
   }
 }
 
+const sdkEntries = ["index.ts", "testing.ts", "ui.ts"];
+
+/**
+ * The SDK's public declarations, emitted from its sources: the workbench server may not depend on the
+ * SDK (package boundaries), so its `dist/` is not guaranteed to exist when this runs. Hand-written
+ * `.d.ts` sources (the UI components) are copied as they are, as the SDK's own build does.
+ */
+function emitSdkDeclarations(sdkDir: string): Map<string, string> {
+  const src = join(sdkDir, "src");
+  const config = ts.getParsedCommandLineOfConfigFile(
+    join(sdkDir, "tsconfig.json"),
+    {},
+    { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => {} },
+  );
+  if (!config) throw new Error(`Cannot read ${sdkDir}/tsconfig.json.`);
+  const options: ts.CompilerOptions = {
+    ...config.options,
+    composite: false,
+    incremental: false,
+    declaration: true,
+    emitDeclarationOnly: true,
+    declarationMap: false,
+    noEmitOnError: false,
+    outDir: "/__sdk__",
+    rootDir: src,
+  };
+  const program = ts.createProgram(
+    sdkEntries.map((entry) => join(src, entry)),
+    options,
+  );
+  const files = new Map<string, string>();
+  program.emit(undefined, (fileName, text) => {
+    files.set(relative("/__sdk__", fileName), text);
+  });
+  for (const source of program.getSourceFiles())
+    if (source.isDeclarationFile && source.fileName.startsWith(`${src}/`))
+      files.set(relative(src, source.fileName), source.text);
+  return files;
+}
+
 /**
  * Writes `reference/schemas/*.schema.json` and the public `.d.ts` files of the extension API and SDK
- * into `<skill>/reference`. The API and SDK must be built first. The workbench server depends on the API
- * but not on the SDK (package boundaries), so `pnpm -r build` orders only the API; the SDK builds earlier
- * in practice because it sits lower in the dependency graph. Missing declarations fail the build.
+ * into `<skill>/reference`. The extension API is a dependency of the workbench server, so its `dist/` is
+ * built first; the SDK's declarations are emitted from its sources.
  */
 export async function writeSkillReferenceAssets(
   skillDir: string,
@@ -110,34 +150,23 @@ export async function writeSkillReferenceAssets(
     );
 
   const api = join(repoRoot, "packages", "extension-api", "dist");
-  const sdk = join(repoRoot, "packages", "extension-sdk", "dist");
   const apiFiles = await declarationFiles(api).catch((): string[] => []);
   if (!apiFiles.includes("index.d.ts"))
     throw new Error(
       `${api} has no declarations; build @nervekit/extension-api first.`,
     );
-  const sdkFiles = [
-    "index.d.ts",
-    "testing.d.ts",
-    "ui.d.ts",
-    ...(await declarationFiles(join(sdk, "ui")).catch((): string[] => [])).map(
-      (file) => join("ui", file),
-    ),
-  ];
-  const missing: string[] = [];
-  for (const file of sdkFiles)
-    if (
-      !(await readFile(join(sdk, file)).then(
-        () => true,
-        () => false,
-      ))
-    )
-      missing.push(file);
-  if (missing.length)
-    throw new Error(
-      `${sdk} lacks ${missing.join(", ")}; build @nervekit/extension-sdk first.`,
-    );
   const target = join(reference, "extensions", "api");
   await copyDeclarations(api, join(target, "extension-api"), apiFiles);
-  await copyDeclarations(sdk, join(target, "extension-sdk"), sdkFiles);
+
+  const sdk = emitSdkDeclarations(join(repoRoot, "packages", "extension-sdk"));
+  const missing = [...sdkEntries, "ui/components.ts"]
+    .map((entry) => entry.replace(/\.ts$/, ".d.ts"))
+    .filter((file) => !sdk.has(file));
+  if (missing.length)
+    throw new Error(`SDK declarations missing: ${missing.join(", ")}.`);
+  for (const [file, text] of sdk) {
+    const path = join(target, "extension-sdk", file);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, text);
+  }
 }

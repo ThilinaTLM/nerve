@@ -45,8 +45,6 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
       "@nervekit/extension-api",
       "@nervekit/extensions",
       "@nervekit/conversation-core",
-      // Build-time only: the configure-nerve skill ships the SDK's type declarations.
-      "@nervekit/extension-sdk",
     ],
   ],
   [
