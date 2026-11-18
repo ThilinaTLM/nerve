@@ -27,6 +27,9 @@ export interface StoragePaths {
   plansPath: string;
   agentPath: string;
   suggestionsPath: string;
+  /** User agent profiles, `agent/agent-profiles/`. */
+  agentProfilesPath: string;
+  /** The released location `data/agent-profiles/`; only migration steps up to 0005 read it. */
   agentProfilesConfigPath: string;
   tlsPath: string;
   tmpPath: string;
@@ -81,6 +84,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     plansPath: join(dataPath, "plans"),
     agentPath,
     suggestionsPath: join(agentPath, "suggestions"),
+    agentProfilesPath: join(agentPath, "agent-profiles"),
     agentProfilesConfigPath: join(dataPath, "agent-profiles"),
     tlsPath: join(home, "tls"),
     tmpPath: join(home, "tmp"),

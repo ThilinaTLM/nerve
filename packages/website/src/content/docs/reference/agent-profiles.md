@@ -43,7 +43,7 @@ Project definitions require trust in their exact bytes. External edits invalidat
 | ------------------------------- | ------------------------------------------------ | ---------------------------------------------------- |
 | Agent preferences               | `<NERVE_HOME>/config/agent.json`                 | `<project>/.nerve/config/agent.json`                 |
 | Start profile and picker models | `<NERVE_HOME>/config/conversation-defaults.json` | `<project>/.nerve/config/conversation-defaults.json` |
-| Profile definitions             | `<NERVE_HOME>/data/agent-profiles/<name>.json`   | `<project>/.nerve/agent-profiles/<name>.json`        |
+| Profile definitions             | `<NERVE_HOME>/agent/agent-profiles/<name>.json`  | `<project>/.nerve/agent-profiles/<name>.json`        |
 
 Conversation preferences, the applied snapshot and conversation-only `context` live in `<NERVE_HOME>/data/conversations/<id>/config/agent.json`. There is no conversation profile catalog. Permission overlays remain separate `config/permissions.json` documents; provider/integration catalogs and credentials remain user-owned.
 

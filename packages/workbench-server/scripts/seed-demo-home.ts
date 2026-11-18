@@ -577,7 +577,7 @@ async function createBrowsableFolders(workspaceRoot: string): Promise<void> {
 
 /** A user-level custom profile, stored where Settings → Agent profiles saves it. */
 async function writeCustomProfile(home: string): Promise<void> {
-  const directory = join(home, "data", "agent-profiles");
+  const directory = join(home, "agent", "agent-profiles");
   await mkdir(directory, { recursive: true });
   await writeFile(
     join(directory, "release-reviewer.json"),

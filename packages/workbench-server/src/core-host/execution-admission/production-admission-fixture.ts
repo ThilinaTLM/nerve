@@ -81,9 +81,9 @@ export async function productionAdmissionFixture(
     model: "test",
     steps: steps ?? [{ type: "waitForAbort" }],
   });
-  await mkdir(join(paths.dataPath, "agent-profiles"), { recursive: true });
+  await mkdir(paths.agentProfilesPath, { recursive: true });
   await writeFile(
-    join(paths.dataPath, "agent-profiles", "worker.json"),
+    join(paths.agentProfilesPath, "worker.json"),
     JSON.stringify({
       schemaVersion: 1,
       name: "worker",

@@ -34,5 +34,9 @@
     "checksum": "e61f49f8d72b277d7b343c150690f54e8fe2c4455f4e1e00bed820c9297113f7",
     "stage": "released",
     "releasedIn": "0.41.0"
+  },
+  "0006-agent-resource-layout": {
+    "checksum": "cc01bd8e6c556e94c62414c52fef1e1916953ded67ac74ec9248e15dbf49299c",
+    "stage": "draft"
   }
 }

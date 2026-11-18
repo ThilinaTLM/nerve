@@ -5,6 +5,7 @@ import agentProfiles from "./0002-agent-profiles/step.js";
 import processOutputFiles from "./0003-process-output-files/step.js";
 import taskResultNotices from "./0004-task-result-notices/step.js";
 import extensionSettings from "./0005-extension-settings/step.js";
+import agentResourceLayout from "./0006-agent-resource-layout/step.js";
 
 /** Append implementations in metadata order; the migration checker verifies both. */
 const implementations = [
@@ -13,6 +14,7 @@ const implementations = [
   processOutputFiles,
   taskResultNotices,
   extensionSettings,
+  agentResourceLayout,
 ];
 if (implementations.length !== MIGRATION_METADATA.length)
   throw new Error("Migration metadata and implementations must match.");

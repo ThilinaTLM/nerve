@@ -54,7 +54,7 @@ void test("initialization validates user documents, not project/conversation doc
   );
   assert.equal(
     f.service.paths.profile(user, "coding"),
-    path.join(f.options.home, "data", "agent-profiles", "coding.json"),
+    path.join(f.options.home, "agent", "agent-profiles", "coding.json"),
   );
   assert.equal(
     f.service.paths.profile(project, "coding"),

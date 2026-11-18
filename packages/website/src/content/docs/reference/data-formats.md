@@ -13,7 +13,7 @@ All Nerve-home paths move with `NERVE_HOME`; default is `~/.nerve`.
 | Canonical domain records      | `<NERVE_HOME>/data/nerve.sqlite` plus SQLite WAL/SHM                                                                                      |
 | Conversation/tool payloads    | `<NERVE_HOME>/data/conversations`                                                                                                         |
 | Durable images and plans      | `<NERVE_HOME>/data/images` and `<NERVE_HOME>/data/plans`                                                                                  |
-| Agent profiles                | User `data/agent-profiles/<name>.json`, project `.nerve/agent-profiles/<name>.json`; see [profile format](/reference/agent-profiles/)     |
+| Agent profiles                | User `agent/agent-profiles/<name>.json`, project `.nerve/agent-profiles/<name>.json`; see [profile format](/reference/agent-profiles/)    |
 | Agent preferences             | User/project `config/agent.json`; conversation `data/conversations/<id>/config/agent.json` (includes applied snapshot and prompt context) |
 | Extension settings            | User/project `config/extensions.json`; the project file needs trust                                                                       |
 | Extension accounts            | User `config/accounts.json` by kind; secrets are encrypted under `<NERVE_HOME>/secrets` as `account:<kind>:<id>`                          |
