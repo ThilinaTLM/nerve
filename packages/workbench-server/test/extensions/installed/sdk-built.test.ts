@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createTestCatalog } from "./fixtures.js";
 import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -7,7 +8,6 @@ import { after, before, test } from "node:test";
 import { sandbox } from "@nervekit/native";
 import { loadInstalledExtension } from "../../../src/core-host/extension-catalog/load-installed.js";
 import { readInstalledExtensions } from "../../../src/core-host/extension-catalog/read-installed.js";
-import { createHostExtensionCatalog } from "../../../src/core-host/host-tools.js";
 import { overrideTrustGate } from "../../../src/core-host/extension-catalog/trust-gate.js";
 
 /*
@@ -61,7 +61,7 @@ void test(
       join(home, "agent", "extensions", "sdk-probe"),
       { recursive: true },
     );
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
     });

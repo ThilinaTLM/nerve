@@ -15,14 +15,11 @@ import {
   testExtensionAccount,
 } from "@nervekit/tools/quick-script";
 import type { AccountsReader } from "../../../src/domains/accounts/accounts.service.js";
-import {
-  createHostExtensionCatalog,
-  hostRegistry,
-} from "../../../src/core-host/host-tools.js";
+import { hostRegistry } from "../../../src/core-host/host-tools.js";
 import { overrideTrustGate } from "../../../src/core-host/extension-catalog/trust-gate.js";
 import { extensionAvailability } from "../../../src/core-host/extension-availability.js";
 import { createExtensionPorts } from "../../../src/core-host/extension-ports.js";
-import { writeExtension } from "./fixtures.js";
+import { writeExtension, createTestCatalog } from "./fixtures.js";
 
 /*
  * An installed user extension, trusted through the gate's override, used the way a conversation
@@ -64,7 +61,7 @@ async function setup(settings: Record<string, unknown> = {}) {
     toolPrefix: "e2e",
     accountKind: "probe-account",
   });
-  const catalog = createHostExtensionCatalog({
+  const catalog = createTestCatalog({
     home,
     trustGate: overrideTrustGate(),
   });

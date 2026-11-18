@@ -14,12 +14,11 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { sandbox } from "@nervekit/native";
 import { resolveExtensions } from "@nervekit/contracts/extensions";
-import { createHostExtensionCatalog } from "../../../src/core-host/host-tools.js";
 import { overrideTrustGate } from "../../../src/core-host/extension-catalog/trust-gate.js";
 import { ExtensionUiService } from "../../../src/core-host/extension-ui/extension-ui-service.js";
 import { ExtensionUiError } from "../../../src/core-host/extension-ui/extension-ui-error.js";
 import { createExtensionFrameRoutes } from "../../../src/adapters/http/routes/extension-frame-routes.js";
-import { writeExtension } from "./fixtures.js";
+import { writeExtension, createTestCatalog } from "./fixtures.js";
 
 const skip = !sandbox.isPersistentAvailable();
 let root = "";
@@ -73,7 +72,7 @@ async function world(
   await writeFile(join(p1, "notes.txt"), "text");
   await writeFile(join(base, "secret.csv"), "secret");
   await symlink(join(base, "secret.csv"), join(p1, "link.csv"));
-  const catalog = createHostExtensionCatalog({
+  const catalog = createTestCatalog({
     home,
     trustGate: overrideTrustGate((candidate) =>
       options.trusted === false && candidate.id === "ui-probe"

@@ -1,5 +1,7 @@
 import { createId } from "@nervekit/contracts";
+import { trustedResourceGrantsSchema } from "@nervekit/contracts/core";
 import type {
+  TrustDecision,
   TrustedResource,
   TrustedResourceKind,
 } from "@nervekit/contracts/core";
@@ -17,43 +19,50 @@ export class TrustedResourceService {
   list(projectId: string | null, kind?: TrustedResourceKind) {
     return this.storage.trustedResources.list(projectId, kind);
   }
-  decide(
-    input: Omit<TrustedResource, "id" | "createdAt" | "updatedAt"> & {
-      id?: string;
-    },
-  ): TrustedResource {
-    const existing = this.storage.trustedResources.find(
-      input.kind,
-      input.projectId,
-      input.path,
+  find(
+    kind: TrustedResourceKind,
+    projectId: string | null,
+    resourceKey: string,
+  ): TrustedResource | null {
+    return this.storage.trustedResources.find(kind, projectId, resourceKey);
+  }
+  /** Records the user's decision, replacing an earlier one for the same resource. `grants` is validated for the kind; left out, an existing decision keeps its grants. */
+  decide(input: TrustDecision & { id?: string }): TrustedResource {
+    const existing = this.find(input.kind, input.projectId, input.resourceKey);
+    const grants = trustedResourceGrantsSchema(input.kind).parse(
+      input.grants === undefined ? (existing?.grants ?? null) : input.grants,
     );
     const now = this.now();
-    if (existing) {
-      const result = this.storage.trustedResources.update(existing.id, {
-        name: input.name,
-        contentDigest: input.contentDigest,
-        status: input.status,
-        updatedAt: now,
-      });
-      this.currentGeneration++;
-      return result;
-    }
-    const result = this.storage.trustedResources.insert({
-      ...input,
-      id: input.id ?? createId("trust"),
-      createdAt: now,
-      updatedAt: now,
-    });
+    const result = existing
+      ? this.storage.trustedResources.update(existing.id, {
+          name: input.name,
+          contentDigest: input.contentDigest,
+          status: input.status,
+          grants,
+          updatedAt: now,
+        })
+      : this.storage.trustedResources.insert({
+          id: input.id ?? createId("trust"),
+          kind: input.kind,
+          projectId: input.projectId,
+          resourceKey: input.resourceKey,
+          name: input.name,
+          contentDigest: input.contentDigest,
+          status: input.status,
+          grants,
+          createdAt: now,
+          updatedAt: now,
+        });
     this.currentGeneration++;
     return result;
   }
   isTrusted(
     kind: TrustedResourceKind,
     projectId: string | null,
-    path: string,
+    resourceKey: string,
     contentDigest: string,
   ): boolean {
-    const resource = this.storage.trustedResources.find(kind, projectId, path);
+    const resource = this.find(kind, projectId, resourceKey);
     return (
       resource?.status === "trusted" && resource.contentDigest === contentDigest
     );

@@ -1,26 +1,12 @@
 import type {
   ExtensionConsent,
   ExtensionConsentItem,
+  ExtensionGrantSnapshot,
   InstalledExtensionManifest,
 } from "@nervekit/contracts/extensions";
 
-/**
- * What an installed extension may do, as sorted plain data: the snapshot stored at consent and
- * compared on every change. A grant is anything that widens what the extension can reach.
- */
-export type GrantSnapshot = {
-  /** Origins the extension may call, its accounts' credential origins included. */
-  network: string[];
-  capabilities: string[];
-  /** Account kinds the extension defines or requires. */
-  accounts: string[];
-  /** Namespace id → its operations (method ids). */
-  namespaces: Record<string, string[]>;
-  /** Direct tool names. */
-  tools: string[];
-  /** UI contributions, as `<kind>:<value>`. */
-  ui: string[];
-};
+/** What an installed extension may do, as sorted plain data (the `grants` of its trust decision). */
+export type GrantSnapshot = ExtensionGrantSnapshot;
 
 /**
  * UI contributions as grants: `previews:<id>:<extension>` per file type, `previews-edit:<id>` for

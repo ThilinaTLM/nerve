@@ -1,3 +1,5 @@
+import { consentSourcesOf } from "../../core-host/extension-catalog/extension-consent.js";
+import { toTrustedDigest } from "@nervekit/contracts/core";
 import { ConversationTitleService } from "../../domains/conversation-titles/title.service.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import {
@@ -110,7 +112,10 @@ export function createConversationCore(
   const { accounts } = deps;
   const extensionCatalog =
     deps.extensionCatalog ??
-    createHostExtensionCatalog({ home: deps.storage.paths.home });
+    createHostExtensionCatalog({
+      home: deps.storage.paths.home,
+      consent: consentSourcesOf(() => core),
+    });
   /** The directory of a project, to find its own extensions. */
   const projectDirectory = (projectId: string) =>
     core.projects.get(projectId)?.directory;
@@ -463,7 +468,10 @@ export function createConversationCore(
         id,
         path,
       );
-      return row?.status === "trusted" && row.contentDigest === digest;
+      return (
+        row?.status === "trusted" &&
+        row.contentDigest === toTrustedDigest(digest)
+      );
     },
     publish: (domain, scope) => {
       admissionPolicy.invalidate();
@@ -481,7 +489,12 @@ export function createConversationCore(
           });
     },
     isProfileTrusted: (projectId, path, digest) =>
-      core.trust.isTrusted("agent_profile", projectId, path, digest),
+      core.trust.isTrusted(
+        "agent_profile",
+        projectId,
+        path,
+        toTrustedDigest(digest),
+      ),
     prepareResources: (projectId) => {
       const key = `${projectId}:${storage.projects.get(projectId)!.directory}`;
       let pending = discoveries.get(key);
@@ -562,7 +575,12 @@ export function createConversationCore(
         projectId ? projectDirectory(projectId) : undefined,
       ),
     isProjectTrusted: (projectId, path, digest) =>
-      core.trust.isTrusted("project_capabilities", projectId, path, digest),
+      core.trust.isTrusted(
+        "project_capabilities",
+        projectId,
+        path,
+        toTrustedDigest(digest),
+      ),
   });
   extensionSettings.subscribe((scope) => {
     // A conversation's own file is written while that conversation is created

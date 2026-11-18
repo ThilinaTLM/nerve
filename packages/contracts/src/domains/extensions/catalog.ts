@@ -58,6 +58,27 @@ export const extensionConsentSchema = z.strictObject({
 });
 export type ExtensionConsent = z.infer<typeof extensionConsentSchema>;
 
+/**
+ * What the user approved for an installed extension, stored as the `grants` of its trust decision
+ * (see docs/architecture/trust.md). A grant is anything that widens what the extension can reach.
+ */
+export const extensionGrantSnapshotSchema = z.strictObject({
+  /** Origins the extension may call, its accounts' credential origins included. */
+  network: z.array(z.string()),
+  capabilities: z.array(z.string()),
+  /** Account kinds the extension defines or requires. */
+  accounts: z.array(z.string()),
+  /** Namespace id → its operations (method ids). */
+  namespaces: z.record(z.string(), z.array(z.string())),
+  /** Direct tool names. */
+  tools: z.array(z.string()),
+  /** UI contributions, as `<kind>:<value>`. */
+  ui: z.array(z.string()),
+});
+export type ExtensionGrantSnapshot = z.infer<
+  typeof extensionGrantSnapshotSchema
+>;
+
 /** One extension the host knows of, loaded or not. */
 export const extensionCatalogEntrySchema = z.strictObject({
   /** The extension id; the folder name when the manifest could not be read. */

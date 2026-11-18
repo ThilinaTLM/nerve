@@ -6,13 +6,16 @@ import { after, before, test } from "node:test";
 import { sandbox } from "@nervekit/native";
 import { builtinExtensions } from "@nervekit/extensions";
 import type { ExtensionCatalogEntry } from "@nervekit/contracts/extensions";
-import { createHostExtensionCatalog } from "../../../src/core-host/host-tools.js";
 import {
   overrideTrustGate,
   pendingConsentGate,
   type InstalledExtensionCandidate,
 } from "../../../src/core-host/extension-catalog/trust-gate.js";
-import { fixtureBackend, writeExtension } from "./fixtures.js";
+import {
+  fixtureBackend,
+  writeExtension,
+  createTestCatalog,
+} from "./fixtures.js";
 
 const skip = !sandbox.isPersistentAvailable();
 let root = "";
@@ -53,7 +56,7 @@ void test("by default nothing installed runs: valid extensions are pending conse
     undefined,
     "throw new Error('opened')",
   );
-  const catalog = createHostExtensionCatalog({ home });
+  const catalog = createTestCatalog({ home });
   const registry = await catalog.registryFor();
   const pending = entry(await catalog.entries(), "pending-one");
   assert.equal(pending.state, "pending_consent");
@@ -94,7 +97,7 @@ void test(
       namespace: "projns",
       toolPrefix: "projext",
     });
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
     });
@@ -135,7 +138,7 @@ void test(
       namespace: "parentns",
       toolPrefix: "parentext",
     });
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
     });
@@ -159,7 +162,7 @@ void test(
       namespace: "projver",
       toolPrefix: "projver",
     });
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
     });
@@ -188,7 +191,7 @@ void test(
       namespace: "fakeatlassian",
       toolPrefix: "fakeatl",
     });
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
     });
@@ -252,7 +255,7 @@ void test(
         toolPrefix: "bash",
       }).replace('name: "bash_echo"', 'name: "bash"'),
     );
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
     });
@@ -320,7 +323,7 @@ void test(
       undefined,
       "// registers nothing",
     );
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
     });
@@ -355,7 +358,7 @@ void test(
       toolPrefix: "oldsdk",
       sdkVersion: "0.38.0",
     });
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
       nerveVersion: "0.41.1",
@@ -389,7 +392,7 @@ void test(
       toolPrefix: "projthemed",
       themes: ["dark.json"],
     });
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
     });
@@ -425,7 +428,7 @@ void test(
       "throw new Error('opened')",
     );
     const asked: string[] = [];
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate((candidate) => {
         asked.push(candidate.id);
@@ -459,7 +462,7 @@ void test(
     });
     let decisions = 0;
     let trustChanging = true;
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate((candidate) => {
         decisions++;
@@ -536,7 +539,7 @@ void test(
       namespace: "projsettings",
       toolPrefix: "projsettings",
     });
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
     });

@@ -9,6 +9,7 @@ import { CONVERSATION_TITLE_MAX_LENGTH } from "./conversation-title.js";
 import {
   trustedResourceSchema,
   trustedResourceKindSchema,
+  trustDecisionSchema,
 } from "./trusted-resource.js";
 import {
   conversationConfigSchema,
@@ -129,7 +130,7 @@ export const coreOperationSchemas = {
     result: z.array(trustedResourceSchema),
   },
   "trust.decide": {
-    params: trustedResourceSchema.omit({ createdAt: true, updatedAt: true }),
+    params: trustDecisionSchema,
     result: trustedResourceSchema,
   },
   "trust.delete": {

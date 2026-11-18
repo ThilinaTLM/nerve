@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -12,13 +12,13 @@ import {
   isEmptyGrant,
   newGrants,
 } from "../../../src/core-host/extension-catalog/consent-summary.js";
-import { ExtensionTrust } from "../../../src/core-host/extension-catalog/extension-trust.js";
+import { ExtensionConsentRepository } from "../../../src/core-host/extension-catalog/extension-consent.js";
 import type {
   ExtensionTrustVerdict,
   InstalledExtensionCandidate,
 } from "../../../src/core-host/extension-catalog/trust-gate.js";
 import { readFolder } from "../../../src/core-host/extension-catalog/read-installed.js";
-import { writeExtension } from "./fixtures.js";
+import { testConsent, writeExtension } from "./fixtures.js";
 
 let root = "";
 let counter = 0;
@@ -33,10 +33,15 @@ type Json = Record<string, unknown>;
 
 async function world() {
   const base = join(root, `w${counter++}`);
-  const configDir = join(base, "config");
   const extensions = join(base, "extensions");
   await mkdir(extensions, { recursive: true });
-  return { base, configDir, extensions };
+  const consent = testConsent();
+  return {
+    base,
+    extensions,
+    consent,
+    trust: new ExtensionConsentRepository(consent),
+  };
 }
 
 async function candidate(
@@ -46,7 +51,13 @@ async function candidate(
 ): Promise<InstalledExtensionCandidate> {
   const read = await readFolder(id, join(extensions, id), version);
   assert.ok(read.manifest, read.diagnostics.map((d) => d.message).join("\n"));
-  return { id, source, folder: read.folder, manifest: read.manifest };
+  return {
+    id,
+    source,
+    folder: read.folder,
+    ...(source === "project" ? { projectDir: join(extensions, "..") } : {}),
+    manifest: read.manifest,
+  };
 }
 
 const verdict = (value: unknown) =>
@@ -83,9 +94,8 @@ void test("the content hash covers every file of dist/ in a stable order", async
 });
 
 void test("nothing runs before consent; consent is bound to the reviewed files", async () => {
-  const { configDir, extensions } = await world();
+  const { extensions, trust, consent } = await world();
   await writeExtension(extensions, { id: "first" });
-  const trust = new ExtensionTrust({ configDir });
   const pending = verdict(
     await trust.decide(await candidate(extensions, "first")),
   );
@@ -111,32 +121,38 @@ void test("nothing runs before consent; consent is bound to the reviewed files",
     await trust.decide(await candidate(extensions, "first")),
     "trusted",
   );
-  // The record is a file: a new instance (a restart) sees it.
+  // The decision is a trusted_resource row: a new repository over the same database sees it.
+  const candidateFirst = await candidate(extensions, "first");
   assert.equal(
-    await new ExtensionTrust({ configDir }).decide(
-      await candidate(extensions, "first"),
-    ),
+    await new ExtensionConsentRepository(consent).decide(candidateFirst),
     "trusted",
   );
-  const stored = JSON.parse(
-    await readFile(join(configDir, "extension-trust.json"), "utf8"),
-  );
-  const [record] = Object.values(stored.records) as Json[];
-  assert.equal(record.contentHash, pending.consent!.contentHash);
-  assert.ok(record.consentedAt);
-  assert.deepEqual((record.grants as Json).tools, ["probe_echo", "probe_ping"]);
-  // Revoking makes it pending again.
+  const row = consent.trust().find("extension", null, candidateFirst.folder)!;
+  assert.equal(row.name, "first");
+  assert.equal(row.status, "trusted");
+  assert.equal(row.contentDigest, `sha256:${pending.consent!.contentHash}`);
+  assert.deepEqual(row.grants?.tools, ["probe_echo", "probe_ping"]);
+  // Revoking keeps the row as rejected, and the extension is pending review again.
   await trust.revoke(await candidate(extensions, "first"));
+  assert.equal(
+    consent.trust().find("extension", null, candidateFirst.folder)?.status,
+    "rejected",
+  );
   assert.equal(
     verdict(await trust.decide(await candidate(extensions, "first"))).decision,
     "pending",
   );
+  // A rejected extension with unchanged files is not silently allowed again.
+  assert.equal(
+    verdict(await trust.decide(await candidate(extensions, "first"))).consent
+      ?.update,
+    false,
+  );
 });
 
 void test("project extensions need consent again after any content change", async () => {
-  const { configDir, extensions } = await world();
+  const { extensions, trust } = await world();
   const folder = await writeExtension(extensions, { id: "proj" });
-  const trust = new ExtensionTrust({ configDir });
   const first = verdict(
     await trust.decide(await candidate(extensions, "proj", "project")),
   );
@@ -162,9 +178,8 @@ void test("project extensions need consent again after any content change", asyn
 });
 
 void test("user extensions keep consent through code-only changes and ask again for new grants, listing only what is new", async () => {
-  const { configDir, extensions } = await world();
+  const { extensions, trust } = await world();
   const folder = await writeExtension(extensions, { id: "usr" });
-  const trust = new ExtensionTrust({ configDir });
   const first = verdict(await trust.decide(await candidate(extensions, "usr")));
   await trust.grant(
     await candidate(extensions, "usr"),
@@ -209,9 +224,8 @@ void test("user extensions keep consent through code-only changes and ask again 
 });
 
 void test("trust is per folder: the same id elsewhere has no consent", async () => {
-  const { configDir, extensions } = await world();
+  const { extensions, trust } = await world();
   await writeExtension(extensions, { id: "sw" });
-  const trust = new ExtensionTrust({ configDir });
   const first = verdict(await trust.decide(await candidate(extensions, "sw")));
   await trust.grant(
     await candidate(extensions, "sw"),
@@ -230,19 +244,36 @@ void test("trust is per folder: the same id elsewhere has no consent", async () 
   );
 });
 
-void test("an unreadable trust file means no consent", async () => {
-  const { configDir, extensions } = await world();
-  await mkdir(configDir, { recursive: true });
-  await writeFile(join(configDir, "extension-trust.json"), "{ not json");
-  await writeExtension(extensions, { id: "bad-file" });
+void test("a user extension that was revoked stays pending through a code-only change", async () => {
+  const { extensions, trust } = await world();
+  const folder = await writeExtension(extensions, { id: "revoked" });
+  const first = verdict(
+    await trust.decide(await candidate(extensions, "revoked")),
+  );
+  await trust.grant(
+    await candidate(extensions, "revoked"),
+    first.consent!.contentHash,
+  );
+  await trust.revoke(await candidate(extensions, "revoked"));
+  await writeFile(join(folder, "dist", "backend.js"), "// code only\n");
   assert.equal(
-    verdict(
-      await new ExtensionTrust({ configDir }).decide(
-        await candidate(extensions, "bad-file"),
-      ),
-    ).decision,
+    verdict(await trust.decide(await candidate(extensions, "revoked")))
+      .decision,
     "pending",
   );
+});
+
+void test("a project extension of an unregistered project can never be consented", async () => {
+  const { extensions } = await world();
+  await writeExtension(extensions, { id: "orphan" });
+  const trust = new ExtensionConsentRepository({
+    trust: () => testConsent().trust(),
+    projectIdOf: () => undefined,
+  });
+  const found = await candidate(extensions, "orphan", "project");
+  const pending = verdict(await trust.decide(found));
+  assert.equal(pending.decision, "pending");
+  assert.equal(await trust.grant(found, pending.consent!.contentHash), false);
 });
 
 const manifestOf = async (edit?: (manifest: Json) => void) => {

@@ -32,6 +32,8 @@ Some resources run code or widen authority when Nerve loads them: project permis
 | `prompt_suggestion`    | A suggestion's `enable-js` predicate (user or project)      | The predicate source                            | —                      | Settings → Suggestions          |
 | `extension`            | An installed extension folder (user or project)             | Every file in `dist/`, by relative path, sorted | Grant snapshot (below) | Settings → Extensions           |
 
+Extension consent is the one decision the generic `trust.decide` operation cannot grant: it only withdraws it (`rejected`), because consent must name the content hash the user reviewed (`extensions.grantConsent`). A rejected extension is treated as pending review, never silently allowed again, and its row stays so Settings → This project → Trust can list it. Removing a row (`trust.delete`) only returns a resource to unknown.
+
 Skills are not trusted resources: they are instructions, not code or authority, and the [resources reference](../../packages/website/src/content/docs/reference/resources.md) tells users to review repository-controlled ones.
 
 ## When an approval stops applying
@@ -65,4 +67,4 @@ The `extension` grant snapshot lists what the user approved: network origins, ca
 | Decisions and lookups | [`TrustedResourceService`](../../packages/conversation-core/src/conversations/trusted-resource.service.ts)                                                                             |
 | Project file kinds    | [`project-migration/descriptors.ts`](../../packages/workbench-server/src/infrastructure/configuration/project-migration/descriptors.ts)                                                |
 | Prompt suggestions    | [`prompt-suggestion-trust.repository.ts`](../../packages/workbench-server/src/domains/prompt-suggestions/prompt-suggestion-trust.repository.ts)                                        |
-| Extensions            | [`extension-catalog/`](../../packages/workbench-server/src/core-host/extension-catalog/)                                                                                               |
+| Extensions            | [`extension-consent.ts`](../../packages/workbench-server/src/core-host/extension-catalog/extension-consent.ts) (the gate over the service; the catalog in the same folder consults it) |

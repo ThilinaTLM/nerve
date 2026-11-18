@@ -1,3 +1,4 @@
+import { toTrustedDigest } from "@nervekit/contracts/core";
 import { createHash } from "node:crypto";
 import type { TrustedResourceService } from "@nervekit/conversation-core";
 
@@ -26,16 +27,16 @@ export class PromptSuggestionTrustRepository {
       return {
         trustId: createHash("sha256")
           .update(
-            `${sourceKind}\0${resource.path}\0${resource.name}\0${resource.contentDigest}`,
+            `${sourceKind}\0${resource.resourceKey}\0${resource.name}\0${resource.contentDigest}`,
           )
           .digest("hex"),
         resourceId: resource.id,
         sourceKind,
         projectId: resource.projectId ?? undefined,
-        path: resource.path,
-        name: resource.name ?? resource.path,
-        label: resource.name ?? resource.path,
-        predicateHash: resource.contentDigest,
+        path: resource.resourceKey,
+        name: resource.name ?? resource.resourceKey,
+        label: resource.name ?? resource.resourceKey,
+        predicateHash: resource.contentDigest.replace(/^sha256:/, ""),
         status: resource.status === "trusted" ? "allowed" : "denied",
       };
     });
@@ -45,9 +46,9 @@ export class PromptSuggestionTrustRepository {
     this.trust.decide({
       kind: "prompt_suggestion",
       projectId: record.projectId ?? null,
-      path: record.path,
+      resourceKey: record.path,
       name: record.name,
-      contentDigest: record.predicateHash,
+      contentDigest: toTrustedDigest(record.predicateHash),
       status: record.status === "allowed" ? "trusted" : "rejected",
     });
   }

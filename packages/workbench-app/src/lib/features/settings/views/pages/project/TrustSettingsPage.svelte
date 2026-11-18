@@ -1,7 +1,8 @@
 <!--
   Project files that change how agents behave. Each trust domain is reviewed on
-  its own, per machine: capabilities, permissions, and each profile file.
-  Prompt-suggestion JavaScript is allowed or denied by you in Suggestions.
+  its own, per machine: capabilities, permissions, each profile file and each
+  project extension. Prompt-suggestion JavaScript is allowed or denied by you
+  in Suggestions.
 -->
 <script lang="ts">
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
@@ -12,6 +13,10 @@ import { Badge, type BadgeVariant } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { SettingsRow, SettingsSection } from "$lib/presentation/settings";
 import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
+import type { ExtensionCatalogEntry } from "@nervekit/contracts/extensions";
+import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
+import ExtensionConsentDialog from "../extensions/ExtensionConsentDialog.svelte";
+import { installedProblem } from "../extensions/extensions-view";
 import ProfileTrustReviewDialog from "../agent-profiles/ProfileTrustReviewDialog.svelte";
 import ConfigurationRepairDialog from "../capabilities/ConfigurationRepairDialog.svelte";
 import {
@@ -48,6 +53,20 @@ $effect(() => agentDocument.observe());
 $effect(() => {
   ensureProfilesFor("project", projectId);
 });
+const extensions = new ScopedExtensionsState();
+$effect(() => {
+  if (projectId) void extensions.load({ scope: "project", projectId });
+});
+/** Installed project extensions whose consent is a decision to show: allowed or waiting. */
+const projectExtensions = $derived(
+  (extensions.view?.catalog ?? []).filter(
+    (entry) =>
+      entry.source === "project" &&
+      (entry.state === "enabled" || entry.state === "pending_consent"),
+  ),
+);
+let extensionReview = $state<ExtensionCatalogEntry>();
+let extensionReviewOpen = $state(false);
 const profileFiles = $derived(
   agentProfilesState.scope === "project" &&
     agentProfilesState.projectId === projectId
@@ -198,6 +217,53 @@ async function trustProfile(): Promise<void> {
 </SettingsSection>
 
 <SettingsSection
+  id="project-extensions"
+  title="Project extensions"
+  description="Extensions installed in this project's .nerve/extensions. Any change to one asks again."
+  divided
+>
+  {#each projectExtensions as entry (entry.path ?? entry.id)}
+    <SettingsRow
+      label={entry.name ?? entry.id}
+      description={installedProblem(entry) ??
+        entry.path ??
+        `.nerve/extensions/${entry.id}`}
+    >
+      {#snippet badges()}
+        <Badge variant={entry.state === "enabled" ? "success" : "warning"}
+          >{entry.state === "enabled" ? "Trusted" : "Needs review"}</Badge
+        >
+      {/snippet}
+      {#snippet control()}
+        {#if entry.state === "enabled"}
+          <Button
+            size="sm"
+            variant="ghost"
+            class="text-muted-foreground"
+            disabled={extensions.saving}
+            onclick={() => void extensions.revokeConsent(entry)}
+            ><ShieldOff class="size-3.5" aria-hidden="true" />Revoke trust</Button
+          >
+        {:else if entry.consent}
+          <Button
+            size="sm"
+            variant="outline"
+            onclick={() => {
+              extensionReview = entry;
+              extensionReviewOpen = true;
+            }}>Review and trust</Button
+          >
+        {/if}
+      {/snippet}
+    </SettingsRow>
+  {:else}
+    <p class="px-3 py-3 text-ui text-muted-foreground">
+      No project extensions.
+    </p>
+  {/each}
+</SettingsSection>
+
+<SettingsSection
   id="suggestion-scripts"
   title="Prompt suggestions"
   description="JavaScript conditions in suggestions are allowed or denied per suggestion in Suggestions. That choice is yours, not the project's."
@@ -209,6 +275,12 @@ async function trustProfile(): Promise<void> {
   />
 </SettingsSection>
 
+<ExtensionConsentDialog
+  bind:open={extensionReviewOpen}
+  entry={extensionReview}
+  busy={extensions.saving}
+  onAllow={(entry) => void extensions.grantConsent(entry)}
+/>
 <ProfileTrustReviewDialog
   bind:open={reviewOpen}
   profile={reviewProfile}

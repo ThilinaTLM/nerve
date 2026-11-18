@@ -26,10 +26,13 @@ import {
   createHostExtensionCatalog,
   hostRegistry,
 } from "../../../src/core-host/host-tools.js";
-import { ExtensionTrust } from "../../../src/core-host/extension-catalog/extension-trust.js";
 import { agentTextLimits } from "../../../src/core-host/extension-catalog/agent-text-limits.js";
 import { extensionMethodHandlers } from "../../../src/adapters/protocol/handlers/extension-method-handlers.js";
-import { fixtureBackend, writeExtension } from "./fixtures.js";
+import {
+  fixtureBackend,
+  writeExtension,
+  createTestCatalog,
+} from "./fixtures.js";
 
 const skip = !sandbox.isPersistentAvailable();
 let root = "";
@@ -60,7 +63,7 @@ void test(
   async () => {
     const { home, userRoot } = await world();
     await writeExtension(userRoot, { id: "flow" });
-    const catalog = createHostExtensionCatalog({ home });
+    const catalog = createTestCatalog({ home });
     let changes = 0;
     catalog.subscribe(() => changes++);
     const entryOf = async () =>
@@ -116,7 +119,7 @@ void test(
           toolPrefix: "same",
         }).replace("Ping the probe.", description),
       );
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: { decide: () => "trusted" },
     });
@@ -180,7 +183,7 @@ void test(
       join(userRoot, "attr", "dist", "docs", "intro.md"),
       "Intro text.",
     );
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: { decide: () => "trusted" },
     });
@@ -242,7 +245,7 @@ void test(
       ).description = long(agentTextLimits.toolDescription + 1);
     });
     await writeExtension(userRoot, { id: "terse" });
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: { decide: () => "trusted" },
     });
@@ -318,6 +321,16 @@ void test("no agent-reachable surface can grant consent", async () => {
   assert.equal(consentOperations.length, 3);
   for (const operation of consentOperations)
     assert.deepEqual(operation.allowedTargetRoles, ["workbench_server"]);
+  // Every trust decision operation (all kinds) is addressed to the workbench server only.
+  const trustOperations = allOperationDefinitions().filter((operation) =>
+    operation.method.startsWith("trust."),
+  );
+  assert.deepEqual(
+    trustOperations.map((operation) => operation.method).sort(),
+    ["trust.decide", "trust.delete", "trust.list"],
+  );
+  for (const operation of trustOperations)
+    assert.deepEqual(operation.allowedTargetRoles, ["workbench_server"]);
   // The UI bridge operations (frames asking the daemon for files and backend calls) are app calls too.
   const uiOperations = allOperationDefinitions().filter((operation) =>
     operation.method.startsWith("extensions.ui."),
@@ -355,7 +368,7 @@ void test("no agent-reachable surface can grant consent", async () => {
       } else if (/\.ts$/.test(entry.name) && !/\.test\.ts$/.test(entry.name)) {
         const text = await readFile(path, "utf8");
         if (
-          /grantConsent|revokeConsent|ExtensionManagement|extensions\.ui\./.test(
+          /grantConsent|revokeConsent|ExtensionManagement|extensions\.ui\.|TrustedResource|trusted_resource|trust\.decide/.test(
             text,
           )
         )
@@ -376,7 +389,7 @@ void test(
     const { home, project } = await world();
     const p = await project("api");
     await writeExtension(p.root, { id: "api-ext" });
-    const catalog = createHostExtensionCatalog({ home });
+    const catalog = createTestCatalog({ home });
     const views: unknown[] = [];
     const state = {
       conversationCore: {
@@ -457,8 +470,14 @@ void test(
   },
 );
 
-void test("the host's trust gate is the file-backed ExtensionTrust", () => {
-  const catalog = createHostExtensionCatalog({ home: join(root, "gate-home") });
-  assert.ok(catalog);
-  assert.ok(new ExtensionTrust({ configDir: root }));
+void test("without a consent store nothing installed runs", async () => {
+  const { userRoot } = await world();
+  await writeExtension(userRoot, { id: "unconsented" });
+  const catalog = createHostExtensionCatalog({
+    home: join(userRoot, "..", ".."),
+  });
+  assert.equal(
+    (await catalog.entries()).find((e) => e.id === "unconsented")?.state,
+    "pending_consent",
+  );
 });

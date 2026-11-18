@@ -30,12 +30,12 @@ export type ExtensionTrustVerdict = {
 /** Which installed extension a consent operation is about. */
 export type InstalledExtensionKey = Pick<
   InstalledExtensionCandidate,
-  "id" | "source" | "folder"
+  "id" | "source" | "folder" | "projectDir"
 >;
 
 /**
  * Consulted before an installed extension is included in any registry, and before its code is
- * opened. The host's gate is `ExtensionTrust`; consent and the enabled switch change only through
+ * opened. The host's gate is `ExtensionConsentRepository`; consent and the enabled switch change only through
  * the operations here, which the catalog exposes to the user's Settings page and to nothing else.
  */
 export interface ExtensionTrustGate {

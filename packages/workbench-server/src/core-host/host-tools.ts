@@ -12,8 +12,10 @@ import {
   ExtensionCatalog,
   type ExtensionCatalogOptions,
 } from "./extension-catalog/extension-catalog.js";
-import { ExtensionTrust } from "./extension-catalog/extension-trust.js";
-import { join } from "node:path";
+import {
+  ExtensionConsentRepository,
+  type ExtensionConsentSources,
+} from "./extension-catalog/extension-consent.js";
 import {
   createQuickScriptRegistry,
   routedExtensionCode,
@@ -43,19 +45,26 @@ export const hostRegistry = createQuickScriptRegistry(builtinExtensions, {
  * per project, the project's own. The registries it composes are what conversations read;
  * `hostRegistry` is its built-ins-only base.
  */
-export function createHostExtensionCatalog(
-  options: Pick<ExtensionCatalogOptions, "home"> &
-    Partial<
-      Pick<ExtensionCatalogOptions, "trustGate" | "warn" | "nerveVersion">
-    >,
-): ExtensionCatalog {
+export function createHostExtensionCatalog({
+  consent,
+  ...options
+}: Pick<ExtensionCatalogOptions, "home"> &
+  Partial<
+    Pick<ExtensionCatalogOptions, "trustGate" | "warn" | "nerveVersion">
+  > & {
+    /** Where consent is stored; without it (and a `trustGate`) no installed extension runs. */
+    consent?: ExtensionConsentSources;
+  }): ExtensionCatalog {
   return new ExtensionCatalog({
     ...options,
     nerveVersion: options.nerveVersion ?? nerveVersion,
-    // Consent and the on/off switch live in `<home>/config/extension-trust.json`.
-    trustGate:
-      options.trustGate ??
-      new ExtensionTrust({ configDir: join(options.home, "config") }),
+    // Consent lives in the core's `trusted_resource` table.
+    ...(options.trustGate || consent
+      ? {
+          trustGate:
+            options.trustGate ?? new ExtensionConsentRepository(consent!),
+        }
+      : {}),
     builtins: {
       definitions: builtinExtensions,
       readAsset: readBuiltinExtensionAsset,

@@ -1,3 +1,5 @@
+import { consentSourcesOf } from "../../core-host/extension-catalog/extension-consent.js";
+import { toTrustedDigest } from "@nervekit/contracts/core";
 import {
   createdPrReference,
   referenceMatchesRepository,
@@ -86,6 +88,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     deps.extensionCatalog ??
     createHostExtensionCatalog({
       home: storage.paths.home,
+      consent: consentSourcesOf(() => conversationCore),
       warn: (message, data) => void logger.warn(message, { context: { data } }),
     });
   const activities = new ActivityService((activity, removed) =>
@@ -377,7 +380,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
             "project_capabilities",
             projectId,
             path,
-            digest,
+            toTrustedDigest(digest),
           ),
         tools: allToolDescriptors(),
         skills: async (scope) =>

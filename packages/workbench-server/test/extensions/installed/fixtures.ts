@@ -1,4 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import {
+  CoreStorage,
+  TrustedResourceService,
+  migrate,
+  openCoreDatabase,
+} from "@nervekit/conversation-core";
+import type { ExtensionConsentSources } from "../../../src/core-host/extension-catalog/extension-consent.js";
+import { createHostExtensionCatalog } from "../../../src/core-host/host-tools.js";
 import { join } from "node:path";
 
 export type FixtureOptions = {
@@ -335,4 +343,36 @@ export async function writeExtension(
     );
   }
   return folder;
+}
+
+/** Consent stored in an in-memory core database, with projects registered on first sight. */
+export function testConsent(): ExtensionConsentSources {
+  const database = openCoreDatabase(":memory:");
+  migrate(database);
+  const storage = new CoreStorage(database);
+  const trust = new TrustedResourceService(storage, () =>
+    new Date().toISOString(),
+  );
+  return {
+    trust: () => trust,
+    projectIdOf: (directory) => {
+      const id = `project:${directory}`;
+      if (!storage.projects.get(id))
+        storage.projects.insert({
+          id,
+          name: directory,
+          directory,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      return id;
+    },
+  };
+}
+
+/** A host catalog whose consent store is in memory. */
+export function createTestCatalog(
+  options: Parameters<typeof createHostExtensionCatalog>[0],
+) {
+  return createHostExtensionCatalog({ consent: testConsent(), ...options });
 }

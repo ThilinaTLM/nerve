@@ -1,3 +1,4 @@
+import { toTrustedDigest } from "@nervekit/contracts/core";
 import { readFile } from "node:fs/promises";
 import type { ExtensionTarget } from "@nervekit/contracts/extensions";
 import type { InstalledExtensionRef } from "../../../core-host/extension-catalog/extension-catalog.js";
@@ -129,8 +130,8 @@ export const extensionMethodHandlers = define({
         kind: "project_capabilities",
         projectId: input.projectId,
         name: "Extension settings",
-        path: read.path,
-        contentDigest: input.expectedDigest,
+        resourceKey: read.path,
+        contentDigest: toTrustedDigest(input.expectedDigest),
         status: input.trusted ? "trusted" : "rejected",
       });
       return "saved";

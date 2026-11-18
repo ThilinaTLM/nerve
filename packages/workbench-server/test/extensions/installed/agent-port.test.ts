@@ -8,13 +8,12 @@ import {
   createSdkEnvironment,
   findSdkMethod,
 } from "@nervekit/tools/quick-script/testing";
-import { createHostExtensionCatalog } from "../../../src/core-host/host-tools.js";
 import {
   ExtensionErrorLog,
   maxErrorsPerExtension,
   maxTrackedExtensions,
 } from "../../../src/core-host/extension-catalog/extension-errors.js";
-import { writeExtension } from "./fixtures.js";
+import { writeExtension, createTestCatalog } from "./fixtures.js";
 
 const skip = !sandbox.isPersistentAvailable();
 let root = "";
@@ -59,7 +58,7 @@ void test(
     await mkdir(userRoot, { recursive: true });
     await mkdir(projectDir, { recursive: true });
     await writeExtension(userRoot, { id: "flow" });
-    const catalog = createHostExtensionCatalog({ home });
+    const catalog = createTestCatalog({ home });
     const port = catalog.agentPort({ projectDir, switchOf: () => false });
     const registry = await catalog.registryFor(projectDir);
     const env = createSdkEnvironment({
@@ -132,7 +131,7 @@ void test(
     const userRoot = join(home, "agent", "extensions");
     await mkdir(userRoot, { recursive: true });
     await writeExtension(userRoot, { id: "flow" });
-    const catalog = createHostExtensionCatalog({
+    const catalog = createTestCatalog({
       home,
       trustGate: { decide: () => "trusted" },
     });

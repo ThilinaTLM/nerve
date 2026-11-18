@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { openCoreDatabase, type CoreDatabase } from "./database.js";
 import { coreSchemaV1 } from "./schema.js";
+import { applyCoreSchemaV2 } from "./schema-v2.js";
 import { coreMigrations, migrate } from "./migrations.js";
 
 const checksum = (sql: string) =>
@@ -105,12 +106,20 @@ test("empty released core upgrades to the identical fresh D10 schema, preserving
       upgraded.sqlite.prepare("SELECT kind FROM trusted_resource").get()?.kind,
       "agent_profile",
     );
-    assert.throws(
-      () =>
-        upgraded.sqlite.exec(
-          "UPDATE trusted_resource SET kind='subagent_profile'",
-        ),
-      /CHECK/,
+    assert.deepEqual(
+      { ...upgraded.sqlite.prepare("SELECT * FROM trusted_resource").get() },
+      {
+        id: "trust",
+        kind: "agent_profile",
+        project_id: "p",
+        resource_key: "/profiles.json",
+        name: "Review",
+        content_digest: "sha256:digest",
+        status: "trusted",
+        grants: null,
+        created_at: "now",
+        updated_at: "now",
+      },
     );
     assert.deepEqual(
       upgraded.sqlite.prepare("PRAGMA foreign_key_check").all(),
@@ -215,7 +224,7 @@ test("v3 removes command preparation columns and keeps queued prompts", () => {
     assert.equal(
       fresh.sqlite.prepare("SELECT max(version) v FROM schema_migrations").get()
         ?.v,
-      3,
+      coreMigrations.length,
     );
     assert.equal(columns(fresh).includes("command_preparation"), false);
     assert.equal(columns(fresh).includes("prepared_text"), false);
@@ -273,5 +282,57 @@ test("v3 removes command preparation columns and keeps queued prompts", () => {
   } finally {
     fresh.close();
     upgraded.close();
+  }
+});
+
+test("trust v3 rebuild renames path, prefixes raw digests, drops skills and keeps the rest", () => {
+  const db = openCoreDatabase(":memory:");
+  try {
+    seedV1(db);
+    // Start from the state released with v0.41.1: ledger entries 1 to 3 only.
+    const released = coreMigrations.slice(0, 3);
+    db.sqlite.exec("DELETE FROM trusted_resource");
+    for (const step of released.slice(1)) {
+      if (step.version === 2) applyCoreSchemaV2(db);
+      else db.sqlite.exec(step.sql);
+      db.sqlite
+        .prepare("INSERT INTO schema_migrations VALUES (?, ?, ?, 'then')")
+        .run(step.version, step.name, checksum(step.sql));
+    }
+    const raw = "a".repeat(64);
+    const insert = db.sqlite.prepare(
+      "INSERT INTO trusted_resource VALUES (?, ?, ?, ?, ?, ?, 'trusted', 'now', 'now')",
+    );
+    insert.run("1", "prompt_suggestion", null, "/s.md", "s", raw);
+    insert.run("2", "project_permissions", "p", "/perm", null, `sha256:${raw}`);
+    insert.run("3", "project_capabilities", "p", "/agent", null, raw);
+    insert.run("4", "agent_profile", "p", "/prof", "prof", raw);
+    insert.run("5", "skill", "p", "/skill", "skill", raw);
+    migrate(db);
+    assert.deepEqual(
+      db.sqlite
+        .prepare(
+          "SELECT id, content_digest, grants FROM trusted_resource ORDER BY id",
+        )
+        .all()
+        .map((row) => ({ ...row })),
+      ["1", "2", "3", "4"].map((id) => ({
+        id,
+        content_digest: `sha256:${raw}`,
+        grants: null,
+      })),
+    );
+    assert.throws(
+      () => db.sqlite.exec("UPDATE trusted_resource SET grants='{'"),
+      /CHECK/,
+    );
+    assert.throws(
+      () => db.sqlite.exec("UPDATE trusted_resource SET status='x'"),
+      /CHECK/,
+    );
+    // Kinds are not constrained by SQL: a new kind needs no rebuild.
+    db.sqlite.exec("UPDATE trusted_resource SET kind='future' WHERE id='1'");
+  } finally {
+    db.close();
   }
 });
