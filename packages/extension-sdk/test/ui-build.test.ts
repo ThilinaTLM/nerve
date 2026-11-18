@@ -74,7 +74,7 @@ for (const { kind, section, id } of frameKinds)
       const frame = join(distDir, "ui", id);
       const html = await readFile(join(frame, "index.html"), "utf8");
       // The frame's CSP has no 'unsafe-inline' for scripts: one external module script, no inline code.
-      const scripts = [...html.matchAll(/<script\b([^>]*)>([^<]*)<\/script>/g)];
+      const scripts = [...html.matchAll(/<script\b([^>]*)>([^<]*)<\/script>/gi)];
       assert.equal(scripts.length, 1);
       assert.match(scripts[0]![1]!, /type="module"/);
       assert.match(scripts[0]![1]!, /src="\.\/assets\/[^"]+\.js"/);

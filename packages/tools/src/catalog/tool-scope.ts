@@ -13,7 +13,9 @@ const scopes = new Map<string, ReadonlyMap<string, ToolDefinition>>();
 /** Project directories are keys: compare them by their normalized path. */
 export function toolScopeKey(projectDir?: string): string {
   if (!projectDir) return "";
-  return projectDir.length > 1 ? projectDir.replace(/\/+$/, "") : projectDir;
+  let end = projectDir.length;
+  while (end > 1 && projectDir[end - 1] === "/") end--;
+  return projectDir.slice(0, end);
 }
 
 /** Replaces the tools of one scope (a project's installed extensions after a composition or reload). */
