@@ -5,7 +5,7 @@ export default defineExtension({
   apiVersion: 1,
   name: "Paper Theme",
   description: "A colour theme.",
-  icon: "palette",
+  icon: "blocks",
   enabledByDefault: true,
   settings: { version: 1, fields: {} },
   namespaces: [],

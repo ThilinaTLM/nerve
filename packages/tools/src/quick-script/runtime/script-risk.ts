@@ -122,10 +122,12 @@ export function quickScriptRiskOfToolRisk(risk: ToolRisk): QuickScriptRisk {
 
 /** Risk of one nested call: the direct tool's argument-aware risk, so `comments.add` is a write while a delete is destructive. */
 export function quickScriptToolRisk(
-  toolName: ToolName,
+  toolName: ToolName | string,
   args: Record<string, unknown> = {},
+  /** The project directory whose installed extensions' direct tools are looked up. */
+  scope?: string,
 ): QuickScriptRisk {
-  return quickScriptRiskOfToolRisk(classifyToolRisk(toolName, args));
+  return quickScriptRiskOfToolRisk(classifyToolRisk(toolName, args, scope));
 }
 
 /** Risk a method's declaration stands for on the quick-script scale. */

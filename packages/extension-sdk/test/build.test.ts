@@ -154,6 +154,29 @@ void test("a folder named differently from the id is refused", async () => {
   });
 });
 
+void test("an icon outside the host's list is a build problem", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "icons",
+      kind: "page",
+      cwd: root,
+    });
+    const file = join(folder, "src", "extension.ts");
+    await writeFile(
+      file,
+      (await readFile(file, "utf8")).replace(
+        /icon: "[a-z-]+",\n {2}enabledByDefault/,
+        'icon: "palette",\n  enabledByDefault',
+      ),
+    );
+    const problems = await problemsOf(() =>
+      buildExtension({ projectDir: folder }),
+    );
+    assert.match(problems[0]!.what, /Unknown icon 'palette'/);
+    assert.match(problems[0]!.fix, /blocks/);
+  });
+});
+
 void test("docs and the icon are copied and checked", async () => {
   await withTemp(async (root) => {
     const folder = await initExtension({
@@ -197,4 +220,13 @@ void test("docs and the icon are copied and checked", async () => {
       /<svg/,
     );
   });
+});
+
+void test("scaffolded frames use no <form>: the frame sandbox has no allow-forms", async () => {
+  const { projectTemplate } = await import("../src/templates.ts");
+  for (const kind of extensionKinds)
+    for (const [file, text] of Object.entries(
+      projectTemplate("probe", kind, "0.0.0"),
+    ))
+      assert.ok(!text.includes("<form"), `${kind}: ${file} uses <form>`);
 });

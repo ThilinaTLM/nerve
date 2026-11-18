@@ -11,6 +11,7 @@ import {
   type ExtensionDefinitionData,
 } from "@nervekit/extension-api";
 import {
+  extensionLucideIconSchema,
   extensionUiLimits,
   installedExtensionManifestSchema,
   type InstalledExtensionManifest,
@@ -239,6 +240,15 @@ async function copyAssets(
   if (await exists(join(projectDir, "docs")))
     await cp(join(projectDir, "docs"), join(distDir, "docs"), {
       recursive: true,
+    });
+  if (
+    !manifest.icon.endsWith(".svg") &&
+    !extensionLucideIconSchema.safeParse(manifest.icon).success
+  )
+    problems.push({
+      what: `Unknown icon '${manifest.icon}'.`,
+      where: `src/extension.ts: icon: ${JSON.stringify(manifest.icon)}`,
+      fix: `Use one of ${extensionLucideIconSchema.options.join(", ")}, or an icon.svg in the extension folder. (Pages and panels may name other icons in their own \`icon\` field.)`,
     });
   if (manifest.icon.endsWith(".svg")) {
     const source = join(projectDir, manifest.icon);

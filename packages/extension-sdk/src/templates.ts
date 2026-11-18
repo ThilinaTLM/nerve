@@ -245,7 +245,7 @@ export function parseCsv(text: string, delimiter = ","): string[][] {
 function previewKind(id: string): Template {
   return {
     ...uiExtension(id, {
-      icon: "table",
+      icon: "eye",
       description: "Shows CSV and TSV files as a table.",
       note: `  // A preview that edits its own file: set \`edit: "custom"\` below, then use host.file.write(...)
   // and the \`mode\` store in the component. Without it, Nerve's source editor edits the file.`,
@@ -363,7 +363,7 @@ describe("table preview", () => {
 function pageKind(id: string): Template {
   return {
     ...uiExtension(id, {
-      icon: "layout-dashboard",
+      icon: "layers",
       description: "A page that shows the project and opens files.",
       ui: `{
     pages: [
@@ -431,7 +431,7 @@ describe("page", () => {
 function panelKind(id: string): Template {
   return {
     ...uiExtension(id, {
-      icon: "list-checks",
+      icon: "blocks",
       description: "A side panel with a checklist that keeps its state.",
       ui: `{
     panels: [
@@ -471,14 +471,15 @@ function panelKind(id: string): Template {
 </script>
 
 <div class="flex h-screen flex-col gap-2 bg-panel p-3 text-foreground">
-  <form class="flex gap-2" onsubmit={(event) => { event.preventDefault(); add(); }}>
+  <div class="flex gap-2">
     <input
       class="h-control min-w-0 flex-1 rounded-md border border-input bg-input-background px-2 text-ui"
       placeholder="Add an item"
       bind:value={draft}
+      onkeydown={(event) => { if (event.key === "Enter") add(); }}
     />
-    <Button type="submit">Add</Button>
-  </form>
+    <Button onclick={add}>Add</Button>
+  </div>
   <ul class="min-h-0 flex-1 overflow-auto">
     {#each items as item}
       <li class="flex items-center gap-2 py-1 text-ui">
@@ -538,7 +539,7 @@ const themeTokens = {
 function themeKind(id: string): Template {
   return {
     ...uiExtension(id, {
-      icon: "palette",
+      icon: "blocks",
       description: "A colour theme.",
       ui: `{
     themes: [

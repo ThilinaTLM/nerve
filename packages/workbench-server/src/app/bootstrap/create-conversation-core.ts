@@ -59,7 +59,6 @@ import {
   classifyQuickScriptArguments,
   quickScriptToolRisk,
 } from "@nervekit/tools/quick-script";
-import type { ToolName } from "@nervekit/contracts/tools";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
 import { createVisionHost } from "../../core-host/vision-models.js";
@@ -362,8 +361,9 @@ export function createConversationCore(
                         scriptRisk: quickScript
                           ? scriptRisk!
                           : quickScriptToolRisk(
-                              input.toolName as ToolName,
+                              input.toolName,
                               input.args as Record<string, unknown>,
+                              input.projectDir ?? input.cwd,
                             ),
                       },
                     },

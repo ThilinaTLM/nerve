@@ -5,7 +5,7 @@ export default defineExtension({
   apiVersion: 1,
   name: "CSV Preview",
   description: "Shows CSV and TSV files as a table.",
-  icon: "table",
+  icon: "eye",
   enabledByDefault: true,
   settings: { version: 1, fields: {} },
   namespaces: [],

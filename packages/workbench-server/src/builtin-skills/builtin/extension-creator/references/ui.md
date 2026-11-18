@@ -24,8 +24,44 @@ A project is always open: user extensions contribute to every project, project e
 
 Read with `host.file.text()` or `host.file.bytes()` (chunked) and reload on `host.onFileChange`. Keep reading on demand for large files with `host.file.read({ offset, length })`. In custom edit mode, write the whole new content and let the host own saving and the dirty state.
 
-```svelte
+A custom-edit preview, reduced to the parts that matter:
 
+```svelte
+<script lang="ts">
+import { Button, host, mode } from "@nervekit/extension-sdk/ui";
+
+let text = $state("");
+let dirty = $state(false);
+
+async function load() {
+  text = await host.file.text();
+  dirty = false;
+}
+
+$effect(() => {
+  void load();
+  // Keep unsaved edits when the file changes on disk.
+  return host.onFileChange(() => {
+    if (!dirty) void load();
+  });
+});
+
+async function save() {
+  await host.file.write(text);
+  dirty = false;
+  host.ui.notify("Saved", "success");
+}
+</script>
+
+{#if $mode === "edit"}
+  <textarea
+    class="h-full w-full bg-background text-ui"
+    bind:value={text}
+    oninput={() => (dirty = true)}></textarea>
+  <Button size="sm" disabled={!dirty} onclick={save}>Save</Button>
+{:else}
+  <pre class="text-ui">{text}</pre>
+{/if}
 ```
 
 ## Bridge API
@@ -73,7 +109,7 @@ The build fails with a fix for imports that cannot work inside a frame rectangle
 | Context menu, dropdown menu | `host.ui.showMenu(items, { x, y })`       |
 | Sonner or other toasts      | `host.ui.notify(message, level)`          |
 
-Also unavailable: network (`fetch`, WebSocket), top navigation, popups, forms posting out, and anything outside the frame's rectangle. `Select` and `Tooltip` work but are clipped to the frame.
+Also unavailable: network (`fetch`, WebSocket), top navigation, popups, `<form>` submission (the frame is sandboxed without `allow-forms`, so `onsubmit` never fires: use `onclick` and `onkeydown` handlers), and anything outside the frame's rectangle. `Select` and `Tooltip` work but are clipped to the frame.
 
 ## Tests
 
