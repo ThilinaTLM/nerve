@@ -5,7 +5,8 @@ A Nerve home holds the server's persistent data and operational files. Conversat
 ```mermaid
 flowchart TD
   home[NERVE_HOME] --> identity[Manifest and daemon discovery]
-  home --> config[config/ and agent/: settings and authored resources]
+  home --> agent[agent/: authored resources]
+  home --> config[config/: settings documents]
   home --> secrets[secrets/ and tls/: credentials and TLS material]
   home --> data[data/]
   data --> db[SQLite: core records, history, unfinished work]
@@ -23,6 +24,36 @@ flowchart TD
 The home defaults to `~/.nerve`; `NERVE_HOME` selects another location. Development uses repo-local slots so ordinary testing stays isolated from the live home. The manifest identifies the storage format, and daemon discovery describes the running server.
 
 The diagram groups stable areas; exact paths belong to the host's path resolver. Recovery areas preserve evidence and damaged sources, while caches can be rebuilt. This distinction matters when deciding what a cleanup operation may safely remove. Home admission and conversion follow [storage migrations](migrations.md).
+
+## Home layout
+
+Every file a feature stores belongs to exactly one area, chosen by who writes it:
+
+| Area                                                                            | Holds                                                                                                                                                                    | Written by            | Project form                |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- | --------------------------- |
+| `agent/`                                                                        | **Authored resources**: files a user or agent writes and can copy between homes and projects. One folder per kind, plus `AGENTS.md`, `SYSTEM.md` and `APPEND_SYSTEM.md`. | User, agent, Settings | `.nerve/<kind>/`, same name |
+| `config/`                                                                       | **Settings documents**: JSON with a schema, a revision and [settings health](#settings-health), edited through Settings.                                                 | Settings, by hand     | `.nerve/config/`            |
+| `data/`                                                                         | **Nerve-owned state**: SQLite (history, unfinished work, every [trust decision](trust.md)), conversation files, images, plans.                                           | Nerve only            | —                           |
+| `secrets/`, `tls/`                                                              | Credentials and TLS material.                                                                                                                                            | Nerve only            | —                           |
+| `cache/`, `tmp/`, `logs/`, `crashes/`, `backups/`, `migrations/`, `quarantine/` | Operational and recovery files.                                                                                                                                          | Nerve only            | —                           |
+
+The authored resource kinds:
+
+| Kind               | User                    | Project                  |
+| ------------------ | ----------------------- | ------------------------ |
+| Skills             | `agent/skills/`         | `.nerve/skills/`         |
+| Prompt suggestions | `agent/suggestions/`    | `.nerve/suggestions/`    |
+| Agent profiles     | `agent/agent-profiles/` | `.nerve/agent-profiles/` |
+| Extensions         | `agent/extensions/`     | `.nerve/extensions/`     |
+| Launch definitions | —                       | `.nerve/launches/`       |
+
+Rules:
+
+1. **One name per kind.** A user resource lives at `<NERVE_HOME>/agent/<kind>/` and its project form at `<project>/.nerve/<kind>/`. A new resource kind follows this pattern. _Why:_ users and the agent find every kind the same way, and copying a folder between the two places is how resources are shared.
+2. **Exceptions are listed here.** Launch definitions are project only. Permission rule sets are user only and stay in `config/rule-sets/`, because they are settings-edited policy, not portable resources.
+3. **`.agents/` is for cross-tool formats only** (skills today, at `~/.agents/skills` and `<project>/.agents/skills`). Nerve-only kinds never go there.
+4. **Trust is never a file.** Approvals of resources live in SQLite under `data/` ([trust](trust.md)); a resource folder holds only its own content.
+5. **Nerve-owned state never goes in `agent/` or `config/`,** and authored resources never go in `data/`, so cleanup, backup and sharing can treat each area as a whole.
 
 ## SQLite and managed files
 

@@ -4,7 +4,7 @@ A **profile** is a named, reusable agent definition containing instructions and 
 
 ## Catalog and applied snapshots
 
-User definitions live in `<NERVE_HOME>/data/agent-profiles/<name>.json`; project definitions live in `<project>/.nerve/agent-profiles/<name>.json`. See [storage](../storage.md) for the home layout and [configuration](../configuration.md) for scope ownership.
+User definitions live in `<NERVE_HOME>/agent/agent-profiles/<name>.json`; project definitions live in `<project>/.nerve/agent-profiles/<name>.json`. See [storage](../storage.md) for the home layout and [configuration](../configuration.md) for scope ownership.
 
 A same-name project definition replaces the whole user or built-in definition, so one profile has one coherent source. An invalid, disabled or untrusted replacement stays unavailable rather than exposing a lower definition with potentially different behavior. Unrelated malformed profiles remain isolated so one broken entry does not disable the catalog.
 
