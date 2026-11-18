@@ -24,6 +24,8 @@ export const SAMPLES: Record<string, unknown[][]> = {
   "search.web": [["nerve"], [{ query: "nerve", limit: 20 }]],
   "extensions.reload": [["csv-viewer"], [{ id: "csv-viewer" }]],
   "extensions.status": [["csv-viewer"]],
+  "configuration.reload": [["project"], [{ scope: "user" }]],
+  "configuration.status": [["user"]],
   "sdk.list": [[]],
   "sdk.describe": [["jira.issues"]],
   "sdk.search": [["sprint"], ["sprint", { in: "jira", offset: 0 }]],
