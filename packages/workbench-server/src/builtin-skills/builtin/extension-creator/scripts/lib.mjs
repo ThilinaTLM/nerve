@@ -1,12 +1,13 @@
 // Shared by create-extension.mjs and upgrade-extension.mjs. Plain Node, no dependencies.
 //
 // Maintainer note. The SDK version is Nerve's version, found in this order:
-//   1. NERVE_EXTENSION_SDK_SPEC: an npm spec used verbatim (a tarball path or a dist-tag). It
-//      replaces the registry version for `init` and for the project's dependency. Use it before
-//      the SDK is published: `npm pack` the SDK, then point the variable at the tarball. If the
-//      SDK's own dependencies (@nervekit/extension-api, @nervekit/ui-kit) are not published
-//      either, also set NERVE_EXTENSION_NPM_OVERRIDES to a JSON object (package -> spec); it is
-//      written to the project's package.json "overrides".
+//   1. NERVE_EXTENSION_SDK_SPEC: an npm spec used verbatim (a `file:` folder, a tarball path or a
+//      dist-tag). It replaces the registry version for `init` and for the project's dependency.
+//      Dev slots set it to `file:<repo>/packages/extension-sdk` (the checkout's SDK, linked; its
+//      dependencies resolve through the workspace). For a packed SDK whose dependencies
+//      (@nervekit/extension-api, @nervekit/ui-kit) are not published, also set
+//      NERVE_EXTENSION_NPM_OVERRIDES to a JSON object (package -> spec); it is written to the
+//      project's package.json "overrides".
 //   2. scripts/nerve-version.json ({ "version": "x.y.z" }), written next to this file when the
 //      skill is copied into dist (scripts/build/copy-skills-assets.ts), so installed Nerve
 //      builds and the desktop bundle carry the version they were built from.
