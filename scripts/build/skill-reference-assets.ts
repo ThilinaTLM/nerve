@@ -2,7 +2,7 @@
 // runtime, so exact shapes ship as generated files instead of prose: JSON Schemas from the zod
 // schemas in `packages/contracts` and the public `.d.ts` files of the extension API and SDK.
 import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import ts from "typescript";
 import { z } from "zod";
 import {
@@ -81,6 +81,9 @@ async function declarationFiles(dir: string): Promise<string[]> {
     .map((entry) => relative(dir, join(entry.parentPath, entry.name)));
 }
 
+/** Map keys are compared with `/`-separated names, also on Windows. */
+const posixPath = (path: string) => path.split(sep).join("/");
+
 async function copyDeclarations(
   from: string,
   to: string,
@@ -101,6 +104,8 @@ const sdkEntries = ["index.ts", "testing.ts", "ui.ts"];
  */
 function emitSdkDeclarations(sdkDir: string): Map<string, string> {
   const src = join(sdkDir, "src");
+  // Never written: emit goes to the callback below.
+  const outDir = join(sdkDir, "declarations");
   const config = ts.getParsedCommandLineOfConfigFile(
     join(sdkDir, "tsconfig.json"),
     {},
@@ -115,7 +120,7 @@ function emitSdkDeclarations(sdkDir: string): Map<string, string> {
     emitDeclarationOnly: true,
     declarationMap: false,
     noEmitOnError: false,
-    outDir: "/__sdk__",
+    outDir,
     rootDir: src,
   };
   const program = ts.createProgram(
@@ -124,11 +129,15 @@ function emitSdkDeclarations(sdkDir: string): Map<string, string> {
   );
   const files = new Map<string, string>();
   program.emit(undefined, (fileName, text) => {
-    files.set(relative("/__sdk__", fileName), text);
+    files.set(posixPath(relative(outDir, fileName)), text);
   });
   for (const source of program.getSourceFiles())
-    if (source.isDeclarationFile && source.fileName.startsWith(`${src}/`))
-      files.set(relative(src, source.fileName), source.text);
+    if (source.isDeclarationFile) {
+      // TypeScript reports forward-slash paths on every platform; `relative` accepts both.
+      const path = relative(src, source.fileName);
+      if (!path.startsWith("..") && !isAbsolute(path))
+        files.set(posixPath(path), source.text);
+    }
   return files;
 }
 
