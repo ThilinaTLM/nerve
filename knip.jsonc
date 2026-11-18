@@ -58,10 +58,12 @@
       "ignoreDependencies": ["tailwindcss"],
     },
     "packages/extension-sdk": {
+      // Public entries are listed from src so results do not depend on a built dist/.
       // assets/ are copied into extension projects (frame.css, vitest config), not imported.
       "entry": [
         "scripts/*.{ts,mjs}",
         "test/**/*.test.ts",
+        "src/{index,build,testing,ui,cli,tools}.ts",
         "assets/frame.css",
         "assets/vitest.config.mjs",
       ],
