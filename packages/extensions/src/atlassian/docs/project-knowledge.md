@@ -2,7 +2,7 @@
 
 After exploring a Jira project or Confluence space, offer to save what you learned as a skill so later conversations skip the exploration.
 
-**First step, before writing anything: read `reference/skills.md` of the built-in `configure-nerve` skill (beside its `SKILL.md`; enable the skill in Settings → Skills if it is not listed).** Every skill you save must follow it.
+**First step, before writing anything: read `reference/skills.md` of the built-in `configure-nerve` skill (beside its `SKILL.md`; if it is not in your skill list, ask the user to switch to the Forge profile or enable the skill in Settings → Skills).** Every skill you save must follow it.
 
 ## When and how to offer
 

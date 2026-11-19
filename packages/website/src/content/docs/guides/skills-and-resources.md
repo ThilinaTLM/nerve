@@ -21,7 +21,7 @@ A skill is a Markdown file with a name and a description, which the agent reads 
 2. Add a `SKILL.md` file with a `description`. The folder name, in lowercase with hyphens, is the skill's name.
 3. Open **Settings → Skills** to confirm Nerve found it.
 
-To get started quickly, ask the agent to create a skill for you; the built-in **configure-nerve** skill is on by default and knows how. Enable the built-in **engineering-docs** skill to have the agent write, maintain, or audit your project's architecture docs and proposals. Ask the agent to [build an extension](/guides/build-extensions/) and it uses **configure-nerve**.
+To get started quickly, switch to the **Forge** profile and ask the agent to create a skill for you. Enable the built-in **engineering-docs** skill to have the agent write, maintain, or audit your project's architecture docs and proposals. The same profile [builds extensions](/guides/build-extensions/).
 
 If two skills share a name, the project's wins over your own. The [resource reference](/reference/resources/) lists the exact order and discovery rules.
 
@@ -30,7 +30,7 @@ If two skills share a name, the project's wins over your own. The [resource refe
 Open **Settings → Skills** to see each skill's source and switch it on or off without deleting its file.
 
 - Skills you write are on by default.
-- Built-in Nerve skills and Agent Browser guidance are off by default, except **configure-nerve**. Enabled ones add their name and description to the agent's instructions.
+- Built-in Nerve skills and Agent Browser guidance are off by default; the **Forge** profile turns on **configure-nerve**. Enabled ones add their name and description to the agent's instructions.
 
 Use **User** scope to set defaults for all projects and **Project** scope to share overrides with your team. Source labels explain why a value is on or off, and **Reset** removes an override so the value is inherited again. A profile can also turn skills on or off for conversations that use it.
 

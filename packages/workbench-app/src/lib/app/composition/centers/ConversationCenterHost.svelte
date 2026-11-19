@@ -551,6 +551,7 @@ const historyLocked = $derived(stoppable || isForking(conversationId));
   {planReviewThinkingLevel}
   agentProfile={selectedAgentProfile}
   agentProfiles={composerProfiles}
+  defaultAgentProfile={creationDefaults?.defaultAgentProfile}
   {lockedFields}
   profileDisabled={Boolean(agentView.viewedChildId)}
   permissionRuleSetId={selectedPermissionRuleSetId}

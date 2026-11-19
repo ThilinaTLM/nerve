@@ -10,7 +10,7 @@ An extension adds to Nerve: a viewer for a file type, a page or side panel, a co
 ## Before you start
 
 - **Node.js 24 or newer**, with npm or pnpm, on the computer running Nerve. If one is missing, the agent tells you how to install it.
-- The **configure-nerve** skill is on by default; you can turn it off in **Settings → Skills**. See [Skills and project resources](/guides/skills-and-resources/).
+- Select the **Forge** profile in the composer (or `/profile forge`); it turns on the **configure-nerve** skill. You can also enable the skill in **Settings → Skills**. See [Skills and project resources](/guides/skills-and-resources/).
 
 ## Ask the agent
 
