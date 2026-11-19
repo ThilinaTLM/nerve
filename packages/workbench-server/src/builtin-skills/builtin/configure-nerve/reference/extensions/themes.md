@@ -1,6 +1,6 @@
 # Themes
 
-A theme extension has `ui.themes: [{ id, label, file: "themes/<id>.json" }]` and no backend. Themes are data: a JSON file with exactly the tokens below, never CSS. Only **user** extensions contribute themes (a theme is app-wide); a project extension's themes are ignored with a warning. The user picks it in Settings → Theme once the extension is allowed.
+A theme extension has `ui.themes: [{ id, label, file: "src/themes/<id>.json" }]` and no backend. Themes are data: a JSON file with exactly the tokens below, never CSS. Only **user** extensions contribute themes (a theme is app-wide); a project extension's themes are ignored with a warning. The user picks it in Settings → Theme once the extension is allowed.
 
 ```json
 {
@@ -31,4 +31,4 @@ A theme that fails is not offered and shows as a warning in `extensions.status`;
 - The roles `syntax-keyword`, `-string`, `-number`, `-function`, `-type`, `-property` and `-comment` differ pairwise by at least 0.08 (distance in OKLab), so they read as different roles.
 - `syntax-variable` and `syntax-punctuation` are the most frequent on screen and stay nearly grey (chroma at most 0.04).
 
-Start from `examples/extensions/paper-theme/themes/paper-theme.json` and adjust lightness and hue; run `nerve-ext check` and read each reported pair.
+Start from the `src/themes/<id>.json` that `--kind theme` scaffolds (a light theme that passes) and adjust lightness and hue; run `nerve-ext check` and read each reported pair.

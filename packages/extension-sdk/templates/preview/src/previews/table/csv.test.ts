@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@nervekit/extension-sdk/testing";
-import { parseCsv } from "../src/ui/csv";
+import { parseCsv } from "./csv";
 
 describe("parseCsv", () => {
   it("splits rows and cells", () => {
@@ -11,5 +11,9 @@ describe("parseCsv", () => {
 
   it("keeps delimiters and quotes inside quoted cells", () => {
     expect(parseCsv('x,"a,""b"""\n')).toEqual([["x", 'a,"b"']]);
+  });
+
+  it("splits TSV on tabs", () => {
+    expect(parseCsv("a\tb\n", "\t")).toEqual([["a", "b"]]);
   });
 });

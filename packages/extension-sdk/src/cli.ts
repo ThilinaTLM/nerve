@@ -12,7 +12,8 @@ import { runTests, typecheck } from "./tools.js";
 const usage = `nerve-ext: build tooling for Nerve extensions
 
 Usage:
-  nerve-ext init <id> --kind ${extensionKinds.join("|")} [--dir <path>] [--install]
+  nerve-ext init <id> --kind <kind>[,<kind>...] [--dir <path>] [--install]
+                    kinds: ${extensionKinds.join(", ")}; several combine into one project
   nerve-ext build   Bundle src/extension.ts into dist/ (backend.js, manifest.json, docs, icon)
   nerve-ext check   Type check, build and validate, run tests; one command for the agent
   nerve-ext test    Run the tests with Vitest
@@ -143,12 +144,15 @@ export async function main(
         if (typeof kind !== "string")
           throw usageError(
             "init needs --kind.",
-            `Pass --kind with one of: ${extensionKinds.join(", ")}.`,
+            `Pass --kind with one or more of: ${extensionKinds.join(", ")} (comma-separated).`,
           );
         const dir = flags.get("dir");
         const folder = await initExtension({
           id,
-          kind: kind as ExtensionKind,
+          kind: kind
+            .split(",")
+            .map((part) => part.trim())
+            .filter(Boolean) as ExtensionKind[],
           cwd,
           ...(typeof dir === "string" ? { dir } : {}),
         });

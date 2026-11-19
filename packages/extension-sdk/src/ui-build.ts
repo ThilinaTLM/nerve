@@ -105,8 +105,8 @@ export async function planUi(
           where: where(kind, index, sourceField),
           fix:
             kind === "themes"
-              ? 'Point it at the theme file, for example "themes/solarized-dark.json".'
-              : 'Point it at the component, for example "src/ui/table.svelte".',
+              ? 'Point it at the theme file, for example "src/themes/solarized-dark.json".'
+              : 'Point it at the component, for example "src/previews/table/Table.svelte".',
         });
       else if (!(await exists(join(projectDir, source))))
         problems.push({
@@ -118,7 +118,7 @@ export async function planUi(
         problems.push({
           what: `The ${sourceField} '${source}' must be a .svelte component or a .ts module.`,
           where: where(kind, index, sourceField),
-          fix: "Write the UI as a Svelte component (src/ui/<name>.svelte), or as a .ts module whose default export mounts into an element.",
+          fix: "Write the UI as a Svelte component (src/<kind>/<name>/<Name>.svelte), or as a .ts module whose default export mounts into an element.",
         });
 
       if (kind === "themes") {

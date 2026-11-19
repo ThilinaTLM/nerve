@@ -28,6 +28,13 @@
       "label": "Sdk Probe",
       "summary": "Sdk Probe: get(path) reads JSON from the configured server.",
       "types": "",
+      "docs": [
+        {
+          "id": "sdk-probe/usage",
+          "whenToRead": "before reading from the Sdk Probe server: paths and errors",
+          "file": "docs/usage.md"
+        }
+      ],
       "methods": {
         "get": {
           "risk": "external_read",

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Scaffolds a Nerve extension, installs its dependencies and runs `nerve-ext check`.
-//   node create-extension.mjs <id> --kind preview|page|panel|theme|integration
+//   node create-extension.mjs <id> --kind <kind>[,<kind>...]   (preview, page, panel, theme, integration)
 //        [--scope user|project] [--project <dir>] [--dir <path>]
 // Plain Node, no dependencies. The SDK version is this Nerve's (see lib.mjs).
 import {
@@ -85,8 +85,11 @@ main(() => {
     throw new UserError(
       "Pass an extension id: lowercase letters, digits and single hyphens, starting with a letter (csv-viewer).",
     );
-  if (!KINDS.includes(flags.kind))
-    throw new UserError(`--kind must be one of: ${KINDS.join(", ")}.`);
+  const kinds = (flags.kind ?? "").split(",").map((kind) => kind.trim());
+  if (!kinds.every((kind) => KINDS.includes(kind)))
+    throw new UserError(
+      `--kind must be one or more of: ${KINDS.join(", ")} (comma-separated, such as integration,panel).`,
+    );
   const scope = flags.scope ?? "user";
   if (scope !== "user" && scope !== "project")
     throw new UserError("--scope must be user or project.");
@@ -106,10 +109,10 @@ main(() => {
   const sdk = resolveSdk(dirname(fileURLToPath(import.meta.url)));
 
   console.log(
-    `Creating ${id} (${flags.kind}, ${scope}) in ${folder} with ${sdk.spec}`,
+    `Creating ${id} (${kinds.join(", ")}, ${scope}) in ${folder} with ${sdk.spec}`,
   );
   mkdirSync(dirname(folder), { recursive: true });
-  const initArgs = ["init", id, "--kind", flags.kind, "--dir", folder];
+  const initArgs = ["init", id, "--kind", kinds.join(","), "--dir", folder];
   const initialized = sdk.version
     ? run(...pm.dlx(sdk.spec, initArgs), dirname(folder))
     : initFromLocalSdk(pm, sdk, initArgs);

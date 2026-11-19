@@ -16,7 +16,8 @@ export type ExtensionKind = (typeof extensionKinds)[number];
 
 export type InitOptions = {
   id: string;
-  kind: ExtensionKind;
+  /** One kind or several (`integration` and `panel`): their parts combine into one project. */
+  kind: ExtensionKind | readonly ExtensionKind[];
   /** Where to write the project; default `./<id>` under `cwd`. The folder name must equal the id. */
   dir?: string;
   cwd?: string;
@@ -32,11 +33,17 @@ export async function initExtension(options: InitOptions): Promise<string> {
       where: "nerve-ext init <id>",
       fix: "Use lowercase letters, digits and single hyphens, starting with a letter, at most 64 characters (for example `csv-viewer`).",
     });
-  if (!extensionKinds.includes(options.kind))
+  const kinds = [
+    ...new Set(
+      typeof options.kind === "string" ? [options.kind] : options.kind,
+    ),
+  ];
+  const unknown = kinds.filter((kind) => !extensionKinds.includes(kind));
+  if (kinds.length === 0 || unknown.length > 0)
     throw new ExtensionProjectError({
-      what: `'${String(options.kind)}' is not an extension kind.`,
+      what: `'${unknown.join(",")}' is not an extension kind.`,
       where: "nerve-ext init --kind",
-      fix: `Use one of: ${extensionKinds.join(", ")}.`,
+      fix: `Use one or more of: ${extensionKinds.join(", ")} (comma-separated).`,
     });
   const folder = resolve(
     options.cwd ?? process.cwd(),
@@ -57,7 +64,7 @@ export async function initExtension(options: InitOptions): Promise<string> {
     });
   const files = projectTemplate(
     options.id,
-    options.kind,
+    kinds,
     options.sdkVersion ?? (await sdkVersion()),
   );
   for (const [path, content] of Object.entries(files)) {

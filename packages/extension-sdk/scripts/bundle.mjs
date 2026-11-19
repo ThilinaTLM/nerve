@@ -21,6 +21,8 @@ await build({
     "@sveltejs/vite-plugin-svelte",
     "@tailwindcss/vite",
     "esbuild",
+    "svelte",
+    "svelte/*",
     "typescript",
     "vite",
     "vitest",

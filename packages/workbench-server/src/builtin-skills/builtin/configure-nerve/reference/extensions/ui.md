@@ -6,9 +6,9 @@ Previews, pages and panels are Svelte 5 frames. The build compiles each `entry` 
 
 ```ts
 ui: {
-  previews: [{ id: "table", label: "Table", match: { extensions: [".csv", ".tsv"] }, entry: "src/ui/table.svelte" }],
-  pages: [{ id: "overview", label: "Overview", icon: "layout-dashboard", entry: "src/ui/overview.svelte" }],
-  panels: [{ id: "checklist", label: "Checklist", icon: "list-checks", entry: "src/ui/checklist.svelte" }],
+  previews: [{ id: "table", label: "Table", match: { extensions: [".csv", ".tsv"] }, entry: "src/previews/table/Table.svelte" }],
+  pages: [{ id: "overview", label: "Overview", icon: "layout-dashboard", entry: "src/pages/overview/Overview.svelte" }],
+  panels: [{ id: "checklist", label: "Checklist", icon: "list-checks", entry: "src/panels/checklist/Checklist.svelte" }],
 }
 ```
 
@@ -111,4 +111,4 @@ await host.file.write("a,b\n3,4\n");
 expect(bridge.fileText).toBe("a,b\n3,4\n");
 ```
 
-Mount components with Svelte's `mount` in the Vitest DOM environment (see `examples/extensions/csv-preview/test/table.spec.ts`).
+Mount components with `mount` and `unmount` from `@nervekit/extension-sdk/testing` (Svelte's, the same copy the components compile against) in the Vitest DOM environment, and wait for async loads with `vi.waitFor`. Each UI scaffold has such a test next to its component (`Table.test.ts`).

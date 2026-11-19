@@ -1,7 +1,7 @@
 // End to end, as an author would get it: pack extension-api, ui-kit and the SDK, install the
 // tarballs with npm, scaffold an `integration` extension with `nerve-ext init`, run
 // `nerve-ext check`, and compare dist/ with the fixture the server's tests load; then the same
-// for a `preview` extension (UI build, frame files).
+// for an extension with every UI kind (UI build, frame files, component tests).
 //   pnpm --filter @nervekit/extension-sdk e2e
 // Needs network for the third-party dependencies (esbuild, vitest, mermaid ...). Not a unit test:
 // a cold install takes a minute or more. Set KEEP=1 to keep the temporary folder.
@@ -83,8 +83,13 @@ try {
   delete built.sdkVersion;
   delete committed.sdkVersion;
   assert.deepEqual(built, committed);
-  // 6. A preview extension: UI build with Vite, the frame's files, and the bridge in a Vitest test.
-  run(bin, ["init", "csv-viewer", "--kind", "preview"], workspace);
+  // 6. Every UI kind in one project: UI build with Vite, the frame's files, and component tests
+  // that mount each template through the fake bridge.
+  run(
+    bin,
+    ["init", "csv-viewer", "--kind", "preview,page,panel,theme"],
+    workspace,
+  );
   const preview = join(workspace, "csv-viewer");
   run("npm", ["install", "--no-audit", "--no-fund", ...files], preview);
   console.log(run("npx", ["nerve-ext", "check"], preview));

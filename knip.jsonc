@@ -13,13 +13,12 @@
     },
     "packages/workbench-server": {
       // The doccheck script is shipped in the engineering-docs skill and invoked by the agent, not imported.
-      // The configure-nerve scripts are run by the agent; its examples are scaffolded into user extensions.
+      // The configure-nerve scripts are run by the agent.
       "entry": [
         "scripts/**/*.ts",
         "{test,src}/**/*.test.ts",
         "src/builtin-skills/builtin/engineering-docs/scripts/doccheck.mjs",
         "src/builtin-skills/builtin/configure-nerve/scripts/*.mjs",
-        "src/builtin-skills/builtin/configure-nerve/examples/extensions/**/src/*.ts",
       ],
     },
     "packages/website": {
@@ -59,7 +58,8 @@
     },
     "packages/extension-sdk": {
       // Public entries are listed from src so results do not depend on a built dist/.
-      // assets/ are copied into extension projects (frame.css, vitest config), not imported.
+      // assets/ are copied into extension projects (frame.css, vitest config), not imported;
+      // templates/ are the files `nerve-ext init` copies into new projects.
       "entry": [
         "scripts/*.{ts,mjs}",
         "test/**/*.test.ts",
@@ -67,12 +67,11 @@
         "assets/frame.css",
         "assets/vitest.config.mjs",
       ],
-      // zod: imported by the inlined contracts schema in dist/. svelte: peer of the ui-kit sources
-      // that extension UI builds compile. shadcn-svelte, tw-animate-css, tailwindcss: imported by
+      "ignore": ["templates/**"],
+      // zod: imported by the inlined contracts schema in dist/. shadcn-svelte, tw-animate-css, tailwindcss: imported by
       // ui-kit's app.css, which the generated Vite/Tailwind build resolves from this package.
       "ignoreDependencies": [
         "zod",
-        "svelte",
         "shadcn-svelte",
         "tw-animate-css",
         "tailwindcss",
