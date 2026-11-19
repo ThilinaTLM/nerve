@@ -7,7 +7,7 @@ import {
 } from "./systemd-scope.js";
 
 /** Env flag that makes the daemon shut down gracefully when its stdin closes. */
-export const SHUTDOWN_ON_STDIN_CLOSE_ENV = "NERVE_SHUTDOWN_ON_STDIN_CLOSE";
+const SHUTDOWN_ON_STDIN_CLOSE_ENV = "NERVE_SHUTDOWN_ON_STDIN_CLOSE";
 
 /**
  * Windows has no graceful signal: kill("SIGTERM") is TerminateProcess. The

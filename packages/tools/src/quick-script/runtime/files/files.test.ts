@@ -212,7 +212,8 @@ void test("XLSX and Papa work in the sandbox and load only for scripts that ment
   assert.equal(lines[0], '[{"a":1,"b":"x"},{"a":2,"b":"y"}]');
   assert.equal(lines[1], 'a,b|1,"x,y" [{"a":"1","b":"2"}]');
   const plain = await run(`return typeof XLSX;`);
-  assert.equal(plain.content, "object\nexit 0");
+  // Slow runs (>1s, e.g. on CI) append a duration such as " · 1.1s".
+  assert.match(plain.content ?? "", /^object\nexit 0(?: · \S+)?$/);
 });
 
 void test("files.write accepts a name or an artifact handle and keeps Unicode names", async () => {
