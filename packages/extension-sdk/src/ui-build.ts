@@ -298,7 +298,8 @@ export function extractThemeBlocks(css: string): string {
 }
 
 function frameEntryModule(entry: string): string {
-  const importPath = JSON.stringify(entry);
+  // Vite resolves `/`-separated absolute ids on every OS (`C:/…` on Windows).
+  const importPath = JSON.stringify(entry.split(sep).join("/"));
   return `import { mount, unmount } from "svelte";
 import { startFrame } from "@nervekit/extension-sdk/ui";
 import * as entry from ${importPath};

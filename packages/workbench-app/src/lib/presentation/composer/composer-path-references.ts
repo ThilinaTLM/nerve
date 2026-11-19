@@ -16,8 +16,12 @@ export function pathMentionReference(
   if (path.length >= 2 && path.startsWith('"') && path.endsWith('"'))
     path = path.slice(1, -1).replaceAll('\\"', '"');
   if (path.startsWith("@")) path = path.slice(1);
-  const isDirectory = path.length > 1 && path.endsWith("/");
-  const name = path.replace(/\/+$/, "").split(/[\\/]/).pop() || path;
+  const isDirectory = path.length > 1 && /[\\/]$/.test(path);
+  const name =
+    path
+      .replace(/[\\/]+$/, "")
+      .split(/[\\/]/)
+      .pop() || path;
   const mention = `@${path}`;
   return {
     insert: /[\s"]/.test(mention)

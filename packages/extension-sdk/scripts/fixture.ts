@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildExtension } from "../src/build.ts";
 import { initExtension } from "../src/init.ts";
+import { isEntrypoint } from "../../../scripts/cli/main.ts";
 
 export const fixtureId = "sdk-probe";
 export const fixtureDist = join(
@@ -41,7 +42,7 @@ export async function buildFixture(): Promise<{
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   const { dist, cleanup } = await buildFixture();
   await rm(fixtureDist, { recursive: true, force: true });
   await cp(dist, fixtureDist, { recursive: true });

@@ -1,5 +1,5 @@
 import { projectProcessOutputPage } from "@nervekit/tools/result-projection";
-import { relative } from "node:path";
+import { relative, sep } from "node:path";
 import { createId } from "@nervekit/contracts";
 import { asyncBashLogsRequestSchema } from "@nervekit/contracts/core";
 import type {
@@ -165,7 +165,7 @@ export class AsyncBashService {
     try {
       for (const path of Object.values(input.process.outputFiles)) {
         const logicalPath = relative(this.options.assets.dataDir, path)
-          .split("\\")
+          .split(sep)
           .join("/");
         const existingAsset = this.options.storage.assets
           .list(row.conversationId)

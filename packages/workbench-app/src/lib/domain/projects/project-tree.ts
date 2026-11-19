@@ -43,15 +43,26 @@ export function shortProjectLabel(dir: string, homeDir?: string): string {
   ) {
     path = `~${path.slice(homePath.length)}`;
   }
-  const segments = path.split("/");
-  return segments
-    .map((segment, index) => {
-      if (index === segments.length - 1 || segment === "" || segment === "~") {
-        return segment;
-      }
-      return segment.startsWith(".") ? segment.slice(0, 2) : segment.charAt(0);
-    })
-    .join("/");
+  // Keep a UNC root (`//server/share`) whole instead of abbreviating it.
+  const unc = /^\/\/[^/]+\/[^/]+/.exec(path)?.[0] ?? "";
+  const segments = path.slice(unc.length).split("/");
+  return (
+    unc +
+    segments
+      .map((segment, index) => {
+        if (
+          index === segments.length - 1 ||
+          segment === "" ||
+          segment === "~"
+        ) {
+          return segment;
+        }
+        return segment.startsWith(".")
+          ? segment.slice(0, 2)
+          : segment.charAt(0);
+      })
+      .join("/")
+  );
 }
 
 export function shortAgentModel(agent: AgentRecord | undefined): string {

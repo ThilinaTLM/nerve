@@ -16,6 +16,9 @@ describe("pathMentionReference", () => {
     assert.equal(dir.kind, "directory");
     assert.equal(dir.label, "ui/");
     assert.equal(dir.insert, "@packages/ui/");
+    const windowsDir = pathMentionReference("C:\\proj\\src\\");
+    assert.equal(windowsDir.kind, "directory");
+    assert.equal(windowsDir.label, "src/");
   });
 
   it("does not double-prefix and keeps whitespace paths quoted", () => {

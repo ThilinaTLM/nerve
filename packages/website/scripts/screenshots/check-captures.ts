@@ -9,6 +9,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { isEntrypoint } from "../../../../scripts/cli/main.ts";
 
 /** Project and repository names the demo seed is allowed to show. */
 const ALLOWED_NAMES = [
@@ -42,7 +43,8 @@ const RULES = [
   },
   {
     id: "home-path",
-    pattern: /\/home\/(?!runner\b)[a-z0-9._-]+|\/Users\/[A-Za-z0-9._-]+/,
+    pattern:
+      /\/home\/(?!runner\b)[a-z0-9._-]+|\/Users\/[A-Za-z0-9._-]+|\b[A-Za-z]:\\Users\\[A-Za-z0-9._-]+/,
     message: "contains a real home directory path",
   },
 ];
@@ -103,4 +105,4 @@ async function main() {
   console.log("Screenshot privacy check passed.");
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) await main();
+if (isEntrypoint(import.meta.url)) await main();

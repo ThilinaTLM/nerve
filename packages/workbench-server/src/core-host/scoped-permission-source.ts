@@ -6,6 +6,7 @@ import {
 } from "./project-permission-migrations.js";
 import { readFile, readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
+import { isPathInside } from "@nervekit/tools/execution";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import { supervisionSchema } from "@nervekit/contracts/core";
 import type { ConfigurationDiagnostic } from "../infrastructure/configuration/agent-configuration/document-adapters.js";
@@ -143,9 +144,9 @@ export function createScopedPermissionSource(options: {
     code: string,
     conversationId: string,
   ): CurrentPolicy {
-    const scope = path.startsWith(join(options.home, "config"))
+    const scope = isPathInside(join(options.home, "config"), path)
       ? "user"
-      : path.startsWith(join(options.home, "data", "conversations"))
+      : isPathInside(join(options.home, "data", "conversations"), path)
         ? "conversation"
         : "project";
     return {
@@ -204,7 +205,7 @@ export function createScopedPermissionSource(options: {
         for (const path of paths) files.delete(path);
         if (
           paths.some((path) =>
-            path.startsWith(join(options.home, "config", "rule-sets")),
+            isPathInside(join(options.home, "config", "rule-sets"), path),
           )
         )
           catalog = undefined;
