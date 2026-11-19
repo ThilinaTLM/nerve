@@ -124,7 +124,7 @@ export function resolvedImportPath(file: string, specifier: string) {
   return posix.normalize(posix.join(posix.dirname(file), specifier));
 }
 
-const skillExamples = /\/builtin-skills\/builtin\/[^/]+\/examples\//;
+const extensionTemplates = /^packages\/extension-sdk\/templates\//;
 
 /** One inventory of tracked and non-ignored untracked source files, excluding deleted paths. */
 export function createRepositorySourceInventory(
@@ -149,8 +149,8 @@ export function createRepositorySourceInventory(
         .filter(Boolean)
         .map((path) => path.split(sep).join("/"))
         .filter((path) => existsSync(join(repoRoot, path)))
-        // Skill examples are extension projects of their own (they import the published SDK).
-        .filter((path) => !skillExamples.test(path))
+        // Extension project templates are projects of their own (they import the published SDK).
+        .filter((path) => !extensionTemplates.test(path))
         .sort()
     );
   }

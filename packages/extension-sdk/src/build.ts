@@ -71,7 +71,7 @@ function runtimeApiPlugin(): Plugin {
         (args) => ({
           errors: [
             {
-              text: `'${args.path}' holds test helpers (Vitest and the fake ctx) and cannot be part of the backend. Import it only from files under test/.`,
+              text: `'${args.path}' holds test helpers (Vitest and the fake ctx) and cannot be part of the backend. Import it only from test files (*.test.ts), which the backend never imports.`,
             },
           ],
         }),

@@ -1,6 +1,6 @@
 {
-  "id": "paper-theme",
-  "label": "Paper Theme",
+  "id": "__ID__",
+  "label": "__TITLE__",
   "kind": "light",
   "tokens": {
     "background": "oklch(0.965 0.012 92)",

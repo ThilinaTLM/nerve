@@ -11,16 +11,26 @@ Node.js 24 or newer and npm (or pnpm). `scripts/create-extension.mjs` checks the
 Ask one focused question only when the request does not settle these.
 
 - **Scope.** `user`: `${NERVE_HOME:-$HOME/.nerve}/agent/extensions/<id>/`, available in every project. `project`: `<project>/.nerve/extensions/<id>/`, shared through the repository (commit `dist/`, since teammates do not build). Project extensions cannot contribute themes.
-- **Kind.** `preview` (render a file type), `page` (a tab not tied to a file), `panel` (a dock panel), `theme` (colors), `integration` (a `quick_script` namespace and direct tools for a service). One scaffold has one kind; add other contributions to `src/extension.ts` using the references.
+- **Kind.** `preview` (render a file type), `page` (a tab not tied to a file), `panel` (a dock panel), `theme` (colors), `integration` (a `quick_script` namespace and direct tools for a service). Combine kinds the feature needs in one extension, comma-separated (`integration,panel`).
 - **Id.** Lowercase letters, digits and single hyphens (`csv-viewer`); it is also the folder name.
 
 ## 3. Scaffold
 
 ```sh
-node scripts/create-extension.mjs <id> --kind <kind> --scope <user|project> [--project <dir>]
+node scripts/create-extension.mjs <id> --kind <kind>[,<kind>] --scope <user|project> [--project <dir>]
 ```
 
-The script writes the project, installs dependencies and runs `nerve-ext check`. Read the scaffold's `src/extension.ts` and tests before changing them. Examples of a finished preview and theme are in `examples/extensions/`.
+The script writes the project, installs dependencies and runs `nerve-ext check`. Each kind adds a working sample to replace, with tests beside it:
+
+| Path                                         | Holds                                                     |
+| -------------------------------------------- | --------------------------------------------------------- |
+| `src/extension.ts`                           | The definition only; it wires the parts below             |
+| `src/backend/`                               | `namespace.ts` and one file per method                    |
+| `src/previews/`, `src/pages/`, `src/panels/` | One folder per contribution: its Svelte entry and helpers |
+| `src/themes/<id>.json`                       | Theme tokens                                              |
+| `docs/`                                      | Doc topics listed in the namespace's `docs`               |
+
+Read `src/extension.ts` and the sample before changing them. Rename the sample folders and ids to fit the feature; keep the layout when you add contributions.
 
 ## 4. Implement with least permissions
 

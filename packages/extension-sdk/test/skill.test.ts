@@ -1,6 +1,6 @@
 // The built-in `configure-nerve` skill (packages/workbench-server/src/builtin-skills/builtin/
 // configure-nerve) points at this SDK's declarations and quotes a few of its facts. These tests keep
-// those from drifting, build the skill's examples with the SDK, and cover the skill's plain-Node scripts.
+// those from drifting and cover the skill's plain-Node scripts.
 import assert from "node:assert/strict";
 import { cp, mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,7 +8,6 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { themeTokenNames } from "@nervekit/contracts/extensions";
-import { buildExtension } from "../src/build.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const skill = join(
@@ -78,41 +77,11 @@ void test("every declaration pointer in the references names an export of that f
 void test("extensions guide links only to files that exist", async () => {
   const text = await readFile(join(skill, "guide", "extensions.md"), "utf8");
   const paths = [
-    ...text.matchAll(
-      /`((?:reference\/extensions|scripts|examples\/extensions)\/[\w./-]+?)`/g,
-    ),
+    ...text.matchAll(/`((?:reference\/extensions|scripts)\/[\w./-]+?)`/g),
   ].map((match) => match[1]!);
   assert.ok(paths.length >= 6, paths.join(", "));
   for (const path of paths) await stat(join(skill, path.replace(/\/$/, "")));
 });
-
-// ── The examples are complete projects the SDK can build ──────────────────
-
-const examples = ["csv-preview", "paper-theme"];
-
-for (const name of examples)
-  void test(`the example ${name} builds`, async () => {
-    const folder = join(skill, "examples", "extensions", name);
-    const entries = await readdir(folder);
-    assert.ok(!entries.includes("node_modules") && !entries.includes("dist"));
-    const root = await mkdtemp(join(tmpdir(), "nerve-skill-example-"));
-    try {
-      const copy = join(root, name);
-      await cp(folder, copy, { recursive: true });
-      const { manifest, distDir } = await buildExtension({ projectDir: copy });
-      assert.equal(manifest.id, name);
-      const ui = manifest.ui!;
-      if (name === "csv-preview") {
-        assert.deepEqual(ui.previews?.[0]?.match.extensions, [".csv", ".tsv"]);
-        await stat(join(distDir, ui.previews![0]!.entry));
-      } else {
-        assert.equal(ui.themes?.[0]?.kind, "light");
-        await stat(join(distDir, "themes", `${name}.json`));
-      }
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
-  });
 
 // ── The scripts ───────────────────────────────────────────────────────────
 

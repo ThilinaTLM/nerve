@@ -37,6 +37,12 @@
   });
 
   // src/extension.ts
+  var import_extension_sdk3 = __toESM(require_extension_api(), 1);
+
+  // src/backend/namespace.ts
+  var import_extension_sdk2 = __toESM(require_extension_api(), 1);
+
+  // src/backend/get.ts
   var import_extension_sdk = __toESM(require_extension_api(), 1);
   var get = (0, import_extension_sdk.method)({
     risk: "external_read",
@@ -46,23 +52,47 @@
       const first = args[0];
       const path = typeof first === "string" ? first : first?.path;
       if (typeof path !== "string" || !path.startsWith("/"))
-        throw new import_extension_sdk.ExtensionError("BAD_REQUEST", "get needs a path that starts with '/'.", {
-          fix: 'Pass a path such as "/items".'
-        });
+        throw new import_extension_sdk.ExtensionError(
+          "BAD_REQUEST",
+          "get needs a path that starts with '/'.",
+          { fix: 'Pass a path such as "/items".' }
+        );
       return { path };
     },
-    authorize: ({ path }) => [{ targets: [`sdk-probe:${path}`], summary: `GET ${path}` }],
+    authorize: ({ path }) => [
+      { targets: [`sdk-probe:path${path}`], summary: `GET ${path}` }
+    ],
     run: async (_session, { path }, ctx) => {
       const server = String(ctx.settings.get("server") ?? "").replace(/\/+$/, "");
       const response = await ctx.http.request({ url: `${server}${path}` });
       if (!response.ok)
-        throw new import_extension_sdk.ExtensionError("SERVER_ERROR", `The server answered ${response.status}.`, {
-          fix: "Check the server setting and the path."
-        });
+        throw new import_extension_sdk.ExtensionError(
+          "SERVER_ERROR",
+          `The server answered ${response.status}.`,
+          { fix: "Check the server setting and the path." }
+        );
       return response.body;
     }
   });
-  var extension_default = (0, import_extension_sdk.defineExtension)({
+
+  // src/backend/namespace.ts
+  var namespace = (0, import_extension_sdk2.defineNamespace)({
+    id: "sdkProbe",
+    label: "Sdk Probe",
+    summary: "Sdk Probe: get(path) reads JSON from the configured server.",
+    types: "",
+    docs: [
+      {
+        id: "sdk-probe/usage",
+        whenToRead: "before reading from the Sdk Probe server: paths and errors",
+        file: "docs/usage.md"
+      }
+    ],
+    methods: { get }
+  });
+
+  // src/extension.ts
+  var extension_default = (0, import_extension_sdk3.defineExtension)({
     id: "sdk-probe",
     apiVersion: 1,
     name: "Sdk Probe",
@@ -82,22 +112,16 @@
       }
     },
     permissions: { network: ["{settings.server}"] },
-    namespaces: [
-      (0, import_extension_sdk.defineNamespace)({
-        id: "sdkProbe",
-        label: "Sdk Probe",
-        summary: "Sdk Probe: get(path) reads JSON from the configured server.",
-        types: "",
-        methods: { get }
-      })
-    ],
+    namespaces: [namespace],
     tools: [
       {
         name: "sdk_probe_get",
         description: "Read JSON from the configured Sdk Probe server.",
         parameters: {
           type: "object",
-          properties: { path: { type: "string", description: "Path starting with '/'." } },
+          properties: {
+            path: { type: "string", description: "Path starting with '/'." }
+          },
           required: ["path"],
           additionalProperties: false
         },

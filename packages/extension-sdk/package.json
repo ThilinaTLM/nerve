@@ -18,6 +18,7 @@
     "bin",
     "dist",
     "assets",
+    "templates",
     "README.md",
     "UPGRADING.md",
     "LICENSE",

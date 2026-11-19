@@ -47,6 +47,44 @@ for (const kind of extensionKinds)
     });
   });
 
+void test("several kinds combine into one project, each part in its own folder", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "combo",
+      kind: ["integration", "panel", "theme"],
+      cwd: root,
+    });
+    for (const file of [
+      "src/backend/namespace.ts",
+      "src/backend/get.test.ts",
+      "src/panels/checklist/Checklist.svelte",
+      "src/themes/combo.json",
+      "src/svelte.d.ts",
+      "docs/usage.md",
+      ".gitignore",
+    ])
+      await readFile(join(folder, file), "utf8");
+    const { manifest } = await buildExtension({ projectDir: folder });
+    assert.deepEqual(
+      manifest.namespaces.map((namespace) => namespace.id),
+      ["combo"],
+    );
+    assert.equal(manifest.enabledByDefault, false);
+    assert.deepEqual(Object.keys(manifest.ui ?? {}).sort(), [
+      "panels",
+      "themes",
+    ]);
+    await assert.rejects(
+      initExtension({
+        id: "other",
+        kind: ["panel", "nope" as never],
+        cwd: root,
+      }),
+      /not an extension kind/,
+    );
+  });
+});
+
 void test("init pins the SDK version exactly and refuses a bad id or a used folder", async () => {
   await withTemp(async (root) => {
     const folder = await initExtension({
@@ -224,9 +262,8 @@ void test("docs and the icon are copied and checked", async () => {
 
 void test("scaffolded frames use no <form>: the frame sandbox has no allow-forms", async () => {
   const { projectTemplate } = await import("../src/templates.ts");
-  for (const kind of extensionKinds)
-    for (const [file, text] of Object.entries(
-      projectTemplate("probe", kind, "0.0.0"),
-    ))
-      assert.ok(!text.includes("<form"), `${kind}: ${file} uses <form>`);
+  for (const [file, text] of Object.entries(
+    projectTemplate("probe", extensionKinds, "0.0.0"),
+  ))
+    assert.ok(!text.includes("<form"), `${file} uses <form>`);
 });

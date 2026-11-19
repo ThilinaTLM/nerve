@@ -1,12 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -140,7 +133,7 @@ void test("theme files are validated: schema, id and readability", async () => {
       kind: "theme",
       cwd: root,
     });
-    const file = join(folder, "themes", "bad-theme.json");
+    const file = join(folder, "src", "themes", "bad-theme.json");
     const theme = JSON.parse(await readFile(file, "utf8"));
     const write = (value: unknown) => writeFile(file, JSON.stringify(value));
 
@@ -153,7 +146,7 @@ void test("theme files are validated: schema, id and readability", async () => {
     );
     assert.ok(
       schema.some((problem) =>
-        /Invalid theme file themes\/bad-theme\.json at tokens\.primary/.test(
+        /Invalid theme file src\/themes\/bad-theme\.json at tokens\.primary/.test(
           problem.what,
         ),
       ),
@@ -192,7 +185,7 @@ void test("UI that imports a component a frame cannot show fails with the host r
       cwd: root,
     });
     await writeFile(
-      join(folder, "src", "ui", "overview.svelte"),
+      join(folder, "src", "pages", "overview", "Overview.svelte"),
       `<script lang="ts">
   import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
   import { Toaster } from "@nervekit/ui-kit/components/ui/sonner";
@@ -211,7 +204,7 @@ void test("UI that imports a component a frame cannot show fails with the host r
     assert.match(fixes, /host\.ui\.notify/);
     assert.match(fixes, /host\.ui\.showMenu/);
     assert.ok(
-      problems.every((problem) => problem.where.endsWith("overview.svelte")),
+      problems.every((problem) => problem.where.endsWith("Overview.svelte")),
     );
     assert.match(problems[0]!.what, /cannot work inside an extension frame/);
     await assert.rejects(readdir(join(folder, "dist")));
@@ -229,12 +222,18 @@ void test("a missing entry, an unknown field and a bad source file are reported 
     const source = await readFile(file, "utf8");
     await writeFile(
       file,
-      source.replace('"src/ui/table.svelte"', '"src/ui/missing.svelte"'),
+      source.replace(
+        '"src/previews/table/Table.svelte"',
+        '"src/previews/table/Missing.svelte"',
+      ),
     );
     const missing = await problemsOf(() =>
       buildExtension({ projectDir: folder }),
     );
-    assert.equal(missing[0]!.what, "src/ui/missing.svelte does not exist.");
+    assert.equal(
+      missing[0]!.what,
+      "src/previews/table/Missing.svelte does not exist.",
+    );
     assert.match(missing[0]!.where, /ui\.previews\[0\]\.entry/);
 
     await writeFile(
@@ -259,17 +258,16 @@ void test("a missing entry, an unknown field and a bad source file are reported 
     );
     assert.match(extension[0]!.fix, /with its dot/);
 
-    await mkdir(join(folder, "src", "ui"), { recursive: true });
     await writeFile(
-      join(folder, "src", "ui", "broken.svelte"),
+      join(folder, "src", "previews", "table", "Broken.svelte"),
       '<script lang="ts">let x: = ;</script>\n',
     );
-    await writeFile(file, source.replace("table.svelte", "broken.svelte"));
+    await writeFile(file, source.replace("Table.svelte", "Broken.svelte"));
     const broken = await problemsOf(() =>
       buildExtension({ projectDir: folder }),
     );
     assert.match(broken[0]!.what, /The UI build of 'table' failed/);
-    assert.match(broken[0]!.where, /broken\.svelte/);
+    assert.match(broken[0]!.where, /Broken\.svelte/);
   });
 });
 
