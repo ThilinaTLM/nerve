@@ -35,6 +35,20 @@ export const bridgeLimits = {
   maxTextLength: 20_000,
   maxLabelLength: 200,
   maxPageParamsBytes: 4 * 1024,
+  /** Bytes of text one `clipboard.writeText` carries (UTF-8). */
+  maxClipboardTextBytes: 1024 * 1024,
+  /** Decoded bytes of one `clipboard.writeImage`. */
+  maxClipboardImageBytes: 5 * 1024 * 1024,
+  /** Characters of an `extensionStore` key. */
+  maxStoreKeyLength: 128,
+  /** Serialized size of one `extensionStore` value. */
+  maxStoreValueBytes: 4 * 1024 * 1024,
+  /** Serialized size of all values of one extension in one project. */
+  maxStoreBytesPerProject: 64 * 1024 * 1024,
+  /** Keys of one extension in one project. */
+  maxStoreKeys: 1000,
+  /** `frameError` reports the host forwards per frame load. */
+  maxFrameErrorsPerLoad: 20,
 } as const;
 
 export type BridgeJson =
@@ -88,6 +102,8 @@ export const bridgeErrorCodeSchema = z.enum([
   "cancelled",
   /** The extension's backend method failed; `message` is the (shortened) backend error. */
   "backend_error",
+  /** An `extensionStore` write's `ifRevision` no longer matches the stored revision. */
+  "conflict",
   "failed",
 ]);
 export type BridgeErrorCode = z.infer<typeof bridgeErrorCodeSchema>;
@@ -108,6 +124,34 @@ const menuItemSchema = z.strictObject({
 
 /** A path inside the open project, relative to its directory or absolute inside it. */
 const projectPathSchema = z.string().min(1).max(4096);
+
+/**
+ * An `extensionStore` key: letters, digits, `.`, `_` and `-`, 1–128 characters, not starting with
+ * a dot. Safe as a file name, so the daemon stores one file per key.
+ */
+export const extensionStoreKeySchema = z
+  .string()
+  .min(1)
+  .max(bridgeLimits.maxStoreKeyLength)
+  .regex(/^[A-Za-z0-9_-][A-Za-z0-9._-]*$/, {
+    message:
+      "key may hold only letters, digits, '.', '_' and '-', and must not start with '.'",
+  });
+
+/** Revision of a stored key: 1 on first write, +1 on every write. `ifRevision: 0` means "must not exist". */
+const storeRevisionSchema = z.number().int().nonnegative();
+
+const base64Bytes = (value: string) => {
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return Math.floor((value.length * 3) / 4) - padding;
+};
+
+/** Media types `clipboard.writeImage` accepts; the host converts non-PNG to PNG. */
+export const bridgeClipboardImageTypes = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+] as const;
 
 export const bridgeMethods = {
   "file.info": {
@@ -242,6 +286,76 @@ export const bridgeMethods = {
     params: z.strictObject({ text: text(bridgeLimits.maxTextLength) }),
     result: emptyResult,
   },
+  "clipboard.writeText": {
+    params: z.strictObject({
+      text: z
+        .string()
+        .refine(
+          (value) =>
+            new TextEncoder().encode(value).length <=
+            bridgeLimits.maxClipboardTextBytes,
+          { message: "text is too large" },
+        ),
+    }),
+    result: emptyResult,
+  },
+  "clipboard.writeImage": {
+    params: z.strictObject({
+      /** The image bytes, base64 encoded. */
+      dataBase64: z
+        .string()
+        .min(1)
+        .regex(/^[A-Za-z0-9+/]*={0,2}$/, { message: "not base64" })
+        .refine(
+          (value) => base64Bytes(value) <= bridgeLimits.maxClipboardImageBytes,
+          { message: "image is too large" },
+        ),
+      mediaType: z.enum(bridgeClipboardImageTypes),
+    }),
+    result: emptyResult,
+  },
+  "extensionStore.get": {
+    params: z.strictObject({ key: extensionStoreKeySchema }),
+    /** `value` and `revision` are `null` when the key does not exist. */
+    result: z.strictObject({
+      value: bridgeJsonSchema.nullable(),
+      revision: z.number().int().positive().nullable(),
+    }),
+  },
+  "extensionStore.set": {
+    params: z.strictObject({
+      key: extensionStoreKeySchema,
+      value: bridgeJsonSchema.refine(
+        jsonWithin(bridgeLimits.maxStoreValueBytes),
+        { message: "value is too large" },
+      ),
+      /** Write only when the stored revision is this one (`0`: only when the key does not exist); else `conflict`. */
+      ifRevision: storeRevisionSchema.optional(),
+    }),
+    result: z.strictObject({ revision: z.number().int().positive() }),
+  },
+  "extensionStore.delete": {
+    params: z.strictObject({
+      key: extensionStoreKeySchema,
+      ifRevision: storeRevisionSchema.optional(),
+    }),
+    result: emptyResult,
+  },
+  "extensionStore.keys": {
+    params: z.strictObject({
+      prefix: z.string().max(bridgeLimits.maxStoreKeyLength).optional(),
+    }),
+    result: z.strictObject({
+      keys: z.array(
+        z.strictObject({
+          key: z.string(),
+          revision: z.number().int().positive(),
+          /** Serialized size of the value in bytes. */
+          size: z.number().int().nonnegative(),
+        }),
+      ),
+    }),
+  },
 } as const;
 
 export type BridgeMethodName = keyof typeof bridgeMethods;
@@ -280,6 +394,12 @@ export const bridgeMethodKinds: Record<
   openPage: allKinds,
   "project.info": allKinds,
   "composer.insert": allKinds,
+  "clipboard.writeText": allKinds,
+  "clipboard.writeImage": allKinds,
+  "extensionStore.get": allKinds,
+  "extensionStore.set": allKinds,
+  "extensionStore.delete": allKinds,
+  "extensionStore.keys": allKinds,
 };
 
 /** Methods that only exist for previews with `edit: "custom"`. */
@@ -315,6 +435,11 @@ export const bridgeEvents = {
     modifiedAt: z.string().optional(),
   }),
   modeChanged: z.strictObject({ mode: bridgeModeSchema }),
+  /** A key of this extension's store changed (by another frame or the backend); `revision` `null`: deleted. */
+  extensionStoreChanged: z.strictObject({
+    key: z.string(),
+    revision: z.number().int().positive().nullable(),
+  }),
 } as const;
 export type BridgeEventName = keyof typeof bridgeEvents;
 
@@ -326,6 +451,7 @@ export const bridgeEventKinds: Record<
   themeChanged: allKinds,
   fileChanged: ["preview"],
   modeChanged: ["preview"],
+  extensionStoreChanged: allKinds,
 };
 
 // ── Envelope ──────────────────────────────────────────────────────────────
@@ -337,6 +463,23 @@ const requestId = z.string().min(1).max(bridgeLimits.maxRequestIdLength);
 export const bridgeReadySchema = z.strictObject({
   ...envelope,
   type: z.literal("ready"),
+});
+
+/** What a frame reports about its own failures; the host records it for `extensions.status`. */
+export const bridgeFrameErrorSchema = z.strictObject({
+  /** `error`: an uncaught exception; `unhandledrejection`; `csp`: the frame's CSP blocked something. */
+  kind: z.enum(["error", "unhandledrejection", "csp"]),
+  message: z.string().min(1).max(1000),
+  /** Where: script URL and line, or the CSP directive and blocked URL. */
+  source: z.string().max(500).optional(),
+});
+export type BridgeFrameError = z.infer<typeof bridgeFrameErrorSchema>;
+
+/** Frame → host: a failure inside the frame. Not a request: it gets no response. */
+export const bridgeFrameErrorMessageSchema = z.strictObject({
+  ...envelope,
+  type: z.literal("frameError"),
+  error: bridgeFrameErrorSchema,
 });
 
 /** Frame → host. `method` and `params` are validated against `bridgeMethods` after the envelope. */
@@ -405,6 +548,7 @@ export type BridgeInit = z.infer<typeof bridgeInitSchema>;
 export const bridgeFrameMessageSchema = z.discriminatedUnion("type", [
   bridgeReadySchema,
   bridgeRequestSchema,
+  bridgeFrameErrorMessageSchema,
 ]);
 export const bridgeHostMessageSchema = z.union([
   bridgeInitSchema,

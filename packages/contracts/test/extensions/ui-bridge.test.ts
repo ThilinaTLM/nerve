@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  bridgeFrameMessageSchema,
   bridgeInitSchema,
   bridgeLimits,
   bridgeMethodNames,
@@ -79,7 +80,7 @@ test("methods are limited by contribution kind and edit mode", () => {
     true,
   );
   assert.equal(isBridgeMethodAllowed("call", { kind: "panel" }), true);
-  assert.equal(bridgeMethodNames.length, 15);
+  assert.equal(bridgeMethodNames.length, 21);
 });
 
 test("requests are validated against the method", () => {
@@ -114,6 +115,59 @@ test("requests are validated against the method", () => {
       request("file.read", { length: bridgeLimits.maxReadChunkBytes + 1 }),
       { kind: "preview", edit: "none" },
     ).ok,
+    false,
+  );
+});
+
+test("store keys are file-name safe and writes take an optional revision", () => {
+  const valid = (params: unknown) =>
+    validateBridgeRequest(request("extensionStore.set", params), {
+      kind: "page",
+    }).ok;
+  assert.equal(valid({ key: "drawing-1.v2", value: { a: 1 } }), true);
+  assert.equal(valid({ key: "a", value: null, ifRevision: 0 }), true);
+  for (const key of [".hidden", "../x", "a/b", "", "x".repeat(129)])
+    assert.equal(valid({ key, value: 1 }), false, key);
+  assert.equal(valid({ key: "a", value: 1, ifRevision: -1 }), false);
+  assert.equal(
+    valid({
+      key: "a",
+      value: "x".repeat(bridgeLimits.maxStoreValueBytes),
+    }),
+    false,
+  );
+});
+
+test("clipboard images are base64 within the size limit", () => {
+  const valid = (params: unknown) =>
+    validateBridgeRequest(request("clipboard.writeImage", params), {
+      kind: "panel",
+    }).ok;
+  assert.equal(valid({ dataBase64: "iVBORw0K", mediaType: "image/png" }), true);
+  assert.equal(
+    valid({ dataBase64: "not base64!", mediaType: "image/png" }),
+    false,
+  );
+  assert.equal(valid({ dataBase64: "AAAA", mediaType: "image/gif" }), false);
+  const tooBig = "A".repeat(
+    Math.ceil((bridgeLimits.maxClipboardImageBytes * 4) / 3) + 8,
+  );
+  assert.equal(valid({ dataBase64: tooBig, mediaType: "image/png" }), false);
+});
+
+test("frame errors are a bounded envelope without an id", () => {
+  const ok = bridgeFrameMessageSchema.safeParse({
+    nerveBridge: 1,
+    type: "frameError",
+    error: { kind: "csp", message: "style-src blocked", source: "inline" },
+  });
+  assert.equal(ok.success, true);
+  assert.equal(
+    bridgeFrameMessageSchema.safeParse({
+      nerveBridge: 1,
+      type: "frameError",
+      error: { kind: "csp", message: "x".repeat(1001) },
+    }).success,
     false,
   );
 });

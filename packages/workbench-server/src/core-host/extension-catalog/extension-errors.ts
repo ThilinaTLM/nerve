@@ -8,10 +8,11 @@ export const maxTrackedExtensions = 64;
 const maxMessageLength = 400;
 
 /**
- * Bounded in-memory record of the backend failures the host saw while running installed
- * extensions' code (every hook, including calls from their frames), keyed by extension id and
- * cleared when the extension is reloaded. Frame console output is not recorded: the bridge has no
- * message for it.
+ * Bounded in-memory record of the failures the host saw of installed extensions, keyed by
+ * extension id and cleared when the extension is reloaded: backend failures while running their
+ * code (every hook, including calls from their frames) and the errors their frames report
+ * (uncaught errors, unhandled rejections, CSP violations; operation `frame:<kind>/<id>`). Frame
+ * console output is not recorded: the bridge has no message for it.
  */
 export class ExtensionErrorLog {
   readonly #errors = new Map<string, ExtensionAgentError[]>();

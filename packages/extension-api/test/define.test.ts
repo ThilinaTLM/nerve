@@ -81,3 +81,34 @@ void test("definitions are returned unchanged and errors carry their fix", () =>
     "x",
   );
 });
+
+void test("the fake extensionStore keeps revisions and rejects stale writes", async () => {
+  const { ctx, record } = createFakeContext({ store: { seed: { a: 1 } } });
+  const store = ctx.extensionStore;
+  assert.deepEqual(await store.get("seed"), { value: { a: 1 }, revision: 1 });
+  assert.equal(await store.get("missing"), undefined);
+  assert.deepEqual(await store.set("new", [1], { ifRevision: 0 }), {
+    revision: 1,
+  });
+  await assert.rejects(
+    store.set("new", [2], { ifRevision: 0 }),
+    (error: ExtensionError) => error.code === "CONFLICT",
+  );
+  assert.deepEqual(await store.set("new", [2], { ifRevision: 1 }), {
+    revision: 2,
+  });
+  assert.deepEqual(await store.keys({ prefix: "n" }), [
+    { key: "new", revision: 2, size: 3 },
+  ]);
+  await assert.rejects(
+    store.delete("new", { ifRevision: 1 }),
+    (error: ExtensionError) => error.code === "CONFLICT",
+  );
+  await store.delete("new", { ifRevision: 2 });
+  await store.delete("new");
+  await assert.rejects(
+    store.get(".bad"),
+    (error: ExtensionError) => error.code === "BAD_REQUEST",
+  );
+  assert.deepEqual([...record.store.keys()], ["seed"]);
+});

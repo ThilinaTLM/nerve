@@ -25,6 +25,8 @@ export interface StoragePaths {
   conversationsPath: string;
   imagesPath: string;
   plansPath: string;
+  /** Durable values of extensions per project, `data/extension-store/<extension>/<project>/<key>.json`. */
+  extensionStorePath: string;
   agentPath: string;
   suggestionsPath: string;
   /** User agent profiles, `agent/agent-profiles/`. */
@@ -82,6 +84,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     conversationsPath: join(dataPath, "conversations"),
     imagesPath: join(dataPath, "images"),
     plansPath: join(dataPath, "plans"),
+    extensionStorePath: join(dataPath, "extension-store"),
     agentPath,
     suggestionsPath: join(agentPath, "suggestions"),
     agentProfilesPath: join(agentPath, "agent-profiles"),

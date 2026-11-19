@@ -8,6 +8,7 @@ import {
 } from "./installed-manifest.js";
 import {
   bridgeContributionKindSchema,
+  bridgeFrameErrorSchema,
   bridgeMethods,
   type BridgeMethodName,
 } from "./ui-bridge.js";
@@ -17,7 +18,7 @@ import { themeFileSchema } from "./theme-file.js";
  * What the workbench app asks of the daemon for installed-extension UI. Only the signed-in
  * user's app sends these; no agent tool, `quick_script` namespace or extension port exposes
  * them. Methods that are pure host UI (dialogs, menus, notifications, openFile, openPage,
- * composer.insert, viewState, mode) never reach the server.
+ * composer.insert, viewState, mode, clipboard) never reach the server.
  */
 
 /** Bridge methods the daemon answers: everything that needs files, settings, the project or the backend. */
@@ -28,6 +29,10 @@ export const serverBridgeMethods = [
   "settings.get",
   "project.info",
   "call",
+  "extensionStore.get",
+  "extensionStore.set",
+  "extensionStore.delete",
+  "extensionStore.keys",
 ] as const satisfies readonly BridgeMethodName[];
 export type ServerBridgeMethod = (typeof serverBridgeMethods)[number];
 
@@ -46,7 +51,15 @@ const requestBase = {
 };
 
 const uiRequest = <P extends z.ZodType>(params: P) =>
-  z.strictObject({ ...requestBase, params });
+  z.strictObject({
+    ...requestBase,
+    params,
+    /**
+     * Store writes: an id of the requesting frame, echoed in `extensions.store.changed` so that
+     * frame can skip the event its own write caused.
+     */
+    origin: z.string().min(1).max(64).optional(),
+  });
 
 const uiOperation = <const M extends ServerBridgeMethod>(
   method: M,
@@ -146,4 +159,18 @@ export const extensionUiOperationDefinitions = [
   uiOperation("settings.get", "read"),
   uiOperation("project.info", "read"),
   uiOperation("call", "mutation"),
+  uiOperation("extensionStore.get", "read"),
+  uiOperation("extensionStore.set", "mutation"),
+  uiOperation("extensionStore.delete", "mutation"),
+  uiOperation("extensionStore.keys", "read"),
+  /** A frame's uncaught error or CSP violation, recorded for `extensions.status().recentErrors`. */
+  defineOperation(
+    "extensions.ui.reportFrameError",
+    z.strictObject({ ...requestBase, error: bridgeFrameErrorSchema }),
+    z.strictObject({}),
+    "mutation",
+    "none",
+    ["workbench_server"],
+    "operation.extensions.ui.reportFrameError",
+  ),
 ] as const;

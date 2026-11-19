@@ -1,4 +1,5 @@
 import type {
+  BridgeFrameError,
   BridgeMethodName,
   ExtensionUiContributions,
   ExtensionUiThemes,
@@ -30,10 +31,23 @@ export function requestExtensionUiMethod(
   method: ServerBridgeMethod & BridgeMethodName,
   scope: ExtensionFrameScope,
   params: unknown,
+  /** Identifies the requesting frame so that its own store changes are not echoed back. */
+  origin?: string,
 ): Promise<unknown> {
   // The operation name follows the bridge method; the daemon validates the input again.
   return requestWorkbench(
     `extensions.ui.${method}` as "extensions.ui.call",
-    { ...scope, params } as never,
+    { ...scope, params, origin } as never,
   );
+}
+
+/** Reports an uncaught error or CSP violation from a frame. */
+export function reportExtensionFrameError(
+  scope: ExtensionFrameScope,
+  error: BridgeFrameError,
+): Promise<unknown> {
+  return requestWorkbench("extensions.ui.reportFrameError", {
+    ...scope,
+    error,
+  });
 }

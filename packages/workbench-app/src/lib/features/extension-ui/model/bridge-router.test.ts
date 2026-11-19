@@ -138,3 +138,35 @@ test("maps request failures to bridge errors", () => {
     2000,
   );
 });
+
+test("routes frame errors and offers clipboard and store to every kind", () => {
+  const error = { kind: "csp", message: "blocked" };
+  assert.deepEqual(
+    routeFrameMessage({ nerveBridge: 1, type: "frameError", error }, page),
+    { type: "frameError", error },
+  );
+  for (const contribution of [
+    preview,
+    page,
+    { kind: "panel", id: "p" } as const,
+  ]) {
+    const copy = routeFrameMessage(
+      request("clipboard.writeText", { text: "x" }),
+      contribution,
+    );
+    assert.deepEqual(copy.type === "request" && copy.handler, "host");
+    const get = routeFrameMessage(
+      request("extensionStore.get", { key: "a" }),
+      contribution,
+    );
+    assert.deepEqual(get.type === "request" && get.handler, "server");
+  }
+});
+
+test("passes conflict errors through", () => {
+  assert.equal(
+    failureOf({ code: "conflict", message: "stale" }, "extensionStore.set")
+      .code,
+    "conflict",
+  );
+});

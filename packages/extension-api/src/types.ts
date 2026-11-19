@@ -294,6 +294,56 @@ export interface ExtensionContext {
     freshName(base: string, extension: string): Promise<string>;
   };
 
+  /**
+   * Durable JSON storage for this extension in the open project, shared with its UI frames
+   * (`host.extensionStore`) and across conversations. One key holds one JSON value; every key has
+   * a `revision` (1 on the first write, +1 on each write) for conflict detection. Limits: keys of
+   * 1–128 letters, digits, `.`, `_`, `-` (no leading dot); 4 MiB per value; 1,000 keys and 64 MiB
+   * per project. Not artifacts: artifacts are conversation files for tool results. Rejects with
+   * `BAD_REQUEST` (bad key, value too large, over a limit, or no project is open) and `CONFLICT`
+   * (a stale `ifRevision`). Open frames of the extension are told about each write. The host keeps
+   * the data when the extension is uninstalled and never migrates it: keep a `schemaVersion` in
+   * your values.
+   */
+  extensionStore: {
+    /** The value and revision of `key`; `undefined` when it does not exist. */
+    get(key: string): Promise<
+      | {
+          /** The stored JSON value. */
+          value: unknown;
+          /** Revision of the stored value; pass it as `ifRevision` to write only if nothing changed. */
+          revision: number;
+        }
+      | undefined
+    >;
+    /**
+     * Writes `value` (JSON-serializable) and returns the new revision. With `ifRevision`, writes
+     * only when the stored revision equals it (`0`: only when the key does not exist); otherwise
+     * rejects with `CONFLICT`.
+     */
+    set(
+      key: string,
+      value: unknown,
+      options?: { ifRevision?: number },
+    ): Promise<{
+      /** The key's revision after this write. */
+      revision: number;
+    }>;
+    /** Deletes `key`; deleting a missing key succeeds. With `ifRevision`, rejects with `CONFLICT` unless the stored revision equals it. */
+    delete(key: string, options?: { ifRevision?: number }): Promise<void>;
+    /** Keys starting with `prefix` (all when omitted), sorted, with each key's revision and serialized size in bytes. */
+    keys(options?: { prefix?: string }): Promise<
+      {
+        /** The key. */
+        key: string;
+        /** Current revision. */
+        revision: number;
+        /** Serialized size of the value, in bytes. */
+        size: number;
+      }[]
+    >;
+  };
+
   /** Text utilities the host runs with its own limits (time, input and output size). */
   text: {
     /** Plain HTML to Markdown (a web page); not for Confluence storage format. */

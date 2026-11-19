@@ -43,7 +43,11 @@ export {
   type SandboxExtensionCodeOptions,
 } from "./extension-host/sandbox-adapter.js";
 export { resolveExtensionIcon } from "./extension-host/icon.js";
-export type { ExtensionHostPorts } from "./extension-host/ports.js";
+export type {
+  ExtensionHostPorts,
+  ExtensionStoreErrorCode,
+  ExtensionStorePort,
+} from "./extension-host/ports.js";
 export type {
   ExtensionAgentDiagnostic,
   ExtensionAgentError,

@@ -9,4 +9,21 @@ export const extensionEventDefinitions = [
     z.object({ scope: extensionTargetSchema }),
     { allowedSourceRoles: ["workbench_server"] },
   ),
+  /** A key of an extension's store in a project changed (frame or backend write); `revision` `null`: deleted. */
+  definePublicEvent(
+    "extensions.store.changed",
+    z.object({
+      projectId: z.string().min(1),
+      extensionId: z.string().min(1),
+      key: z.string().min(1),
+      revision: z.number().int().positive().nullable(),
+      /** The `origin` of the frame request that wrote it; absent for backend writes. */
+      origin: z.string().optional(),
+    }),
+    {
+      allowedSourceRoles: ["workbench_server"],
+      delivery: "ephemeral",
+      scope: ["projectId"],
+    },
+  ),
 ];

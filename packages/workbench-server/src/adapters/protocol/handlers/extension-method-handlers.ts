@@ -55,6 +55,16 @@ export const extensionMethodHandlers = define({
     state.extensionUi.bridge("project.info", input),
   "extensions.ui.call": (state, input) =>
     state.extensionUi.bridge("call", input),
+  "extensions.ui.extensionStore.get": (state, input) =>
+    state.extensionUi.bridge("extensionStore.get", input),
+  "extensions.ui.extensionStore.set": (state, input) =>
+    state.extensionUi.bridge("extensionStore.set", input),
+  "extensions.ui.extensionStore.delete": (state, input) =>
+    state.extensionUi.bridge("extensionStore.delete", input),
+  "extensions.ui.extensionStore.keys": (state, input) =>
+    state.extensionUi.bridge("extensionStore.keys", input),
+  "extensions.ui.reportFrameError": (state, input) =>
+    state.extensionUi.reportFrameError(input),
   "extensions.get": (state, { target }) => state.extensionViews.view(target),
   "extensions.save": async (state, input) => {
     const result = await state.extensionSettings.save(

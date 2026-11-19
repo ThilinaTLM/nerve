@@ -9,6 +9,7 @@ import {
   type BridgeContributionKind,
   type BridgeErrorCode,
   type BridgeEventName,
+  type BridgeFrameError,
   type BridgeMethodName,
 } from "@nervekit/contracts/extensions";
 
@@ -34,6 +35,7 @@ export class HostFailure extends Error {
 export type RoutedFrameMessage =
   | { type: "ignore" }
   | { type: "ready" }
+  | { type: "frameError"; error: BridgeFrameError }
   | { type: "reject"; id: string; error: BridgeFailure }
   | {
       type: "request";
@@ -111,6 +113,8 @@ export function routeFrameMessage(
       : { type: "ignore" };
   }
   if (envelope.data.type === "ready") return { type: "ready" };
+  if (envelope.data.type === "frameError")
+    return { type: "frameError", error: envelope.data.error };
   const validated = validateBridgeRequest(envelope.data, contribution);
   if (!validated.ok)
     return { type: "reject", id: envelope.data.id, error: validated.error };
@@ -171,6 +175,7 @@ const bridgeErrorCodes: readonly string[] = [
   "not_found",
   "too_large",
   "cancelled",
+  "conflict",
   "backend_error",
   "failed",
 ];

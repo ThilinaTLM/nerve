@@ -16,6 +16,7 @@ import type { ExtensionRegistryProvider } from "./extension-catalog/extension-ca
 import type { AccountsReader } from "../domains/accounts/accounts.service.js";
 import { extensionAvailability } from "./extension-availability.js";
 import { createExtensionPorts } from "./extension-ports.js";
+import type { ExtensionStore } from "./extension-store/extension-store.js";
 import type { VisionHost } from "./vision-models.js";
 
 export type ExtensionViewOptions = {
@@ -27,6 +28,8 @@ export type ExtensionViewOptions = {
   projectDirectory?(projectId: string): string | undefined;
   accounts: AccountsReader;
   vision?: VisionHost;
+  /** The durable store behind `ctx.extensionStore` in availability hooks of a project's extensions. */
+  extensionStore?: ExtensionStore;
 };
 
 export function toScopeRef(target: ExtensionTarget): ExtensionScopeRef {
@@ -64,6 +67,8 @@ export function createExtensionViews(options: ExtensionViewOptions) {
           resolution,
           accounts: options.accounts,
           ...(options.vision ? { vision: options.vision } : {}),
+          store: options.extensionStore,
+          projectId: ctx.projectId,
         }),
       });
     const definitions = new Map(

@@ -9,6 +9,7 @@ const statusOf: Record<BridgeErrorCode, number> = {
   too_large: 413,
   cancelled: 400,
   backend_error: 502,
+  conflict: 409,
   failed: 500,
 };
 

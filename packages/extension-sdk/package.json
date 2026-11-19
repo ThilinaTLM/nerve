@@ -18,6 +18,7 @@
     "bin",
     "dist",
     "assets",
+    "env.d.ts",
     "templates",
     "README.md",
     "UPGRADING.md",
@@ -40,6 +41,13 @@
     "./ui": {
       "types": "./dist/ui.d.ts",
       "import": "./dist/ui.js"
+    },
+    "./icons": {
+      "types": "./dist/icons.d.ts",
+      "import": "./dist/icons.js"
+    },
+    "./env": {
+      "types": "./env.d.ts"
     }
   },
   "publishConfig": {
@@ -53,6 +61,7 @@
     "e2e": "tsx scripts/e2e-npm.ts"
   },
   "dependencies": {
+    "@lucide/svelte": "^1.24.0",
     "@nervekit/extension-api": "workspace:*",
     "@nervekit/ui-kit": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "7.1.2",

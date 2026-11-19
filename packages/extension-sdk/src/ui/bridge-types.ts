@@ -34,7 +34,8 @@ export type PreviewEdit = "source" | "custom" | "none";
  * `unknown_method`: no such bridge method. `not_found`: the file, page or backend method does not
  * exist. `too_large`: a message or value is over its size limit. `cancelled`: the user dismissed
  * the request. `backend_error`: the extension's backend method failed (the message is its
- * shortened error). `failed`: anything else, including a closed bridge or a host that did not answer.
+ * shortened error). `conflict`: an `extensionStore` write's `ifRevision` no longer matches the
+ * stored revision. `failed`: anything else, including a closed bridge or a host that did not answer.
  */
 export type BridgeErrorCode =
   | "invalid_request"
@@ -44,6 +45,7 @@ export type BridgeErrorCode =
   | "too_large"
   | "cancelled"
   | "backend_error"
+  | "conflict"
   | "failed";
 
 /** What `host.file.info()` returns: facts about the previewed file. */
@@ -150,6 +152,17 @@ export type ThemeChange = {
   tokensCss: string;
 };
 
+/** Payload of `host.onExtensionStoreChange`: a key of the extension's store changed. */
+export type ExtensionStoreChange = {
+  /** The changed key. */
+  key: string;
+  /** The key's new revision; `null` when it was deleted. */
+  revision: number | null;
+};
+
+/** Image types `host.clipboard.writeImage` accepts; the host converts JPEG and WebP to PNG. */
+export type ClipboardImageType = "image/png" | "image/jpeg" | "image/webp";
+
 /**
  * Every bridge method with its params and result. `host` wraps each one; use `BridgeClient.request`
  * only with a fake transport. Params and results are JSON; sizes are limited (see `host`).
@@ -217,6 +230,40 @@ type Methods = {
   "composer.insert": {
     params: { text: string };
     result: Record<string, never>;
+  };
+  /** Copies text to the system clipboard (at most 1 MiB UTF-8). Needs a user click in the frame, else `not_allowed`. */
+  "clipboard.writeText": {
+    params: { text: string };
+    result: Record<string, never>;
+  };
+  /** Copies an image to the system clipboard (base64, at most 5 MiB decoded). Needs a user click in the frame, else `not_allowed`. */
+  "clipboard.writeImage": {
+    params: { dataBase64: string; mediaType: ClipboardImageType };
+    result: Record<string, never>;
+  };
+  /** One value of the extension's store; `value` and `revision` are `null` when the key does not exist. */
+  "extensionStore.get": {
+    params: { key: string };
+    result: { value: BridgeJson | null; revision: number | null };
+  };
+  /** Writes a value (JSON, at most 4 MiB) and returns its new revision. With `ifRevision`, writes only when the stored revision matches (`0`: only when the key does not exist), else `conflict`. */
+  "extensionStore.set": {
+    params: {
+      key: string;
+      value: BridgeJson;
+      ifRevision?: number | undefined;
+    };
+    result: { revision: number };
+  };
+  /** Deletes a key; deleting a missing key succeeds. With `ifRevision`, `conflict` when it does not match. */
+  "extensionStore.delete": {
+    params: { key: string; ifRevision?: number | undefined };
+    result: Record<string, never>;
+  };
+  /** Keys of the store (optionally those starting with `prefix`) with their revision and serialized size in bytes. */
+  "extensionStore.keys": {
+    params: { prefix?: string | undefined };
+    result: { keys: { key: string; revision: number; size: number }[] };
   };
 };
 /** Params and result of every bridge method, by method name (`file.info`, `file.read`, …, `composer.insert`). */

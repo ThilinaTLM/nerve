@@ -54,7 +54,7 @@ await extensions.reload("<id>"); // re-reads the folder; never grants consent
 return await extensions.status("<id>");
 ```
 
-`status` returns `state`, `consent`, `switch`, `diagnostics` and `recentErrors` (backend exceptions since the last reload; frame console output is not included). Fix every `error` diagnostic, run `check`, and reload again. Expected end state for a new extension: `state: "pending_consent"`, `consent: "pending"`.
+`status` returns `state`, `consent`, `switch`, `diagnostics` and `recentErrors` (since the last reload: backend exceptions, plus uncaught frame errors and CSP violations with `operation: "frame:<kind>/<id>"`; console output is not included). A frame only runs once the user has allowed the extension and opened it, so after they try it, read the status again before you say it works. Fix every `error` diagnostic, run `check`, and reload again. Expected end state for a new extension: `state: "pending_consent"`, `consent: "pending"`.
 
 ## 7. Hand over to the user
 

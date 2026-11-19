@@ -74,11 +74,11 @@ export const RadioGroup: Parts<"Root" | "Item">;
 export const ToggleGroup: Parts<"Root" | "Item">;
 /** Resizable panes: `PaneGroup` (`direction`) containing `Pane` (`defaultSize`) separated by `Handle`. */
 export const Resizable: Parts<"PaneGroup" | "Pane" | "Handle">;
-/** Message box. Props: `tone` (`neutral`, `brand`, `info`, `success`, `warning`, `destructive`), `layout` (`block` or `strip`), `icon` (a component), `title`, `text`, `actions` and `children` (snippets). */
+/** Message box. Props: `tone` (`neutral`, `brand`, `info`, `success`, `warning`, `destructive`), `layout` (`block` or `strip`), `icon` (a component from `@nervekit/extension-sdk/icons`), `title`, `text`, `actions` and `children` (snippets). */
 export const Callout: Part;
-/** Quiet caption above a group of rows. Props: `label`, `count`, `icon`. */
+/** Quiet caption above a group of rows. Props: `label`, `count`, `icon` (from `@nervekit/extension-sdk/icons`). */
 export const GroupLabel: Part;
-/** Icon-only button with a tooltip. Props: `icon` (a component, e.g. from `@lucide/svelte`), `label` (required: tooltip and accessible name), `onclick`, `tone` (`neutral`, `destructive`), `active`, `disabled`, `busy`, `side` (tooltip side). */
+/** Icon-only button with a tooltip. Props: `icon` (a component: import it from `@nervekit/extension-sdk/icons`, e.g. `import { Copy } from "@nervekit/extension-sdk/icons"`; do not install `@lucide/svelte`), `label` (required: tooltip and accessible name), `onclick`, `tone` (`neutral`, `destructive`), `active`, `disabled`, `busy`, `side` (tooltip side). */
 export const IconAction: Part;
 /** Search field with a clear button. Props: `bind:value`, `placeholder`, `clearable` (default true), `onValueChange`, `icon`, `trailing` (snippet). */
 export const SearchInput: Part;

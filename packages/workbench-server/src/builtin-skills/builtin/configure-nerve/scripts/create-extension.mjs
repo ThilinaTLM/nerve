@@ -112,7 +112,15 @@ main(() => {
     `Creating ${id} (${kinds.join(", ")}, ${scope}) in ${folder} with ${sdk.spec}`,
   );
   mkdirSync(dirname(folder), { recursive: true });
-  const initArgs = ["init", id, "--kind", kinds.join(","), "--dir", folder];
+  const initArgs = [
+    "init",
+    id,
+    "--kind",
+    kinds.join(","),
+    "--dir",
+    folder,
+    "--quiet",
+  ];
   const initialized = sdk.version
     ? run(...pm.dlx(sdk.spec, initArgs), dirname(folder))
     : initFromLocalSdk(pm, sdk, initArgs);

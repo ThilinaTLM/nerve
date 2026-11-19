@@ -9,6 +9,7 @@ import {
 import type {
   BridgeErrorCode,
   BridgeMethods,
+  ExtensionStoreChange,
   FileChange,
   FrameInit,
   Mode,
@@ -45,6 +46,8 @@ type Listeners = {
   fileChanged: ((change: FileChange) => void)[];
   /** The mode switched between `preview` and `edit` (previews with `edit: "custom"`). */
   modeChanged: ((change: { mode: Mode }) => void)[];
+  /** A key of the extension's store changed (all kinds). */
+  extensionStoreChanged: ((change: ExtensionStoreChange) => void)[];
 };
 
 /**
@@ -73,7 +76,7 @@ export type BridgeClient = {
     method: M,
     params: BridgeMethods[M]["params"],
   ): Promise<BridgeMethods[M]["result"]>;
-  /** Subscribes to a host event (`themeChanged`, `fileChanged`, `modeChanged`); returns the unsubscribe function. */
+  /** Subscribes to a host event (`themeChanged`, `fileChanged`, `modeChanged`, `extensionStoreChanged`); returns the unsubscribe function. */
   on<E extends keyof Listeners>(
     event: E,
     handler: Listeners[E][number],
@@ -100,6 +103,7 @@ export function createBridgeClient(transport: BridgeTransport): BridgeClient {
     themeChanged: [],
     fileChanged: [],
     modeChanged: [],
+    extensionStoreChanged: [],
   };
   let closed = false;
   let resolveReady!: (init: Awaited<BridgeClient["ready"]>) => void;
@@ -314,3 +318,127 @@ export function applyTheme(
   root.dataset["colorMode"] = kind;
   root.style.colorScheme = kind;
 }
+
+// ── Frame error reporting ─────────────────────────────────────────────────
+
+type FrameErrorKind = "error" | "unhandledrejection" | "csp";
+type FrameErrorReport = {
+  kind: FrameErrorKind;
+  message: string;
+  source?: string;
+};
+
+/** Shortens a URL to scheme, host and path (no query, no fragment); other values pass through trimmed. */
+export function shortUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol === "data:" || url.protocol === "blob:")
+      return `${url.protocol}…`;
+    return `${url.protocol}//${url.host}${url.pathname}`;
+  } catch {
+    return value.slice(0, 200);
+  }
+}
+
+const clip = (value: string, max: number) =>
+  value.length > max ? `${value.slice(0, max - 1)}…` : value;
+
+/**
+ * Reports the frame's own failures (uncaught errors, unhandled rejections, CSP violations) to the
+ * host with `frameError` messages, which the host records for `extensions.status`. Identical
+ * reports are sent once and at most `maxFrameErrorsPerLoad` per page load; nothing here throws.
+ * Returns `report` (for failures the frame catches itself) and `stop`.
+ */
+export function startFrameErrorReporting(
+  target: EventTarget,
+  post: (message: unknown) => void,
+): { report(error: FrameErrorReport): void; stop(): void } {
+  const seen = new Set<string>();
+  const report = (error: FrameErrorReport) => {
+    try {
+      const message = clip(error.message || "Unknown error", 1000);
+      const source = error.source ? clip(error.source, 500) : undefined;
+      const key = `${error.kind}\n${message}\n${source ?? ""}`;
+      if (seen.has(key) || seen.size >= bridgeLimits.maxFrameErrorsPerLoad)
+        return;
+      seen.add(key);
+      post({
+        nerveBridge: bridgeProtocolVersion,
+        type: "frameError",
+        error: {
+          kind: error.kind,
+          message,
+          ...(source ? { source } : {}),
+        },
+      });
+    } catch {
+      // Reporting must never break the frame.
+    }
+  };
+  const onError = (event: ErrorEvent) => {
+    try {
+      const where = event.filename
+        ? `${shortUrl(event.filename)}${event.lineno ? `:${event.lineno}` : ""}`
+        : undefined;
+      report({
+        kind: "error",
+        message:
+          event.error instanceof Error ? event.error.message : event.message,
+        ...(where ? { source: where } : {}),
+      });
+    } catch {
+      // see report
+    }
+  };
+  const onRejection = (event: PromiseRejectionEvent) => {
+    try {
+      const reason: unknown = event.reason;
+      report({
+        kind: "unhandledrejection",
+        message: reason instanceof Error ? reason.message : String(reason),
+      });
+    } catch {
+      // see report
+    }
+  };
+  const onCsp = (event: SecurityPolicyViolationEvent) => {
+    try {
+      const blocked = event.blockedURI ? shortUrl(event.blockedURI) : "inline";
+      const directive = event.violatedDirective || event.effectiveDirective;
+      report({
+        kind: "csp",
+        message: `Blocked by ${directive}: ${blocked}`,
+        ...(event.sourceFile
+          ? { source: `${shortUrl(event.sourceFile)}:${event.lineNumber}` }
+          : {}),
+      });
+    } catch {
+      // see report
+    }
+  };
+  target.addEventListener("error", onError as EventListener);
+  target.addEventListener("unhandledrejection", onRejection as EventListener);
+  target.addEventListener("securitypolicyviolation", onCsp as EventListener);
+  return {
+    report,
+    stop() {
+      target.removeEventListener("error", onError as EventListener);
+      target.removeEventListener(
+        "unhandledrejection",
+        onRejection as EventListener,
+      );
+      target.removeEventListener(
+        "securitypolicyviolation",
+        onCsp as EventListener,
+      );
+    },
+  };
+}
+
+/** The reporter of the real frame, installed when this module loads (before the handshake); `undefined` outside a frame. */
+export const frameErrors =
+  typeof window !== "undefined" && window.parent !== window
+    ? startFrameErrorReporting(window, (message) =>
+        window.parent.postMessage(message, "*"),
+      )
+    : undefined;
