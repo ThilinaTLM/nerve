@@ -43,7 +43,15 @@ import {
 } from "./git-github-sync.js";
 /* eslint-disable max-lines -- GitService centralizes the repository command boundary and delegates domain workflows to focused modules. */
 import { existsSync, realpathSync } from "node:fs";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import type {
   GitBranchListResponse,
   GitDiffArea,
@@ -295,7 +303,8 @@ export class GitService {
       existing = dirname(existing);
     }
     const target = resolve(realpathSync(existing), ...suffix);
-    if (target !== root && !target.startsWith(`${root}${sep}`)) {
+    const rel = relative(root, target);
+    if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
       throw new GitWorkflowError(
         400,
         "GIT_REPO_OUT_OF_SCOPE",

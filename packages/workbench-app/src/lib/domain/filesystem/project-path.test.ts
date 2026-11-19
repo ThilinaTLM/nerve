@@ -4,6 +4,7 @@ import {
   isPathInDirectory,
   pathKey,
   samePath,
+  shortenPath,
   tildePath,
 } from "./project-path";
 
@@ -44,5 +45,18 @@ describe("workbench path helpers", () => {
   it("honours a case-insensitive daemon filesystem", () => {
     assert.equal(samePath("/Users/Alice", "/users/alice", true), true);
     assert.equal(pathKey("/Users/Alice/", true), "/users/alice");
+  });
+
+  it("handles the POSIX root as a directory or home", () => {
+    assert.equal(isPathInDirectory("/etc/hosts", "/"), true);
+    assert.equal(tildePath("/etc", "/"), "~/etc");
+    assert.equal(tildePath("/", "/"), "~");
+  });
+
+  it("keeps the UNC server and share when shortening", () => {
+    assert.equal(
+      shortenPath("\\\\srv\\share\\Projects\\app"),
+      "//srv/share/P/app",
+    );
   });
 });

@@ -7,6 +7,8 @@
  * twice — once per colour mode — so `drive` must be idempotent.
  */
 
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Page } from "playwright";
 
 /** Desktop sources are 1440x900 at DPR 2 -> 2880x1800. */
@@ -23,7 +25,7 @@ const DEPLOY_CONVERSATION = "Investigate flaky staging deploys";
 const QUICK_SCRIPT_CONVERSATION = "Draft the Aurora 2.4 release notes";
 const RICH_CONVERSATION = "Compare limiter strategies for POST /bookings";
 /** The seed's workspace parent, so the folder browser shows demo folders only. */
-const DEMO_WORKSPACE_ROOT = "/tmp/nerve-demo-workspace";
+const DEMO_WORKSPACE_ROOT = join(tmpdir(), "nerve-demo-workspace");
 
 async function selectProject(page: Page, name = DEMO_PROJECT) {
   await page.getByRole("button", { name: "Switch project" }).click();

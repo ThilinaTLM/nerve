@@ -30,6 +30,7 @@ export function validatePathGlob(pattern: string): string | undefined {
   return validatePattern(value);
 }
 
+/** `path` must be project-relative with `/` separators (callers normalize native separators). */
 export function pathGlobMatches(path: string, pattern: string): boolean {
   if (validatePathGlob(pattern)) return false;
   return posix.matchesGlob(path, pattern.trim());

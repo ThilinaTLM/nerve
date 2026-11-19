@@ -1,4 +1,5 @@
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { win32 } from "node:path";
 import { CliError } from "./main.ts";
 import { section } from "./log.ts";
 
@@ -16,6 +17,53 @@ export type SpawnFunction = (
   args: string[],
   options: { cwd?: string; stdio: "inherit"; shell?: boolean },
 ) => Partial<SpawnSyncReturns<unknown>>;
+
+/**
+ * How to launch pnpm without a shell where possible: through its JS entrypoint
+ * under Node when known, else the `pnpm` binary. On Windows that binary is a
+ * `.cmd` script, so only then is a shell used (arguments must be fixed, never
+ * user paths; those need the JS entrypoint).
+ */
+export function pnpmInvocation(
+  args: string[],
+  pnpmPath: string | undefined = process.env.npm_execpath,
+  platform: NodeJS.Platform = process.platform,
+): { command: string; args: string[]; shell: boolean } {
+  if (/(?:^|[/\\])pnpm\.(?:c?js|mjs)$/i.test(pnpmPath ?? ""))
+    return {
+      command: process.execPath,
+      args: [pnpmPath!, ...args],
+      shell: false,
+    };
+  return { command: "pnpm", args, shell: platform === "win32" };
+}
+
+/**
+ * `npm` is a `.cmd` script on Windows and cannot be spawned without a shell,
+ * which would mangle paths with spaces. Run npm's JS entrypoint (bundled next
+ * to node) instead; other commands and platforms are unchanged.
+ */
+export function directInvocation(
+  command: string,
+  args: string[],
+  platform: NodeJS.Platform = process.platform,
+  execPath: string = process.execPath,
+): { command: string; args: string[] } {
+  if (platform !== "win32" || command !== "npm") return { command, args };
+  return {
+    command: execPath,
+    args: [
+      win32.join(
+        win32.dirname(execPath),
+        "node_modules",
+        "npm",
+        "bin",
+        "npm-cli.js",
+      ),
+      ...args,
+    ],
+  };
+}
 
 export interface RunOptions {
   cwd?: string;

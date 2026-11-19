@@ -1,3 +1,4 @@
+import { normalizePathForCompare } from "@nervekit/ui-kit/display/path-links";
 import type {
   UpgradeReport,
   UpgradeReportLoss,
@@ -131,6 +132,13 @@ export function setAsideGroupLabel(group: {
 
 /** Shows a path relative to the Nerve home when it lives under it. */
 export function homeRelativePath(path: string, home: string | undefined) {
-  if (home && path.startsWith(`${home}/`)) return path.slice(home.length + 1);
-  return path;
+  if (!home) return path;
+  const root = normalizePathForCompare(home);
+  const key = normalizePathForCompare(path);
+  const windows = /^[A-Za-z]:\/|^\/\//.test(root);
+  const prefix = root.endsWith("/") ? root : `${root}/`;
+  const candidate = windows ? key.toLowerCase() : key;
+  if (!candidate.startsWith(windows ? prefix.toLowerCase() : prefix))
+    return path;
+  return path.trim().slice(prefix.length);
 }

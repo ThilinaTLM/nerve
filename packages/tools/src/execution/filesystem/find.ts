@@ -3,7 +3,7 @@ import type { Readable } from "node:stream";
 import { spawnManagedChildProcess } from "@nervekit/native";
 import { searchProcessPolicy } from "../process/managed-process-policy.js";
 import { stat } from "node:fs/promises";
-import { relative } from "node:path";
+import { relative, sep } from "node:path";
 import type {
   FilesystemExecutionContext,
   ToolExecutionResult,
@@ -151,7 +151,7 @@ async function runFd(
       if (!path) return;
       totalEntries += 1;
       if (paths.length < limit)
-        paths.push((relative(root, path) || path).replaceAll("\\", "/"));
+        paths.push((relative(root, path) || path).split(sep).join("/"));
     };
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
@@ -251,10 +251,10 @@ async function fallbackFind(
     root,
     limit,
     async (absolutePath, relativePath) => {
-      const normalizedPath = relativePath.replaceAll("\\", "/");
+      const normalizedPath = relativePath.split(sep).join("/");
       // Like fd: a pattern with "/" matches the full path, any other matches the file name.
       const subject = fullPath
-        ? absolutePath.replaceAll("\\", "/")
+        ? absolutePath.split(sep).join("/")
         : (normalizedPath.split("/").at(-1) ?? normalizedPath);
       if (regex.test(subject)) {
         totalEntries += 1;

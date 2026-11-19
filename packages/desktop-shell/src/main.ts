@@ -1,4 +1,4 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import { resolveDataDir } from "@nervekit/workbench-server";
 import {
@@ -56,7 +56,8 @@ const profileRelativeToHome = relative(
 );
 if (
   profileRelativeToHome === "" ||
-  (!profileRelativeToHome.startsWith("..") &&
+  (profileRelativeToHome !== ".." &&
+    !profileRelativeToHome.startsWith(`..${sep}`) &&
     !isAbsolute(profileRelativeToHome))
 ) {
   throw new Error("Electron userData must remain outside NERVE_HOME.");

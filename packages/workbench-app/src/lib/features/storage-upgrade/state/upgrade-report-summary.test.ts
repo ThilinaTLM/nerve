@@ -112,4 +112,8 @@ test("group labels are plain language and paths are home-relative", () => {
   );
   assert.equal(homeRelativePath("/h/quarantine/a", "/h"), "quarantine/a");
   assert.equal(homeRelativePath("/x/a", "/h"), "/x/a");
+  assert.equal(
+    homeRelativePath("C:\\Nerve\\quarantine\\a", "c:\\nerve"),
+    "quarantine\\a",
+  );
 });

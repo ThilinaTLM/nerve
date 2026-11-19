@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { access, lstat, readdir, stat } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import {
   isErrnoException,
   pathNotFoundMessage,
@@ -99,7 +99,10 @@ function commonAncestor(paths: string[]): string {
 
 function isInsideOrSame(parent: string, child: string): boolean {
   const rel = relative(parent, child);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  return (
+    rel === "" ||
+    (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
+  );
 }
 
 export async function walkFiles(

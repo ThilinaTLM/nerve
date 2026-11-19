@@ -160,10 +160,11 @@ export async function main(
         if (flags.get("install") === true) {
           const code = await new Promise<number>((done) => {
             void import("node:child_process").then(({ spawn }) =>
-              spawn("npm", ["install"], { cwd: folder, stdio: "inherit" }).on(
-                "close",
-                (exit) => done(exit ?? 1),
-              ),
+              spawn("npm", ["install"], {
+                cwd: folder,
+                stdio: "inherit",
+                shell: process.platform === "win32",
+              }).on("close", (exit) => done(exit ?? 1)),
             );
           });
           if (code !== 0) return code;

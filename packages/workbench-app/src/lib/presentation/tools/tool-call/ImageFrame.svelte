@@ -5,6 +5,7 @@
 import { fade } from "svelte/transition";
 import ImageIcon from "@lucide/svelte/icons/image";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import { joinLocalPath } from "@nervekit/ui-kit/display/path-links";
 import { getConversationUiCapabilities } from "../../context.svelte";
 
 type Props = {
@@ -45,8 +46,8 @@ let loading = $state(true);
 const waiting = $derived(Boolean(imageSource && path) && loading);
 
 function absolute(target: string): string {
-  if (/^([a-zA-Z]:)?[\\/]/.test(target) || !cwd) return target;
-  return `${cwd.replace(/[\\/]+$/, "")}/${target.replace(/^\.\//, "")}`;
+  if (!cwd) return target;
+  return joinLocalPath(cwd, target);
 }
 
 // Fetch once per mounted frame; no polling.

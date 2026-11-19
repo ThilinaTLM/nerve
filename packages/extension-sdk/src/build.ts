@@ -98,7 +98,7 @@ function esbuildProblems(messages: Message[], projectDir: string): Problem[] {
   return messages.map((message) => {
     const location = message.location;
     const where = location
-      ? `${location.file.startsWith("/") ? location.file : join(projectDir, location.file)}:${location.line}:${location.column + 1}`
+      ? `${isAbsolute(location.file) ? location.file : join(projectDir, location.file)}:${location.line}:${location.column + 1}`
       : "src/extension.ts";
     const text = message.text;
     const unresolved = /^Could not resolve "(.+)"$/.exec(text);
@@ -145,7 +145,10 @@ async function exists(path: string): Promise<boolean> {
 /** The path stays inside `root`: relative, no `..`. */
 function insideProject(path: string): boolean {
   return (
-    !isAbsolute(path) && !path.split(/[\\/]/).includes("..") && path.length > 0
+    !isAbsolute(path) &&
+    !/^[A-Za-z]:/.test(path) &&
+    !path.split(/[\\/]/).includes("..") &&
+    path.length > 0
   );
 }
 

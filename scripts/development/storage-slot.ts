@@ -1,5 +1,5 @@
 import { lstat, mkdir, realpath } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { repoRoot } from "../workspace/repo.ts";
 
 export const repositoryRoot = repoRoot;
@@ -65,9 +65,7 @@ export async function assertSlotPaths(slot: SlotPaths): Promise<void> {
       if (!entry.isDirectory() || entry.isSymbolicLink()) {
         throw new Error(`Development path must be a real directory: ${path}`);
       }
-      if (
-        (await realpath(path)) !== join(repo, path.slice(slot.repo.length + 1))
-      ) {
+      if ((await realpath(path)) !== resolve(repo, relative(slot.repo, path))) {
         throw new Error(
           `Development path must not redirect outside the checkout: ${path}`,
         );

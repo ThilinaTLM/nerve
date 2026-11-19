@@ -9,12 +9,15 @@ const safeJsonStringify = (value: unknown): string => {
   }
 };
 // Single-class tokens keep matching linear on large, attacker-shaped tool output.
-const REFERENCE_TOKEN = /(?:artifact|file):\/\/[^\s)]+|[\w.@+~/-]+/g;
+const REFERENCE_TOKEN =
+  /(?:artifact|file):\/\/[^\s)]+|[A-Za-z]:[\\/][\w.@+~\\/-]*|[\w.@+~/-]+/g;
 const pathReference = (token: string): string | undefined => {
   if (token.includes("://")) return token;
-  const segments = token.split("/");
-  const absolute = segments[0] === "";
+  const drive = /^[A-Za-z]:[\\/]/.test(token);
+  const segments = token.split(drive ? /[\\/]/ : "/");
+  const absolute = segments[0] === "" || drive;
   const parts = segments.filter(Boolean);
+  if (drive) return parts.length > 1 ? parts.join("/") : undefined;
   if (parts.length < (absolute ? 1 : 2)) return undefined;
   return `${absolute ? "/" : ""}${parts.join("/")}`;
 };

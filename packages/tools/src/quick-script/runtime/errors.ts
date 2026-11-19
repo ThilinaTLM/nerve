@@ -1,4 +1,4 @@
-import { basename, sep } from "node:path";
+import { basename, isAbsolute, relative, sep } from "node:path";
 import { ToolExecutionError } from "../../execution/index.js";
 
 /** What a script sees as `HostError.code`; every host failure has one of these. */
@@ -71,10 +71,13 @@ export function errnoMessage(
   if (!text) return undefined;
   const within = (root: string | undefined) => {
     if (!root) return undefined;
-    const relative = path.startsWith(root + sep)
-      ? path.slice(root.length + 1)
+    const rel = relative(root, path);
+    return rel !== "" &&
+      rel !== ".." &&
+      !rel.startsWith(`..${sep}`) &&
+      !isAbsolute(rel)
+      ? rel
       : undefined;
-    return relative;
   };
   const artifact = within(paths.artifactDir);
   const workspace = within(paths.cwd);

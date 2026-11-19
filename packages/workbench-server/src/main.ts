@@ -78,6 +78,7 @@ import {
 import { isAccessCliCommand, runAccessCli } from "./cli/access-cli.js";
 import { createHostAllowlist } from "./adapters/http/host-allowlist.js";
 import { installProtocolWebSocketUpgrade } from "./adapters/protocol/protocol-websocket.js";
+import { watchStdinForShutdown } from "./shutdown-on-stdin-close.js";
 
 function prepareEnterpriseNetworkEnvironment(): void {
   const proxyConfigured = Boolean(
@@ -319,6 +320,12 @@ async function main() {
   };
   process.on("SIGINT", requestShutdown);
   process.on("SIGTERM", requestShutdown);
+  if (process.platform === "win32") process.on("SIGBREAK", requestShutdown);
+  // The desktop supervisor ends our stdin to request shutdown (Windows has no
+  // graceful signal) and it also closes when the supervisor dies.
+  watchStdinForShutdown(process.env, process.stdin, () =>
+    requestShutdown("SIGTERM"),
+  );
 
   let storageStartedAt = performance.now();
   const runStorage = async (

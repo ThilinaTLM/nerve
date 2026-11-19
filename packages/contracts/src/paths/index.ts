@@ -43,7 +43,7 @@ export function parseProjectRelativePath(
   let path = input.replaceAll("\\", "/");
   if (options.trimTrailingSlash) path = path.replace(/\/+$/, "");
   if (path.startsWith("/")) return { ok: false, reason: "absolute" };
-  if (/^[A-Za-z]:\//.test(path)) return { ok: false, reason: "drive" };
+  if (/^[A-Za-z]:/.test(path)) return { ok: false, reason: "drive" };
 
   const segments: string[] = [];
   if (path !== "") {

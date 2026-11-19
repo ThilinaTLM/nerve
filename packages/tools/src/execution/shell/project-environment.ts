@@ -2,6 +2,7 @@ import { accessSync, constants, existsSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import type { ProjectShellLaunchContext } from "@nervekit/contracts/tools";
 export type { ProjectShellLaunchContext } from "@nervekit/contracts/tools";
+import { environmentValue } from "../executable/executable.js";
 import type { ShellConfig } from "./shell-config.js";
 
 export type ProjectEnvironmentManager = NonNullable<
@@ -81,14 +82,10 @@ function executableExtensions(
   env: NodeJS.ProcessEnv,
 ): string[] {
   if (platform !== "win32") return [""];
-  const extensions = env.PATHEXT?.split(";").filter(Boolean) ?? [
-    ".COM",
-    ".EXE",
-    ".BAT",
-    ".CMD",
-  ];
+  const extensions = environmentValue(env, "PATHEXT")
+    ?.split(";")
+    .filter(Boolean) ?? [".COM", ".EXE", ".BAT", ".CMD"];
   return [
-    "",
     ...new Set(
       extensions.flatMap((extension) => [extension, extension.toLowerCase()]),
     ),
@@ -99,7 +96,7 @@ function findExecutable(
   name: string,
   context: ResolutionContext,
 ): string | undefined {
-  const pathValue = context.env.PATH ?? context.env.Path;
+  const pathValue = environmentValue(context.env, "PATH");
   if (!pathValue) return undefined;
   const separator = context.platform === "win32" ? ";" : delimiter;
   for (const directory of pathValue.split(separator)) {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { defineCli } from "../cli/main.ts";
-import { runStep, type SpawnFunction } from "../cli/run.ts";
+import { pnpmInvocation, runStep, type SpawnFunction } from "../cli/run.ts";
 import { repoRoot } from "../workspace/repo.ts";
 
 const VALID_COMMANDS = new Set(["build", "check", "test"]);
@@ -44,9 +44,11 @@ export function runAffectedPackages(
     console.log(`No affected workspace packages require ${command}.`);
     return;
   }
-  runStep("pnpm", pnpmArguments(command, packages), {
+  const pnpm = pnpmInvocation(pnpmArguments(command, packages));
+  runStep(pnpm.command, pnpm.args, {
     cwd,
     spawn,
+    shell: pnpm.shell || undefined,
     failure: (result) =>
       `pnpm ${command} failed with exit code ${result.status}`,
   });

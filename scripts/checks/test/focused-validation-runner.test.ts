@@ -362,3 +362,27 @@ test("--only keeps requested stages and the preparation they read", () => {
     "lint",
   ]);
 });
+
+test("Windows launches pnpm/npm without a shell when an entrypoint is known", async () => {
+  const { pnpmInvocation, directInvocation } = await import("../../cli/run.ts");
+  assert.deepEqual(pnpmInvocation(["a"], "", "win32"), {
+    command: "pnpm",
+    args: ["a"],
+    shell: true,
+  });
+  assert.equal(pnpmInvocation(["a"], "", "linux").shell, false);
+  assert.equal(pnpmInvocation(["a"], "C:\\p\\pnpm.cjs", "win32").shell, false);
+  const npm = directInvocation(
+    "npm",
+    ["pack", "C:\\a b"],
+    "win32",
+    "C:\\node\\node.exe",
+  );
+  assert.equal(npm.command, "C:\\node\\node.exe");
+  assert.deepEqual(npm.args, [
+    "C:\\node\\node_modules\\npm\\bin\\npm-cli.js",
+    "pack",
+    "C:\\a b",
+  ]);
+  assert.equal(directInvocation("tar", ["x"], "win32").command, "tar");
+});
