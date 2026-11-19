@@ -14,13 +14,22 @@ pub(crate) fn resolve_relative(root: &Path, relative: &str) -> Result<PathBuf, S
         if segment == "." {
             continue;
         }
-        let mut components = Path::new(segment).components();
-        match (components.next(), components.next()) {
-            (Some(Component::Normal(_)), None) => joined.push(segment),
-            _ => return Err(format!("Invalid project path segment: {segment}")),
+        if !is_normal_segment(segment) {
+            return Err(format!("Invalid project path segment: {segment}"));
         }
+        joined.push(segment);
     }
     Ok(joined)
+}
+
+/// One plain path segment: not `.`/`..`, a root, or a Windows drive/UNC prefix (`C:`), any of
+/// which would make `Path::join` escape or replace the base.
+pub(crate) fn is_normal_segment(segment: &str) -> bool {
+    let mut components = Path::new(segment).components();
+    matches!(
+        (components.next(), components.next()),
+        (Some(Component::Normal(_)), None)
+    )
 }
 
 /// Project-relative path with "/" separators; `None` outside the root.

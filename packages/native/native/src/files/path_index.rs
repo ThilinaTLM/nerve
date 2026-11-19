@@ -365,7 +365,7 @@ fn apply(inner: &Arc<Inner>, paths: &[String]) {
     for raw in paths {
         let relative = raw.trim_matches(['/', '\\']).replace('\\', "/");
         let segments: Vec<_> = relative.split('/').filter(|s| !s.is_empty()).collect();
-        if segments.iter().any(|s| *s == ".." || *s == ".") {
+        if !segments.iter().all(|s| super::is_normal_segment(s)) {
             continue;
         }
         let relative = segments.join("/");

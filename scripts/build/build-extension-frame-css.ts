@@ -1,6 +1,8 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { join, sep } from "node:path";
+import { pathToFileURL } from "node:url";
+import { isEntrypoint } from "../cli/main.ts";
 import { repoRoot } from "../workspace/repo.ts";
 
 /*
@@ -33,14 +35,24 @@ export function withoutThemeBlocks(css: string): string {
   return css.slice(0, start) + css.slice(end);
 }
 
+/** A filesystem path as a CSS string body: `\` would start an escape, so use `/` (valid on Windows too). */
+function cssPath(path: string): string {
+  return path.split(sep).join("/");
+}
+
 export async function buildExtensionFrameCss(): Promise<void> {
   // Vite and the Tailwind plugin are ui-kit devDependencies.
   const require = createRequire(join(uiKit, "package.json"));
-  const { build } = (await import(require.resolve("vite"))) as {
+  // `import()` needs a file URL: a bare Windows path (`C:\…`) is rejected as a URL scheme.
+  const { build } = (await import(
+    pathToFileURL(require.resolve("vite")).href
+  )) as {
     build(config: Record<string, unknown>): Promise<unknown>;
   };
   const tailwindcss = (
-    (await import(require.resolve("@tailwindcss/vite"))) as {
+    (await import(
+      pathToFileURL(require.resolve("@tailwindcss/vite")).href
+    )) as {
       default: () => unknown;
     }
   ).default;
@@ -57,7 +69,7 @@ export async function buildExtensionFrameCss(): Promise<void> {
   font-style: normal;
   font-display: swap;
   font-weight: ${weight};
-  src: url("${join(uiKit, "node_modules", "@fontsource", "iosevka", "files", `iosevka-latin-${weight}-normal.woff2`)}") format("woff2");
+  src: url("${cssPath(join(uiKit, "node_modules", "@fontsource", "iosevka", "files", `iosevka-latin-${weight}-normal.woff2`))}") format("woff2");
 }`;
   const entry = (
     await readFile(
@@ -65,7 +77,7 @@ export async function buildExtensionFrameCss(): Promise<void> {
       "utf8",
     )
   )
-    .replaceAll("__STYLES__", styles)
+    .replaceAll("__STYLES__", cssPath(styles))
     .replace("/* __IOSEVKA__ */", `${font(400)}\n${font(500)}`);
   await writeFile(join(work, "frame.css"), entry);
   // The bundler needs a script entry to pull the stylesheet in.
@@ -110,5 +122,4 @@ export async function buildExtensionFrameCss(): Promise<void> {
   console.log(`Built extension frame CSS in ${outDir}`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`)
-  await buildExtensionFrameCss();
+if (isEntrypoint(import.meta.url)) await buildExtensionFrameCss();

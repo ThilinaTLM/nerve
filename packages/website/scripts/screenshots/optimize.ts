@@ -8,6 +8,7 @@
 
 import { mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { isEntrypoint } from "../../../../scripts/cli/main.ts";
 import sharp from "sharp";
 
 export const EXPECTED_DIMENSIONS: Record<
@@ -95,4 +96,4 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) await main();
+if (isEntrypoint(import.meta.url)) await main();

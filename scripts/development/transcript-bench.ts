@@ -18,7 +18,7 @@
  *   pnpm exec tsx scripts/development/transcript-bench.ts --scenario open \
  *     --conversation conv_… --search "title words" [--runs 5] [--reload]
  *   pnpm exec tsx scripts/development/transcript-bench.ts --scenario stream \
- *     --project Random [--profile] [--out /tmp/nerve-bench]
+ *     --project Random [--profile] [--out <tmpdir>/nerve-bench]
  *
  * Deterministic, token-free stream runs: start the dev instance with
  * `NERVE_DEV_SCRIPTED_PROVIDER=1 pnpm desktop:dev --slot N` and pass `--scripted`
@@ -27,6 +27,7 @@
  * Raw output (results.json, CPU profiles, traces) goes to --out, never the repo.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseCli } from "../cli/args.ts";
 import { CliError, defineCli } from "../cli/main.ts";
@@ -53,7 +54,7 @@ async function main(argv: string[]): Promise<void> {
       out: {
         type: "string",
         description: "Raw output directory (outside the repo).",
-        default: "/tmp/nerve-bench",
+        default: join(tmpdir(), "nerve-bench"),
       },
       conversation: {
         type: "string",
