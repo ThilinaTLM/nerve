@@ -3,6 +3,7 @@ import { coding } from "./coding.js";
 import { lead } from "./lead.js";
 import { explore } from "./explore.js";
 import { developer } from "./developer.js";
+import { forge } from "./forge.js";
 
 /**
  * Built-in agent profiles, one module per profile. User and project profile
@@ -11,7 +12,7 @@ import { developer } from "./developer.js";
  * Each definition is serialized once and digests bind those exact bytes, so
  * changing a definition (including its key order) changes its digest.
  */
-const definitions = [planning, coding, lead, explore, developer];
+const definitions = [planning, coding, lead, forge, explore, developer];
 
 export const bundledAgentProfiles: Readonly<Record<string, string>> =
   Object.fromEntries(

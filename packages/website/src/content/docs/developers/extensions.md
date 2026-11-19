@@ -22,7 +22,7 @@ Define tool name/schema/risk/execution mode in the owning manifest, implement a 
 
 ## Built-in extensions
 
-An extension is a unit of capability with its own settings, accounts, and permissions. It contributes `quick_script` namespaces and optionally direct tools. The built-ins are Web Search, Atlassian, Diagrams, Image generation, and Image explanation; users manage them under [Extensions](/integrations/extensions/). Users and projects can also install their own extensions as folders; see [Extension locations and trust](/reference/extensions/). The extension API is documented in the type declarations of the [`@nervekit/extension-sdk`](https://www.npmjs.com/package/@nervekit/extension-sdk) package, and the built-in **configure-nerve** skill builds extensions by chat.
+An extension is a unit of capability with its own settings, accounts, and permissions. It contributes `quick_script` namespaces and optionally direct tools. The built-ins are Web Search, Atlassian, Diagrams, Image generation, and Image explanation; users manage them under [Extensions](/integrations/extensions/). Users and projects can also install their own extensions as folders; see [Extension locations and trust](/reference/extensions/). The extension API is documented in the type declarations of the [`@nervekit/extension-sdk`](https://www.npmjs.com/package/@nervekit/extension-sdk) package, and the built-in **configure-nerve** skill (required by the Forge profile) builds extensions by chat.
 
 Each is one folder in `packages/extensions/src/<id>/`: a definition written with `@nervekit/extension-api` and method code that reaches the world only through its `ctx`. The definition declares:
 
@@ -36,7 +36,7 @@ The package depends on `extension-api` and nothing else. The workbench server ow
 
 ## Content extensions
 
-Skills and AGENTS/SYSTEM resources extend instructions without code changes. Official built-in Nerve skills live in `@nervekit/workbench-server` (`src/builtin-skills/`; `configure-nerve` is on by default, the others are off); generic parsing and prompt formatting stay in `@nervekit/harness`, while executable capabilities stay in `@nervekit/tools`. Prompt suggestions add contextual reusable prompts and optional explicitly trusted predicates. These content sources require clear precedence and trust documentation.
+Skills and AGENTS/SYSTEM resources extend instructions without code changes. Official built-in Nerve skills live in `@nervekit/workbench-server` (`src/builtin-skills/`; all off by default; the `forge` profile requires `configure-nerve`); generic parsing and prompt formatting stay in `@nervekit/harness`, while executable capabilities stay in `@nervekit/tools`. Prompt suggestions add contextual reusable prompts and optional explicitly trusted predicates. These content sources require clear precedence and trust documentation.
 
 ## Package boundaries
 

@@ -13,6 +13,7 @@ A profile packages how an agent works: instructions plus settings for model, thi
 | `coding`    | lead      | General work; the default for new conversations. No extra instructions or settings.      |
 | `planning`  | lead      | Clarify, research and present a plan; requires the `planning` rule set and Plan Present. |
 | `lead`      | lead      | Coordinates sub-agents; requires delegation.                                             |
+| `forge`     | lead      | Configures and extends Nerve; requires the `configure-nerve` skill.                      |
 | `explore`   | sub-agent | Read-only research; recommends the `read_only` rule set.                                 |
 | `developer` | sub-agent | Autonomous implementation; recommends the `autonomous` rule set.                         |
 

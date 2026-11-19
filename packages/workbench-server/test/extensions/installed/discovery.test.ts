@@ -150,11 +150,11 @@ void test("SDK compatibility: oldest <= sdkVersion <= running version, otherwise
   assert.equal(reads.get("oldest")!.incompatible, undefined);
   assert.match(
     reads.get("too-old")!.incompatible!,
-    /Built with SDK 0\.38\.0; this Nerve needs 0\.41\.0 or later\. Ask the agent to upgrade it with the configure-nerve skill\./,
+    /Built with SDK 0\.38\.0; this Nerve needs 0\.41\.0 or later\. Ask the agent in the Forge profile to upgrade it\./,
   );
   assert.match(
     reads.get("too-new")!.incompatible!,
-    /newer than this Nerve \(0\.41\.1\).*configure-nerve skill/,
+    /newer than this Nerve \(0\.41\.1\).*Forge profile/,
   );
 });
 

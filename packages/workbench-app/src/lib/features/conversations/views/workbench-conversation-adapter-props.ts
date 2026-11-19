@@ -99,6 +99,8 @@ export type WorkbenchConversationAdapterProps =
     thinkingLevel?: AgentRecord["thinkingLevel"];
     agentProfile?: string;
     agentProfiles?: ComposerAgentProfile[];
+    /** Profile new conversations start in, marked on the launchpad. */
+    defaultAgentProfile?: string;
     lockedFields?: ComposerLockedFields;
     profileDisabled?: boolean;
     permissionRuleSetId?: PermissionRuleSetId;

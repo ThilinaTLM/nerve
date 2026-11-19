@@ -50,7 +50,7 @@ Settings choose an account by ID, and each field resolves from the extension's d
 
 ## Edit configuration by chat
 
-The built-in **configure-nerve** skill (on by default) lets the agent edit these files, agent profiles, permission rule sets (`<NERVE_HOME>/config/rule-sets/<id>.json`), launch definitions and skills for you, then reload them and report problems. Project files it writes still need your trust where noted below.
+The built-in **configure-nerve** skill, turned on by the **Forge** profile, lets the agent edit these files, agent profiles, permission rule sets (`<NERVE_HOME>/config/rule-sets/<id>.json`), launch definitions and skills for you, then reload them and report problems. Project files it writes still need your trust where noted below.
 
 ## Project trust
 

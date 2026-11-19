@@ -26,13 +26,13 @@ Effective skill discovery is first-name-wins in this order:
 
 Within each skills root, Nerve recursively discovers `SKILL.md`, accepts direct root `.md` files, and honors `.gitignore`, `.ignore`, and `.fdignore`. Skills require a description; directory-based names must match their parent directory and use lowercase letters, digits, and single hyphens. Invalid files are omitted with diagnostics. `disable-model-invocation: true` keeps a skill out of model-visible discovery while preserving explicit application use.
 
-Built-in Nerve and Agent Browser skills are disabled by default, except `configure-nerve`, which is on by default. A disabled skill contributes neither metadata nor instructions to the agent system prompt. Settings toggles do not delete source files, and changes apply to subsequent agent runs.
+Built-in Nerve and Agent Browser skills are disabled by default. The built-in **Forge** profile requires `configure-nerve`. A disabled skill contributes neither metadata nor instructions to the agent system prompt. Settings toggles do not delete source files, and changes apply to subsequent agent runs.
 
 Project definitions therefore take precedence over global, built-in, and Agent Browser definitions with the same name. Built-in Nerve skills take precedence over same-named Agent Browser guidance. Inspect the Settings Skills view to see discovered scope and effective state.
 
 ## Toggles and defaults
 
-Skills support per-source defaults (`file`, `nerve`, `agentBrowser`) and named exceptions. Within a layer, a named choice beats its source default; otherwise resolution continues to lower layers. File skills default on. Built-in Nerve and Agent Browser guidance default off unless scoped settings or an applied profile enable them; the exception is the built-in `configure-nerve` skill, which defaults on and can be switched off like any other. File skills override both, and Built-in Nerve skills override same-named Agent Browser guidance.
+Skills support per-source defaults (`file`, `nerve`, `agentBrowser`) and named exceptions. Within a layer, a named choice beats its source default; otherwise resolution continues to lower layers. File skills default on. Built-in Nerve and Agent Browser guidance default off unless scoped settings or an applied profile enable them. File skills override both, and Built-in Nerve skills override same-named Agent Browser guidance.
 
 The User scope supplies defaults. The Project scope writes sparse, shareable overrides to `.nerve/config/agent.json`; a conversation's own choices live in that conversation's `config/agent.json`. Applied profile recommendations yield to conversation choices, and requirements control the effective value without overwriting them. Reset removes an editable override and inherits.
 

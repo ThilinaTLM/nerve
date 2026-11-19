@@ -148,7 +148,7 @@ export async function readFolder(
   } catch (cause) {
     if ((cause as NodeJS.ErrnoException).code === "ENOENT")
       return fail(
-        "There is no dist/manifest.json. Build the extension (the configure-nerve skill does it) so dist/ exists.",
+        "There is no dist/manifest.json. Build the extension so dist/ exists; the configure-nerve skill (Forge profile) covers how.",
       );
     return fail(
       `Cannot read dist/manifest.json: ${cause instanceof Error ? cause.message : String(cause)}`,

@@ -1,7 +1,9 @@
 <script lang="ts">
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+import FolderIcon from "@lucide/svelte/icons/folder";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
 import NerveBadge from "../brand/NerveBadge.svelte";
+import ProfileStarterArt from "./ProfileStarterArt.svelte";
 import type { ConversationStarter } from "./conversation-starters";
 
 let {
@@ -11,6 +13,7 @@ let {
   projectLabel,
   projectPath,
   starters = [],
+  defaultStarter,
   startersDisabled = false,
   onSelectStarter,
   footer,
@@ -21,6 +24,8 @@ let {
   projectLabel?: string;
   projectPath?: string;
   starters?: readonly ConversationStarter[];
+  /** Profile of the starter marked Default. */
+  defaultStarter?: string;
   startersDisabled?: boolean;
   onSelectStarter?: (starter: ConversationStarter) => void;
   footer?: Snippet;
@@ -30,12 +35,12 @@ const launchpad = $derived(variant === "launchpad");
 </script>
 
 <div
-  class="@container relative flex h-full min-h-full items-center justify-center overflow-hidden p-6 text-center"
+  class="@container relative flex h-full min-h-full flex-col items-center overflow-x-hidden overflow-y-auto p-6 text-center"
 >
   <div class="signal-field absolute inset-0" aria-hidden="true"></div>
-  <div
-    class={`relative flex w-full flex-col items-center ${launchpad ? "max-w-3xl" : "max-w-2xl"}`}
-  >
+  <!-- my-auto centres the content and collapses to 0 when it overflows, so
+       nothing is clipped above the scroll origin. -->
+  <div class="relative my-auto flex w-full max-w-2xl flex-col items-center">
     <div
       class={`relative flex items-center justify-center ${launchpad ? "size-20" : "size-14"}`}
     >
@@ -58,37 +63,38 @@ const launchpad = $derived(variant === "launchpad");
     <p class="mt-2 max-w-sm text-ui leading-relaxed text-muted-foreground">
       {message}
     </p>
-    {#if projectLabel}
-      <p
-        class="mt-3 max-w-md truncate text-caption font-medium text-foreground"
-        title={projectPath}
-      >
-        <span class="sr-only">Current project</span>
-        {projectLabel}
-      </p>
-    {/if}
     {#if starters.length > 0}
       <div
-        class="mt-6 flex flex-wrap justify-center gap-2"
+        class="mt-6 grid w-full grid-cols-1 gap-3 @xl:grid-cols-2"
         role="group"
-        aria-label="Conversation starters"
+        aria-label="Start a conversation"
       >
-        {#each starters as starter (starter.id)}
-          {@const Icon = starter.icon}
-          <Button
+        {#each starters as starter (starter.profile)}
+          <button
             type="button"
-            variant="outline"
-            class="group gap-2 bg-card text-ui shadow-sm hover:border-primary-strong"
+            class="flex min-h-24 cursor-pointer overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-colors outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >
-            <Icon
-              class="size-4 text-primary"
-              strokeWidth={2.2}
-              aria-hidden="true"
-            />
-            <span>{starter.label}</span>
-          </Button>
+            <span
+              class="starter-art block w-28 shrink-0 border-r border-border-subtle bg-well"
+            >
+              <ProfileStarterArt profile={starter.profile} class="size-full" />
+            </span>
+            <span class="flex min-w-0 flex-1 flex-col justify-center gap-1 p-3">
+              <span class="flex items-center gap-2">
+                <span class="text-ui font-medium text-foreground"
+                  >{starter.label}</span
+                >
+                {#if starter.profile === defaultStarter}
+                  <Badge variant="brand">Default</Badge>
+                {/if}
+              </span>
+              <span class="text-caption text-muted-foreground"
+                >{starter.tagline}</span
+              >
+            </span>
+          </button>
         {/each}
       </div>
     {/if}
@@ -99,6 +105,16 @@ const launchpad = $derived(variant === "launchpad");
       </div>
     {/if}
   </div>
+  {#if projectLabel}
+    <p
+      class="relative mt-6 flex max-w-full shrink-0 items-center gap-1.5 text-caption text-muted-foreground"
+      title={projectPath}
+    >
+      <FolderIcon class="size-3.5 shrink-0" aria-hidden="true" />
+      <span class="sr-only">Current project</span>
+      <span class="truncate">{projectLabel}</span>
+    </p>
+  {/if}
 </div>
 
 <style>
@@ -109,5 +125,13 @@ const launchpad = $derived(variant === "launchpad");
   background-position: center;
   background-size: 1.375rem 1.375rem;
   mask-image: radial-gradient(circle at center, black, transparent 60%);
+}
+/* Fine dot grid behind each starter card's art. */
+.starter-art {
+  background-image: radial-gradient(
+    var(--border-subtle) 1px,
+    transparent 1.5px
+  );
+  background-size: 0.75rem 0.75rem;
 }
 </style>

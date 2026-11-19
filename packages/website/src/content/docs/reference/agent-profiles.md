@@ -12,6 +12,7 @@ Agent profiles contribute instructions and settings for model, thinking, permiss
 - **Coding** (`coding`, lead): general-purpose work; no additional instructions or settings requirements.
 - **Planning** (`planning`, lead): requires planning permissions and Plan Present with Coding as the approval profile; instructions include clarification, research, and implementation planning.
 - **Lead** (`lead`, lead): requires delegation; instructions include requirements ownership, coordination, and evidence-based review. Available subagent profiles inherit settings.
+- **Forge** (`forge`, lead): requires the built-in `configure-nerve` skill for configuring and extending Nerve.
 - **Explore** (`explore`, subagent): read-only research.
 - **Developer** (`developer`, subagent): autonomous implementation.
 

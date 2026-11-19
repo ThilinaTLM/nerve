@@ -1,25 +1,31 @@
-import Code2 from "@lucide/svelte/icons/code-2";
-import ListChecks from "@lucide/svelte/icons/list-checks";
-import type { Component } from "svelte";
-
+/** A built-in lead profile offered as a card on the empty conversation launchpad. */
 export type ConversationStarter = {
-  id: "plan" | "code";
+  profile: "coding" | "planning" | "lead" | "forge";
   label: string;
-  /** Profile to start in; the default lead profile when omitted. */
-  profile?: string;
-  icon: Component;
+  /** When to pick this profile, in the user's terms. */
+  tagline: string;
 };
 
 export const conversationStarters: readonly ConversationStarter[] = [
   {
-    id: "plan",
-    label: "Plan",
-    profile: "planning",
-    icon: ListChecks,
+    profile: "coding",
+    label: "Coding",
+    tagline: "For everyday work: features, fixes and refactors.",
   },
   {
-    id: "code",
-    label: "Code",
-    icon: Code2,
+    profile: "planning",
+    label: "Planning",
+    tagline: "For bigger changes you want to think through before building.",
+  },
+  {
+    profile: "lead",
+    label: "Lead",
+    tagline: "For large efforts a team of agents can split and verify.",
+  },
+  {
+    profile: "forge",
+    label: "Forge",
+    tagline:
+      "For making Nerve fit your workflow: skills, extensions, profiles.",
   },
 ];

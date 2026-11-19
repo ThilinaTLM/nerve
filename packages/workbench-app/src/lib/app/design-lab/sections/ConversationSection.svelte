@@ -638,21 +638,22 @@ const contextTimeline: TimelineItem[] = [
   >
     <GallerySpecimen
       title="ConversationWelcome"
-      description="Center area with no tab open: the real launchpad with Plan/Code starters. Without a project the starters are disabled."
+      description="Center area with no tab open: the real launchpad with a card per built-in lead profile. Without a project the cards are disabled."
       source="features/conversations/views/ConversationWelcome"
       usage="1 file · conversation"
       layout="bare"
     >
       <div class="grid gap-4 xl:grid-cols-2">
-        <div class="h-96 rounded-md border bg-background">
+        <div class="h-144 rounded-md border bg-background">
           <ConversationWelcome
             projectSelected
             projectLabel={welcomeLabel}
             projectPath={welcomeProject.dir}
+            defaultProfile="coding"
             onNewChat={noop}
           />
         </div>
-        <div class="h-96 rounded-md border bg-background">
+        <div class="h-144 rounded-md border bg-background">
           <ConversationWelcome onNewChat={noop} />
         </div>
       </div>

@@ -86,6 +86,7 @@ let {
   thinkingLevel = "off",
   agentProfile = DEFAULT_AGENT_PROFILE,
   agentProfiles = [],
+  defaultAgentProfile,
   lockedFields,
   profileDisabled = false,
   permissionRuleSetId = "autonomous",
@@ -467,6 +468,8 @@ function menuForTranscript(
         projectSelected={Boolean(activeProject && onNewConversationInProject)}
         projectLabel={activeProjectLabel}
         projectPath={activeProject?.dir}
+        availableProfiles={agentProfiles.map((profile) => profile.name)}
+        defaultProfile={defaultAgentProfile}
         onNewChat={(initialProfile) => {
           if (activeProject) {
             onNewConversationInProject?.(activeProject.dir, initialProfile);
