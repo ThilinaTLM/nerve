@@ -17,9 +17,11 @@ import type {
   ThemeKind,
 } from "./bridge-types.js";
 
-/** A failed bridge request: the host's `code` and message, or `failed` when it could not be sent. */
+/** A failed bridge request: the host's `code` and message, or `failed` when it could not be sent. Every rejected `host.*` call is one. */
 export class BridgeError extends Error {
+  /** Why it failed; see `BridgeErrorCode` for each value. */
   readonly code: BridgeErrorCode;
+  /** `message` says what went wrong (the field, the limit). */
   constructor(code: BridgeErrorCode, message: string) {
     super(message);
     this.name = "BridgeError";
@@ -29,26 +31,49 @@ export class BridgeError extends Error {
 
 /** How a client talks to its host: `window.parent` in a frame, a fake in tests. */
 export type BridgeTransport = {
+  /** Sends a message to the host. */
   post(message: unknown): void;
   /** Calls `handler` for every message from the host; returns the unsubscribe function. */
   listen(handler: (data: unknown) => void): () => void;
 };
 
+/** The events the host sends to a frame, with their handler types. */
 type Listeners = {
+  /** The active theme changed (all frames). */
   themeChanged: ((change: ThemeChange) => void)[];
+  /** The previewed file changed on disk (previews). */
   fileChanged: ((change: FileChange) => void)[];
+  /** The mode switched between `preview` and `edit` (previews with `edit: "custom"`). */
   modeChanged: ((change: { mode: Mode }) => void)[];
 };
 
+/**
+ * The protocol client behind `host`. Frames use `host`; build a client with `createBridgeClient`
+ * only to test against a fake transport (`@nervekit/extension-sdk/testing` has `createFakeBridge`).
+ */
 export type BridgeClient = {
-  /** Resolves with the host's `init` (also applied: see `applyTheme`). */
+  /**
+   * Resolves with the host's `init` message: `FrameInit` plus the URL of the base stylesheet and the
+   * active theme's CSS custom properties. Rejects with `BridgeError` `failed` when the host does
+   * not answer the `ready` message (sent every 500 ms, 20 times).
+   */
   readonly ready: Promise<
-    FrameInit & { baseCssUrl: string; tokensCss: string }
+    FrameInit & {
+      /** URL of the base stylesheet (Tailwind preset, fonts) served with the frame. */
+      baseCssUrl: string;
+      /** Custom-property declarations (`--background:…;`) of the active theme. */
+      tokensCss: string;
+    }
   >;
+  /**
+   * Sends one bridge request. Params are validated before sending (`invalid_request`), and a
+   * message over 8 MiB is refused (`too_large`). Rejects with `BridgeError`.
+   */
   request<M extends MethodName>(
     method: M,
     params: BridgeMethods[M]["params"],
   ): Promise<BridgeMethods[M]["result"]>;
+  /** Subscribes to a host event (`themeChanged`, `fileChanged`, `modeChanged`); returns the unsubscribe function. */
   on<E extends keyof Listeners>(
     event: E,
     handler: Listeners[E][number],
@@ -60,7 +85,7 @@ export type BridgeClient = {
 const readyRetryMs = 500;
 const readyAttempts = 20;
 
-/** Starts the handshake (`ready`, then waits for `init`) and returns the client. */
+/** Starts the handshake (`ready`, then waits for `init`) and returns the client. Frames use `host`; this is for tests with a fake transport. */
 export function createBridgeClient(transport: BridgeTransport): BridgeClient {
   let nextId = 0;
   const pending = new Map<

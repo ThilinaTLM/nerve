@@ -159,7 +159,7 @@ void test("SDK compatibility is oldest <= sdk <= running version", () => {
   assert.equal(sdkCompatibilityProblem("0.41.1", "0.41.1"), undefined);
   assert.match(
     sdkCompatibilityProblem("0.38.0", "0.41.1", "0.41.0")!,
-    /Built with SDK 0\.38\.0; this Nerve needs 0\.41\.0 or later\. Ask the agent to upgrade it with the extension-creator skill\./,
+    /Built with SDK 0\.38\.0; this Nerve needs 0\.41\.0 or later\. Ask the agent to upgrade it with the configure-nerve skill\./,
   );
   assert.match(
     sdkCompatibilityProblem("0.50.0", "0.41.1")!,

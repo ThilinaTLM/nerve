@@ -3,9 +3,8 @@ import { NodeExecutionEnv } from "@nervekit/harness/node";
 import { loadSkills, type Skill } from "@nervekit/harness/resources";
 
 export const expectedNerveSkillNames = [
+  "configure-nerve",
   "engineering-docs",
-  "extension-creator",
-  "skill-creator",
 ] as const;
 
 let catalogPromise: Promise<readonly Skill[]> | undefined;

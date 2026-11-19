@@ -1,9 +1,4 @@
----
-name: extension-creator
-description: Use when the user wants to build, change or upgrade a Nerve extension (a file preview, page, side panel, color theme, or integration with tools and a quick_script namespace).
----
-
-# Create a Nerve extension
+# Build or change an extension
 
 An extension is a folder with a built `dist/`. Nerve loads it only after the user allows it in Settings → Extensions. You can never grant that consent; your own actions on the extension (writing files, running scripts, reloading) go through the normal permission engine.
 
@@ -25,17 +20,18 @@ Ask one focused question only when the request does not settle these.
 node scripts/create-extension.mjs <id> --kind <kind> --scope <user|project> [--project <dir>]
 ```
 
-Paths are relative to this skill's directory. The script writes the project, installs dependencies and runs `nerve-ext check`. Read the scaffold's `src/extension.ts` and tests before changing them. Examples of a finished preview and theme are in `examples/`.
+The script writes the project, installs dependencies and runs `nerve-ext check`. Read the scaffold's `src/extension.ts` and tests before changing them. Examples of a finished preview and theme are in `examples/extensions/`.
 
 ## 4. Implement with least permissions
 
 Declare only what the feature needs: network origins, capabilities, accounts. Each one is shown to the user as a line they must accept; broad ones (`*` network, custom editing of files) are called out. Read the references you need, not all of them:
 
-- Manifest fields and limits: `references/manifest.md`
-- Backend (`ctx`, risks, `authorize`, errors, tests): `references/backend.md`
-- Previews, pages, panels, bridge, components: `references/ui.md`
-- Themes: `references/themes.md`
-- What to put in front of the user: `references/security.md`
+- Exact API (every type, option, default and limit), and where to start reading it: `reference/extensions/api.md`
+- Definition decisions, text limits, states: `reference/extensions/manifest.md`
+- Backend (`ctx`, risks, `authorize`, errors, tests): `reference/extensions/backend.md`
+- Previews, pages, panels, bridge, components: `reference/extensions/ui.md`
+- Themes: `reference/extensions/themes.md`
+- What to put in front of the user: `reference/extensions/security.md`
 
 ## 5. Check
 
@@ -72,4 +68,4 @@ It moves `@nervekit/extension-sdk` to this Nerve's version, prints the `UPGRADIN
 
 ## Share
 
-`references/sharing.md`: moving between user and project scope, committing `dist/`, giving a folder to someone else.
+`reference/extensions/sharing.md`: moving between user and project scope, committing `dist/`, giving a folder to someone else.

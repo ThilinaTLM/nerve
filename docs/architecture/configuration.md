@@ -35,7 +35,7 @@ Accounts (`config/accounts.json`, user only) are stored by kind (`{ version: 2, 
 
 Creation preferences (`config/conversation-defaults.json` at user and project scope) choose a starting profile independently of execution settings, so opening a new conversation need not change an existing one. [Agent profiles and delegation](conversation-core/delegation.md) explains precedence, applied snapshots and frozen child preferences. [Permissions](permissions.md) explains overlays and authorization; [launch definitions](launch-definitions.md) explains catalog concurrency.
 
-JSON owns agent preferences and prompt context. SQLite owns conversation identity, relationships, history, lifecycle and working directory. Credentials stay with provider and secret owners so configuration snapshots do not capture secret values. See [storage](storage.md) for the wider layout.
+The zod schemas in `packages/contracts` own the shape of every configuration file. At build time `scripts/build/copy-skills-assets.ts` generates JSON Schemas from them into the built-in `configure-nerve` skill (`reference/schemas/`), which the agent reads to edit these files by chat; `configuration.reload`/`configuration.status` in `quick_script` ([code mode](code-mode.md#registry-and-extensions)) re-read them, because there are no file watchers. JSON owns agent preferences and prompt context. SQLite owns conversation identity, relationships, history, lifecycle and working directory. Credentials stay with provider and secret owners so configuration snapshots do not capture secret values. See [storage](storage.md) for the wider layout.
 
 ## Persistence and activation
 

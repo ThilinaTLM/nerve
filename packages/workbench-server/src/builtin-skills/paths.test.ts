@@ -5,7 +5,7 @@ import test from "node:test";
 import { builtinSkillFilePath, resolveSkillPlaceholders } from "./index.js";
 
 void test("resolves bundled skills but rejects unknown names and traversal", () => {
-  for (const name of ["engineering-docs", "skill-creator"]) {
+  for (const name of ["engineering-docs", "configure-nerve"]) {
     const path = builtinSkillFilePath(name);
     assert.ok(path);
     assert.ok(isAbsolute(path));
@@ -16,9 +16,9 @@ void test("resolves bundled skills but rejects unknown names and traversal", () 
     "unknown",
     "planning",
     "team-lead",
-    "../skill-creator",
+    "../configure-nerve",
     "",
-    "/tmp/skill-creator",
+    "/tmp/configure-nerve",
     "jira",
     "confluence",
   ]) {
@@ -40,8 +40,8 @@ void test("bundles supporting files beside a built-in skill", () => {
 void test("replaces every known placeholder without adding quotes and preserves unknown ones", () => {
   assert.equal(
     resolveSkillPlaceholders(
-      "Read {{skill:engineering-docs}}, {{skill:skill-creator}}, {{skill:engineering-docs}}; {{skill:unknown}}.",
+      "Read {{skill:engineering-docs}}, {{skill:configure-nerve}}, {{skill:engineering-docs}}; {{skill:unknown}}.",
     ),
-    `Read ${builtinSkillFilePath("engineering-docs")}, ${builtinSkillFilePath("skill-creator")}, ${builtinSkillFilePath("engineering-docs")}; {{skill:unknown}}.`,
+    `Read ${builtinSkillFilePath("engineering-docs")}, ${builtinSkillFilePath("configure-nerve")}, ${builtinSkillFilePath("engineering-docs")}; {{skill:unknown}}.`,
   );
 });

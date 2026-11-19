@@ -42,9 +42,9 @@ export function sdkCompatibilityProblem(
 ): string | undefined {
   const old = compareVersions(sdkVersion, oldest);
   if (old !== undefined && old < 0)
-    return `Built with SDK ${sdkVersion}; this Nerve needs ${oldest} or later. Ask the agent to upgrade it with the extension-creator skill.`;
+    return `Built with SDK ${sdkVersion}; this Nerve needs ${oldest} or later. Ask the agent to upgrade it with the configure-nerve skill.`;
   const ahead = compareVersions(sdkVersion, nerveVersion);
   if (ahead !== undefined && ahead > 0)
-    return `Built with SDK ${sdkVersion}, which is newer than this Nerve (${nerveVersion}). Update Nerve, or ask the agent to rebuild it for this version with the extension-creator skill.`;
+    return `Built with SDK ${sdkVersion}, which is newer than this Nerve (${nerveVersion}). Update Nerve, or ask the agent to rebuild it for this version with the configure-nerve skill.`;
   return undefined;
 }

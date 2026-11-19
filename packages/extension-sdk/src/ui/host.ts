@@ -63,9 +63,9 @@ const lazy = <T>(store: Readable<T>): Readable<T> => ({
   },
 });
 
-/** The current mode of a preview (`edit` only in previews with `edit: "custom"`), as a Svelte store. */
+/** The current mode of a preview (`edit` only in previews with `edit: "custom"`; `preview` everywhere else), as a Svelte store: `$mode` in a component. */
 export const mode: Readable<Mode> = lazy(readonly(modeStore));
-/** `light` or `dark`, following the active theme, as a Svelte store. */
+/** `light` or `dark`, following the active theme, as a Svelte store: `$themeKind` in a component. */
 export const themeKind: Readable<ThemeKind> = lazy(readonly(themeKindStore));
 
 /**
@@ -149,18 +149,29 @@ const request = <M extends Parameters<BridgeClient["request"]>[0]>(
 ) => current().request(method, params as never);
 
 /**
- * The frame's handle on the host. Every method is a bridge request; the host checks it against
- * the contribution that owns the frame, so `file.*` exists only in previews and `file.write`
- * and `mode.get` only in previews with `edit: "custom"`.
+ * The frame's handle on the host; the one object a Svelte frame uses to talk to Nerve. Every method
+ * is a bridge request: JSON in, JSON out, each answered exactly once. The host checks it against the
+ * contribution that owns the frame, so `file.*` exists only in previews, and `file.write` and
+ * `mode.get` only in previews with `edit: "custom"` (else `BridgeError` `not_allowed`). A frame has
+ * no network: fetch remote data through a backend method with `host.call`.
+ *
+ * Failures reject with `BridgeError` (its `code`: see `BridgeErrorCode`). Size limits: message 8 MiB,
+ * one `file.read` chunk 1 MiB (256 KiB default), one `file.write` 5 MiB, `viewState` 64 KiB, `call`
+ * args 1 MiB, page `params` 4 KiB, menu 32 items, text 20,000 characters (`too_large` or
+ * `invalid_request` when exceeded). Bytes travel as base64, so prefer text methods and range reads.
+ * The synchronous getters (`extensionId`, `contribution`, `pageParams`) throw until the handshake
+ * is done; code run by `startFrame`'s `render` is always after it.
  */
 export const host = {
-  /** Resolves when the handshake is done. `startFrame` awaits it before mounting. */
+  /** Resolves with the host's init message when the handshake is done; rejects with `BridgeError` `failed` after about 10 s without an answer. `startFrame` awaits it before mounting. */
   get ready(): Promise<FrameInit> {
     return current().ready;
   },
+  /** Id of the extension that owns the frame. */
   get extensionId(): string {
     return started().extensionId;
   },
+  /** Which contribution this frame is: `kind`, the manifest `id` and, for previews, the resolved `edit`. */
   get contribution(): {
     kind: ContributionKind;
     id: string;
@@ -172,17 +183,26 @@ export const host = {
   get pageParams(): BridgeJson | undefined {
     return started().pageParams;
   },
+  /** The previewed file. Previews only (else `not_allowed`). */
   file: {
-    /** Previews: name, extension and size of the previewed file. */
+    /** Name, extension and size of the previewed file. */
     info: (): Promise<FileInfo> => request("file.info"),
-    /** One chunk of bytes; `file.bytes()` and `file.text()` read the whole file. */
+    /**
+     * One chunk of bytes: `offset` default 0, `length` default 262,144 (256 KiB) and at most
+     * 1,048,576 (1 MiB). Use it to read large files on demand; `bytes()` and `text()` read the whole file.
+     */
     read: (
       options: { offset?: number; length?: number } = {},
     ): Promise<FileChunk> => request("file.read", options),
+    /** The whole file, read in chunks. */
     bytes: readAll,
+    /** The whole file decoded as UTF-8. */
     text: async (): Promise<string> =>
       new TextDecoder().decode(await readAll()),
-    /** Edit mode of previews with `edit: "custom"`: replaces the file's content. */
+    /**
+     * Previews with `edit: "custom"`: replaces the whole file (a string is written as UTF-8,
+     * at most 5 MiB of content); the host owns saving and the dirty state. Resolves with the new size.
+     */
     write: async (content: string | Uint8Array): Promise<{ size: number }> =>
       typeof content === "string"
         ? request("file.write", { content, encoding: "utf8" })
@@ -191,59 +211,83 @@ export const host = {
             encoding: "base64",
           }),
   },
+  /** Previews with `edit: "custom"` only. */
   mode: {
-    /** Previews with `edit: "custom"`: the current mode. Prefer the `mode` store. */
+    /** The current mode. Prefer the `mode` store, which also follows changes. */
     get: async (): Promise<Mode> => (await request("mode.get")).mode,
   },
-  /** Calls one of this extension's backend methods (`namespace.method`); the host applies the backend's permissions. */
+  /**
+   * Calls one of this extension's own backend methods (`<namespace>.<method>`, as declared in the
+   * definition) and resolves with its result (`undefined` when it returns nothing). No permission
+   * prompt applies, because the user's consent covers it, but the backend's `ctx` rules hold
+   * (network allowlist, credentials stay host-side, file reads stay inside the project). `args`
+   * (JSON, at most 1 MiB) arrives as the method's single argument, so its `parse` must accept it
+   * (an object, or a bare string). The result must be JSON. Times out after 60 s. Rejects with
+   * `BridgeError`: `not_found` (no such method), `backend_error` (the method threw; the message is
+   * its shortened error), `too_large`.
+   */
   call: async (
     method: string,
     args?: BridgeJson,
   ): Promise<BridgeJson | undefined> =>
     (await request("call", args === undefined ? { method } : { method, args }))
       .value,
+  /** The extension's settings. */
   settings: {
-    /** The extension's non-secret settings. */
+    /** The extension's resolved, non-secret settings by field key (secrets are never included). */
     get: async (): Promise<Record<string, BridgeJson>> =>
       (await request("settings.get")).values,
   },
+  /**
+   * State kept with the tab. A frame must save what it needs to restore, because hidden tabs and
+   * panels unload their frame.
+   */
   viewState: {
     /** State saved with `set`, kept with the tab (`null` when none). */
     get: async (): Promise<BridgeJson | null> =>
       (await request("viewState.get")).state,
+    /** Saves JSON state with the tab; at most 64 KiB serialized (else `invalid_request`). */
     set: async (state: BridgeJson): Promise<void> => {
       await request("viewState.set", { state });
     },
   },
+  /** Host-drawn UI. A frame cannot draw outside its rectangle, so dialogs, menus and toasts go through the host. */
   ui: {
-    /** Asks in the host's dialog; frames cannot render dialogs of their own. */
+    /** Asks in the host's dialog; frames cannot render dialogs of their own. Resolves `true` when confirmed, `false` when cancelled. */
     confirm: async (options: ConfirmOptions): Promise<boolean> =>
       (await request("ui.confirm", options)).confirmed,
-    /** Shows a menu drawn by the host; resolves with the chosen item's id, or `null`. */
+    /**
+     * Shows a menu drawn by the host (1–32 items); resolves with the chosen item's id, or `null`
+     * when dismissed. `position` is frame-relative CSS pixels (the host clamps it to the frame);
+     * absent: where the host decides.
+     */
     showMenu: async (
       items: MenuItem[],
       position?: { x: number; y: number },
     ): Promise<string | null> =>
       (await request("ui.showMenu", position ? { items, position } : { items }))
         .id,
-    /** A toast drawn by the host. */
+    /** A toast drawn by the host (1–20,000 characters); `level` default `info`. */
     notify: async (message: string, level?: NotifyLevel): Promise<void> => {
       await request("ui.notify", level ? { message, level } : { message });
     },
   },
-  /** Opens a project file in a tab. */
+  /** Opens a project file in a tab; `path` is relative to the project or absolute inside it. */
   openFile: async (path: string): Promise<void> => {
     await request("openFile", { path });
   },
-  /** Opens one of this extension's pages. */
+  /** Opens one of this extension's pages by its manifest `id`; `params` (JSON, at most 4 KiB) reaches the page as `host.pageParams`. */
   openPage: async (id: string, params?: BridgeJson): Promise<void> => {
     await request("openPage", params === undefined ? { id } : { id, params });
   },
+  /** The open project. */
   project: {
+    /** Id, name and absolute directory of the project. */
     info: (): Promise<ProjectInfo> => request("project.info"),
   },
+  /** The chat composer. */
   composer: {
-    /** Appends text to the chat composer. */
+    /** Appends text (1–20,000 characters) to the chat composer. */
     insert: async (text: string): Promise<void> => {
       await request("composer.insert", { text });
     },
@@ -251,14 +295,15 @@ export const host = {
   /** Called when the active theme changes; tokens are already applied. Returns the unsubscribe function. */
   onThemeChange: (handler: (change: ThemeChange) => void): (() => void) =>
     current().on("themeChanged", handler),
-  /** Previews: the host switched between `preview` and `edit`. */
+  /** Previews with `edit: "custom"`: the host switched between `preview` and `edit`. Returns the unsubscribe function. */
   onModeChange: (handler: (change: { mode: Mode }) => void): (() => void) =>
     current().on("modeChanged", handler),
-  /** Previews: the file changed on disk. */
+  /** Previews: the previewed file changed on disk. Returns the unsubscribe function. */
   onFileChange: (handler: (change: FileChange) => void): (() => void) =>
     current().on("fileChanged", handler),
 };
 
+/** The type of `host`. */
 export type Host = typeof host;
 
 function linkBaseCss(url: string): Promise<void> {
@@ -276,10 +321,13 @@ function linkBaseCss(url: string): Promise<void> {
 
 /**
  * Starts a frame: handshake, theme and base CSS, then `render(target)`. A thrown error is shown
- * in the frame (the host cannot see inside it) and rethrown. `render` may return a cleanup.
+ * in the frame (the host cannot see inside it) and rethrown. `nerve-ext build` generates the
+ * frame's entry that calls it, so a Svelte component does not call it itself.
  */
 export async function startFrame(options: {
+  /** Element the frame renders into. */
   target: HTMLElement;
+  /** Mounts the UI into `target` after the handshake; may return a cleanup function. */
   render: (target: HTMLElement) => void | (() => void);
 }): Promise<void> {
   try {

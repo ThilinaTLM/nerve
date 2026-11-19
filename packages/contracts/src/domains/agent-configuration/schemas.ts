@@ -24,46 +24,108 @@ import {
 
 const model = modelSelectionSchema.strict();
 const nonempty = (value: object) => Object.keys(value).length > 0;
-const compaction = z.strictObject({
-  auto: z.boolean(),
-  profile: compactionProfileSchema,
-  customTriggerPercent: z.number().int().min(60).max(90),
-});
-const retry = z.strictObject({
-  enabled: z.boolean(),
-  maxRetries: z.number().int().nonnegative(),
-  baseDelayMs: z.number().int().positive(),
-});
+const compactionDescription =
+  "Automatic compaction of the conversation context.";
+const retryDescription = "Retry of failed model requests.";
+const compaction = z
+  .strictObject({
+    auto: z
+      .boolean()
+      .meta({ description: "Compact the conversation automatically." }),
+    profile: compactionProfileSchema.meta({
+      description:
+        "How early automatic compaction triggers. `custom` uses `customTriggerPercent`.",
+    }),
+    customTriggerPercent: z.number().int().min(60).max(90).meta({
+      description:
+        "Context usage percent (60-90) that triggers compaction when `profile` is `custom`.",
+    }),
+  })
+  .meta({ description: compactionDescription });
+const retry = z
+  .strictObject({
+    enabled: z.boolean().meta({ description: "Retry failed model requests." }),
+    maxRetries: z
+      .number()
+      .int()
+      .nonnegative()
+      .meta({ description: "Maximum retries per request." }),
+    baseDelayMs: z.number().int().positive().meta({
+      description: "Initial delay in milliseconds before the first retry.",
+    }),
+  })
+  .meta({ description: retryDescription });
 const bash = bashToolSettingsSchema
   .extend({
-    autoPromotion: bashToolSettingsSchema.shape.autoPromotion.strict(),
+    autoPromotion: bashToolSettingsSchema.shape.autoPromotion.strict().meta({
+      description:
+        "Moves a foreground command that runs too long to the background instead of blocking the agent.",
+    }),
     maxTimeoutMs: bashToolSettingsSchema.shape.maxTimeoutMs.removeDefault(),
   })
   .strict();
-const sourceDefaults = z.strictObject({
-  file: z.boolean(),
-  nerve: z.boolean(),
-  agentBrowser: z.boolean(),
-});
+const sourceDefaultsDescription =
+  "Whether skills of each source are enabled unless a per-skill override says otherwise.";
+const sourceDefaults = z
+  .strictObject({
+    file: z.boolean().meta({
+      description:
+        "Default for skills from files (user and project skill folders).",
+    }),
+    nerve: z
+      .boolean()
+      .meta({ description: "Default for Nerve's built-in skills." }),
+    agentBrowser: z
+      .boolean()
+      .meta({ description: "Default for agent-browser skills." }),
+  })
+  .meta({ description: sourceDefaultsDescription });
 const skills = capabilitySkillsSchema
   .partial()
-  .extend({ defaults: sourceDefaults.partial().optional() })
-  .strict();
+  .extend({
+    defaults: sourceDefaults
+      .partial()
+      .meta({ description: sourceDefaultsDescription })
+      .optional(),
+  })
+  .strict()
+  .meta({
+    description:
+      "Per-skill overrides by source (`file`, `nerve`, `agentBrowser`) and source defaults.",
+  });
+const toolEntryDescription = "Tool entry; at least one field is required.";
 function payload<S extends z.ZodType>(settings: S) {
   return z
     .strictObject({
-      enabled: z.boolean().optional(),
-      settings: settings.optional(),
+      enabled: z
+        .boolean()
+        .meta({ description: "Turn the tool on or off." })
+        .optional(),
+      settings: settings
+        .meta({ description: "Tool settings; include only fields to set." })
+        .optional(),
     })
-    .refine(nonempty, "Empty tool entry");
+    .refine(nonempty, "Empty tool entry")
+    .meta({ description: toolEntryDescription });
 }
-const toggle = z.strictObject({ enabled: z.boolean() });
+const toggle = z
+  .strictObject({
+    enabled: z.boolean().meta({ description: "Turn the tool on or off." }),
+  })
+  .meta({ description: "Tool toggle." });
 const childToolShape = {
   python_exec: payload(pythonExecToolSettingsSchema.partial()),
   web_search: toggle,
   quick_script: toggle,
   web_fetch: toggle,
-  bash: z.strictObject({ settings: bash.partial().refine(nonempty) }),
+  bash: z
+    .strictObject({
+      settings: bash.partial().refine(nonempty).meta({
+        description:
+          "Shell settings; include only fields to set, at least one. The bash tool is always on.",
+      }),
+    })
+    .meta({ description: toolEntryDescription }),
 };
 const leadTools = z
   .strictObject({
@@ -71,24 +133,60 @@ const leadTools = z
     plan_present: payload(
       planPresentToolSettingsSchema.partial().refine(nonempty),
     ),
-    subagents: toggle,
+    subagents: toggle.meta({
+      description: "Delegation to sub-agents on or off (lead only).",
+    }),
   })
-  .partial();
-const childTools = z.strictObject(childToolShape).partial();
+  .partial()
+  .meta({
+    description:
+      "Tool toggles and settings by tool name. Every entry must be non-empty.",
+  });
+const childTools = z.strictObject(childToolShape).partial().meta({
+  description:
+    "Tool toggles and settings by tool name. Every entry must be non-empty.",
+});
 const launch = z.strictObject({
-  model: model.optional(),
+  model: model
+    .meta({ description: "Model this sub-agent launches with." })
+    .optional(),
   reasoningLevel: thinkingLevelSchema.optional(),
 });
 export const childLaunchOverridesSchema = launch;
 const subagent = launch
-  .extend({ enabled: z.boolean().optional() })
-  .refine(nonempty);
+  .extend({
+    enabled: z
+      .boolean()
+      .meta({
+        description:
+          "Make this sub-agent profile available to the lead or not.",
+      })
+      .optional(),
+  })
+  .refine(nonempty)
+  .meta({
+    description:
+      "Launch settings for one sub-agent profile. At least one field is required.",
+  });
 const childShape = {
-  model: model.optional(),
+  model: model
+    .meta({
+      description:
+        "Model to use. Take `provider` and `modelId` from the user's configured models.",
+    })
+    .optional(),
   reasoningLevel: thinkingLevelSchema.optional(),
-  permissionRuleSetId: permissionRuleSetIdSchema.optional(),
-  compaction: compaction.partial().optional(),
-  retry: retry.partial().optional(),
+  permissionRuleSetId: permissionRuleSetIdSchema
+    .meta({
+      description:
+        "Id of a built-in or user permission rule set. Sub-agents need a rule set without `prompt` rules.",
+    })
+    .optional(),
+  compaction: compaction
+    .partial()
+    .meta({ description: compactionDescription })
+    .optional(),
+  retry: retry.partial().meta({ description: retryDescription }).optional(),
   tools: childTools.optional(),
   skills: skills.optional(),
 };
@@ -96,7 +194,13 @@ export const childSettingsOverridesSchema = z.strictObject(childShape);
 export const leadSettingsOverridesSchema = z.strictObject({
   ...childShape,
   tools: leadTools.optional(),
-  subagents: z.record(agentProfileNameSchema, subagent).optional(),
+  subagents: z
+    .record(agentProfileNameSchema, subagent)
+    .meta({
+      description:
+        "Lead only. Launch settings by sub-agent profile name: turn a teammate on or off or give it a model.",
+    })
+    .optional(),
 });
 export type LeadSettingsOverrides = z.infer<typeof leadSettingsOverridesSchema>;
 export type ChildSettingsOverrides = z.infer<
@@ -135,7 +239,14 @@ const contribution = {
   instructions: agentProfileInstructionsSchema,
 };
 const profileSettingsOverridesSchema = leadSettingsOverridesSchema.extend({
-  skills: capabilitySkillsSchema.partial().strict().optional(),
+  skills: capabilitySkillsSchema
+    .partial()
+    .strict()
+    .meta({
+      description:
+        "Per-skill overrides by source (`file`, `nerve`, `agentBrowser`). Profiles cannot set `defaults`.",
+    })
+    .optional(),
 });
 export const appliedProfileSchema = z
   .strictObject({
@@ -146,11 +257,21 @@ export const appliedProfileSchema = z
   })
   .superRefine(checkOverlap);
 export type AppliedProfile = z.infer<typeof appliedProfileSchema>;
-export const agentPreferencesSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  revision,
-  overrides: leadSettingsOverridesSchema,
-});
+export const agentPreferencesSchema = z
+  .strictObject({
+    schemaVersion: z.literal(1).meta({ description: "Always 1." }),
+    revision: revision.meta({
+      description: "Write counter managed by Nerve. Keep the existing value.",
+    }),
+    overrides: leadSettingsOverridesSchema.meta({
+      description:
+        "Settings object. Every field is optional; an omitted field falls back to the lower layer.",
+    }),
+  })
+  .meta({
+    description:
+      "Agent preferences (`agent.json`) at user or project scope: default model, reasoning, permissions, tools and skills.",
+  });
 /** Historical lastTransition metadata only: no runtime authority; omit on rewrites. */
 const receipt = z.strictObject({
   id: z.string().min(1),
@@ -198,27 +319,66 @@ export const childConversationAgentSchema = z
   });
 export const profileDefinitionSchema = z
   .strictObject({
-    schemaVersion: z.literal(1),
-    name: agentProfileNameSchema,
+    schemaVersion: z.literal(1).meta({ description: "Always 1." }),
+    name: agentProfileNameSchema.meta({
+      description:
+        "Profile name; equals the file name without `.json`. Lowercase letters and digits in hyphen-separated words, at most 32 characters.",
+    }),
     label: z
       .string()
       .trim()
       .min(1)
       .max(AGENT_PROFILE_LABEL_MAX_LENGTH)
+      .meta({ description: "Display name, 1-80 characters." })
       .optional(),
     whenToUse: z
       .string()
       .trim()
       .min(1)
-      .max(AGENT_PROFILE_WHEN_TO_USE_MAX_LENGTH),
+      .max(AGENT_PROFILE_WHEN_TO_USE_MAX_LENGTH)
+      .meta({
+        description:
+          "1-200 characters. Sub-agent profiles: the line the lead chooses the teammate by; name the kind of task and the outcome.",
+      }),
     /** Authored launch default (true if omitted), not availability or a requirement. */
-    enabled: z.boolean().optional(),
-    usableBy: z.enum(["lead", "subagent", "both"]),
-    instructions: agentProfileInstructionsSchema,
-    recommendations: profileSettingsOverridesSchema.optional(),
-    requirements: profileSettingsOverridesSchema.optional(),
+    enabled: z
+      .boolean()
+      .meta({
+        description:
+          "Sub-agent profiles: `false` makes the profile unavailable to leads by default; the user can enable it per conversation. Default `true`.",
+      })
+      .optional(),
+    usableBy: z.enum(["lead", "subagent", "both"]).meta({
+      description:
+        "Who may use the profile. `subagent` and `both` profiles may only use settings that sub-agents support.",
+    }),
+    instructions: agentProfileInstructionsSchema.meta({
+      description:
+        "Text added to the agent's system prompt, at most 16384 UTF-8 bytes. May be empty for a settings-only profile.",
+    }),
+    recommendations: profileSettingsOverridesSchema
+      .meta({
+        description:
+          "Settings object: values used unless the conversation chooses otherwise.",
+      })
+      .optional(),
+    requirements: profileSettingsOverridesSchema
+      .meta({
+        description:
+          "Settings object: values enforced while the profile is applied. The same setting may not appear in both `recommendations` and `requirements`.",
+      })
+      .optional(),
     /** Extension entries the profile recommends or requires (locks) in the conversation. */
-    extensions: profileExtensionsSchema.optional(),
+    extensions: profileExtensionsSchema
+      .meta({
+        description:
+          "Extension entries the profile recommends or requires, by extension id. Use only when asked, with the extension's documented settings.",
+      })
+      .optional(),
+  })
+  .meta({
+    description:
+      "Agent profile file. Not expressible here: `recommendations` and `requirements` must not set the same setting (also `extensions.<id>.settings.<key>` and `enabled`). A `subagent` or `both` profile may not use `tools.plan_present`, `tools.subagents` or `subagents`.",
   })
   .superRefine((v, ctx) => {
     checkOverlap(v, ctx);

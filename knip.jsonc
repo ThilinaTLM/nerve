@@ -13,13 +13,13 @@
     },
     "packages/workbench-server": {
       // The doccheck script is shipped in the engineering-docs skill and invoked by the agent, not imported.
-      // The extension-creator scripts are run by the agent; its examples are scaffolded into user extensions.
+      // The configure-nerve scripts are run by the agent; its examples are scaffolded into user extensions.
       "entry": [
         "scripts/**/*.ts",
         "{test,src}/**/*.test.ts",
         "src/builtin-skills/builtin/engineering-docs/scripts/doccheck.mjs",
-        "src/builtin-skills/builtin/extension-creator/scripts/*.mjs",
-        "src/builtin-skills/builtin/extension-creator/examples/**/src/*.ts",
+        "src/builtin-skills/builtin/configure-nerve/scripts/*.mjs",
+        "src/builtin-skills/builtin/configure-nerve/examples/extensions/**/src/*.ts",
       ],
     },
     "packages/website": {

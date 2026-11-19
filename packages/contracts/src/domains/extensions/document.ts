@@ -2,9 +2,20 @@ import { z } from "zod";
 import { extensionIdSchema } from "./settings-schema.js";
 
 export const extensionEntrySchema = z.strictObject({
-  version: z.number().int().positive(),
-  enabled: z.boolean().optional(),
-  settings: z.record(z.string(), z.unknown()).optional(),
+  version: z.number().int().positive().meta({
+    description: "Settings version the extension declares for these settings.",
+  }),
+  enabled: z
+    .boolean()
+    .meta({ description: "Turn the extension on or off." })
+    .optional(),
+  settings: z
+    .record(z.string(), z.unknown())
+    .meta({
+      description:
+        "Extension settings by field key, as the extension documents them.",
+    })
+    .optional(),
 });
 export type ExtensionEntry = z.infer<typeof extensionEntrySchema>;
 export type ExtensionEntries = Record<string, ExtensionEntry>;
@@ -25,7 +36,18 @@ export const emptyExtensionsDocument = (): ExtensionsDocument => ({
 
 /** Profile contribution: the same entry shape; requirements lock their fields. */
 export const profileExtensionsSchema = z.strictObject({
-  recommendations: z.record(extensionIdSchema, extensionEntrySchema).optional(),
-  requirements: z.record(extensionIdSchema, extensionEntrySchema).optional(),
+  recommendations: z
+    .record(extensionIdSchema, extensionEntrySchema)
+    .meta({
+      description:
+        "Extension entries used unless the conversation chooses otherwise.",
+    })
+    .optional(),
+  requirements: z
+    .record(extensionIdSchema, extensionEntrySchema)
+    .meta({
+      description: "Extension entries locked while the profile is applied.",
+    })
+    .optional(),
 });
 export type ProfileExtensions = z.infer<typeof profileExtensionsSchema>;

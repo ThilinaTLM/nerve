@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-How to build one is in [Build an extension with Nerve](/guides/build-extensions/). Built-in extensions are described in [Extensions](/integrations/extensions/).
+How to build one is in [Build an extension with Nerve](/guides/build-extensions/). Built-in extensions are described in [Extensions](/integrations/extensions/). The extension API is documented in the type declarations of [`@nervekit/extension-sdk`](https://www.npmjs.com/package/@nervekit/extension-sdk).
 
 ## Locations and precedence
 

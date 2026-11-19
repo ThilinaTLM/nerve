@@ -1,4 +1,6 @@
 import { FILES_DTS_TYPES, IMAGE_CHAIN_OPS } from "./files/dts-types.js";
+import { CONFIGURATION_DTS_TYPES } from "./configuration/dts-types.js";
+import { configurationMethods } from "./configuration/configuration-methods.js";
 import { EXTENSIONS_DTS_TYPES } from "./extensions/dts-types.js";
 import { extensionsMethods } from "./extensions/extensions-methods.js";
 import { filesMethods } from "./files/files-methods.js";
@@ -67,9 +69,17 @@ export const runtimeNamespaces: SdkNamespace[] = [
   {
     id: "extensions",
     summary:
-      "reload(id), status(id) for user and project extensions, built with the extension-creator skill",
+      "reload(id), status(id) for user and project extensions, built with the configure-nerve skill",
     methods: extensionsMethods,
     types: EXTENSIONS_DTS_TYPES,
+    docs: [],
+  },
+  {
+    id: "configuration",
+    summary:
+      'reload(scope), status(scope) with scope "user" or "project": re-read hand-edited agent.json, profiles, permission files and rule sets and get their problems; see the configure-nerve skill',
+    methods: configurationMethods,
+    types: CONFIGURATION_DTS_TYPES,
     docs: [],
   },
   {

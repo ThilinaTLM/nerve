@@ -50,6 +50,12 @@ export type {
   ExtensionAgentPort,
   ExtensionAgentStatus,
 } from "./extension-host/agent-port.js";
+export type {
+  ConfigurationAgentDiagnostic,
+  ConfigurationAgentPort,
+  ConfigurationAgentResult,
+  ConfigurationAgentScope,
+} from "./runtime/configuration/configuration-port.js";
 export { openAvailabilityCode } from "./extension-host/host-context.js";
 export {
   callExtensionMethodFromUi,

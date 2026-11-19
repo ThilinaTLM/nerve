@@ -25,26 +25,46 @@ const testClientKey = Symbol.for("nerve.extension-sdk.bridge");
 const defaultTokensCss =
   "--background:#101114;--foreground:#e8e8ea;--primary:#7aa2f7;";
 
+/** What the fake host answers with; every member is optional. */
 export type FakeBridgeOptions = {
+  /** Kind of the frame under test; default `"preview"`. A kind may call only its bridge methods (`file.*` is previews only). */
   kind?: ContributionKind;
   /** The contribution id; default `"test"`. */
   id?: string;
+  /** `host.extensionId`; default `"test-extension"`. */
   extensionId?: string;
   /** Previews only; default `"source"`. `file.write` and `mode.get` need `"custom"`. */
   edit?: PreviewEdit;
+  /** Initial mode; default `"preview"`. */
   mode?: Mode;
+  /** Initial theme kind; default `"dark"`. */
   themeKind?: ThemeKind;
+  /** Initial theme tokens (`--name:value;` declarations); default: a few dark colours. */
   tokensCss?: string;
+  /** `host.pageParams` of a page. */
   pageParams?: BridgeJson;
   /** Previews: the previewed file. */
   file?: {
+    /** Project-relative path; default `"sample.txt"`. */
     path?: string;
+    /** Initial content. */
     content: string | Uint8Array;
+    /** ISO timestamp for `file.info`. */
     modifiedAt?: string;
   };
+  /** Answer of `host.settings.get()`; default `{}`. */
   settings?: Record<string, BridgeJson>;
+  /** Initial `host.viewState` value; default `null`. */
   viewState?: BridgeJson | null;
-  project?: { id?: string; name?: string; directory?: string };
+  /** Answer of `host.project.info()`; defaults `project-1`, `project` and `/project`. */
+  project?: {
+    /** Default `"project-1"`. */
+    id?: string;
+    /** Default `"project"`. */
+    name?: string;
+    /** Default `"/project"`. */
+    directory?: string;
+  };
   /** Answers `host.call(method, args)`; default: `backend_error` (no backend). */
   call?: (
     method: string,
@@ -56,21 +76,49 @@ export type FakeBridgeOptions = {
   menu?: string | null | ((items: MenuItem[]) => string | null);
 };
 
+/** The fake host a test inspects and drives. */
 export type FakeBridge = {
   /** Every request the frame sent, in order, after the real host-side validation. */
-  requests: { method: string; params: unknown }[];
+  requests: {
+    /** Bridge method name (`file.read`, `call`, …). */
+    method: string;
+    /** The validated params. */
+    params: unknown;
+  }[];
   /** Bytes of the previewed file; `file.write` replaces them. */
   readonly fileBytes: Uint8Array;
   /** Text of the previewed file as UTF-8. */
   readonly fileText: string;
-  notifications: { message: string; level: NotifyLevel }[];
-  opened: { files: string[]; pages: { id: string; params?: BridgeJson }[] };
+  /** Toasts of `host.ui.notify`, with the level defaulted to `info`. */
+  notifications: {
+    /** Toast text. */
+    message: string;
+    /** Toast level; `info` when the frame gave none. */
+    level: NotifyLevel;
+  }[];
+  /** Files and pages the frame asked the host to open (`host.openFile`, `host.openPage`). */
+  opened: {
+    /** Paths passed to `host.openFile`. */
+    files: string[];
+    /** Calls of `host.openPage`. */
+    pages: {
+      /** Page id. */
+      id: string;
+      /** The page `params`, when given. */
+      params?: BridgeJson;
+    }[];
+  };
+  /** Texts the frame appended to the composer (`host.composer.insert`). */
   composerText: string[];
+  /** Current `viewState`; the frame's `viewState.set` writes it. */
   viewState: BridgeJson | null;
   /** Resolves when the handshake is done; `await host.ready` to also have the theme applied. */
   ready: Promise<void>;
+  /** Sends a `themeChanged` event; `host.onThemeChange` handlers run. */
   emitThemeChanged(kind: ThemeKind, tokensCss: string): void;
+  /** Sends a `modeChanged` event; the `mode` store and `host.onModeChange` handlers update. */
   emitModeChanged(mode: Mode): void;
+  /** Sends a `fileChanged` event; `content`, when given, replaces the file's bytes first. */
   emitFileChanged(
     change: { size: number; modifiedAt?: string },
     content?: string | Uint8Array,

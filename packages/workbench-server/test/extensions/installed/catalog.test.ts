@@ -369,7 +369,7 @@ void test(
     assert.equal(old.sdkVersion, "0.38.0");
     assert.match(
       text(old),
-      /Ask the agent to upgrade it with the extension-creator skill/,
+      /Ask the agent to upgrade it with the configure-nerve skill/,
     );
     assert.ok(!registry.namespaces.some((n) => n.id === "oldsdk"));
   },

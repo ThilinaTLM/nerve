@@ -10,12 +10,20 @@ export const thinkingLevels = [
   "max",
 ] as const;
 
-export const thinkingLevelSchema = z.enum(thinkingLevels);
+export const thinkingLevelSchema = z.enum(thinkingLevels).meta({
+  description:
+    "Reasoning effort. A level the selected model does not support is adjusted, or a conflict when required.",
+});
 export type ThinkingLevel = z.infer<typeof thinkingLevelSchema>;
 
 export const modelSelectionSchema = z.object({
-  provider: z.string().min(1),
-  modelId: z.string().min(1),
+  provider: z.string().min(1).meta({
+    description:
+      "Provider id from the user's configured models. Never guess it.",
+  }),
+  modelId: z.string().min(1).meta({
+    description: "Model id from the user's configured models. Never guess it.",
+  }),
 });
 export type ModelSelection = z.infer<typeof modelSelectionSchema>;
 

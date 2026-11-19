@@ -48,6 +48,10 @@ The page distinguishes active and saved values. Network, diagnostics enablement,
 
 Settings choose an account by ID, and each field resolves from the extension's default, then your settings, then the project's, then an applied [profile](/reference/agent-profiles/). Edits in **Settings → Extensions** are trusted automatically; a project file edited elsewhere needs **Trust file** again. Upgrading to 0.41 moves integration accounts and tool options out of `agent.json` into these files and rewrites permission rules that named the removed Jira, Confluence, diagram, and image-generation tools to Quick script operation rules.
 
+## Edit configuration by chat
+
+The built-in **configure-nerve** skill (on by default) lets the agent edit these files, agent profiles, permission rule sets (`<NERVE_HOME>/config/rule-sets/<id>.json`), launch definitions and skills for you, then reload them and report problems. Project files it writes still need your trust where noted below.
+
 ## Project trust
 
 Project files that can widen what the agent does or runs apply only after you trust their exact content: `agent.json`, `permissions.json`, `extensions.json`, agent profiles, and prompt-suggestion scripts. Project **General**, **Tools**, and **Skills** settings show **Project agent settings are not trusted** with a **Trust file** button when `agent.json` hasn't been trusted; until then conversations use your user settings. Files Nerve writes are trusted for you, edits made elsewhere need a new review, and **Revoke trust** withdraws it. Trust state lives in `<NERVE_HOME>/data/nerve.sqlite`.
