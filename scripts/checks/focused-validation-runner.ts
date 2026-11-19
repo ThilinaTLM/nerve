@@ -2,7 +2,7 @@ import { spawn as spawnAsync, spawnSync } from "node:child_process";
 import { parseFocusedArguments, type FocusedOptions } from "../cli/args.ts";
 import { formatCommand, section } from "../cli/log.ts";
 import { runCli, CliError, type CliHooks } from "../cli/main.ts";
-import { runStep, type SpawnFunction } from "../cli/run.ts";
+import { pnpmInvocation, runStep, type SpawnFunction } from "../cli/run.ts";
 import {
   STAGE_NAMES,
   type PlanStep,
@@ -126,17 +126,13 @@ export interface ExecuteOptions {
   log?: (line: string) => void;
 }
 
-/** Prefer pnpm's JS entrypoint when available, never cmd.exe or a shell. */
+/** Prefer pnpm's JS entrypoint when available; a shell only for pnpm.cmd on Windows. */
 function resolveCommand(
   step: PlanStep,
   pnpmPath: string | undefined,
-): { command: string; args: string[] } {
-  if (
-    step.command === "pnpm" &&
-    /(?:^|[/\\])pnpm\.(?:c?js|mjs)$/i.test(pnpmPath ?? "")
-  )
-    return { command: process.execPath, args: [pnpmPath!, ...step.args] };
-  return { command: step.command, args: step.args };
+): { command: string; args: string[]; shell: boolean } {
+  if (step.command === "pnpm") return pnpmInvocation(step.args, pnpmPath);
+  return { command: step.command, args: step.args, shell: false };
 }
 
 export function executePlan(
@@ -153,11 +149,11 @@ export function executePlan(
   if (dryRun) return;
   for (const step of plan.commands) {
     section(step.reason, log);
-    const { command, args } = resolveCommand(step, pnpmPath);
+    const { command, args, shell } = resolveCommand(step, pnpmPath);
     runStep(command, args, {
       cwd: root,
       spawn,
-      shell: false,
+      shell,
       failure: (result) =>
         `${step.command} failed (${result.signal ?? result.status})`,
     });
@@ -173,6 +169,7 @@ function runBuffered(
   command: string,
   args: string[],
   cwd: string,
+  shell = false,
 ): Promise<{
   code: number | null;
   signal: NodeJS.Signals | null;
@@ -181,7 +178,7 @@ function runBuffered(
   return new Promise((resolve, reject) => {
     const child = spawnAsync(command, args, {
       cwd,
-      shell: false,
+      shell,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let output = "";
@@ -222,9 +219,9 @@ export async function executeCheckPlanConcurrently(
         let output = "";
         for (const step of steps) {
           output += `\n${step.reason}\n`;
-          const { command, args } = resolveCommand(step, pnpmPath);
+          const { command, args, shell } = resolveCommand(step, pnpmPath);
           try {
-            const result = await runBuffered(command, args, root);
+            const result = await runBuffered(command, args, root, shell);
             output += result.output;
             if (result.code !== 0)
               return [

@@ -91,6 +91,7 @@ export function basenameEnvPath(path: string): string {
  *
  * The ignore package requires relative, slash-separated paths. Execution environments may return native Windows paths,
  * so comparisons are performed on normalized separators before the relative path is produced.
+ * Callers pass paths under `root`; a path outside it falls back to a root-stripped absolute path.
  */
 export function relativeEnvPath(root: string, path: string): string {
   const normalizedRoot = toPosixPath(root);

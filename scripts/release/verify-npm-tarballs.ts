@@ -18,6 +18,7 @@ import {
 } from "./bundle-smoke.ts";
 import { externalRuntimeDependencies } from "./npm-manifests.ts";
 import { readJson } from "./workspace-packages.ts";
+import { directInvocation } from "../cli/run.ts";
 import { repoRoot, type PackageManifest } from "../workspace/repo.ts";
 
 const publicPackage = ["@nervekit/desktop", "desktop"];
@@ -311,11 +312,11 @@ function tarEntries(tarball: string) {
 }
 
 function capture(command: string, args: string[], cwd = repoRoot) {
-  const result = spawnSync(command, args, {
+  const invocation = directInvocation(command, args);
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd,
     encoding: "utf8",
     maxBuffer: 256 * 1024 * 1024,
-    shell: process.platform === "win32",
   });
   if (result.error) throw result.error;
   if (result.status !== 0)
@@ -326,10 +327,10 @@ function capture(command: string, args: string[], cwd = repoRoot) {
 }
 
 function run(command: string, args: string[], cwd = repoRoot) {
-  const result = spawnSync(command, args, {
+  const invocation = directInvocation(command, args);
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd,
     stdio: "inherit",
-    shell: process.platform === "win32",
   });
   if (result.error) throw result.error;
   if (result.status !== 0)

@@ -263,11 +263,21 @@ function getShellEnv(
   baseEnv?: NodeJS.ProcessEnv,
   extraEnv?: Record<string, string>,
 ): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    ...baseEnv,
-    ...extraEnv,
-  };
+  const layers = [process.env, baseEnv, extraEnv];
+  if (process.platform !== "win32") return Object.assign({}, ...layers);
+  // Windows env names are case-insensitive: later layers replace earlier spellings (PATH vs Path).
+  const merged: NodeJS.ProcessEnv = {};
+  const names = new Map<string, string>();
+  for (const layer of layers) {
+    for (const [name, value] of Object.entries(layer ?? {})) {
+      const key = name.toUpperCase();
+      const existing = names.get(key);
+      if (existing !== undefined && existing !== name) delete merged[existing];
+      names.set(key, name);
+      merged[name] = value;
+    }
+  }
+  return merged;
 }
 
 function killProcessTree(child: ChildProcess): void {

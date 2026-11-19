@@ -20,8 +20,12 @@ export function shortenPath(dir?: string, home?: string): string {
   ) {
     rest = rest.slice(normalizedHome.length);
     prefix = "~";
-  } else if (rest.startsWith("/")) {
-    prefix = "";
+  } else {
+    const unc = /^\/\/[^/]+\/[^/]+/.exec(rest);
+    if (unc) {
+      prefix = unc[0];
+      rest = rest.slice(prefix.length);
+    }
   }
 
   const segments = rest.split("/").filter(Boolean);
@@ -55,7 +59,10 @@ function pathsEqual(left: string, right: string): boolean {
 }
 
 function pathStartsWith(candidate: string, root: string): boolean {
-  return comparablePath(candidate).startsWith(`${comparablePath(root)}/`);
+  const rootKey = comparablePath(root);
+  return comparablePath(candidate).startsWith(
+    rootKey.endsWith("/") ? rootKey : `${rootKey}/`,
+  );
 }
 
 /**
@@ -86,7 +93,8 @@ export function tildePath(dir?: string, home?: string): string {
 
   if (normalizedHome && pathsEqual(rest, normalizedHome)) return "~";
   if (normalizedHome && pathStartsWith(rest, normalizedHome)) {
-    return `~${rest.slice(normalizedHome.length)}`;
+    const tail = rest.slice(normalizedHome.length);
+    return `~${tail.startsWith("/") ? tail : `/${tail}`}`;
   }
   return rest || dir || "/";
 }

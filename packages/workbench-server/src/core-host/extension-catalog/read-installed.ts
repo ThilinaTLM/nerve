@@ -1,7 +1,7 @@
 import { agentTextProblems } from "./agent-text-limits.js";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   extensionIdSchema,
   installedExtensionManifestSchema,
@@ -58,6 +58,14 @@ const error = (message: string): ExtensionCatalogDiagnostic => ({
   message,
 });
 
+function isInside(root: string, path: string): boolean {
+  const rel = relative(root, path);
+  return (
+    rel === "" ||
+    (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
+  );
+}
+
 /** A reader for the files of `dist/`: relative paths that stay inside it (symbolic links included). */
 export function distReader(
   dist: string,
@@ -73,11 +81,10 @@ export function distReader(
       throw new Error(`'${file}' is not a relative path inside dist/.`);
     const root = realpathSync(dist);
     const lexical = resolve(root, file);
-    if (lexical !== root && !lexical.startsWith(root + sep))
+    if (!isInside(root, lexical))
       throw new Error(`'${file}' is outside dist/.`);
     const path = realpathSync(lexical);
-    if (path !== root && !path.startsWith(root + sep))
-      throw new Error(`'${file}' is outside dist/.`);
+    if (!isInside(root, path)) throw new Error(`'${file}' is outside dist/.`);
     const info = statSync(path);
     if (!info.isFile()) throw new Error(`'${file}' is not a file.`);
     if (info.size > maxBytes)
@@ -135,7 +142,7 @@ export async function readFolder(
       );
     // A symbolic link may not lead out of dist/.
     const real = await realpath(manifestPath);
-    if (!real.startsWith((await realpath(dist)) + sep))
+    if (!isInside(await realpath(dist), real))
       return fail("dist/manifest.json is outside dist/.");
     text = await readFile(real, "utf8");
   } catch (cause) {

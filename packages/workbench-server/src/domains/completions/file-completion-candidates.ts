@@ -9,6 +9,7 @@ import {
   join,
   relative,
   resolve,
+  sep,
 } from "node:path";
 import { promisify } from "node:util";
 import type { CompletionItem } from "@nervekit/contracts/completions";
@@ -140,9 +141,10 @@ export function legacyCandidatesFromEntries(
 
 export async function directDirectoryCompletionItems(
   root: string,
-  query: string,
+  rawQuery: string,
   limit: number,
 ): Promise<CompletionItem[]> {
+  const query = rawQuery.replaceAll("\\", "/");
   const normalizedQuery = query.replace(/\/+$/, "");
   const directoryPart = query.endsWith("/") ? normalizedQuery : parentOf(query);
   const basePart = query.endsWith("/") || directoryPart ? "" : query;
@@ -338,7 +340,10 @@ function parentOf(path: string): string {
 
 function isInside(root: string, candidate: string): boolean {
   const rel = relative(root, candidate);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  return (
+    rel === "" ||
+    (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
+  );
 }
 
 function sortCandidates(

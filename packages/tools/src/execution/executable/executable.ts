@@ -1,3 +1,4 @@
+import { spawn as nodeSpawn } from "node:child_process";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { constants } from "node:fs";
 import { access, readdir, stat } from "node:fs/promises";
@@ -87,7 +88,8 @@ export async function executableSearchDirectories(
 ): Promise<string[]> {
   const platform = options.platform ?? process.platform;
   const env = options.env ?? process.env;
-  const home = options.homeDir ?? homeFromEnvironment(env) ?? homedir();
+  const home =
+    options.homeDir ?? homeFromEnvironment(env, platform) ?? homedir();
   const delimiter = platform === "win32" ? ";" : ":";
   const inheritedPath = environmentValue(env, "PATH") ?? "";
   const directories = [
@@ -133,7 +135,9 @@ export async function runExecutable(
     const timer = options.timeoutMs
       ? setTimeout(() => {
           timedOut = true;
-          child.kill("SIGTERM");
+          killProcessTree(child);
+          // Orphaned descendants can hold the pipes open so 'close' never fires.
+          setTimeout(() => finish(null), TIMEOUT_CLOSE_GRACE_MS).unref();
         }, options.timeoutMs)
       : undefined;
     timer?.unref();
@@ -163,6 +167,22 @@ export async function runExecutable(
     });
     child.once("close", finish);
   });
+}
+
+const TIMEOUT_CLOSE_GRACE_MS = 2_000;
+
+/** Windows shims run through cmd.exe, so terminate the whole tree there. */
+function killProcessTree(child: ChildProcess): void {
+  if (process.platform === "win32" && child.pid !== undefined) {
+    const killer = nodeSpawn(
+      "taskkill",
+      ["/pid", String(child.pid), "/T", "/F"],
+      { stdio: "ignore", windowsHide: true },
+    );
+    killer.once("error", () => child.kill("SIGTERM"));
+    return;
+  }
+  child.kill("SIGTERM");
 }
 
 function executableEnvironment(
@@ -305,7 +325,7 @@ function environmentKey(
   return Object.keys(env).find((key) => key.toLowerCase() === target);
 }
 
-function environmentValue(
+export function environmentValue(
   env: NodeJS.ProcessEnv,
   name: string,
 ): string | undefined {
@@ -313,8 +333,13 @@ function environmentValue(
   return key ? env[key] : undefined;
 }
 
-function homeFromEnvironment(env: NodeJS.ProcessEnv): string | undefined {
-  return env.HOME ?? env.USERPROFILE;
+function homeFromEnvironment(
+  env: NodeJS.ProcessEnv,
+  platform: ExecutablePlatform,
+): string | undefined {
+  return platform === "win32"
+    ? (env.USERPROFILE ?? env.HOME)
+    : (env.HOME ?? env.USERPROFILE);
 }
 
 function deduplicatePaths(

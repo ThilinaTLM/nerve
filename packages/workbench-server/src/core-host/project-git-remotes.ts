@@ -9,7 +9,7 @@ export async function projectGitRemotes(directory: string): Promise<string[]> {
       ["config", "--get-regexp", "^remote\\..*\\.url$"],
       { cwd: directory, timeout: 5000, maxBuffer: 1024 * 1024 },
     );
-    return stdout.split("\n").flatMap((line) => {
+    return stdout.split(/\r?\n/).flatMap((line) => {
       const match = /^\S+\s+(.+)$/.exec(line);
       return match ? [match[1]] : [];
     });

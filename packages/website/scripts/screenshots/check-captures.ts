@@ -7,6 +7,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /** Project and repository names the demo seed is allowed to show. */
@@ -48,8 +49,8 @@ const RULES = [
 
 /** Paths outside the throwaway capture directories are always suspect. */
 const ALLOWED_PATH_PREFIXES = [
-  "/tmp/nerve-demo-home",
-  "/tmp/nerve-demo-workspace",
+  join(tmpdir(), "nerve-demo-home"),
+  join(tmpdir(), "nerve-demo-workspace"),
 ];
 
 export function findViolations(text: string) {
@@ -65,7 +66,7 @@ export function findViolations(text: string) {
     if (!path.startsWith("/")) continue;
     if (ALLOWED_PATH_PREFIXES.some((prefix) => path.startsWith(prefix)))
       continue;
-    if (path.startsWith("/tmp/")) continue;
+    if (path.startsWith(`${tmpdir()}/`)) continue;
     if (/^\/(?:bookings|venues|api|docs|guides|start|models)\b/.test(path))
       continue;
     if (/^\/(?:src|test|deploy|app|components|lib|packages)\//.test(path))

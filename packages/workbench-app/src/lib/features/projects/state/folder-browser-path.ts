@@ -109,7 +109,10 @@ export function completionQuery(
     draft === "~" ? `~${ctx.separator}` : draft,
     ctx,
   );
-  const cut = Math.max(expanded.lastIndexOf("\\"), expanded.lastIndexOf("/"));
+  const cut = Math.max(
+    ctx.platform === "win32" ? expanded.lastIndexOf("\\") : -1,
+    expanded.lastIndexOf("/"),
+  );
   if (cut < 0) return undefined;
   const prefix = expanded.slice(cut + 1);
   const dir = trimTrailingSeparator(expanded.slice(0, cut + 1), ctx);

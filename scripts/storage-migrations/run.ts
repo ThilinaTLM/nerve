@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { pnpmInvocation } from "../cli/run.ts";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -20,7 +21,12 @@ export function runMigrationScript(
   if (!script) throw new Error(`Unknown storage migration command: ${command}`);
 
   function execute(args: string[]) {
-    const result = run("pnpm", args, { cwd: root, stdio: "inherit" });
+    const pnpm = pnpmInvocation(args);
+    const result = run(pnpm.command, pnpm.args, {
+      cwd: root,
+      stdio: "inherit",
+      ...(pnpm.shell ? { shell: true } : {}),
+    });
     if (result.error) throw result.error;
     if (result.signal)
       throw new Error(`Migration command terminated by ${result.signal}`);

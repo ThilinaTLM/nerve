@@ -36,6 +36,7 @@ import { normalizeToolArguments } from "../catalog/argument-normalization.js";
 import { describeToolArgumentErrors } from "../catalog/argument-validation.js";
 import { permissionMetadataForTool } from "../catalog/permission-metadata.js";
 import { requireToolDefinition } from "../catalog/manifest.js";
+import { resolveToolPath } from "../execution/filesystem/path.js";
 import { escapeGlobLiteral, patternMatches } from "./path-glob.js";
 
 export interface PermissionRootPaths {
@@ -353,7 +354,7 @@ function stringPathTargets(
   const values = Array.isArray(value) ? value : [value];
   return values.flatMap((entry): PermissionTarget[] => {
     if (typeof entry !== "string" || entry.trim().length === 0) return [];
-    const absolutePath = existingRealpath(resolve(cwd, entry));
+    const absolutePath = existingRealpath(resolveToolPath(cwd, entry));
     const rooted = symbolicPath(absolutePath, roots);
     return rooted
       ? [{ kind: "path" as const, access, scope, ...rooted }]

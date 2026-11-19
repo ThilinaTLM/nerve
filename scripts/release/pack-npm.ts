@@ -20,6 +20,7 @@ import {
   bundledPackages as internalPackages,
   readJson,
 } from "./workspace-packages.ts";
+import { directInvocation } from "../cli/run.ts";
 import { repoRoot } from "../workspace/repo.ts";
 import {
   collectDistributionDependencies,
@@ -202,11 +203,11 @@ async function writeJson(path: string, value: unknown) {
 }
 
 function run(command: string, args: string[], cwd: string) {
-  const result = spawnSync(command, args, {
+  const invocation = directInvocation(command, args);
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd,
     stdio: "inherit",
     env: process.env,
-    shell: process.platform === "win32",
   });
   if (result.error) throw result.error;
   if (result.status !== 0)

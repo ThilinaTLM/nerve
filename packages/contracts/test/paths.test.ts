@@ -21,6 +21,7 @@ const cases: [string, string, Opts, string | { reason: string }][] = [
   ["unc", "\\\\host\\x", undefined, { reason: "absolute" }],
   ["drive", "C:/x", undefined, { reason: "drive" }],
   ["drive backslash", "c:\\x", undefined, { reason: "drive" }],
+  ["drive relative", "C:foo", undefined, { reason: "drive" }],
   ["nul", "a\0b", undefined, { reason: "nul" }],
 ];
 

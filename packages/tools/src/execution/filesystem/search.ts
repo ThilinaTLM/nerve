@@ -3,7 +3,7 @@ import { spawnManagedChildProcess } from "@nervekit/native";
 import { searchProcessPolicy } from "../process/managed-process-policy.js";
 import { createReadStream } from "node:fs";
 import { open, readFile, stat } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable } from "node:stream";
 import type {
@@ -357,7 +357,7 @@ async function fallbackGrep(
       limit,
       async (absolutePath, relativePath) => {
         checkExecution();
-        const normalizedPath = relativePath.replaceAll("\\", "/");
+        const normalizedPath = relativePath.split(sep).join("/");
         if (glob && !glob.test(normalizedPath)) return;
         if (await isBinaryFile(absolutePath)) return;
 
@@ -493,9 +493,12 @@ async function longLineReadHint(
       start = newline + 1;
     }
     const shown = Buffer.byteLength(cut.text.slice(0, GREP_MAX_LINE_LENGTH));
-    const fromCwd = relative(cwd, absolute).replaceAll("\\", "/");
+    const fromCwd = relative(cwd, absolute).split(sep).join("/");
     const path =
-      fromCwd && !fromCwd.startsWith("..") && !isAbsolute(fromCwd)
+      fromCwd &&
+      fromCwd !== ".." &&
+      !fromCwd.startsWith("../") &&
+      !isAbsolute(fromCwd)
         ? fromCwd
         : absolute;
     return JSON.stringify({ path, byteOffset: start + shown });
@@ -574,7 +577,7 @@ function formatMatches(
 
 function displayPath(displayRoot: string, path: string): string {
   const displayed = isAbsolute(path) ? relative(displayRoot, path) : path;
-  return displayed.replaceAll("\\", "/") || path;
+  return displayed.split(sep).join("/") || path;
 }
 
 function stripDisplayFlag(line: GrepDisplayLine): GrepMatch {

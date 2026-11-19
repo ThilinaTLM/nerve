@@ -5,6 +5,9 @@ import { runMigrationScript } from "../run.ts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 
+// Under `pnpm exec` npm_execpath names pnpm's entrypoint; pin the fallback path.
+process.env.npm_execpath = "";
+
 test("migration commands prepare workspace dependencies before loading TypeScript", () => {
   for (const [command, script] of [
     ["check", "check.ts"],

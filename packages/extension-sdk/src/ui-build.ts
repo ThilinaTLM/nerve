@@ -38,7 +38,10 @@ async function exists(path: string): Promise<boolean> {
 
 function inside(path: string): boolean {
   return (
-    path.length > 0 && !isAbsolute(path) && !path.split(/[\\/]/).includes("..")
+    path.length > 0 &&
+    !isAbsolute(path) &&
+    !/^[A-Za-z]:/.test(path) &&
+    !path.split(/[\\/]/).includes("..")
   );
 }
 
@@ -249,13 +252,23 @@ const frameForbidden: {
   },
 ];
 
+function isInside(root: string, path: string | undefined): boolean {
+  if (!path) return false;
+  const rel = relative(root, path);
+  return (
+    rel === "" ||
+    (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
+  );
+}
+
 /** Whether `file` belongs to the extension's own sources (not a dependency, the UI kit or the SDK). */
 function isUserFile(file: string | undefined, projectDir: string): boolean {
   if (!file || file.startsWith("\0")) return false;
   const path = file.split("?")[0]!;
   const rel = relative(projectDir, path);
   return (
-    !rel.startsWith("..") &&
+    rel !== ".." &&
+    !rel.startsWith(`..${sep}`) &&
     !isAbsolute(rel) &&
     !rel.split(sep).includes("node_modules")
   );
@@ -347,7 +360,7 @@ export async function buildFrames(
     name: "nerve-frame-resolve",
     enforce: "pre",
     async resolveId(source, importer, options) {
-      if (isUserFile(importer, projectDir) || importer?.startsWith(workRoot)) {
+      if (isUserFile(importer, projectDir) || isInside(workRoot, importer)) {
         for (const rule of frameForbidden)
           if (rule.pattern.test(source)) {
             forbidden.push({

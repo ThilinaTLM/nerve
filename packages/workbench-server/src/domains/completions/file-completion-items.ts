@@ -10,6 +10,7 @@ export type CompletionItemInput = {
 
 export function isUnsafeCompletionQuery(query: string): boolean {
   if (!query) return false;
+  query = query.replaceAll("\\", "/");
   if (
     query.startsWith("/") ||
     query.startsWith("//") ||

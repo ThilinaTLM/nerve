@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { realpathSync } from "node:fs";
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { toolNameSchema } from "@nervekit/contracts/tools";
@@ -771,5 +771,22 @@ test("invalid tool arguments produce field-level errors", () => {
       }),
     (error: Error) =>
       /"edits"/.test(error.message) && !/were empty/.test(error.message),
+  );
+});
+
+test("policy targets resolve ~ like the tools do", () => {
+  const home = realpathSync(homedir());
+  const request = normalizePermissionRequest({
+    toolName: "read",
+    args: { path: "~/some-file.txt" },
+    roots,
+    cwd: "/workspace",
+    conversationId: "conv_test",
+  });
+  const target = request.targets.find((entry) => entry.kind === "path");
+  assert.ok(target && target.kind === "path");
+  assert.equal(
+    "absolutePath" in target ? target.absolutePath : undefined,
+    resolve(home, "some-file.txt"),
   );
 });

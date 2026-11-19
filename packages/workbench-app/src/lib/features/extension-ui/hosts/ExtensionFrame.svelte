@@ -406,7 +406,8 @@ async function checkFileChanged(): Promise<void> {
 $effect(() => {
   const path = filePath;
   if (contribution.kind !== "preview" || !path) return;
-  const parent = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+  const separator = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  const parent = separator >= 0 ? path.slice(0, separator) : "";
   const stop = onEvent("filesystem.project.changed", (event) => {
     const data = event.data;
     if (data?.projectId !== projectId || !ready) return;
