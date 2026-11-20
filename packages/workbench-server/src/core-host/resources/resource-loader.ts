@@ -121,11 +121,25 @@ export async function listAvailableSkills(
   };
 }
 
-async function discoverSkillGroups(
+/** Skills and loader diagnostics of each discovery root group, before precedence is applied. */
+export async function discoverSkillFiles(
+  cwd: string | undefined,
+  storageHome?: string,
+) {
+  const agentDir = join(resolveDataDir(storageHome), "agent");
+  const resolvedCwd = cwd ? resolve(cwd) : undefined;
+  return loadSkillGroups(
+    new NodeExecutionEnv({ cwd: resolvedCwd ?? agentDir }),
+    resolvedCwd,
+    agentDir,
+  );
+}
+
+async function loadSkillGroups(
   env: NodeExecutionEnv,
   cwd: string | undefined,
   agentDir: string,
-): Promise<DiscoveredSkillGroups> {
+) {
   /** The home `.agents/skills` directory is always a user source, never a project one. */
   const userAgentsSkillDir = join(homedir(), AGENTS_DIR_NAME, "skills");
   const [project, user] = await Promise.all([
@@ -137,6 +151,15 @@ async function discoverSkillGroups(
       : Promise.resolve({ skills: [], diagnostics: [] }),
     loadSkills(env, [join(agentDir, "skills"), userAgentsSkillDir]),
   ]);
+  return { project, user };
+}
+
+async function discoverSkillGroups(
+  env: NodeExecutionEnv,
+  cwd: string | undefined,
+  agentDir: string,
+): Promise<DiscoveredSkillGroups> {
+  const { project, user } = await loadSkillGroups(env, cwd, agentDir);
   return {
     projectSkills: deduplicateSkills(project.skills),
     userSkills: deduplicateSkills(user.skills),

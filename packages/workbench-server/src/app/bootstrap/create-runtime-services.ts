@@ -1,3 +1,5 @@
+import { storagePaths } from "../../infrastructure/storage-bootstrap/index.js";
+import { promptSuggestionProvider } from "../../core-host/configuration/providers/prompt-suggestion-provider.js";
 import { consentSourcesOf } from "../../core-host/extensions/extension-catalog/extension-consent.js";
 import { toTrustedDigest } from "@nervekit/contracts/core";
 import {
@@ -169,6 +171,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,
+    configurationResources,
   } = createConversationCore(
     { ...deps, accounts, extensionCatalog, extensionStore },
     { launches, definitions: launchDefinitions },
@@ -366,6 +369,14 @@ export function createRuntimeServices(deps: RuntimeDeps) {
         : undefined;
     },
   });
+  configurationResources.register(
+    promptSuggestionProvider({
+      suggestions: promptSuggestions,
+      userDirectory:
+        storage.paths.suggestionsPath ??
+        storagePaths(storage.paths.home).suggestionsPath,
+    }),
+  );
   const completionMetadata = (id: string) => {
     const conversation = coreStorage.conversations.get(id);
     if (!conversation) throw new Error("Conversation not found");

@@ -61,7 +61,7 @@ Both return `{ resources }`: only the files that have a diagnostic, so an empty 
 | `needs_approval`                            | The file is valid and ignored until the user approves its exact content.                                                                                          | Tell the user where (`approval.where`). You cannot approve.       |
 | `active` with only `warning` diagnostics    | The file is in use and probably does not do what was meant: a tool name that matches nothing, a rule set id that does not exist, an `allow` on every `bash` call. | Read the message and fix it, or tell the user why it is intended. |
 
-Rule sets are covered by user scope, the launch catalog by project scope. Skills are not covered.
+Rule sets are covered by user scope, the launch catalog by project scope. Skills, prompt suggestions and extensions are covered too: a skill with broken frontmatter, a skill hidden by another of the same name, a suggestion whose predicate waits for approval, an extension that is invalid or waits for consent.
 
 Preferences that select a rule set which does not exist are treated like an invalid file, because they would block every tool call.
 

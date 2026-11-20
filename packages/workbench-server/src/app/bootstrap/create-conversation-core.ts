@@ -1,6 +1,6 @@
 import { consentSourcesOf } from "../../core-host/extensions/extension-catalog/extension-consent.js";
 import { toTrustedDigest } from "@nervekit/contracts/core";
-import { ConversationTitleService } from "../../domains/conversation-titles/title.service.js";
+import { createConversationTitles } from "./create-conversation-titles.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import {
   assertExtensionToolOffered,
@@ -32,6 +32,7 @@ import { conversationAgentBlocked } from "./conversation-agent-blocked.js";
 import type { LaunchDefinitionService } from "../../domains/launch-definitions/launch-definition.service.js";
 import { resolveShell } from "./resolve-shell.js";
 import { createLaunchesAgentPort } from "../../core-host/configuration/launches-agent-port.js";
+import { createResourceRegistry } from "../../core-host/configuration/create-resource-registry.js";
 import { createConfigurationAgentPort } from "../../core-host/configuration/configuration-agent-port.js";
 import { createScopedPermissionSource } from "../../core-host/permissions/scoped-permission-source.js";
 import { resolveAgentModel } from "@nervekit/harness/models";
@@ -311,11 +312,13 @@ export function createConversationCore(
           ...(quickScript
             ? {
                 configurationAgent: createConfigurationAgentPort({
-                  service: agentConfiguration,
-                  policy: admissionPolicy,
+                  registry: configurationResources,
+                  projectId: resources.projectId,
+                  projectDirectory:
+                    agentConfiguration.paths.locations.projectDirectory(
+                      resources.projectId,
+                    ),
                   conversationId: input.conversationId,
-                  trustedResources: storage.trustedResources,
-                  launchDefinitions: launchServices.definitions,
                 }),
                 launchesAgent: createLaunchesAgentPort({
                   definitions: launchServices.definitions,
@@ -640,6 +643,18 @@ export function createConversationCore(
     registryFor: (projectDirectory) =>
       extensionCatalog.registryFor(projectDirectory),
   });
+  const configurationResources = createResourceRegistry({
+    home: deps.storage.paths.home,
+    agentConfiguration,
+    policy: admissionPolicy,
+    trustedResources: storage.trustedResources,
+    launchDefinitions: launchServices.definitions,
+    extensionCatalog,
+    builtinSkills: () => [
+      ...deps.nerveSkills.skills,
+      ...deps.agentBrowserSkills.skills,
+    ],
+  });
   const userApproved = (toolCallId: string) => {
     const supervision = storage.toolCalls.get(toolCallId)?.supervision;
     return (
@@ -650,24 +665,7 @@ export function createConversationCore(
     createExecutionAdmission(admissionPolicy),
     (call) => extensionCatalog.registryFor(call.projectDir),
   );
-  const conversationTitles = new ConversationTitleService({
-    settings: () => deps.storage.settings.conversationTitles,
-    resolve: (selection) => models.resolve(selection),
-    log: (context) => {
-      // Failures are warnings so they surface at the default log level.
-      const level = context.category === "ready" ? "info" : "warn";
-      void deps.logger[level]("Conversation title generation", {
-        context,
-      }).catch(() => undefined);
-    },
-  });
-  deps.events.subscribeNotify((event) => {
-    if (
-      event.type === "settings.updated" &&
-      !deps.storage.settings.conversationTitles.enabled
-    )
-      conversationTitles.cancelQueued();
-  });
+  const conversationTitles = createConversationTitles(deps, models);
   const core: ConversationCore = new ConversationCore({
     gitRemotes: async (projectId) => {
       const project = storage.projects.get(projectId);
@@ -788,6 +786,7 @@ export function createConversationCore(
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,
+    configurationResources,
     subagentHost,
   };
 }

@@ -21,7 +21,7 @@ const parseScope = (options: Record<string, unknown>) => {
 
 const SCOPE = '"user" | "project" | { scope: "user" | "project" }';
 const COVERS =
-  'agent.json, conversation defaults, agent profiles, the permission overlay, for "project" the launch definitions, and for "user" every rule set';
+  'agent.json, conversation defaults, agent profiles, the permission overlay, skills, prompt suggestions, extensions, for "project" the launch definitions, and for "user" every rule set';
 
 /**
  * `configuration.*`: validate the configuration files the agent edited by hand and make Nerve

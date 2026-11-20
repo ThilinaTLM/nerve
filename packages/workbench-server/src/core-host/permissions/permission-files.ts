@@ -30,6 +30,10 @@ export type PermissionFileReport = PermissionFileIdentity & {
   diagnostics: Diagnostic[];
   /** Digest of the bytes on disk, for comparing with a trust decision; absent when there is no file. */
   contentDigest?: string;
+  /** Present for a file that exists; an overlay with no entries does nothing. */
+  exists?: true;
+  /** Of a rule set that parsed. */
+  ruleSet?: { id: string; enabled: boolean };
   /** After a reload: the file on disk is invalid, so the version loaded before it stays in force. */
   previousVersionActive?: true;
 };

@@ -66,6 +66,8 @@ export interface ScopedPermissionPolicySource extends AdmissionPolicySource {
   reload(paths?: readonly string[]): Promise<PermissionFileReport[]>;
   /** Validates the files on disk and changes nothing. Without `paths`: the user overlay and every rule set. */
   check(paths?: readonly string[]): Promise<PermissionFileReport[]>;
+  /** The same reports for the versions that are loaded (read on first use). */
+  loaded(paths?: readonly string[]): Promise<PermissionFileReport[]>;
   /** Ids of the loaded rule sets a conversation can select: built-in and valid, enabled user ones. */
   selectableRuleSetIds(): Promise<string[]>;
 }
@@ -202,6 +204,15 @@ export function createScopedPermissionSource(options: {
         ...(candidate.kind === "bytes"
           ? { contentDigest: overlayDigest(candidate.bytes) }
           : {}),
+        ...(candidate.kind === "missing" ? {} : { exists: true as const }),
+        ...(parsed.ok && parsed.ruleSet
+          ? {
+              ruleSet: {
+                id: parsed.ruleSet.id,
+                enabled: parsed.ruleSet.enabled,
+              },
+            }
+          : {}),
       },
     };
   };
@@ -271,6 +282,20 @@ export function createScopedPermissionSource(options: {
       projectId,
       path,
     ) ?? null;
+  const inspect = async (
+    paths: readonly string[] | undefined,
+    from: (path: string) => Promise<LoadedPermissionFile>,
+  ) => {
+    const user = paths ? undefined : await userPaths();
+    const reports = await withWarnings(
+      await Promise.all(
+        (paths ?? user!.paths).map(async (path) =>
+          examine(path, await from(path)),
+        ),
+      ),
+    );
+    return user?.folder ? [...reports, user.folder] : reports;
+  };
   const source: ScopedPermissionPolicySource = {
     async validateChildPermission(id) {
       while (true) {
@@ -300,17 +325,8 @@ export function createScopedPermissionSource(options: {
         .filter((entry) => entry.enabled)
         .map((entry) => entry.id);
     },
-    async check(paths) {
-      const user = paths ? undefined : await userPaths();
-      const reports = await withWarnings(
-        await Promise.all(
-          (paths ?? user!.paths).map(async (path) =>
-            examine(path, await readPermissionFile(path)),
-          ),
-        ),
-      );
-      return user?.folder ? [...reports, user.folder] : reports;
-    },
+    check: (paths) => inspect(paths, readPermissionFile),
+    loaded: (paths) => inspect(paths, read),
     async reload(paths) {
       const user = paths ? undefined : await userPaths();
       const targets = new Set(paths ?? [...user!.paths, ...files.keys()]);

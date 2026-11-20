@@ -6,6 +6,7 @@ import test from "node:test";
 import { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import { createScopedPermissionSource } from "../permissions/scoped-permission-source.js";
+import { createResourceRegistry } from "./create-resource-registry.js";
 import { createConfigurationAgentPort } from "./configuration-agent-port.js";
 
 async function setup(t: test.TestContext) {
@@ -39,23 +40,31 @@ async function setup(t: test.TestContext) {
   });
   const reloaded: (readonly string[] | undefined)[] = [];
   let launchProblem: { path: string; reason: string } | undefined;
-  const port = createConfigurationAgentPort({
-    service,
-    policy: {
-      check: (paths) => source.check(paths),
-      selectableRuleSetIds: () => source.selectableRuleSetIds(),
-      reload: (paths) => {
-        reloaded.push(paths);
-        return source.reload(paths);
-      },
+  const policy = Object.assign(Object.create(source) as typeof source, {
+    reload: (paths?: readonly string[]) => {
+      reloaded.push(paths);
+      return source.reload(paths);
     },
-    conversationId: "c",
+  });
+  const registry = createResourceRegistry({
+    home,
+    agentConfiguration: service,
+    policy,
     trustedResources: { find: () => null },
     launchDefinitions: { problem: async () => launchProblem },
+    extensionCatalog: { entries: async () => [], reload: async () => {} },
+    builtinSkills: () => [],
+  });
+  const port = createConfigurationAgentPort({
+    registry,
+    projectId: "p",
+    projectDirectory: project,
+    conversationId: "c",
   });
   return {
     home,
     project,
+    registry,
     port,
     reloaded,
     service,
@@ -314,4 +323,51 @@ void test("the project scope reports an unreadable launch catalog", async (t) =>
     ],
   );
   assert.deepEqual(await port.check("user"), { resources: [] });
+});
+
+void test("list shows every resource after precedence, with built-ins in the user scope", async (t) => {
+  const { home, project, registry } = await setup(t);
+  const skill = (name: string) =>
+    `---\nname: ${name}\ndescription: ${name} guidance\n---\nBody\n`;
+  for (const root of [
+    join(home, "agent", "skills"),
+    join(project, ".nerve", "skills"),
+  ]) {
+    await mkdir(join(root, "review"), { recursive: true });
+    await writeFile(join(root, "review", "SKILL.md"), skill("review"));
+  }
+  await writeFile(
+    join(home, "agent", "agent-profiles", "reviewer.json"),
+    VALID_PROFILE("reviewer"),
+  );
+  const context = { projectId: "p", projectDirectory: project };
+  const user = await registry.list({ scope: "user", ...context });
+  const pick = (kind: string) =>
+    user
+      .filter((resource) => resource.kind === kind)
+      .map(({ id, scope, state, shadowedBy }) => ({
+        id,
+        scope,
+        state,
+        shadowedBy,
+      }));
+  assert.ok(
+    pick("rule-set").some(
+      (entry) => entry.scope === "builtin" && entry.state === "active",
+    ),
+  );
+  assert.deepEqual(
+    pick("agent-profile").filter((entry) => entry.id === "reviewer"),
+    [{ id: "reviewer", scope: "user", state: "active", shadowedBy: undefined }],
+  );
+  // The machine's own ~/.agents/skills is a user root too; look at this test's skill only.
+  assert.deepEqual(
+    pick("skill").filter((entry) => entry.id === "review"),
+    [{ id: "review", scope: "user", state: "shadowed", shadowedBy: "project" }],
+  );
+  const inProject = await registry.list({ scope: "project", ...context });
+  assert.deepEqual(
+    inProject.map(({ kind, id, state }) => ({ kind, id, state })),
+    [{ kind: "skill", id: "review", state: "active" }],
+  );
 });
