@@ -8,6 +8,16 @@ Every tool call is checked against a policy that decides **allow** (run), **prom
 
 Policy decides which calls run; it is not an operating-system sandbox. A shell command that is allowed can do anything that command can do.
 
+## Procedure
+
+1. `configuration.describe()`: the rule set this conversation uses (`ruleSet.id`) and what selected it. Overlay rules apply only under the rule set they name; ask whether the rule should also apply under others.
+2. Identify the exact calls: tool, command, path, URL or operation. For a prompt the user saw, `configuration.explain({ tool, args })` names the rule that decided.
+3. Pick the mechanism below and the scope: user overlay for a personal rule (works at once), project overlay for a team rule (the user approves it).
+4. Write the narrowest rule. Take tool names and groups from `configuration.tools.list()`; they are case-sensitive. Matchers: `reference/permission-matchers.md`.
+5. `configuration.check`, `configuration.reload`, then `configuration.explain` with the call again to confirm the new decision.
+
+For a new rule set: agree per category (reads, edits, shell, web, integrations, delegation) what is allowed, asked and refused; start from the closest built-in (`configuration.list({ kind: "rule-set" })`), end with a catch-all rule, write `<home>/config/rule-sets/<id>.json`, then tell the user to select it in the composer's permission picker or as `permissionRuleSetId` in a profile.
+
 ## Choosing the mechanism
 
 | Need                                                                             | Use                                                                   |
@@ -18,25 +28,19 @@ Policy decides which calls run; it is not an operating-system sandbox. A shell c
 | A teammate that works without approvals but within limits                        | User rule set without `prompt` rules, selected by a sub-agent profile |
 | Share a rule with the team                                                       | Project overlay (teammates must trust it)                             |
 
-Prefer the narrowest rule that solves the request.
+Prefer the narrowest rule that solves the request, and prefer a risk rule (`baseRisks`), then a group rule (`toolGroups`) for one extension or namespace; name a tool or operation only for a single call.
 
 ## Common requests
 
-- **Stop being asked for one command**: add a rule to the overlay of the rule set the user works with, matching `bash` with `primaryArgument` `equals` or `in` and the exact command lines (example under "Overlay files"). To limit it to one folder, see "Working directory".
+- **Stop being asked for one command**: add a rule to the overlay of the rule set the user works with, matching `bash` with `primaryArgument` `equals` or `in` and the exact command lines (example under "Overlay files"). To limit it to one folder, see "Working directory" in `reference/permission-matchers.md`.
 - **Always ask before something, even under Auto**: a guardrail `prompt` rule in the user overlay of each rule set it should protect (example at the end of "Overlay files").
 - **A teammate that runs only certain commands**: a user rule set that allows them and denies the rest (example under "Rule set file"), required by a sub-agent profile (`reference/agent-profiles.md`).
 
-## Built-in rule sets
+## Rule sets
 
-| Id           | Name      | Behavior                                                                                                                        |
-| ------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `autonomous` | Auto      | Allows everything. Default for new conversations.                                                                               |
-| `supervised` | Supervise | Allows reads and interaction (questions, todos); prompts for everything else.                                                   |
-| `read_only`  | Read-only | Allows reads, external reads (web) and sub-agent delegation; denies everything else.                                            |
-| `planning`   | Draft     | Allows reads, external reads, delegation and writing plan files; prompts for `bash` and `python_exec`; denies the rest.         |
-| `baseline`   | Baseline  | Allows reads and interaction; prompts for everything else. Always included under leads; not selectable as a sub-agent rule set. |
+Five are built in: `autonomous` (Auto, allows everything, the default), `supervised` (Supervise, allows reads and interaction, prompts for the rest), `read_only`, `planning` (Draft) and `baseline`. `configuration.list({ kind: "rule-set" })` lists them with the user's own.
 
-Baseline ranks below the selected rule set, so it decides only calls the selected rule set has no matching rule for. Under `autonomous` everything is allowed unless an overlay rule prompts or denies.
+Baseline is always added under lead conversations and ranks below the selected rule set, so it decides only calls the selected rule set has no matching rule for. It is not selectable for sub-agents. Under `autonomous` everything is allowed unless an overlay rule prompts or denies.
 
 ## How a decision is made
 
@@ -52,7 +56,7 @@ Sub-agents use only their selected rule set: no Baseline, no overlays. That rule
 
 ## Rule
 
-Exact shapes: `reference/schemas/permission-rule-set.schema.json`, `reference/schemas/permission-overlays.user.schema.json` and `reference/schemas/permission-overlays.project.schema.json`. Rules that span fields (unique ids and priorities, guardrails never allow) are listed below.
+The filter (`when`), value and target matchers and globs are in `reference/permission-matchers.md`.
 
 ```json
 {
@@ -81,73 +85,6 @@ Exact shapes: `reference/schemas/permission-rule-set.schema.json`, `reference/sc
 | `enforcement` | yes      | `"overridable"`, or `"guardrail"` (user overlays only; never with `allow`).                                            |
 | `when`        | yes      | Filter; `{}` matches every call.                                                                                       |
 | `decision`    | yes      | `"allow"`, `"prompt"` or `"deny"`.                                                                                     |
-
-## Filter (`when`)
-
-All present fields must match.
-
-| Field             | Matches                                                                                                                                               |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toolNames`       | The tool name is one of these (1–256).                                                                                                                |
-| `toolKinds`       | Tool kind: `filesystem`, `command`, `code`, `external_read`, `interaction`, `orchestration`, `deployment`, `integration`, `other`.                    |
-| `toolGroups`      | Tool group (any of these). An extension's tool and its SDK operations carry both the extension id and the namespace (`web-search` and `search`).      |
-| `baseRisks`       | Risk of the call: `read`, `write`, `external_read`, `external_write`, `secret`, `destructive`, `deployment`, `agent_spawn`, `interaction`, `unknown`. |
-| `primaryArgument` | Value matcher on the tool's primary argument (table below).                                                                                           |
-| `primaryTarget`   | Target matcher on the call's first target.                                                                                                            |
-| `targets`         | `{ "quantifier": "any"                                                                                                                                | "all", "matcher": <target matcher> }` over all targets of the call. |
-| `arguments`       | 1–64 value matchers on named arguments, each with `"path": "args.<name>(.<name>)*"`.                                                                  |
-
-Value matcher: `{ "operator": "equals" | "not_equals", "value": <string|number|boolean|array> }`, `{ "operator": "in", "value": [<primitives>] }`, `{ "operator": "glob", "value": "<pattern>" }`, `{ "operator": "exists", "value": true|false }`.
-
-Target matcher: any of `kind` (`path`, `url`, `agent`, `resource`, `whole_tool`), `access` (`read`, `write`), `scope` (`exact`, `tree`; paths only), `root` (`project`, `nerve_home`, `nerve_data`, `plans`; paths only), `pattern` (glob over the path relative to its root, the full URL, the agent id or the resource value). Path patterns are relative POSIX paths: no leading `/`, no `..`, no backslashes.
-
-### Globs
-
-Patterns use POSIX path globbing on the whole value: `*` matches within one `/`-separated segment, `**` matches whole segments, `{a,b}` alternates, `?` one character.
-
-- `src/**` matches everything under `src`; `src/*` only direct children.
-- `https://api.github.com/**` matches every URL on that host path.
-- For commands, the whole command line is one value, so `pnpm test*` also matches `pnpm test && rm -rf build`. Prefer `equals` or `in` with exact commands. Use a glob only when its wildcard cannot reach a second command, and remember `*` stops at `/`.
-
-### Working directory
-
-A `bash` rule on the command line ignores the folder it runs in: `equals "npm test"` also allows `npm test` with `cwd` set to any folder of the project, which matters in a repository with several packages. To pin the folder, add an `arguments` matcher on `args.cwd`:
-
-- Project root only: `{ "path": "args.cwd", "operator": "exists", "value": false }`.
-- One folder: `{ "path": "args.cwd", "operator": "equals", "value": "packages/web" }`.
-
-`args.cwd` is compared as the agent wrote it, so another spelling of the same folder (`./packages/web`, an absolute path) does not match and gets the rule set's normal decision, usually a prompt.
-
-### What each tool exposes
-
-| Tool                           | Kind / group / risk                         | Primary argument                                                                                                | Targets                          |
-| ------------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `read`                         | filesystem / fileInspection / read          | `path`                                                                                                          | path, read, exact                |
-| `find`, `ls`                   | filesystem / fileInspection / read          | `path`                                                                                                          | path, read, tree                 |
-| `grep`                         | filesystem / fileInspection / read          | `paths`, else `path`                                                                                            | path, read, tree                 |
-| `edit`, `write`                | filesystem / fileEditing / write            | `path`                                                                                                          | path, write, exact               |
-| `bash`                         | command / shell / unknown                   | `command`                                                                                                       | whole_tool                       |
-| `python_exec`                  | code / python / unknown                     | `code`, else `path`                                                                                             | whole_tool                       |
-| `web_fetch`                    | external_read / web / external_read         | `url`                                                                                                           | url, read                        |
-| `quick_script` (whole script)  | integration / quickScript / external_read   | `code`                                                                                                          | whole_tool                       |
-| `quick_script` (SDK operation) | integration / the namespace / per operation | operation name (`jira.issues.create`)                                                                           | resource (`jira:issue/APP-12`)   |
-| `async_bash`                   | orchestration / process / per call          | `action`                                                                                                        | whole_tool                       |
-| `launch`                       | orchestration / process / per call          | `[action, name]` (an array) when a name is given, else `action`; match the name with `arguments` on `args.name` | whole_tool                       |
-| `subagent_prompt`              | orchestration / subagents / agent_spawn     | `assignments`                                                                                                   | whole_tool                       |
-| `subagent_stop`                | orchestration / subagents / agent_spawn     | `names`                                                                                                         | whole_tool                       |
-| `subagent_status`              | orchestration / subagents / read            | `name`                                                                                                          | whole_tool                       |
-| `ask_user`                     | interaction / input / interaction           | `question`                                                                                                      | whole_tool                       |
-| `todos_set`                    | interaction / todos / interaction           | —                                                                                                               | whole_tool                       |
-| `todos_get`                    | interaction / todos / read                  | —                                                                                                               | whole_tool                       |
-| `plan_present`                 | orchestration / planMode / interaction      | `file_path`                                                                                                     | path, read, exact (root `plans`) |
-
-Paths are resolved to the most specific root: `project` (the project directory), `plans`, `nerve_data`, `nerve_home`. A path outside all roots has no root and matches only matchers without `root` and `pattern`.
-
-`bash` always has risk `unknown` in rules, so `baseRisks: ["read"]` never matches a shell command; match shell commands by `toolNames` plus `primaryArgument`. A quick_script SDK call is checked once per operation it performs; its risk is `read`, `external_read`, `external_write` or `destructive` by method. An extension's direct tool (`web_search`) is admitted by its tool name, and the operation it runs is checked again as a quick_script operation (`search.web`). A group rule (`toolGroups: ["search"]` or `["web-search"]`) covers both routes; `toolNames` names only the tool. Prefer a risk rule, then a group rule for one extension or namespace; use a tool or operation name only for a single call.
-
-### Allow rules and targets
-
-An `allow` rule with `targets.quantifier: "all"` covers a call only when the call has targets, and every target matches. Use `"all"` for allow rules over paths or URLs so a call touching one allowed and one other file is not allowed.
 
 ## Rule set file
 
@@ -293,11 +230,4 @@ A guardrail lives in the overlay of one rule set, so add it to each rule set it 
 
 ## Explaining a decision
 
-When the user asks why a call was prompted or denied:
-
-1. Find the selected rule set (`permissionRuleSetId`), first found wins: the applied profile's requirements, the conversation's own choice (the composer picker), the profile's recommendations, project `agent.json`, user `agent.json`, otherwise `autonomous`.
-2. Read that rule set (built-in table above, or its file) and the overlays for it in the user and project files.
-3. Walk the order in "How a decision is made" against the call's tool, arguments and targets, and name the winning rule and where it lives.
-4. Offer the narrowest change if the user wants a different outcome.
-
-Approval prompts and tool results also show the deciding rule's description or id and origin; quote them when available.
+When the user asks why a call was prompted or denied, call `configuration.explain({ tool, args })` with the call as it was made. It returns the decision, the rule that decided with where it lives, and the rule set. Answer the question first; offer the narrowest change only if the user wants a different outcome. Approval prompts and tool results also show the deciding rule's description or id; quote them when available.

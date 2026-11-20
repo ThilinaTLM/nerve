@@ -4,6 +4,13 @@ A launch definition is a saved project command: a dev server, test watcher, buil
 
 Use a launch for a process someone starts repeatedly. A one-off command does not need one.
 
+## Procedure
+
+1. Find the command in the project (`package.json` scripts, `Makefile`, docs); ask when there are several candidates.
+2. `await launches.list()` shows what exists, with ids. Say what you are adding, then `await launches.create({ label: "web", command: "pnpm dev", port: 3000 })`.
+3. Start the entry with the `launch` tool, read its logs, and stop it unless the user wants it running.
+4. If `launches` says the file is invalid, repair it by hand with the format below and `configuration.check("project")`.
+
 ## Write it with `launches`
 
 In quick_script, `launches` changes the catalog through Nerve itself: `list()`, `create({ label, command, cwd, port, runPolicy, folder, before })`, `update({ id, ... })` (omitted fields stay, `null` clears `label`, `cwd` or `port`), `remove(id)`, `folders.create({ label, folder, before })` and `move({ id, folder, before })`. Ids, timestamps and `order` are filled in, and the rules below are applied for you. Never edit `definitions.json` by hand when `launches` can do the change. The file format below is for reading it and for repairing it when `launches` says it is invalid.

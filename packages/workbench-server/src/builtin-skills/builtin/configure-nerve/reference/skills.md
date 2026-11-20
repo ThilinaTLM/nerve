@@ -2,6 +2,14 @@
 
 A skill is a folder with a `SKILL.md`: a name and description in frontmatter, then instructions. The agent sees only the name and description of each enabled skill and reads the file when the task matches, so a skill costs little until it is used.
 
+## Procedure
+
+1. Settle the trigger: what task should make the agent reach for the skill, and what it should do differently from today.
+2. Choose the scope: `<home>/agent/skills/<name>/` for a personal skill (works from the next agent run), `<project>/.nerve/skills/<name>/` for a team skill (the user approves it first).
+3. `configuration.list({ kind: "skill" })`: if the name exists, read that skill and confirm before replacing it.
+4. Write `SKILL.md` and any linked files. Read the description as the agent would: does it alone tell when to load the skill?
+5. `configuration.check(scope)`; fix what it reports. Hand over with the approval a project skill needs (Project settings → Skills).
+
 ## Locations
 
 Discovery is first-name-wins in this order:
@@ -53,7 +61,7 @@ Never overwrite an existing skill without the user's confirmation. When improvin
 
 ## On and off
 
-Skills written by the user are on by default. Built-in Nerve skills (other than this one) and Agent Browser guidance are off by default. Toggles live in `agent.json` (see `reference/overview.md`) under `overrides.skills`:
+Skills written by the user are on by default. Built-in Nerve skills (other than this one) and Agent Browser guidance are off by default. Toggles live in `agent.json` (`reference/agent-profiles.md`) under `overrides.skills`:
 
 ```json
 {
