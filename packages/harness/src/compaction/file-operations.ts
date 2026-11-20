@@ -43,17 +43,3 @@ export function computeFileLists(fileOps: FileOperations): {
     modifiedFiles: [...modified].sort(),
   };
 }
-
-export function formatFileOperations(
-  readFiles: string[],
-  modifiedFiles: string[],
-): string {
-  const sections: string[] = [];
-  if (readFiles.length > 0)
-    sections.push(`<read-files>\n${readFiles.join("\n")}\n</read-files>`);
-  if (modifiedFiles.length > 0)
-    sections.push(
-      `<modified-files>\n${modifiedFiles.join("\n")}\n</modified-files>`,
-    );
-  return sections.length === 0 ? "" : `\n\n${sections.join("\n\n")}`;
-}
