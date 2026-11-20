@@ -1,165 +1,19 @@
 import assert from "node:assert/strict";
-import {
-  chmod,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  stat,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { after, before, test } from "node:test";
-import { sandbox } from "@nervekit/native";
-import { resolveExtensions } from "@nervekit/contracts/extensions";
-import { overrideTrustGate } from "../../../src/core-host/extension-catalog/trust-gate.js";
-import { ExtensionUiService } from "../../../src/core-host/extension-ui/extension-ui-service.js";
+import { test } from "node:test";
 import { ExtensionUiError } from "../../../src/core-host/extension-ui/extension-ui-error.js";
-import { createExtensionFrameRoutes } from "../../../src/adapters/http/routes/extension-frame-routes.js";
-import { writeExtension, createTestCatalog } from "./fixtures.js";
+import { writeExtension } from "./fixtures.js";
+import {
+  call,
+  preview,
+  rejects,
+  skip,
+  useWorldRoot,
+  world,
+} from "./extension-ui-world.js";
 
-const skip = !sandbox.isPersistentAvailable();
-let root = "";
-let counter = 0;
-before(async () => {
-  root = await mkdtemp(join(tmpdir(), "extension-ui-"));
-});
-after(async () => {
-  await rm(root, { recursive: true, force: true });
-});
-
-const ui = {
-  previews: [
-    { id: "table", extensions: [".csv"], edit: "custom" as const },
-    { id: "plain", extensions: [".csv", ".tsv"], edit: "source" as const },
-  ],
-  pages: ["explorer"],
-  panels: ["summary"],
-};
-
-/** A home with a user extension, two projects, a project file tree with an escaping symlink, and the UI service over them. */
-async function world(
-  options: {
-    trusted?: boolean;
-    enabled?: boolean;
-    themes?: string[];
-    lowContrast?: string[];
-  } = {},
-) {
-  const base = join(root, `w${counter++}`);
-  const home = join(base, "home");
-  const userRoot = join(home, "agent", "extensions");
-  await mkdir(userRoot, { recursive: true });
-  await writeExtension(userRoot, {
-    id: "ui-probe",
-    ui,
-    themes: options.themes ?? ["night.json"],
-    ...(options.lowContrast ? { lowContrastThemes: options.lowContrast } : {}),
-  });
-  const projects: Record<
-    string,
-    { id: string; name: string; directory: string }
-  > = {};
-  for (const id of ["p1", "p2"]) {
-    const directory = join(base, id);
-    await mkdir(join(directory, ".nerve", "extensions"), { recursive: true });
-    projects[id] = { id, name: `Project ${id}`, directory };
-  }
-  const p1 = projects.p1!.directory;
-  await writeFile(join(p1, "data.csv"), "a,b\n1,2\n");
-  await writeFile(join(p1, "notes.txt"), "text");
-  await writeFile(join(base, "secret.csv"), "secret");
-  await symlink(join(base, "secret.csv"), join(p1, "link.csv"));
-  const catalog = createTestCatalog({
-    home,
-    trustGate: overrideTrustGate((candidate) =>
-      options.trusted === false && candidate.id === "ui-probe"
-        ? "pending"
-        : "trusted",
-    ),
-  });
-  let enabled = options.enabled ?? true;
-  const service = new ExtensionUiService({
-    catalog,
-    extensions: {
-      resolve: async (context) =>
-        resolveExtensions(
-          catalog.settingsDefinitions(
-            context.projectId
-              ? projects[context.projectId]?.directory
-              : undefined,
-          ),
-          [
-            {
-              layer: "user",
-              entries: {
-                "ui-probe": {
-                  version: 1,
-                  ...(enabled ? {} : { enabled: false }),
-                },
-              },
-            },
-          ],
-        ),
-    } as never,
-    accounts: {
-      get: async () => undefined,
-      list: async () => [],
-      secret: async () => undefined,
-      hasSecret: async () => false,
-    },
-    project: (id) => projects[id],
-  });
-  await catalog.compose();
-  await catalog.compose(p1);
-  const assets = join(base, "assets");
-  await mkdir(join(assets, "assets"), { recursive: true });
-  await writeFile(join(assets, "base.css"), ":root{}");
-  await writeFile(join(assets, "assets", "font.woff2"), "font");
-  const app = createExtensionFrameRoutes({ extensionUi: service }, assets);
-  return {
-    base,
-    home,
-    p1,
-    projects,
-    catalog,
-    service,
-    app,
-    setEnabled: (value: boolean) => void (enabled = value),
-    get: (path: string, init?: RequestInit) =>
-      app.request(`http://daemon.test${path}`, init),
-  };
-}
-
-const call = (
-  w: Awaited<ReturnType<typeof world>>,
-  method: string,
-  contribution: { kind: "preview" | "page" | "panel"; id: string },
-  params: unknown = {},
-  extra: { filePath?: string; projectId?: string } = {},
-) =>
-  (w.service.bridge as (m: string, i: unknown) => Promise<unknown>).call(
-    w.service,
-    method,
-    {
-      projectId: extra.projectId ?? "p1",
-      extensionId: "ui-probe",
-      contribution,
-      ...(extra.filePath !== undefined ? { filePath: extra.filePath } : {}),
-      params,
-    },
-  );
-
-const rejects = (promise: Promise<unknown>, code: string) =>
-  assert.rejects(promise, (error) => {
-    assert.ok(error instanceof ExtensionUiError, String(error));
-    assert.equal(error.bridgeCode, code, error.message);
-    return true;
-  });
-
-const preview = { kind: "preview" as const, id: "table" };
+useWorldRoot();
 
 void test(
   "contributions list frames of enabled, consented extensions with per-project URLs",
@@ -232,7 +86,8 @@ void test(
     for (const directive of [
       "default-src 'none'",
       "sandbox allow-scripts",
-      `script-src http://daemon.test${folder}`,
+      `script-src http://daemon.test${folder} 'wasm-unsafe-eval'`,
+      `style-src http://daemon.test${folder} http://daemon.test/ext-frame/base.css 'unsafe-inline'`,
       "connect-src 'none'",
       "frame-src 'none'",
       "object-src 'none'",
@@ -241,10 +96,11 @@ void test(
       "frame-ancestors 'self'",
     ])
       assert.ok(policy.includes(directive), `${directive} in ${policy}`);
-    assert.doesNotMatch(
-      policy,
-      /unsafe-eval|'unsafe-inline'(?! *;?$)(?<!style-src-attr 'unsafe-inline')/,
-    );
+    // Inline code stays out of scripts: `'unsafe-inline'` belongs to style-src only.
+    assert.doesNotMatch(policy, /'unsafe-eval'/);
+    for (const directive of policy.split("; "))
+      if (directive.includes("'unsafe-inline'"))
+        assert.match(directive, /^style-src /);
     assert.equal(response.headers.get("x-content-type-options"), "nosniff");
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.equal(response.headers.get("access-control-allow-origin"), "*");

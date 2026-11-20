@@ -5,6 +5,7 @@ import { bridgeProtocolVersion } from "@nervekit/contracts/extensions";
 import {
   BridgeError,
   createBridgeClient,
+  startFrameErrorReporting,
   type BridgeTransport,
 } from "../src/ui/client.ts";
 import { host, mode, themeKind } from "../src/ui/host.ts";
@@ -243,6 +244,156 @@ void test("the fake bridge refuses what Nerve refuses", async () => {
     assert.equal((await host.project.info()).name, "project");
   } finally {
     panel.close();
+    delete globals["document"];
+  }
+});
+
+void test("frame errors are posted once each, shortened, capped and never throw", () => {
+  const target = new EventTarget();
+  const posted: {
+    error: { kind: string; message: string; source?: string };
+  }[] = [];
+  startFrameErrorReporting(target, (message) => posted.push(message as never));
+  const fire = (type: string, fields: object) =>
+    target.dispatchEvent(Object.assign(new Event(type), fields));
+
+  fire("error", {
+    message: "boom",
+    error: new Error("boom"),
+    filename: "https://ext.example/assets/main.js?v=1#x",
+    lineno: 7,
+  });
+  fire("error", {
+    message: "boom",
+    error: new Error("boom"),
+    filename: "https://ext.example/assets/main.js?v=1#x",
+    lineno: 7,
+  });
+  fire("unhandledrejection", { reason: new Error("later") });
+  fire("unhandledrejection", { reason: "plain" });
+  fire("securitypolicyviolation", {
+    violatedDirective: "connect-src",
+    effectiveDirective: "connect-src",
+    blockedURI: "https://api.example.com/v1/data?token=secret",
+    sourceFile: "",
+    lineNumber: 0,
+  });
+  assert.deepEqual(
+    posted.map((entry) => entry.error),
+    [
+      {
+        kind: "error",
+        message: "boom",
+        source: "https://ext.example/assets/main.js:7",
+      },
+      { kind: "unhandledrejection", message: "later" },
+      { kind: "unhandledrejection", message: "plain" },
+      {
+        kind: "csp",
+        message: "Blocked by connect-src: https://api.example.com/v1/data",
+      },
+    ],
+  );
+  assert.equal(
+    (posted[0] as unknown as { nerveBridge: number; type: string }).type,
+    "frameError",
+  );
+  for (let index = 0; index < 50; index += 1)
+    fire("unhandledrejection", { reason: `again ${index}` });
+  assert.equal(posted.length, 20);
+  // A transport that throws must not break the listener.
+  const broken = new EventTarget();
+  startFrameErrorReporting(broken, () => {
+    throw new Error("closed");
+  });
+  assert.doesNotThrow(() =>
+    broken.dispatchEvent(Object.assign(new Event("error"), { message: "x" })),
+  );
+});
+
+void test("the fake bridge records clipboard writes and refuses them without a user gesture", async () => {
+  const dom = new JSDOM("<!doctype html><html><body></body></html>");
+  const globals = globalThis as Record<string, unknown>;
+  globals["document"] = dom.window.document;
+  const allowed = createFakeBridge({ kind: "page" });
+  try {
+    await allowed.ready;
+    await host.clipboard.writeText("copied");
+    await host.clipboard.writeImage(new Uint8Array([1, 2, 3]), "image/png");
+    await host.clipboard.writeImage(
+      new Blob([new Uint8Array([4])], { type: "image/webp" }),
+    );
+    assert.equal(allowed.clipboard[0]?.text, "copied");
+    assert.deepEqual([...allowed.clipboard[1]!.image!.bytes], [1, 2, 3]);
+    assert.equal(allowed.clipboard[2]!.image!.mediaType, "image/webp");
+  } finally {
+    allowed.close();
+  }
+  const refused = createFakeBridge({ kind: "page", userActivation: false });
+  try {
+    await refused.ready;
+    await assert.rejects(
+      host.clipboard.writeText("x"),
+      (error: unknown) =>
+        error instanceof BridgeError && error.code === "not_allowed",
+    );
+    assert.deepEqual(refused.clipboard, []);
+  } finally {
+    refused.close();
+    delete globals["document"];
+  }
+});
+
+void test("the fake bridge store keeps revisions, detects conflicts and emits changes", async () => {
+  const dom = new JSDOM("<!doctype html><html><body></body></html>");
+  const globals = globalThis as Record<string, unknown>;
+  globals["document"] = dom.window.document;
+  const bridge = createFakeBridge({ kind: "panel", store: { "a.seed": 1 } });
+  try {
+    await bridge.ready;
+    assert.deepEqual(await host.extensionStore.get("missing"), {
+      value: null,
+      revision: null,
+    });
+    assert.deepEqual(await host.extensionStore.get("a.seed"), {
+      value: 1,
+      revision: 1,
+    });
+    assert.deepEqual(
+      await host.extensionStore.set("doc", { n: 1 }, { ifRevision: 0 }),
+      { revision: 1 },
+    );
+    await assert.rejects(
+      host.extensionStore.set("doc", { n: 2 }, { ifRevision: 0 }),
+      (error: unknown) =>
+        error instanceof BridgeError && error.code === "conflict",
+    );
+    assert.deepEqual(
+      await host.extensionStore.set("doc", { n: 2 }, { ifRevision: 1 }),
+      { revision: 2 },
+    );
+    await assert.rejects(
+      host.extensionStore.delete("doc", { ifRevision: 1 }),
+      (error: unknown) =>
+        error instanceof BridgeError && error.code === "conflict",
+    );
+    assert.deepEqual(
+      (await host.extensionStore.keys("d")).map((entry) => [
+        entry.key,
+        entry.revision,
+      ]),
+      [["doc", 2]],
+    );
+    await host.extensionStore.delete("doc", { ifRevision: 2 });
+    assert.equal(bridge.store.has("doc"), false);
+
+    const changes: unknown[] = [];
+    host.onExtensionStoreChange((change) => changes.push(change));
+    bridge.emitExtensionStoreChanged("doc", 3);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(changes, [{ key: "doc", revision: 3 }]);
+  } finally {
+    bridge.close();
     delete globals["document"];
   }
 });

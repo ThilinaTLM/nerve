@@ -1,10 +1,12 @@
 import {
+  bridgeFrameErrorMessageSchema,
   bridgeProtocolVersion,
   bridgeRequestSchema,
   validateBridgeRequest,
 } from "@nervekit/contracts/extensions";
 import {
   createBridgeClient,
+  startFrameErrorReporting,
   type BridgeClient,
   type BridgeTransport,
 } from "./client.js";
@@ -65,6 +67,10 @@ export type FakeBridgeOptions = {
     /** Default `"/project"`. */
     directory?: string;
   };
+  /** Whether the frame has a recent user gesture; default `true`. `false`: `host.clipboard.*` rejects `not_allowed`, as the host does outside a click. */
+  userActivation?: boolean;
+  /** Initial content of `host.extensionStore`, by key (each starts at revision 1). */
+  store?: Record<string, BridgeJson>;
   /** Answers `host.call(method, args)`; default: `backend_error` (no backend). */
   call?: (
     method: string,
@@ -112,6 +118,37 @@ export type FakeBridge = {
   composerText: string[];
   /** Current `viewState`; the frame's `viewState.set` writes it. */
   viewState: BridgeJson | null;
+  /** What the frame copied with `host.clipboard`, in order: `text` for `writeText`, `image` (decoded bytes and media type) for `writeImage`. Refused writes are not recorded. */
+  clipboard: {
+    /** Set by `writeText`. */
+    text?: string;
+    /** Set by `writeImage`. */
+    image?: {
+      /** Decoded image bytes. */
+      bytes: Uint8Array;
+      /** Media type the frame passed (`image/png`, `image/jpeg` or `image/webp`). */
+      mediaType: string;
+    };
+  }[];
+  /** The frame's `host.extensionStore` contents: value and revision by key. Writes through the host follow its rules (`conflict` on a stale `ifRevision`). */
+  store: Map<
+    string,
+    {
+      /** The stored JSON value. */
+      value: BridgeJson;
+      /** 1 on first write, +1 on every write. */
+      revision: number;
+    }
+  >;
+  /** Failures the frame reported to the host (`frameError`): uncaught errors, unhandled rejections and CSP violations. */
+  frameErrors: {
+    /** `error`, `unhandledrejection` or `csp`. */
+    kind: string;
+    /** Error message. */
+    message: string;
+    /** Script location or blocked URL, when known. */
+    source?: string;
+  }[];
   /** Resolves when the handshake is done; `await host.ready` to also have the theme applied. */
   ready: Promise<void>;
   /** Sends a `themeChanged` event; `host.onThemeChange` handlers run. */
@@ -123,6 +160,8 @@ export type FakeBridge = {
     change: { size: number; modifiedAt?: string },
     content?: string | Uint8Array,
   ): void;
+  /** Sends an `extensionStoreChanged` event, as if another frame or the backend changed `key` (`revision` `null`: deleted); `host.onExtensionStoreChange` handlers run. It does not change `store`. */
+  emitExtensionStoreChanged(key: string, revision: number | null): void;
   /** Disconnects the frame's `host` from this fake. Call it in `afterEach`. */
   close(): void;
 };
@@ -143,6 +182,12 @@ type FakeParams = {
   params?: BridgeJson;
   text: string;
   items: MenuItem[];
+  dataBase64: string;
+  mediaType: string;
+  key: string;
+  value: BridgeJson;
+  ifRevision?: number;
+  prefix?: string;
 };
 
 function toBytes(content: string | Uint8Array): Uint8Array {
@@ -196,6 +241,14 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
     notifications: [],
     opened: { files: [], pages: [] },
     composerText: [],
+    clipboard: [],
+    store: new Map(
+      Object.entries(options.store ?? {}).map(([key, value]) => [
+        key,
+        { value, revision: 1 },
+      ]),
+    ),
+    frameErrors: [],
     viewState: options.viewState ?? null,
     ready: undefined as never,
     emitThemeChanged(kindValue, tokensCss) {
@@ -211,7 +264,15 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
       if (change.modifiedAt) modifiedAt = change.modifiedAt;
       send({ type: "event", event: "fileChanged", data: change });
     },
+    emitExtensionStoreChanged(key, revision) {
+      send({
+        type: "event",
+        event: "extensionStoreChanged",
+        data: { key, revision },
+      });
+    },
     close() {
+      stopErrors?.();
       client.close();
       if ((globalThis as Record<symbol, unknown>)[testClientKey] === client)
         delete (globalThis as Record<symbol, unknown>)[testClientKey];
@@ -331,6 +392,64 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
           name: options.project?.name ?? "project",
           directory: options.project?.directory ?? "/project",
         });
+      case "clipboard.writeText":
+      case "clipboard.writeImage": {
+        if (options.userActivation === false)
+          return fail(
+            id,
+            "not_allowed",
+            "The clipboard can be written only right after a user gesture (a click or key press) in the frame.",
+          );
+        bridge.clipboard.push(
+          method === "clipboard.writeText"
+            ? { text: params["text"] }
+            : {
+                image: {
+                  bytes: unbase64(params["dataBase64"]),
+                  mediaType: params["mediaType"],
+                },
+              },
+        );
+        return reply({});
+      }
+      case "extensionStore.get": {
+        const entry = bridge.store.get(params["key"]);
+        return reply({
+          value: entry?.value ?? null,
+          revision: entry?.revision ?? null,
+        });
+      }
+      case "extensionStore.set":
+      case "extensionStore.delete": {
+        const entry = bridge.store.get(params["key"]);
+        if (
+          params["ifRevision"] !== undefined &&
+          params["ifRevision"] !== (entry?.revision ?? 0)
+        )
+          return fail(
+            id,
+            "conflict",
+            `'${params["key"]}' is at revision ${entry?.revision ?? 0}, not ${params["ifRevision"]}.`,
+          );
+        if (method === "extensionStore.delete") {
+          bridge.store.delete(params["key"]);
+          return reply({});
+        }
+        const revision = (entry?.revision ?? 0) + 1;
+        bridge.store.set(params["key"], { value: params["value"], revision });
+        return reply({ revision });
+      }
+      case "extensionStore.keys":
+        return reply({
+          keys: [...bridge.store]
+            .filter(([key]) => key.startsWith(params["prefix"] ?? ""))
+            .map(([key, entry]) => ({
+              key,
+              revision: entry.revision,
+              size: new TextEncoder().encode(JSON.stringify(entry.value))
+                .length,
+            })),
+        });
       case "composer.insert":
         bridge.composerText.push(params["text"]);
         return reply({});
@@ -349,8 +468,10 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
     post(message) {
       const request = bridgeRequestSchema.safeParse(message);
       if (!request.success) {
-        // `ready` is the only other frame message.
-        if ((message as { type?: unknown }).type === "ready")
+        // Besides requests, a frame sends `ready` and `frameError`.
+        const error = bridgeFrameErrorMessageSchema.safeParse(message);
+        if (error.success) bridge.frameErrors.push(error.data.error);
+        else if ((message as { type?: unknown }).type === "ready")
           send({
             type: "init",
             contribution,
@@ -381,6 +502,12 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
   };
 
   const client: BridgeClient = createBridgeClient(transport);
+  // Like a real frame: window errors, unhandled rejections and CSP violations are reported.
+  const stopErrors =
+    typeof window === "undefined"
+      ? undefined
+      : startFrameErrorReporting(window, (message) => transport.post(message))
+          .stop;
   (globalThis as Record<symbol, unknown>)[testClientKey] = client;
   bridge.ready = client.ready.then(() => undefined);
   return bridge;

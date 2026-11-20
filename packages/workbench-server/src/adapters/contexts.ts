@@ -49,6 +49,8 @@ import type {
   ExtensionRegistryProvider,
   ExtensionUiSource,
 } from "../core-host/extension-catalog/extension-catalog.js";
+import type { ExtensionErrorLog } from "../core-host/extension-catalog/extension-errors.js";
+import type { ExtensionStore } from "../core-host/extension-store/extension-store.js";
 import { ExtensionUiService } from "../core-host/extension-ui/extension-ui-service.js";
 import { createExtensionViews } from "../core-host/extension-views.js";
 import type { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
@@ -84,7 +86,9 @@ export interface AdapterServices {
   /** The extensions of this home: built-ins, user extensions and per-project ones. */
   extensionCatalog: ExtensionRegistryProvider &
     ExtensionManagement &
-    ExtensionUiSource;
+    ExtensionUiSource & { readonly errors: Pick<ExtensionErrorLog, "record"> };
+  /** The durable per-project store of extensions (frames and backends). */
+  extensionStore: ExtensionStore;
   unreadableConversations: UnreadableConversationActivity;
   completions: UnifiedCompletionService;
   conversationTitles: ConversationTitleService;
@@ -132,12 +136,15 @@ export function createServerAdapterContexts(
       services.conversationCore.projects.get(projectId)?.directory,
     accounts: services.accounts,
     vision: services.vision,
+    extensionStore: services.extensionStore,
   });
   const extensionUi = new ExtensionUiService({
     catalog: services.extensionCatalog,
     extensions: services.extensionSettings,
     accounts: services.accounts,
     vision: services.vision,
+    store: services.extensionStore,
+    errors: services.extensionCatalog.errors,
     project: (id) => services.conversationCore.projects.get(id) ?? undefined,
     warn: (message, data) =>
       void infrastructure.logger.warn(message, { context: { data } }),

@@ -9,6 +9,8 @@ An extension is one self-contained folder; `dist/` is what Nerve reads.
 
 If both have the same id, the project one wins and the user one shows as `shadowed`. A built-in id cannot be reused.
 
+`extensionStore` data is kept by the daemon under the extension id, not in the folder: it survives moving the extension between scopes and removing it, is deleted with the project, and is never shared through the repository.
+
 ## Share with a team (project scope)
 
 1. Create it with `--scope project`, or move the folder to `<project>/.nerve/extensions/<id>/`.

@@ -29,6 +29,7 @@ import type { SdkEnvironment } from "../runtime/sdk-types.js";
 import { assertDeclaredRisk } from "../runtime/script-risk.js";
 import { inProcessExtensionCode, type ExtensionCode } from "./code-adapter.js";
 import { createHttp } from "./http.js";
+import type { ExtensionHostPorts } from "./ports.js";
 
 /**
  * The per-run side of the extension API: builds each extension's `ctx` through
@@ -219,6 +220,7 @@ export class ExtensionRuntime {
     const generateImage = ports.generateImage;
     const explainImage = ports.explainImage;
     const visionReady = ports.visionReady;
+    const store = storeFor(ports, definition.id);
     const progress = (section: string, chunk: string) => {
       if (!env.context.toolProgress?.(section, chunk))
         ports.log?.(
@@ -278,6 +280,7 @@ export class ExtensionRuntime {
         },
         freshName: (base, extension) => freshArtifactName(env, base, extension),
       },
+      extensionStore: store,
       text: {
         htmlToMarkdown: (html) => isolatedHtmlToMarkdown(html, { signal }),
       },
@@ -344,4 +347,57 @@ export class ExtensionRuntime {
       },
     };
   }
+}
+
+const storeErrorCodes = {
+  conflict: "CONFLICT",
+  not_found: "NOT_FOUND",
+  too_large: "BAD_REQUEST",
+  invalid_request: "BAD_REQUEST",
+} as const;
+
+/** Store failures as the `ExtensionError` the extension's code sees. */
+function toStoreError(error: unknown): unknown {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (
+    error instanceof Error &&
+    typeof code === "string" &&
+    Object.hasOwn(storeErrorCodes, code)
+  )
+    return new ExtensionError(
+      storeErrorCodes[code as keyof typeof storeErrorCodes],
+      error.message,
+    );
+  return error;
+}
+
+/** `ctx.extensionStore` of one extension; every call rejects with `BAD_REQUEST` when the host has no project. */
+function storeFor(
+  ports: ExtensionHostPorts,
+  extensionId: string,
+): ExtensionContext["extensionStore"] {
+  const run = async <T>(
+    operation: (
+      store: NonNullable<ExtensionHostPorts["extensionStore"]>,
+    ) => Promise<T>,
+  ): Promise<T> => {
+    const store = ports.extensionStore;
+    if (!store)
+      throw new ExtensionError("BAD_REQUEST", "No project is open.", {
+        fix: "Use ctx.extensionStore only in a conversation that belongs to a project.",
+      });
+    try {
+      return await operation(store);
+    } catch (error) {
+      throw toStoreError(error);
+    }
+  };
+  return {
+    get: (key) => run((store) => store.get(extensionId, key)),
+    set: (key, value, options) =>
+      run((store) => store.set(extensionId, key, value, options?.ifRevision)),
+    delete: (key, options) =>
+      run((store) => store.delete(extensionId, key, options?.ifRevision)),
+    keys: (options) => run((store) => store.keys(extensionId, options?.prefix)),
+  };
 }

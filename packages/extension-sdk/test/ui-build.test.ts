@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -344,4 +352,163 @@ void test("extractThemeBlocks keeps the @theme mappings and none of the token va
     /@theme inline \{[\s\S]*--color-card: var\(--card\);[\s\S]*\}$/,
   );
   assert.doesNotMatch(blocks, /--background|--foreground|--x: 1/);
+});
+
+async function writeAt(folder: string, file: string, content: string) {
+  await mkdir(join(folder, file, ".."), { recursive: true });
+  await writeFile(join(folder, file), content);
+}
+
+/** The built JS and CSS of a frame, joined. */
+async function frameCode(distDir: string, id: string): Promise<string> {
+  const frame = join(distDir, "ui", id);
+  const parts: string[] = [];
+  for (const file of await listFiles(frame))
+    if (/\.(js|css)$/.test(file))
+      parts.push(await readFile(join(frame, file), "utf8"));
+  return parts.join("\n");
+}
+
+void test("the build's root is the extension folder: root-relative globs resolve and public/ is copied", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "rooted",
+      kind: "page",
+      cwd: root,
+    });
+    await writeAt(
+      folder,
+      "node_modules/some-lib/data/a.txt",
+      "from-node-modules",
+    );
+    await writeAt(folder, "public/fonts/x.woff2", "font-bytes");
+    await writeAt(folder, "src/notes/one.txt", "from-src-notes");
+    await writeAt(
+      folder,
+      "src/pages/overview/Overview.svelte",
+      `<script lang="ts">
+  const modules = import.meta.glob("/node_modules/some-lib/data/*.txt", { query: "?raw", import: "default", eager: true });
+  const notes = import.meta.glob("/src/notes/*.txt", { query: "?raw", import: "default", eager: true });
+</script>
+<p>{JSON.stringify(modules)}{JSON.stringify(notes)}</p>
+`,
+    );
+    const { distDir } = await buildExtension({ projectDir: folder });
+    const code = await frameCode(distDir, "overview");
+    assert.match(code, /from-node-modules/);
+    assert.match(code, /from-src-notes/);
+    const frame = join(distDir, "ui", "overview");
+    assert.equal(
+      await readFile(join(frame, "fonts", "x.woff2"), "utf8"),
+      "font-bytes",
+    );
+    await assert.rejects(stat(join(folder, "index.html")));
+    await assert.rejects(readdir(join(folder, ".nerve-ext")));
+  });
+});
+
+/** A stand-in for the extension's `react` (the SDK does not ship React). */
+async function fakeReact(folder: string) {
+  const dir = "node_modules/react";
+  await writeAt(
+    folder,
+    `${dir}/package.json`,
+    '{"name":"react","version":"0.0.0","type":"module","exports":{".":"./index.js","./jsx-runtime":"./jsx-runtime.js"}}',
+  );
+  await writeAt(folder, `${dir}/index.js`, "export default {};");
+  await writeAt(
+    folder,
+    `${dir}/jsx-runtime.js`,
+    'export const Fragment = "fragment"; export const jsx = (type, props) => ({ type, props }); export const jsxs = jsx;',
+  );
+}
+
+void test("a .tsx entry builds with the JSX runtime of the extension's react", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "react-page",
+      kind: "page",
+      cwd: root,
+    });
+    await fakeReact(folder);
+    await writeAt(
+      folder,
+      "src/pages/overview/Overview.tsx",
+      `export default function mount(target: HTMLElement): void {
+  const node = <section id="react-marker">hello</section>;
+  target.textContent = JSON.stringify(node);
+}
+`,
+    );
+    await writeAt(
+      folder,
+      "src/extension.ts",
+      (await readFile(join(folder, "src/extension.ts"), "utf8")).replace(
+        "Overview.svelte",
+        "Overview.tsx",
+      ),
+    );
+    const { distDir } = await buildExtension({ projectDir: folder });
+    const code = await frameCode(distDir, "overview");
+    assert.match(code, /react-marker/);
+    assert.doesNotMatch(code, /React\.createElement/);
+  });
+});
+
+void test("a .tsx entry without react reports how to install it", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "no-react",
+      kind: "page",
+      cwd: root,
+    });
+    await writeAt(
+      folder,
+      "src/pages/overview/Overview.tsx",
+      "export default function mount(target: HTMLElement) { void (<b />); void target; }\n",
+    );
+    await writeAt(
+      folder,
+      "src/extension.ts",
+      (await readFile(join(folder, "src/extension.ts"), "utf8")).replace(
+        "Overview.svelte",
+        "Overview.tsx",
+      ),
+    );
+    const problems = await problemsOf(() =>
+      buildExtension({ projectDir: folder }),
+    );
+    assert.match(problems[0]!.fix, /npm install react react-dom/);
+  });
+});
+
+void test("icons import through the SDK, stay tree-shaken and one copy is bundled", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "icons",
+      kind: "page",
+      cwd: root,
+    });
+    await writeAt(
+      folder,
+      "src/pages/overview/Overview.svelte",
+      `<script lang="ts">
+  import { Copy } from "@nervekit/extension-sdk/icons";
+</script>
+<Copy />
+`,
+    );
+    const { distDir } = await buildExtension({ projectDir: folder });
+    const code = await frameCode(distDir, "overview");
+    assert.ok(code.includes("M4 16c-1.1 0-2-.9-2-2V4"), "the icon is bundled");
+    assert.ok(
+      !code.includes("M4 14a1 1 0 0 1-.78-1.63"),
+      "unused icons are tree-shaken",
+    );
+    const frame = join(distDir, "ui", "overview");
+    let bytes = 0;
+    for (const file of await listFiles(frame))
+      bytes += (await stat(join(frame, file))).size;
+    assert.ok(bytes < 600 * 1024, `frame is ${bytes} bytes`);
+  });
 });

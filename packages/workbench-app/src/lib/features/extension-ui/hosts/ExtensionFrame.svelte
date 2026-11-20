@@ -24,11 +24,16 @@ import ContextMenuList, {
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import {
+  writeClipboardImage,
+  writeClipboardText,
+} from "@nervekit/ui-kit/browser/clipboard";
 import { notify } from "@nervekit/ui-kit/browser/notifications";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import { extensionThemeState } from "$lib/platform/appearance/extension-themes.svelte";
 import {
+  reportExtensionFrameError,
   requestExtensionUiMethod,
   type ExtensionFrameScope,
 } from "../api/extension-ui.api";
@@ -41,6 +46,8 @@ import {
   HostFailure,
   type FrameContribution,
 } from "../model/bridge-router";
+import { base64ToBlob } from "../model/clipboard-image";
+import { FrameErrorGate } from "../model/frame-errors";
 import { currentThemeSnapshot } from "../model/theme-snapshot";
 import { ViewStateStore, viewStateKey } from "../model/view-state-store";
 import { extensionHostActions } from "../state/host-actions";
@@ -86,6 +93,10 @@ const viewStates = new ViewStateStore(
 );
 const loadTimeoutMs = 15_000;
 
+// Names this frame instance in store requests so it can skip its own `extensions.store.changed`.
+const storeOrigin = crypto.randomUUID();
+const frameErrors = new FrameErrorGate();
+
 let frame = $state<HTMLIFrameElement>();
 let ready = $state(false);
 let failed = $state(false);
@@ -117,6 +128,7 @@ const effectiveMode = $derived<BridgeMode>(
 // A frame that never says ready is broken or blocked; offer a retry instead of a blank pane.
 $effect(() => {
   void reloadKey;
+  frameErrors.reset();
   ready = false;
   failed = false;
   const timer = setTimeout(() => {
@@ -130,7 +142,11 @@ function post(message: unknown): void {
 }
 
 function postEvent(
-  event: "themeChanged" | "fileChanged" | "modeChanged",
+  event:
+    | "themeChanged"
+    | "fileChanged"
+    | "modeChanged"
+    | "extensionStoreChanged",
   data: unknown,
 ) {
   const message = eventMessage(event, data, contribution.kind);
@@ -238,6 +254,34 @@ function notifyUser(params: BridgeParams<"ui.notify">): void {
   else notify.message(params.message, options);
 }
 
+// ── Clipboard ────────────────────────────────────────────────────────────
+
+/** Copying needs the user's click to still be active; the frame's click activates this window. */
+async function copyToClipboard(
+  method: "clipboard.writeText" | "clipboard.writeImage",
+  params: unknown,
+): Promise<void> {
+  if (!navigator.userActivation?.isActive)
+    throw new HostFailure("not_allowed", "Copy only in response to a click");
+  try {
+    if (method === "clipboard.writeText") {
+      await writeClipboardText((params as BridgeParams<typeof method>).text);
+      return;
+    }
+    const image = params as BridgeParams<"clipboard.writeImage">;
+    const blob = base64ToBlob(image.dataBase64, image.mediaType);
+    if (!blob)
+      throw new HostFailure("invalid_request", "The image is not valid base64");
+    await writeClipboardImage(blob);
+  } catch (error) {
+    if (error instanceof HostFailure) throw error;
+    throw new HostFailure(
+      "failed",
+      error instanceof Error ? error.message : "Copy failed",
+    );
+  }
+}
+
 // ── Requests ─────────────────────────────────────────────────────────────
 
 async function hostRequest(
@@ -284,6 +328,10 @@ async function hostRequest(
         (params as BridgeParams<"composer.insert">).text,
       );
       return {};
+    case "clipboard.writeText":
+    case "clipboard.writeImage":
+      await copyToClipboard(method, params);
+      return {};
     default:
       throw new HostFailure("unknown_method", `Unknown method ${method}`);
   }
@@ -302,6 +350,7 @@ async function serverRequest(
     method as Parameters<typeof requestExtensionUiMethod>[0],
     scope,
     params,
+    storeOrigin,
   );
   if (method === "file.write") {
     const size = (result as BridgeResult<"file.write">).size;
@@ -339,6 +388,11 @@ function receive(event: MessageEvent): void {
   if (routed.type === "ready") {
     sendInit();
     void refreshKnownStat();
+    return;
+  }
+  if (routed.type === "frameError") {
+    if (frameErrors.accept(routed.error))
+      void reportExtensionFrameError(scope, routed.error).catch(() => {});
     return;
   }
   if (routed.type === "reject") {
@@ -433,6 +487,23 @@ $effect(() => {
     clearTimeout(statTimer);
   };
 });
+
+$effect(() =>
+  onEvent("extensions.store.changed", (event) => {
+    const data = event.data;
+    if (
+      !ready ||
+      data?.projectId !== projectId ||
+      data.extensionId !== extensionId ||
+      data.origin === storeOrigin
+    )
+      return;
+    postEvent("extensionStoreChanged", {
+      key: data.key,
+      revision: data.revision,
+    });
+  }),
+);
 
 function reload(): void {
   reloadKey += 1;

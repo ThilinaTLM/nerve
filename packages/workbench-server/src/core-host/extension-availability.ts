@@ -9,6 +9,7 @@ import { openAvailabilityCode } from "@nervekit/tools/quick-script";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import { createExtensionPorts, extensionStates } from "./extension-ports.js";
+import type { ExtensionStore } from "./extension-store/extension-store.js";
 import type { AccountsReader } from "../domains/accounts/accounts.service.js";
 import type { VisionHost } from "./vision-models.js";
 
@@ -54,6 +55,7 @@ export async function assertExtensionToolOffered(
   resolution: ExtensionResolution,
   accounts: AccountsReader,
   vision?: VisionHost,
+  store?: { store: ExtensionStore; projectId: string },
 ): Promise<void> {
   if (!registry.tools.some((tool) => tool.definition.name === toolName)) {
     // A tool another project's extension contributed is in the global catalog but not offered here.
@@ -70,6 +72,8 @@ export async function assertExtensionToolOffered(
       resolution,
       accounts,
       ...(vision ? { vision } : {}),
+      store: store?.store,
+      projectId: store?.projectId,
     }),
   });
   if (extensionToolOffered(offered, toolName)) return;

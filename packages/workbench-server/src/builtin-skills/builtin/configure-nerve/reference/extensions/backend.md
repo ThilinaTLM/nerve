@@ -47,6 +47,7 @@ export const get = method({
 - Credentials never reach the extension: set `auth: { account: "<setting key>" }` and the host injects the selected account's secret, only toward that account kind's `origins`.
 - Bytes cross the sandbox boundary as base64, which costs a third more plus memory on both sides. For downloads use `response: "artifact"` and pass the artifact handle on instead of the bytes.
 - Settings hold no secrets; read them with `ctx.settings.get`.
+- `ctx.extensionStore` keeps this extension's data per project, across conversations and shared with its frames (`host.extensionStore`); revisions and `ifRevision` work as in `ui.md` ("Keeping state"), and a stale write throws `CONFLICT`. Without an open project it throws `BAD_REQUEST`. Use artifacts for files the conversation and agent should see, the store for the extension's own state.
 
 ## Sessions
 

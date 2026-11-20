@@ -23,6 +23,7 @@ import {
   extensionToolOffered,
 } from "./extension-availability.js";
 import { createExtensionPorts } from "./extension-ports.js";
+import type { ExtensionStore } from "./extension-store/extension-store.js";
 import type { VisionHost } from "./vision-models.js";
 
 const blocked = new Set<string>(subagentBlockedToolNames);
@@ -44,6 +45,8 @@ export function scopedTurnResources(options: {
     | ((projectDir: string) => Promise<QuickScriptRegistry>);
   /** The vision model extensions' availability hooks check. */
   vision?: VisionHost;
+  /** The durable store behind `ctx.extensionStore` in availability hooks. */
+  extensionStore?: ExtensionStore;
   /** Resolved extension settings and the home's accounts, for this conversation. */
   extensions(
     conversationId: string | undefined,
@@ -76,6 +79,8 @@ export function scopedTurnResources(options: {
           resolution,
           accounts,
           ...(options.vision ? { vision: options.vision } : {}),
+          store: options.extensionStore,
+          projectId: input.conversation.projectId,
         }),
       },
     );

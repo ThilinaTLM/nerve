@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { QuickScriptNestedRequest } from "../../execution/index.js";
 import type { SdkEnvironment } from "../runtime/sdk-types.js";
+import { ExtensionError } from "@nervekit/extension-api";
 import { ExtensionRuntime } from "./runtime.js";
 import { demoExtension } from "./test-extension.js";
 
@@ -123,5 +124,54 @@ void test("upload file handles stream up to 100 MB, not the 20 MB read limit", a
   await assert.rejects(
     artifacts.info("artifact:huge.bin"),
     /the limit is 100 MB/,
+  );
+});
+
+void test("ctx.extensionStore maps store errors and rejects without a project", async () => {
+  const { runtime } = setup();
+  const none = runtime.context(demoExtension).extensionStore;
+  await assert.rejects(
+    none.get("a"),
+    (error: unknown) =>
+      error instanceof ExtensionError &&
+      error.code === "BAD_REQUEST" &&
+      error.message === "No project is open.",
+  );
+
+  const calls: unknown[][] = [];
+  const failWith = (code: string) => Object.assign(new Error(code), { code });
+  const env = {
+    context: {
+      cwd: "/work",
+      extensionPorts: {
+        settings: () => ({}),
+        accounts: { get: async () => undefined, secret: async () => undefined },
+        extensionStore: {
+          get: async (...args: unknown[]) => {
+            calls.push(args);
+            return undefined;
+          },
+          set: async (_id: string, key: string) => {
+            throw failWith(key === "big" ? "too_large" : "conflict");
+          },
+          delete: async () => undefined,
+          keys: async () => [],
+        },
+      },
+    },
+    report: { artifacts: new Map() },
+  } as unknown as SdkEnvironment;
+  const store = new ExtensionRuntime(env).context(demoExtension).extensionStore;
+  await store.get("k");
+  assert.deepEqual(calls, [[demoExtension.id, "k"]]);
+  await assert.rejects(
+    store.set("k", 1, { ifRevision: 3 }),
+    (error: unknown) =>
+      error instanceof ExtensionError && error.code === "CONFLICT",
+  );
+  await assert.rejects(
+    store.set("big", 1),
+    (error: unknown) =>
+      error instanceof ExtensionError && error.code === "BAD_REQUEST",
   );
 });

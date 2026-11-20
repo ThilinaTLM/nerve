@@ -12,7 +12,7 @@ import { runTests, typecheck } from "./tools.js";
 const usage = `nerve-ext: build tooling for Nerve extensions
 
 Usage:
-  nerve-ext init <id> --kind <kind>[,<kind>...] [--dir <path>] [--install]
+  nerve-ext init <id> --kind <kind>[,<kind>...] [--dir <path>] [--install] [--quiet]
                     kinds: ${extensionKinds.join(", ")}; several combine into one project
   nerve-ext build   Bundle src/extension.ts into dist/ (backend.js, manifest.json, docs, icon)
   nerve-ext check   Type check, build and validate, run tests; one command for the agent
@@ -38,7 +38,7 @@ function parseArguments(args: string[]): {
       continue;
     }
     const [name, inline] = arg.slice(2).split(/=(.*)/s, 2) as [string, string?];
-    if (name === "install") flags.set(name, true);
+    if (name === "install" || name === "quiet") flags.set(name, true);
     else if (inline !== undefined) flags.set(name, inline);
     else {
       const value = args[++index];
@@ -168,7 +168,7 @@ export async function main(
             );
           });
           if (code !== 0) return code;
-        } else
+        } else if (flags.get("quiet") !== true)
           console.log(
             `Next: cd ${folder} && npm install && npx nerve-ext check`,
           );

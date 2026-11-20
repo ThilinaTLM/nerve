@@ -7,6 +7,7 @@ import type { AccountsReader } from "../domains/accounts/accounts.service.js";
 import { accountFieldKinds, fieldValue } from "@nervekit/contracts/extensions";
 import type { ExtensionState } from "@nervekit/tools/quick-script";
 import type { VisionHost } from "./vision-models.js";
+import type { ExtensionStore } from "./extension-store/extension-store.js";
 
 /** What the resolved settings say about each extension: its switch and field values. */
 export function extensionStates(
@@ -31,13 +32,16 @@ export function extensionStates(
  * How the extension runtime reaches this host: the resolved settings of the
  * conversation, the accounts store (the credential is only handed to the
  * runtime's `ctx.http`), the image generation backend and the vision model
- * an extension's settings select.
+ * an extension's settings select. `store` with a `projectId` gives `ctx.extensionStore` of that
+ * project; without a project the extension's store calls reject.
  */
 export function createExtensionPorts(input: {
   resolution: ExtensionResolution;
   accounts: AccountsReader;
   generateImage?: ExtensionHostPorts["generateImage"];
   vision?: VisionHost;
+  store?: ExtensionStore | undefined;
+  projectId?: string | undefined;
   warn?: (extensionId: string, message: string, data?: unknown) => void;
 }): ExtensionHostPorts {
   const states = extensionStates(input.resolution);
@@ -56,6 +60,9 @@ export function createExtensionPorts(input: {
           visionReady: async (extensionId) =>
             await vision.ready(states(extensionId)?.settings ?? {}),
         }
+      : {}),
+    ...(input.store && input.projectId
+      ? { extensionStore: input.store.forProject(input.projectId) }
       : {}),
     log: (level, extensionId, message, data) => {
       if (level === "warn") input.warn?.(extensionId, message, data);

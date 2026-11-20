@@ -30,8 +30,10 @@ const assetTypes = {
 /**
  * The CSP of every frame response. Scripts, styles, images and fonts come from the frame's own
  * folder (plus the shared base stylesheet and its fonts); there is no network, no nested frame,
- * no form and no plugin; workers may come from the folder or a `blob:` (pdf.js and similar). The
- * `sandbox` directive keeps a frame opened outside the app's iframe opaque as well, and only the
+ * no form and no plugin; workers may come from the folder or a `blob:` (pdf.js and similar).
+ * Inline styles are allowed (`<style>` elements and `style` attributes: libraries inject them, and
+ * nothing a style can load leaves the allowlists) and WebAssembly may compile
+ * (`'wasm-unsafe-eval'`, no `eval`). The `sandbox` directive keeps a frame opened outside the app's iframe opaque as well, and only the
  * app's own origin may embed it.
  */
 export function frameContentSecurityPolicy(
@@ -45,10 +47,8 @@ export function frameContentSecurityPolicy(
     "default-src 'none'",
     "sandbox allow-scripts",
     `base-uri ${own}`,
-    `script-src ${own}`,
-    `style-src ${own} ${base}`,
-    // `style="…"` attributes and CSSOM changes of components; nothing a style can load leaves the allowlists.
-    "style-src-attr 'unsafe-inline'",
+    `script-src ${own} 'wasm-unsafe-eval'`,
+    `style-src ${own} ${base} 'unsafe-inline'`,
     // `data:` and `blob:` let a frame show what it read through the bridge.
     `img-src ${own} data: blob:`,
     `font-src ${own} ${fonts} data:`,

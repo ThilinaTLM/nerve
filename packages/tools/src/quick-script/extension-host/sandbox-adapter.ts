@@ -147,6 +147,19 @@ const record = (value: unknown, what: string): Record<string, unknown> => {
     throw new ExtensionError("BAD_REQUEST", `${what} must be an object.`);
   return value as Record<string, unknown>;
 };
+/** `{ ifRevision }` from a call's options argument; `{}` when absent. */
+const ifRevisionOf = (options: unknown): { ifRevision?: number } => {
+  const value = (
+    options === undefined || options === null ? {} : record(options, "options")
+  ).ifRevision;
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0)
+    throw new ExtensionError(
+      "BAD_REQUEST",
+      "ifRevision must be a non-negative integer.",
+    );
+  return { ifRevision: value };
+};
 const modelService = <T>(service: T | undefined, name: string): T => {
   if (!service)
     throw new ExtensionError(
@@ -176,6 +189,24 @@ const SERVICES: Record<string, Service> = {
     ctx.artifacts.freshName(text(base, "base"), text(extension, "extension")),
   "text.htmlToMarkdown": (ctx, [html]) =>
     ctx.text.htmlToMarkdown(text(html, "html")),
+  "extensionStore.get": (ctx, [key]) =>
+    ctx.extensionStore.get(text(key, "key")),
+  "extensionStore.set": (ctx, [key, value, options]) =>
+    ctx.extensionStore.set(text(key, "key"), value, ifRevisionOf(options)),
+  "extensionStore.delete": (ctx, [key, options]) =>
+    ctx.extensionStore.delete(text(key, "key"), ifRevisionOf(options)),
+  "extensionStore.keys": (ctx, [options]) => {
+    const prefix = (
+      options === undefined || options === null
+        ? {}
+        : record(options, "options")
+    ).prefix;
+    return ctx.extensionStore.keys(
+      prefix === undefined || prefix === null
+        ? {}
+        : { prefix: text(prefix, "prefix") },
+    );
+  },
   authorize: (ctx, [check]) => ctx.authorize(record(check, "check") as never),
   "models.image.generate": (ctx, [request]) =>
     modelService(ctx.models.image, "models.image").generate(

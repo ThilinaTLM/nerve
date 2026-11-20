@@ -117,11 +117,11 @@ export async function planUi(
           where: where(kind, index, sourceField),
           fix: `Create ${source}, or correct the path in the definition.`,
         });
-      else if (kind !== "themes" && !/\.(svelte|ts)$/.test(source))
+      else if (kind !== "themes" && !/\.(svelte|ts|tsx)$/.test(source))
         problems.push({
-          what: `The ${sourceField} '${source}' must be a .svelte component or a .ts module.`,
+          what: `The ${sourceField} '${source}' must be a .svelte component, a .ts module or a .tsx module.`,
           where: where(kind, index, sourceField),
-          fix: "Write the UI as a Svelte component (src/<kind>/<name>/<Name>.svelte), or as a .ts module whose default export mounts into an element.",
+          fix: "Write the UI as a Svelte component (src/<kind>/<name>/<Name>.svelte), or as a .ts/.tsx module whose default export mounts into an element and returns its cleanup (a .tsx entry needs `npm install react react-dom`).",
         });
 
       if (kind === "themes") {
@@ -320,20 +320,21 @@ void startFrame({
 `;
 }
 
-const frameHtml = `<!doctype html>
+const frameHtml = (work: string) =>
+  `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Extension</title>
-    <link rel="stylesheet" href="./frame.css" />
-    <script type="module" src="./main.ts"></script>
+    <link rel="stylesheet" href="__WORK__/frame.css" />
+    <script type="module" src="__WORK__/main.ts"></script>
   </head>
   <body>
     <div id="app"></div>
   </body>
 </html>
-`;
+`.replaceAll("__WORK__", work);
 
 /** Builds every planned frame into `distDir/ui/<id>/`. */
 export async function buildFrames(
@@ -376,8 +377,25 @@ export async function buildFrames(
       // One copy of Svelte, the UI kit and the bridge client per frame, whatever the project's layout.
       if (/^(svelte|@nervekit\/ui-kit)(\/|$)/.test(source))
         return this.resolve(source, anchor, { ...options, skipSelf: true });
+      // Icons: one copy of Lucide per frame, from the SDK.
+      if (/^@lucide\/svelte(\/|$)/.test(source))
+        return this.resolve(source, anchor, { ...options, skipSelf: true });
       if (source === "@nervekit/extension-sdk/ui")
         return join(sdkRoot, "dist", "ui.js");
+      if (source === "@nervekit/extension-sdk/icons")
+        return join(sdkRoot, "dist", "icons.js");
+      // JSX of a .tsx entry uses the extension's own React.
+      if (/^react\/jsx(-dev)?-runtime$/.test(source)) {
+        const resolved = await this.resolve(source, importer, {
+          ...options,
+          skipSelf: true,
+        });
+        if (!resolved)
+          this.error(
+            `Could not resolve '${source}': React is not installed (npm install react react-dom).`,
+          );
+        return resolved;
+      }
       return undefined;
     },
     load(id) {
@@ -385,6 +403,16 @@ export async function buildFrames(
         ? "export default {};"
         : undefined;
     },
+  });
+
+  // The page is a virtual module at `<projectDir>/index.html`, so the build's root is the extension
+  // folder (root-relative imports and globs, `public/`) and the output is still `index.html`.
+  const htmlEntry = join(projectDir, "index.html");
+  const htmlPlugin = (html: string): import("vite").Plugin => ({
+    name: "nerve-frame-html",
+    enforce: "pre",
+    resolveId: (source) => (source === htmlEntry ? source : undefined),
+    load: (id) => (id === htmlEntry ? html : undefined),
   });
 
   for (const frame of frames) {
@@ -401,16 +429,19 @@ export async function buildFrames(
     ].join("\n");
     await writeFile(join(work, "frame.css"), css);
     await writeFile(join(work, "main.ts"), frameEntryModule(frame.entry));
-    await writeFile(join(work, "index.html"), frameHtml);
+    const workUrl = `/${relative(projectDir, work).split(sep).join("/")}`;
     const outDir = join(distDir, "ui", frame.id);
     try {
       await build({
-        root: work,
+        root: projectDir,
+        publicDir: join(projectDir, "public"),
         configFile: false,
         logLevel: "silent",
         base: "./",
         clearScreen: false,
+        oxc: { jsx: { runtime: "automatic", importSource: "react" } },
         plugins: [
+          htmlPlugin(frameHtml(workUrl)),
           resolvePlugin(),
           svelte({ configFile: false, preprocess: vitePreprocess() }),
           tailwind.default(),
@@ -424,6 +455,7 @@ export async function buildFrames(
           cssCodeSplit: false,
           sourcemap: false,
           target: "es2022",
+          rollupOptions: { input: htmlEntry },
         },
       });
     } catch (cause) {
@@ -465,9 +497,13 @@ function viteProblems(
     {
       what: `The UI build of '${frame.id}' failed: ${message}`,
       where,
-      fix: unresolved
-        ? "Install the package as a dependency of the extension (npm install <name>), or correct the import path. Frames run in the browser: Node.js built-ins are not available."
-        : "Fix the code at that location; UI components are Svelte 5 components (or a .ts module) that run in a browser frame.",
+      fix: /react\/jsx(-dev)?-runtime/.test(message)
+        ? "A .tsx or .jsx file needs React: run `npm install react react-dom` in the extension folder."
+        : unresolved && message.includes("@lucide/svelte")
+          ? 'Import icons from "@nervekit/extension-sdk/icons" (for example `import { Copy } from "@nervekit/extension-sdk/icons"`) instead of installing @lucide/svelte.'
+          : unresolved
+            ? "Install the package as a dependency of the extension (npm install <name>), or correct the import path. Frames run in the browser: Node.js built-ins are not available."
+            : "Fix the code at that location; UI components are Svelte 5 components (or a .ts module) that run in a browser frame.",
     },
   ];
 }

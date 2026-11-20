@@ -37,7 +37,7 @@ const uiComponents = fileURLToPath(
   new URL("../ui/components.ts", import.meta.url),
 );
 await build({
-  entryPoints: { ui: "src/ui.ts" },
+  entryPoints: { ui: "src/ui.ts", icons: "src/icons.ts" },
   outdir: "dist",
   bundle: true,
   format: "esm",
@@ -49,6 +49,7 @@ await build({
     "svelte",
     "svelte/*",
     "zod",
+    "@lucide/svelte",
     "@nervekit/ui-kit",
     "@nervekit/ui-kit/*",
   ],

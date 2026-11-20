@@ -45,6 +45,7 @@ import type { ResourceLimits } from "@nervekit/contracts/settings";
 import type { NerveSkillCatalog } from "../../builtin-skills/index.js";
 import type { AgentBrowserSkillCatalog } from "../../core-host/agent-browser-skills.js";
 import { CoreScratchNoteService } from "../../core-host/scratch-note.service.js";
+import { ExtensionStore } from "../../core-host/extension-store/extension-store.js";
 import { createConversationCore } from "./create-conversation-core.js";
 import { createWorkbenchLaunchResources } from "../../domains/launches/adapters/workbench-launch-adapters.js";
 import { LaunchService } from "../../domains/launches/application/launch.service.js";
@@ -91,6 +92,25 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       consent: consentSourcesOf(() => conversationCore),
       warn: (message, data) => void logger.warn(message, { context: { data } }),
     });
+  const extensionStore = new ExtensionStore({
+    root: storage.paths.extensionStorePath,
+    projectExists: (projectId) =>
+      conversationCore.projects.get(projectId) !== undefined,
+    onChange: ({ projectId, extensionId, key, revision, origin }) =>
+      void events
+        .publish("extensions.store.changed", {
+          projectId,
+          extensionId,
+          key,
+          revision,
+          ...(origin !== undefined ? { origin } : {}),
+        })
+        .catch((error) => {
+          void logger.warn("Extension store change notification failed", {
+            error,
+          });
+        }),
+  });
   const activities = new ActivityService((activity, removed) =>
     events.publish("activity.updated", { activity, removed }),
   );
@@ -150,12 +170,13 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scopedConfiguration,
     admissionPolicy,
   } = createConversationCore(
-    { ...deps, accounts, extensionCatalog },
+    { ...deps, accounts, extensionCatalog, extensionStore },
     { launches, definitions: launchDefinitions },
     // Lazy: completion project lookup depends on the constructed core.
     async (projectId) => {
       await completions.dispose(projectId);
       git.invalidateProjectReads(projectId);
+      await extensionStore.deleteProject(projectId);
     },
     undefined,
     projectMigration,
@@ -405,6 +426,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   );
   return {
     extensionCatalog,
+    extensionStore,
     unreadableConversations,
     projectMigration,
     completions,

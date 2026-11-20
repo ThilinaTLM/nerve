@@ -7,6 +7,7 @@ import {
   themeTokensCss,
   validateBridgeRequest,
   type BridgeContributionKind,
+  type BridgeFrameError,
   type BridgeResult,
   type ExtensionResolution,
   type ExtensionUiContributions,
@@ -25,6 +26,9 @@ import type {
   InstalledUiExtension,
 } from "../extension-catalog/extension-catalog.js";
 import { createExtensionPorts } from "../extension-ports.js";
+import type { ExtensionStore } from "../extension-store/extension-store.js";
+import { ExtensionStoreError } from "../extension-store/extension-store.js";
+import type { ExtensionErrorLog } from "../extension-catalog/extension-errors.js";
 import type { VisionHost } from "../vision-models.js";
 import { ExtensionUiError } from "./extension-ui-error.js";
 import {
@@ -47,6 +51,9 @@ export type ExtensionUiOptions = {
   extensions: Pick<ExtensionSettingsService, "resolve">;
   accounts: AccountsReader;
   vision?: VisionHost;
+  store: ExtensionStore;
+  /** Where frame errors are recorded: the catalog's, so they reach `extensions.status().recentErrors`. */
+  errors: Pick<ExtensionErrorLog, "record">;
   project(
     projectId: string,
   ): { id: string; name: string; directory: string } | undefined;
@@ -66,6 +73,12 @@ type Contribution =
       extensions: readonly string[];
     }
   | { kind: "page" | "panel" };
+
+const frameErrorNames = {
+  error: "FrameError",
+  unhandledrejection: "UnhandledRejection",
+  csp: "CspViolation",
+} as const satisfies Record<BridgeFrameError["kind"], string>;
 
 /** What the open project's installed extensions contribute to the UI, and what their frames may ask of the daemon. */
 export class ExtensionUiService {
@@ -244,24 +257,16 @@ export class ExtensionUiService {
       extensionId: string;
       contribution: { kind: BridgeContributionKind; id: string };
       filePath?: string | undefined;
+      /** The requesting frame's id; echoed in the change event of a store write. */
+      origin?: string | undefined;
       params: unknown;
     },
   ): Promise<BridgeResult<M>> {
-    const active = await this.#active(input.projectId);
-    const extension = active.extensions.find(
-      (candidate) => candidate.id === input.extensionId,
+    const { active, extension, contribution } = await this.#contributionOf(
+      input.projectId,
+      input.extensionId,
+      input.contribution,
     );
-    const contribution =
-      extension && contributionOf(extension, input.contribution.id);
-    if (
-      !extension ||
-      !contribution ||
-      contribution.kind !== input.contribution.kind
-    )
-      throw new ExtensionUiError(
-        "not_found",
-        "That contribution is not available.",
-      );
     // The manifest, not the caller, says what a preview may do.
     const checked = validateBridgeRequest(
       {
@@ -287,6 +292,52 @@ export class ExtensionUiService {
     return result as BridgeResult<M>;
   }
 
+  /** The active extension and its declared contribution; `not_found` when either is unavailable or of another kind. */
+  async #contributionOf(
+    projectId: string,
+    extensionId: string,
+    wanted: { kind: BridgeContributionKind; id: string },
+  ) {
+    const active = await this.#active(projectId);
+    const extension = active.extensions.find(
+      (candidate) => candidate.id === extensionId,
+    );
+    const contribution = extension && contributionOf(extension, wanted.id);
+    if (!extension || !contribution || contribution.kind !== wanted.kind)
+      throw new ExtensionUiError(
+        "not_found",
+        "That contribution is not available.",
+      );
+    return { active, extension, contribution };
+  }
+
+  /**
+   * Records an uncaught error, unhandled rejection or CSP violation of a frame in the extension's
+   * error log, where `extensions.status().recentErrors` shows it. Refuses frames of contributions
+   * that are not active, so a stale frame cannot fill the log.
+   */
+  async reportFrameError(input: {
+    projectId: string;
+    extensionId: string;
+    contribution: { kind: BridgeContributionKind; id: string };
+    error: BridgeFrameError;
+  }): Promise<Record<string, never>> {
+    await this.#contributionOf(
+      input.projectId,
+      input.extensionId,
+      input.contribution,
+    );
+    const { kind, message, source } = input.error;
+    const error = new Error(source ? `${message} (${source})` : message);
+    error.name = frameErrorNames[kind];
+    this.#options.errors.record(
+      input.extensionId,
+      `frame:${input.contribution.kind}/${input.contribution.id}`,
+      error,
+    );
+    return {};
+  }
+
   async #run(
     method: ServerBridgeMethod,
     params: Record<string, unknown>,
@@ -298,6 +349,7 @@ export class ExtensionUiService {
         projectId: string;
         extensionId: string;
         filePath?: string | undefined;
+        origin?: string | undefined;
       };
     },
   ): Promise<unknown> {
@@ -337,7 +389,58 @@ export class ExtensionUiService {
         );
       }
       case "call":
-        return await this.#call(active, extension, params);
+        return await this.#call(active, extension, params, input.projectId);
+      case "extensionStore.get":
+      case "extensionStore.set":
+      case "extensionStore.delete":
+      case "extensionStore.keys":
+        return await this.#store(method, params, input);
+    }
+  }
+
+  async #store(
+    method: Extract<ServerBridgeMethod, `extensionStore.${string}`>,
+    params: Record<string, unknown>,
+    input: {
+      projectId: string;
+      extensionId: string;
+      origin?: string | undefined;
+    },
+  ): Promise<unknown> {
+    const scope = {
+      extensionId: input.extensionId,
+      projectId: input.projectId,
+    };
+    const write = {
+      ifRevision: params.ifRevision as number | undefined,
+      origin: input.origin,
+    };
+    const store = this.#options.store;
+    try {
+      switch (method) {
+        case "extensionStore.get": {
+          const stored = await store.get(scope, params.key as string);
+          return stored ?? { value: null, revision: null };
+        }
+        case "extensionStore.set":
+          return await store.set(
+            scope,
+            params.key as string,
+            params.value,
+            write,
+          );
+        case "extensionStore.delete":
+          await store.delete(scope, params.key as string, write);
+          return {};
+        case "extensionStore.keys":
+          return {
+            keys: await store.keys(scope, params.prefix as string | undefined),
+          };
+      }
+    } catch (error) {
+      if (error instanceof ExtensionStoreError)
+        throw new ExtensionUiError(error.code, error.message);
+      throw error;
     }
   }
 
@@ -366,12 +469,15 @@ export class ExtensionUiService {
     active: ActiveProject,
     extension: InstalledUiExtension,
     params: Record<string, unknown>,
+    projectId: string,
   ): Promise<{ value?: unknown }> {
     const registry = await this.#options.catalog.registryFor(active.directory);
     const ports = createExtensionPorts({
       resolution: active.resolution,
       accounts: this.#options.accounts,
       ...(this.#options.vision ? { vision: this.#options.vision } : {}),
+      store: this.#options.store,
+      projectId,
       warn: (id, message, data) =>
         this.#options.warn?.(`${id}: ${message}`, data),
     });

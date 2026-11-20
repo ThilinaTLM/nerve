@@ -12,6 +12,6 @@ export const EXTENSIONS_DTS_TYPES = `interface ExtensionStatus {
   /** The extension's own switch at the project. */
   switch?: "on" | "off" | "unknown";
   diagnostics: { level: "error" | "warning"; message: string }[];
-  /** Backend failures since the last reload, newest last (at most 20). Frame console output is not included. */
+  /** Failures since the last reload, newest last (at most 20): backend errors, plus uncaught errors, unhandled rejections and CSP violations of the extension's frames (operation is "frame:<kind>/<id>"; frames report only after the user opens them). */
   recentErrors: { at: string; operation: string; code: string; message: string }[];
 }`;

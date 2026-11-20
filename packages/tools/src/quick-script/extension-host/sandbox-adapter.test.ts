@@ -97,6 +97,34 @@ globalThis.__nerveExtension = defineExtension({
           return "ok";
         },
       }),
+      store: method({
+        risk: "external_read",
+        signature: "store()",
+        parse: () => ({}),
+        run: async (_session, _input, ctx) => {
+          const first = await ctx.extensionStore.set("doc", { n: 1 }, { ifRevision: 0 });
+          let conflict;
+          try {
+            await ctx.extensionStore.set("doc", { n: 2 }, { ifRevision: 0 });
+          } catch (error) {
+            conflict = error instanceof ExtensionError ? error.code : "other";
+          }
+          let invalid;
+          try {
+            await ctx.extensionStore.set("doc", 1, { ifRevision: -1 });
+          } catch (error) {
+            invalid = error instanceof ExtensionError ? error.code : "other";
+          }
+          return {
+            first,
+            conflict,
+            invalid,
+            got: await ctx.extensionStore.get("doc"),
+            missing: await ctx.extensionStore.get("nope"),
+            keys: await ctx.extensionStore.keys({ prefix: "d" }),
+          };
+        },
+      }),
       slow: method({
         risk: "external_read",
         signature: "slow(label: string)",
@@ -250,6 +278,25 @@ void test(
           !(error instanceof ExtensionError) &&
           error.message === "plain failure",
       );
+    } finally {
+      await code.dispose();
+    }
+  },
+);
+
+void test(
+  "ctx.extensionStore calls reach the host with checked arguments and keep their error codes",
+  { skip: !available },
+  async () => {
+    const { code } = open();
+    try {
+      assert.deepEqual(await code.run(method("store"), {}, call("store")), {
+        first: { revision: 1 },
+        conflict: "CONFLICT",
+        invalid: "BAD_REQUEST",
+        got: { value: { n: 1 }, revision: 1 },
+        keys: [{ key: "doc", revision: 1, size: 7 }],
+      });
     } finally {
       await code.dispose();
     }

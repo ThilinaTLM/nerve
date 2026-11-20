@@ -59,7 +59,7 @@ void test("several kinds combine into one project, each part in its own folder",
       "src/backend/get.test.ts",
       "src/panels/checklist/Checklist.svelte",
       "src/themes/combo.json",
-      "src/svelte.d.ts",
+      "src/env.d.ts",
       "docs/usage.md",
       ".gitignore",
     ])

@@ -9,6 +9,7 @@ import type {
   VisionRequest,
   VisionResult,
 } from "./types.js";
+import { ExtensionError } from "./errors.js";
 import type { Risk } from "./authorization.js";
 import type { AccountInfo } from "./settings.js";
 
@@ -49,6 +50,16 @@ export type FakeContextRecord = {
     /** Text chunk as passed. */
     chunk: string;
   }[];
+  /** `ctx.extensionStore` content by key, with revisions as the real store keeps them. */
+  store: Map<
+    string,
+    {
+      /** The JSON value (a deep copy). */
+      value: unknown;
+      /** 1 on the first write, +1 on every write. */
+      revision: number;
+    }
+  >;
   /** Artifacts written or seeded, by handle (`artifact:<name>`); seed one by adding an entry before the run. */
   artifacts: Map<
     string,
@@ -92,11 +103,15 @@ export type FakeContextOptions = {
   };
   /** Answers `ctx.text.htmlToMarkdown`; throws when a test uses it without one. */
   htmlToMarkdown?: (html: string) => string | Promise<string>;
+  /** Seeds `ctx.extensionStore`: values by key, each at revision 1. Read the result in `record.store`. */
+  store?: Record<string, unknown>;
   /** Becomes `ctx.signal`; default: a signal that never aborts. */
   signal?: AbortSignal;
 };
 
 const encoder = new TextEncoder();
+const clone = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
+const storeKeyPattern = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$/;
 
 /**
  * A `ctx` that keeps everything in memory; extension unit tests use it instead of the host.
@@ -119,6 +134,12 @@ export function createFakeContext(options: FakeContextOptions = {}): {
     notes: [],
     logs: [],
     progress: [],
+    store: new Map(
+      Object.entries(options.store ?? {}).map(([key, value]) => [
+        key,
+        { value: clone(value), revision: 1 },
+      ]),
+    ),
     artifacts: new Map(),
   };
   const progress = (section: string, chunk: string) =>
@@ -136,6 +157,25 @@ export function createFakeContext(options: FakeContextOptions = {}): {
     const stored = record.artifacts.get(handle);
     if (!stored) throw new Error(`No artifact ${handle}.`);
     return stored;
+  };
+  const checkedKey = (key: string) => {
+    if (!storeKeyPattern.test(key))
+      throw new ExtensionError(
+        "BAD_REQUEST",
+        `Invalid store key '${key}': use 1-128 letters, digits, '.', '_' or '-', not starting with '.'.`,
+      );
+    return key;
+  };
+  const checkRevision = (
+    key: string,
+    current: { revision: number } | undefined,
+    expected: number | undefined,
+  ) => {
+    if (expected !== undefined && expected !== (current?.revision ?? 0))
+      throw new ExtensionError(
+        "CONFLICT",
+        `Store key '${key}' is at revision ${current?.revision ?? 0}, not ${expected}.`,
+      );
   };
   const ctx: ExtensionContext = {
     settings: {
@@ -172,6 +212,35 @@ export function createFakeContext(options: FakeContextOptions = {}): {
           if (!record.artifacts.has(`artifact:${name}`)) return name;
         }
       },
+    },
+    extensionStore: {
+      get: async (key) => {
+        const entry = record.store.get(checkedKey(key));
+        return entry && { value: clone(entry.value), revision: entry.revision };
+      },
+      set: async (key, value, setOptions) => {
+        const current = record.store.get(checkedKey(key));
+        checkRevision(key, current, setOptions?.ifRevision);
+        if (value === undefined)
+          throw new ExtensionError("BAD_REQUEST", "value must be JSON.");
+        const revision = (current?.revision ?? 0) + 1;
+        record.store.set(key, { value: clone(value), revision });
+        return { revision };
+      },
+      delete: async (key, deleteOptions) => {
+        const current = record.store.get(checkedKey(key));
+        checkRevision(key, current, deleteOptions?.ifRevision);
+        record.store.delete(key);
+      },
+      keys: async (keysOptions) =>
+        [...record.store]
+          .filter(([key]) => key.startsWith(keysOptions?.prefix ?? ""))
+          .map(([key, { value, revision }]) => ({
+            key,
+            revision,
+            size: encoder.encode(JSON.stringify(value)).byteLength,
+          }))
+          .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)),
     },
     text: {
       htmlToMarkdown: async (html) => {

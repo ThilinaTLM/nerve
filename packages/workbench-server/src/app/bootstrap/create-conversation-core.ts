@@ -36,6 +36,7 @@ import { scopedConversationCreation } from "../../core-host/scoped-conversation-
 import { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import { bundledAgentProfiles } from "../../infrastructure/configuration/agent-configuration/builtins/index.js";
 import { createScopedAgentConfiguration } from "../../core-host/scoped-agent-configuration.js";
+import type { ExtensionStore } from "../../core-host/extension-store/extension-store.js";
 import { scopedTurnResources } from "../../core-host/scoped-turn-resources.js";
 import { clampAgentThinkingLevel } from "@nervekit/harness/models";
 import { mkdirSync } from "node:fs";
@@ -80,6 +81,7 @@ export function createConversationCore(
   deps: RuntimeDeps & {
     accounts: AccountsReader;
     extensionCatalog?: ExtensionCatalog;
+    extensionStore: ExtensionStore;
   },
   launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
@@ -186,7 +188,7 @@ export function createConversationCore(
     } catch {
       shell = { available: false };
     }
-    return { extensions, python, shell };
+    return { extensions, python, shell, projectId: conversation.projectId };
   };
   let credentialEpoch = 0;
   let extensionEpoch = 0;
@@ -284,6 +286,8 @@ export function createConversationCore(
           accounts,
           generateImage: (request) => imageGeneration.generate(request),
           vision,
+          store: deps.extensionStore,
+          projectId: resources.projectId,
           warn: (extensionId, message, data) =>
             void deps.logger.warn("Extension warning", {
               context: { extension: extensionId, message, data },
@@ -299,6 +303,7 @@ export function createConversationCore(
           extensions,
           accounts,
           vision,
+          { store: deps.extensionStore, projectId: resources.projectId },
         );
         if (input.toolName === "python_exec" && (!python || !python.available))
           throw new ToolExecutionError(
@@ -622,6 +627,7 @@ export function createConversationCore(
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
       registry: (projectDir) => extensionCatalog.registryFor(projectDir),
       vision,
+      extensionStore: deps.extensionStore,
       extensions: async (id, projectId) => ({
         resolution: await conversationExtensionSettings(id, projectId),
         accounts,

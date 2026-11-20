@@ -338,10 +338,15 @@ void test("no agent-reachable surface can grant consent", async () => {
   assert.deepEqual(uiOperations.map((operation) => operation.method).sort(), [
     "extensions.ui.call",
     "extensions.ui.contributions",
+    "extensions.ui.extensionStore.delete",
+    "extensions.ui.extensionStore.get",
+    "extensions.ui.extensionStore.keys",
+    "extensions.ui.extensionStore.set",
     "extensions.ui.file.info",
     "extensions.ui.file.read",
     "extensions.ui.file.write",
     "extensions.ui.project.info",
+    "extensions.ui.reportFrameError",
     "extensions.ui.settings.get",
     "extensions.ui.themes",
   ]);

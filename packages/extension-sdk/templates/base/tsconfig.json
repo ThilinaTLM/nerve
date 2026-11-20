@@ -8,6 +8,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
+    "jsx": "react-jsx",
     "resolveJsonModule": true,
     "types": []
   },
