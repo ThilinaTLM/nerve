@@ -3,16 +3,19 @@
  * problems. It never writes a file and never grants trust; only the user's Settings page does.
  */
 
+import type { Diagnostic } from "@nervekit/contracts/configuration";
+
 export type ConfigurationAgentScope = "user" | "project";
 
-export type ConfigurationAgentDiagnostic = {
+/**
+ * The shared diagnostic plus the file it is about. Code `untrusted` (a warning): the project
+ * file is ignored until the user approves its exact content.
+ */
+export type ConfigurationAgentDiagnostic = Diagnostic & {
   scope: "user" | "project";
   /** `agent.json`, `conversation-defaults`, `profile:<name>`, `permissions.json`, `rule-set:<id>` or `launches`. */
   document: string;
   path: string;
-  message: string;
-  /** `untrusted`: the project file is ignored until the user approves its exact content. */
-  trust?: "untrusted";
 };
 
 export type ConfigurationAgentResult = {

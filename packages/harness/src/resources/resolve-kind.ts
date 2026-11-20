@@ -1,12 +1,8 @@
+import type { FileDiagnostic } from "@nervekit/contracts/configuration";
 import type { ExecutionEnv, FileInfo } from "../environment/contracts.js";
 
 export interface FileInfoDiagnosticSink {
-  push(diagnostic: {
-    type: "warning";
-    code: "file_info_failed";
-    message: string;
-    path: string;
-  }): unknown;
+  push(diagnostic: FileDiagnostic & { code: "file-info-failed" }): unknown;
 }
 
 export async function resolveKind(
@@ -19,8 +15,8 @@ export async function resolveKind(
   if (!canonicalPath.ok) {
     if (canonicalPath.error.code !== "not_found") {
       diagnostics.push({
-        type: "warning",
-        code: "file_info_failed",
+        level: "error",
+        code: "file-info-failed",
         message: canonicalPath.error.message,
         path: info.path,
       });
@@ -31,8 +27,8 @@ export async function resolveKind(
   if (!target.ok) {
     if (target.error.code !== "not_found") {
       diagnostics.push({
-        type: "warning",
-        code: "file_info_failed",
+        level: "error",
+        code: "file-info-failed",
         message: target.error.message,
         path: info.path,
       });

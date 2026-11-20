@@ -52,9 +52,9 @@ return await configuration.reload("project"); // or "user"
 
 `configuration.status(scope)` returns the same result without reloading; use it to inspect the current state before a change.
 
-The result is `{ diagnostics }`; an empty list means every file of that scope loads. Each diagnostic has `scope`, `document` (`agent.json`, `conversation-defaults`, `profile:<name>`, `permissions.json`, `rule-set:<id>`, `launches`), `path` and a `message` that says what is wrong and what to do. Project files waiting for the user's approval also carry `trust: "untrusted"`; only the user can clear those. Rule sets are checked with user scope, the launch catalog with project scope. Skills are not covered.
+The result is `{ diagnostics }`; an empty list means every file of that scope loads. Each diagnostic has `scope`, `document` (`agent.json`, `conversation-defaults`, `profile:<name>`, `permissions.json`, `rule-set:<id>`, `launches`), `path`, `level`, `code` and a `message` that says what is wrong and what to do. `level: "error"` means the file is not in use. Project files waiting for the user's approval have `code: "untrusted"` at `level: "warning"`; only the user can clear those. Rule sets are checked with user scope, the launch catalog with project scope. Skills are not covered.
 
-An invalid permission file blocks tool calls (model replies still work), so fix every diagnostic without `trust` before ending your turn, and reload again. Reloading never approves trust.
+An invalid permission file blocks tool calls (model replies still work), so fix every `error` diagnostic before ending your turn, and reload again. Reloading never approves trust.
 
 ## Failure behavior to keep in mind
 

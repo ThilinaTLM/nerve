@@ -22,6 +22,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./auth",
       "./capabilities",
       "./completions",
+      "./configuration",
       "./core",
       "./filesystem",
       "./git",

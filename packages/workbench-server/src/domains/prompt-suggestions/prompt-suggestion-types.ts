@@ -1,3 +1,4 @@
+import type { FileDiagnostic } from "@nervekit/contracts/configuration";
 import type {
   Conversation,
   ConversationConfig,
@@ -13,17 +14,15 @@ import type {
 } from "@nervekit/contracts/prompt-suggestions";
 
 export type PromptSuggestionDiagnosticCode =
-  | "list_failed"
-  | "read_failed"
-  | "parse_failed"
-  | "invalid_metadata"
-  | "enable_failed";
+  | "list-failed"
+  | "read-failed"
+  | "parse-failed"
+  | "invalid-metadata"
+  | "enable-failed";
 
-export type PromptSuggestionDiagnostic = {
-  type: "warning";
+/** `error`: the suggestion did not load. `warning`: it loaded and its predicate failed. */
+export type PromptSuggestionDiagnostic = FileDiagnostic & {
   code: PromptSuggestionDiagnosticCode;
-  message: string;
-  path: string;
 };
 
 export type PromptSuggestionDefinition = {

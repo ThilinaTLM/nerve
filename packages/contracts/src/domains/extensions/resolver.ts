@@ -1,3 +1,4 @@
+import type { Diagnostic } from "../configuration/diagnostic.js";
 import type { ExtensionEntry } from "./document.js";
 import {
   fieldScopes,
@@ -30,7 +31,12 @@ export type ValueSource = {
   locked?: boolean;
 };
 
-export type ExtensionDiagnostic = {
+/**
+ * A problem with stored extension settings. The shared diagnostic plus where it is:
+ * layer, extension and field. All are warnings (the value is ignored and resolution
+ * continues) except `file-unavailable`.
+ */
+export type ExtensionDiagnostic = Diagnostic & {
   code:
     | "unknown-extension"
     | "newer-version"
@@ -45,7 +51,6 @@ export type ExtensionDiagnostic = {
   extensionId?: string;
   layer: ExtensionLayerName;
   field?: string;
-  message: string;
 };
 
 export type ResolvedField = {
@@ -99,6 +104,7 @@ export function resolveExtensions(
       if (!known.has(id)) {
         unknown.push({ layer: layer.layer, id, entry });
         diagnostics.push({
+          level: "warning",
           code: "unknown-extension",
           extensionId: id,
           layer: layer.layer,
@@ -136,6 +142,7 @@ export function resolveExtensions(
       if (upgrade.status === "newer") {
         resolved.readOnlyLayers.push(layer.layer);
         diagnostics.push({
+          level: "warning",
           code: "newer-version",
           extensionId: definition.id,
           layer: layer.layer,
@@ -145,6 +152,7 @@ export function resolveExtensions(
       }
       if (upgrade.status === "failed") {
         diagnostics.push({
+          level: "warning",
           code: "upgrade-failed",
           extensionId: definition.id,
           layer: layer.layer,
@@ -158,6 +166,7 @@ export function resolveExtensions(
       const { value, issues } = validate(entry.settings);
       for (const issue of issues)
         diagnostics.push({
+          level: "warning",
           code: issue.code,
           extensionId: definition.id,
           layer: layer.layer,
@@ -170,6 +179,7 @@ export function resolveExtensions(
         const field = definition.settings.fields[key];
         if (!fieldScopes(field).includes(scopeOf(layer.layer))) {
           diagnostics.push({
+            level: "warning",
             code: "scope-not-allowed",
             extensionId: definition.id,
             layer: layer.layer,

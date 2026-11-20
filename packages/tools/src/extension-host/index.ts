@@ -28,7 +28,6 @@ export type {
   ExtensionStorePort,
 } from "./ports.js";
 export type {
-  ExtensionAgentDiagnostic,
   ExtensionAgentError,
   ExtensionAgentPort,
   ExtensionAgentStatus,

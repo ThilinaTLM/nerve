@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { diagnosticSchema } from "../configuration/diagnostic.js";
 import { defineOperation } from "../../operations/definition.js";
 import { extensionCatalogEntrySchema } from "./catalog.js";
 import {
@@ -71,7 +72,7 @@ export const extensionViewSchema = z.strictObject({
 });
 export type ExtensionView = z.infer<typeof extensionViewSchema>;
 
-const diagnosticSchema = z.strictObject({
+const settingsDiagnosticSchema = diagnosticSchema.extend({
   code: z.enum([
     "unknown-extension",
     "newer-version",
@@ -85,7 +86,6 @@ const diagnosticSchema = z.strictObject({
   extensionId: z.string().optional(),
   layer: z.enum(["user", "project", "profile", "conversation"]),
   field: z.string().optional(),
-  message: z.string(),
 });
 
 export const extensionsViewSchema = z.strictObject({
@@ -101,7 +101,7 @@ export const extensionsViewSchema = z.strictObject({
     /** Project files only; untrusted files are ignored by resolution. */
     trusted: z.boolean().nullable(),
   }),
-  diagnostics: z.array(diagnosticSchema),
+  diagnostics: z.array(settingsDiagnosticSchema),
   /** Every extension the host knows of at the target (built-in, user and the target project's), loaded or not, with its state and diagnostics. */
   catalog: z.array(extensionCatalogEntrySchema),
   /** Entries of extensions that are not registered; kept in the file. */

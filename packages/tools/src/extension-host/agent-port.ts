@@ -3,11 +3,7 @@
  * read how it fared. Deliberately small: no consent surface (granting, revoking, the reviewed
  * content hash) exists here; only the user's Settings page changes consent.
  */
-
-export type ExtensionAgentDiagnostic = {
-  level: "error" | "warning";
-  message: string;
-};
+import type { Diagnostic } from "@nervekit/contracts/configuration";
 
 /** One backend failure the host saw while running the extension's code, newest last. */
 export type ExtensionAgentError = {
@@ -42,7 +38,7 @@ export type ExtensionAgentStatus = {
   consent?: "pending" | "granted" | "not_required" | "unknown";
   /** The extension's own on/off switch at the project (a loaded extension that is off contributes nothing). */
   switch?: "on" | "off" | "unknown";
-  diagnostics: ExtensionAgentDiagnostic[];
+  diagnostics: Diagnostic[];
   recentErrors: ExtensionAgentError[];
 };
 

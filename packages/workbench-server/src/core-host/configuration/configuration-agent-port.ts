@@ -40,10 +40,9 @@ const EXPLANATIONS: Record<string, string> = {
 };
 
 function explain(issue: ConfigurationDiagnostic): string {
-  const at = issue.pointer ? `${issue.pointer}: ` : "";
   const meaning = EXPLANATIONS[issue.code];
-  if (!meaning) return `${at}${issue.message ?? issue.code}`;
-  return `${at}${meaning}${issue.message ? ` Detail: ${issue.message}` : ""}`;
+  if (!meaning) return issue.message ?? issue.code;
+  return `${meaning}${issue.message ? ` Detail: ${issue.message}` : ""}`;
 }
 
 /** One line naming the first problem of a document, bounded. */
@@ -98,8 +97,10 @@ export function createConfigurationAgentPort(options: {
       scope: issue.scope as ConfigurationAgentScope,
       document: issue.document === "agent" ? "agent.json" : issue.document,
       path: issue.path,
+      level: untrusted ? "warning" : "error",
+      code: issue.code,
       message: untrusted ? UNTRUSTED : explain(issue),
-      ...(untrusted ? { trust: "untrusted" as const } : {}),
+      ...(issue.pointer ? { pointer: issue.pointer } : {}),
     };
   }
 
@@ -174,6 +175,8 @@ export function createConfigurationAgentPort(options: {
           scope,
           document: "permissions.json",
           path: file,
+          level: "error",
+          code: "io-error",
           message: describe(error),
         });
     }
@@ -187,6 +190,8 @@ export function createConfigurationAgentPort(options: {
           scope,
           document: "permissions.json",
           path: file,
+          level: "error",
+          code: "invalid-value",
           message: describe(error),
         });
       }
@@ -195,8 +200,9 @@ export function createConfigurationAgentPort(options: {
           scope,
           document: "permissions.json",
           path: file,
+          level: "warning",
+          code: "untrusted",
           message: UNTRUSTED,
-          trust: "untrusted",
         });
     }
     if (scope === "user") {
@@ -215,6 +221,8 @@ export function createConfigurationAgentPort(options: {
             scope,
             document: `rule-set:${name.slice(0, -5)}`,
             path,
+            level: "error",
+            code: "invalid-value",
             message: describe(error),
           });
         }
@@ -234,6 +242,8 @@ export function createConfigurationAgentPort(options: {
         scope,
         document: "launches",
         path: problem.path,
+        level: "error",
+        code: "invalid-value",
         message: `Invalid (${problem.reason}). Until it is fixed, the project has no launch definitions.`,
       },
     ];

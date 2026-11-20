@@ -178,6 +178,6 @@ void test("evaluates conversation/rule-set conditions and fails closed for untru
     const result = evaluate();
     assert.equal(result.suggestions.length, 0);
     if (!code.includes('return "true"'))
-      assert.equal(result.diagnostics[0]?.code, "enable_failed");
+      assert.equal(result.diagnostics[0]?.code, "enable-failed");
   }
 });

@@ -1,3 +1,4 @@
+import type { FileDiagnostic } from "@nervekit/contracts/configuration";
 import type { ExecutionEnv } from "../environment/contracts.js";
 import { basenameEnvPath } from "../paths.js";
 import { resolveKind } from "./resolve-kind.js";
@@ -14,22 +15,15 @@ export interface PromptTemplate {
 }
 
 export type PromptTemplateDiagnosticCode =
-  | "file_info_failed"
-  | "list_failed"
-  | "read_failed"
-  | "parse_failed";
+  | "file-info-failed"
+  | "list-failed"
+  | "read-failed"
+  | "parse-failed";
 
-/** Warning produced while loading prompt templates. */
-export interface PromptTemplateDiagnostic {
-  /** Diagnostic severity. Currently only warnings are emitted. */
-  type: "warning";
-  /** Stable diagnostic code. */
+/** Produced while loading prompt templates; the file or folder it names did not load. */
+export type PromptTemplateDiagnostic = FileDiagnostic & {
   code: PromptTemplateDiagnosticCode;
-  /** Human-readable diagnostic message. */
-  message: string;
-  /** Path associated with the diagnostic. */
-  path: string;
-}
+};
 
 interface PromptTemplateFrontmatter {
   description?: string;
@@ -57,8 +51,8 @@ export async function loadPromptTemplates(
     if (!infoResult.ok) {
       if (infoResult.error.code !== "not_found") {
         diagnostics.push({
-          type: "warning",
-          code: "file_info_failed",
+          level: "error",
+          code: "file-info-failed",
           message: infoResult.error.message,
           path,
         });
@@ -133,8 +127,8 @@ async function loadTemplatesFromDir(
   const entriesResult = await env.listDir(dir);
   if (!entriesResult.ok) {
     diagnostics.push({
-      type: "warning",
-      code: "list_failed",
+      level: "error",
+      code: "list-failed",
       message: entriesResult.error.message,
       path: dir,
     });
@@ -163,8 +157,8 @@ async function loadTemplateFromFile(
   const rawContent = await env.readTextFile(filePath);
   if (!rawContent.ok) {
     diagnostics.push({
-      type: "warning",
-      code: "read_failed",
+      level: "error",
+      code: "read-failed",
       message: rawContent.error.message,
       path: filePath,
     });
@@ -174,8 +168,8 @@ async function loadTemplateFromFile(
   const parsed = parseFrontmatter<PromptTemplateFrontmatter>(rawContent.value);
   if (!parsed.ok) {
     diagnostics.push({
-      type: "warning",
-      code: "parse_failed",
+      level: "error",
+      code: "parse-failed",
       message: parsed.error.message,
       path: filePath,
     });

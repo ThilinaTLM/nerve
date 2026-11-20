@@ -48,7 +48,6 @@ export type {
   CreatePromptSuggestionRequest,
   CreatePromptSuggestionResponse,
   PromptSuggestion,
-  PromptSuggestionDiagnostic,
   PromptSuggestionListResponse,
   PromptSuggestionSourceKind,
   PromptSuggestionStatus,

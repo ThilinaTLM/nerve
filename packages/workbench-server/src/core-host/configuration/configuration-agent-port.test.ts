@@ -96,8 +96,8 @@ void test("project reload flags an unapproved overlay as untrusted and never tru
   );
   const { diagnostics } = await port.reload("project");
   assert.deepEqual(
-    diagnostics.map(({ document, trust }) => ({ document, trust })),
-    [{ document: "permissions.json", trust: "untrusted" }],
+    diagnostics.map(({ document, level, code }) => ({ document, level, code })),
+    [{ document: "permissions.json", level: "warning", code: "untrusted" }],
   );
   assert.deepEqual(reloaded, [[file]]);
 });
@@ -121,9 +121,11 @@ void test("valid lead and sub-agent profiles report nothing; an invalid field is
   await profile("reviewer", "teammate");
   const { diagnostics } = await port.reload("user");
   assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].level, "error");
+  assert.equal(diagnostics[0].pointer, "/usableBy");
   assert.match(
     diagnostics[0].message,
-    /^\/usableBy: Invalid value\. .* Detail: Invalid option/,
+    /^Invalid value\. .* Detail: Invalid option/,
   );
 });
 

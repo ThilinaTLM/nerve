@@ -11,7 +11,7 @@ export const EXTENSIONS_DTS_TYPES = `interface ExtensionStatus {
   consent?: "pending" | "granted" | "not_required" | "unknown";
   /** The extension's own switch at the project. */
   switch?: "on" | "off" | "unknown";
-  diagnostics: { level: "error" | "warning"; message: string }[];
+  diagnostics: { level: "error" | "warning"; code: string; message: string }[];
   /** Failures since the last reload, newest last (at most 20): backend errors, plus uncaught errors, unhandled rejections and CSP violations of the extension's frames (operation is "frame:<kind>/<id>"; frames report only after the user opens them). */
   recentErrors: { at: string; operation: string; code: string; message: string }[];
 }`;

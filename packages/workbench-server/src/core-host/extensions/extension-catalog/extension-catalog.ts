@@ -1,7 +1,7 @@
 import { join } from "node:path";
+import type { Diagnostic } from "@nervekit/contracts/configuration";
 import type {
   AccountKind,
-  ExtensionCatalogDiagnostic,
   ExtensionConsent,
   ExtensionCatalogEntry,
   ExtensionSettingsDefinition,
@@ -30,6 +30,7 @@ import {
 } from "@nervekit/tools/quick-script";
 import { consentItems, grantSnapshot } from "./consent-summary.js";
 import { limitInstalledErrors } from "./agent-text-limits.js";
+import { extensionAgentStatus } from "./agent-status.js";
 import { ExtensionErrorLog } from "./extension-errors.js";
 import {
   loadInstalledExtension,
@@ -147,13 +148,13 @@ type ScannedExtension = {
   /** What the trust gate and the load decided, before precedence and collisions. */
   state: "loadable" | Exclude<ExtensionState, "enabled" | "shadowed">;
   loaded?: LoadedInstalledExtension;
-  diagnostics: ExtensionCatalogDiagnostic[];
+  diagnostics: Diagnostic[];
 };
 type Scan = Map<string, ScannedExtension>;
 /** What precedence and collisions made of one scanned extension. */
 type Outcome = {
   state: ExtensionState | "loadable";
-  diagnostics: ExtensionCatalogDiagnostic[];
+  diagnostics: Diagnostic[];
   consent?: ExtensionConsent;
   shadowedBy?: ExtensionSource;
 };
@@ -169,6 +170,12 @@ const projectRootOf = (projectDir: string) =>
  * entries stay visible. There are no file watchers: `reload` re-reads, and the change applies to
  * the next request that asks for a registry.
  */
+const diagnostic = (
+  level: Diagnostic["level"],
+  code: string,
+  message: string,
+): Diagnostic => ({ level, code, message });
+
 export class ExtensionCatalog implements ExtensionUiSource {
   readonly #options: ExtensionCatalogOptions;
   readonly #gate: ExtensionTrustGate;
@@ -294,41 +301,13 @@ export class ExtensionCatalog implements ExtensionUiSource {
     projectDir: string;
     switchOf?: (id: string) => boolean | undefined;
   }): ExtensionAgentPort {
-    const status = async (id: string): Promise<ExtensionAgentStatus> => {
-      const entries = (await this.entries(options.projectDir)).filter(
-        (entry) => entry.id === id,
-      );
-      const entry =
-        entries.find((candidate) => candidate.state !== "shadowed") ??
-        entries[0];
-      if (!entry)
-        return { id, state: "not_found", diagnostics: [], recentErrors: [] };
-      const on = options.switchOf?.(id);
-      return {
+    const status = async (id: string): Promise<ExtensionAgentStatus> =>
+      extensionAgentStatus(
         id,
-        state: entry.state,
-        source: entry.source,
-        ...(entry.path ? { folder: entry.path } : {}),
-        ...(entry.version ? { version: entry.version } : {}),
-        ...(entry.sdkVersion ? { sdkVersion: entry.sdkVersion } : {}),
-        consent:
-          entry.source === "builtin"
-            ? "not_required"
-            : entry.state === "pending_consent"
-              ? "pending"
-              : entry.state === "enabled"
-                ? "granted"
-                : "unknown",
-        ...(entry.state === "enabled"
-          ? { switch: on === undefined ? "unknown" : on ? "on" : "off" }
-          : {}),
-        diagnostics: entry.diagnostics.map(({ level, message }) => ({
-          level,
-          message,
-        })),
-        recentErrors: this.errors.recent(id),
-      };
-    };
+        await this.entries(options.projectDir),
+        options.switchOf?.(id),
+        this.errors.recent(id),
+      );
     return {
       status,
       reload: async (id) => {
@@ -466,20 +445,25 @@ export class ExtensionCatalog implements ExtensionUiSource {
       return {
         ...base,
         state: "incompatible",
-        diagnostics: [{ level: "error", message: read.incompatible }],
+        diagnostics: [diagnostic("error", "incompatible", read.incompatible)],
       };
     if (source === "project" && (manifest.ui?.themes?.length ?? 0) > 0)
-      base.diagnostics.push({
-        level: "warning",
-        message:
+      base.diagnostics.push(
+        diagnostic(
+          "warning",
+          "project-themes-ignored",
           "Themes of project extensions are ignored: a theme applies to the whole app, which shows several projects. Install the extension at user level to use its themes.",
-      });
+        ),
+      );
     for (const theme of read.themes ?? [])
       if ("problems" in theme)
-        base.diagnostics.push({
-          level: "warning",
-          message: `The theme '${theme.id}' is not offered: ${theme.problems.join("; ")}`,
-        });
+        base.diagnostics.push(
+          diagnostic(
+            "warning",
+            "theme-invalid",
+            `The theme '${theme.id}' is not offered: ${theme.problems.join("; ")}`,
+          ),
+        );
     const candidate: InstalledExtensionCandidate = {
       id: manifest.id,
       source,
@@ -498,11 +482,11 @@ export class ExtensionCatalog implements ExtensionUiSource {
         ...(consent ? { consent } : {}),
         diagnostics: [
           ...base.diagnostics,
-          {
-            level: "warning",
-            message:
-              "Waiting for your consent: the extension is listed, but its code is not opened until you consent in Settings → Extensions.",
-          },
+          diagnostic(
+            "warning",
+            "pending-consent",
+            "Waiting for your consent: the extension is listed, but its code is not opened until you consent in Settings → Extensions.",
+          ),
         ],
       };
     const loaded = await loadInstalledExtension(read.folder, manifest);
@@ -512,7 +496,7 @@ export class ExtensionCatalog implements ExtensionUiSource {
         state: "invalid",
         diagnostics: [
           ...base.diagnostics,
-          { level: "error", message: loaded.error },
+          diagnostic("error", "backend-invalid", loaded.error),
         ],
       };
     const problem = this.#validateAlone(read, loaded.definition);
@@ -522,7 +506,7 @@ export class ExtensionCatalog implements ExtensionUiSource {
         state: "invalid",
         diagnostics: [
           ...base.diagnostics,
-          { level: "error", message: problem },
+          diagnostic("error", "definition-invalid", problem),
         ],
       };
     this.#bundles.set(loaded.definition, loaded.bundle);
@@ -640,17 +624,23 @@ export class ExtensionCatalog implements ExtensionUiSource {
       const owner = claimed.get(manifest.id);
       if (owner === "builtin") {
         outcome.state = "invalid";
-        outcome.diagnostics.push({
-          level: "error",
-          message: `The id '${manifest.id}' belongs to a built-in extension; an installed extension cannot take it. Choose another id.`,
-        });
+        outcome.diagnostics.push(
+          diagnostic(
+            "error",
+            "id-taken",
+            `The id '${manifest.id}' belongs to a built-in extension; an installed extension cannot take it. Choose another id.`,
+          ),
+        );
       } else if (owner) {
         outcome.state = "shadowed";
         outcome.shadowedBy = owner;
-        outcome.diagnostics.push({
-          level: "warning",
-          message: `Shadowed by the ${owner} extension with the same id.`,
-        });
+        outcome.diagnostics.push(
+          diagnostic(
+            "warning",
+            "shadowed",
+            `Shadowed by the ${owner} extension with the same id.`,
+          ),
+        );
       } else claimed.set(manifest.id, scanned.source);
     }
 
@@ -687,7 +677,7 @@ export class ExtensionCatalog implements ExtensionUiSource {
       if (problems.length > 0) {
         outcome.state = "invalid";
         for (const message of problems)
-          outcome.diagnostics.push({ level: "error", message });
+          outcome.diagnostics.push(diagnostic("error", "name-taken", message));
         continue;
       }
       for (const kind of Object.keys(definition.accounts ?? {}))
@@ -711,10 +701,13 @@ export class ExtensionCatalog implements ExtensionUiSource {
       for (const scanned of accepted) {
         const outcome = outcomes.get(scanned)!;
         outcome.state = "invalid";
-        outcome.diagnostics.push({
-          level: "error",
-          message: `Could not be registered: ${cause instanceof Error ? cause.message : String(cause)}`,
-        });
+        outcome.diagnostics.push(
+          diagnostic(
+            "error",
+            "registration-failed",
+            `Could not be registered: ${cause instanceof Error ? cause.message : String(cause)}`,
+          ),
+        );
       }
       registry = this.#createRegistry([], new Map());
     }

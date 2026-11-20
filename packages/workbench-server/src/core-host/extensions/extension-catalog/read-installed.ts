@@ -8,10 +8,10 @@ import {
   sdkCompatibilityProblem,
   themeFileSchema,
   themeRuleProblems,
-  type ExtensionCatalogDiagnostic,
   type InstalledExtensionManifest,
   type ThemeFile,
 } from "@nervekit/contracts/extensions";
+import type { Diagnostic } from "@nervekit/contracts/configuration";
 import {
   listUnignoredEntries,
   validateName,
@@ -48,13 +48,14 @@ export type ReadExtension = {
   /** The resolved icon, when the manifest is valid. */
   icon?: ExtensionIcon;
   /** Errors make the extension `invalid`; an `incompatible` one has a compatibility problem instead. */
-  diagnostics: ExtensionCatalogDiagnostic[];
+  diagnostics: Diagnostic[];
   /** Why the extension cannot load in this Nerve (SDK range); the manifest is valid. */
   incompatible?: string;
 };
 
-const error = (message: string): ExtensionCatalogDiagnostic => ({
+const error = (code: string, message: string): Diagnostic => ({
   level: "error",
+  code,
   message,
 });
 
@@ -116,8 +117,8 @@ export async function readFolder(
   nerveVersion: string,
 ): Promise<ReadExtension> {
   const result: ReadExtension = { folderName, folder, diagnostics: [] };
-  const fail = (message: string) => {
-    result.diagnostics.push(error(message));
+  const fail = (code: string, message: string) => {
+    result.diagnostics.push(error(code, message));
     return result;
   };
   const nameProblems = [
@@ -128,6 +129,7 @@ export async function readFolder(
   ];
   if (nameProblems.length > 0)
     return fail(
+      "invalid-folder-name",
       `The folder name '${folderName}' is not a valid extension id: ${nameProblems.join("; ")}. Use lowercase letters, digits and single hyphens (at most 64 characters), starting with a letter.`,
     );
   const dist = join(folder, "dist");
@@ -135,22 +137,29 @@ export async function readFolder(
   let text: string;
   try {
     const info = await stat(manifestPath);
-    if (!info.isFile()) return fail("dist/manifest.json is not a file.");
+    if (!info.isFile())
+      return fail("manifest-unreadable", "dist/manifest.json is not a file.");
     if (info.size > maxManifestBytes)
       return fail(
+        "manifest-too-large",
         `dist/manifest.json is larger than ${maxManifestBytes / 1024} KB.`,
       );
     // A symbolic link may not lead out of dist/.
     const real = await realpath(manifestPath);
     if (!isInside(await realpath(dist), real))
-      return fail("dist/manifest.json is outside dist/.");
+      return fail(
+        "manifest-unreadable",
+        "dist/manifest.json is outside dist/.",
+      );
     text = await readFile(real, "utf8");
   } catch (cause) {
     if ((cause as NodeJS.ErrnoException).code === "ENOENT")
       return fail(
+        "not-built",
         "There is no dist/manifest.json. Build the extension so dist/ exists; the configure-nerve skill (Forge profile) covers how.",
       );
     return fail(
+      "manifest-unreadable",
       `Cannot read dist/manifest.json: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
   }
@@ -159,12 +168,14 @@ export async function readFolder(
     json = JSON.parse(text);
   } catch (cause) {
     return fail(
+      "manifest-invalid",
       `dist/manifest.json is not valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
   }
   const unsupported = unsupportedFields(json);
   if (unsupported.length > 0) {
-    for (const message of unsupported) result.diagnostics.push(error(message));
+    for (const message of unsupported)
+      result.diagnostics.push(error("manifest-invalid", message));
     return result;
   }
   const parsed = installedExtensionManifestSchema.safeParse(json);
@@ -172,6 +183,7 @@ export async function readFolder(
     for (const issue of parsed.error.issues)
       result.diagnostics.push(
         error(
+          "manifest-invalid",
           `dist/manifest.json: ${issue.path.length > 0 ? `${issue.path.join(".")}: ` : ""}${issue.message}`,
         ),
       );
@@ -180,6 +192,7 @@ export async function readFolder(
   const manifest = parsed.data;
   if (manifest.id !== folderName)
     return fail(
+      "folder-id-mismatch",
       `The folder name '${folderName}' must equal the extension id '${manifest.id}'.`,
     );
   const readAsset = distReader(dist);
@@ -189,7 +202,10 @@ export async function readFolder(
       readAsset(file),
     );
   } catch (cause) {
-    return fail(cause instanceof Error ? cause.message : String(cause));
+    return fail(
+      "icon-invalid",
+      cause instanceof Error ? cause.message : String(cause),
+    );
   }
   for (const namespace of manifest.namespaces)
     for (const topic of namespace.docs ?? [])
@@ -198,6 +214,7 @@ export async function readFolder(
       } catch (cause) {
         result.diagnostics.push(
           error(
+            "doc-unreadable",
             `${namespace.id}: doc topic '${topic.id}' cannot be read: ${cause instanceof Error ? cause.message : String(cause)}`,
           ),
         );
@@ -205,7 +222,7 @@ export async function readFolder(
   // Text a model reads is bounded before consent: over the limit, the extension is invalid.
   if (result.diagnostics.length === 0)
     for (const problem of agentTextProblems(manifest, readAsset))
-      result.diagnostics.push(error(problem));
+      result.diagnostics.push(error("agent-text-too-long", problem));
   if (result.diagnostics.length > 0) return result;
   result.manifest = manifest;
   result.readAsset = readAsset;

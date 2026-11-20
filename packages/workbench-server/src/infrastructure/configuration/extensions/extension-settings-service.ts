@@ -205,6 +205,7 @@ export class ExtensionSettingsService {
       code: "file-unavailable" | "untrusted-project",
     ) =>
       diagnostics.push({
+        level: code === "file-unavailable" ? "error" : "warning",
         code,
         layer,
         message:

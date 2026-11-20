@@ -29,7 +29,9 @@ type Diagnostic = {
 
 `error` means the resource does not load. `warning` means it loads and probably does not do what was meant. Where the problem is (scope, file, resource) lives on the resource, not on each diagnostic.
 
-The existing shapes are replaced, not wrapped. Fields the app needs for recovery (`affectedCapability`, `recoveryChoices`) stay on the blocked-policy request where they are used.
+The existing shapes are replaced, not wrapped. A loader that scans many files and returns one flat list uses `FileDiagnostic`, the same shape plus `path`.
+
+One shape stays: `configurationDiagnosticSchema` of agent configuration. It is the located record of a blocked tool call (scope, document, path, `affectedCapability`, `recoveryChoices`), it is stored with tool-call interactions, and a released migration froze it. Replacing it would be a data change for no behavior gain. Its owner maps it to `Diagnostic` wherever it leaves agent configuration: the agent port now, the resource provider later.
 
 ## Resource
 
