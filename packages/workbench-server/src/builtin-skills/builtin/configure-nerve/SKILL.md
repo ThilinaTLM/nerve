@@ -59,16 +59,16 @@ Nerve does not watch files. In `quick_script`:
 
 1. **Read what is in effect.** `configuration.describe()` (rule set, model, applied profile), `configuration.list({ kind })` (what exists, after precedence, with `state`), `configuration.tools.list()` (tool names as rules match them), `configuration.explain({ tool, args })` (why a call is allowed or prompted). `sdk.describe("configuration")` has the result shapes.
 2. **Write.** Read an existing file in full first and keep what you did not mean to change. Before editing a file under `<home>` (usually not in git), copy it next to itself as `<name>.bak` and name the copy in your reply. Before a permission change, say in one sentence what will be allowed, prompted or denied afterwards, unless the user dictated the rule.
-3. **Check.** `configuration.check("project")` or `("user")` validates the files on disk and changes nothing. Fix what it reports until it returns no resource with an `error`.
+3. **Check**, after the write has finished (not in the same batch of calls). `configuration.check("project")` or `("user")` validates the files on disk and changes nothing. It reports every problem in the scope: fix the ones in files you wrote until none has an `error`; mention the others to the user and leave them alone.
 4. **Reload.** `configuration.reload(scope)` activates the files.
 5. **Hand over.** Report what you wrote with paths, and exactly what `configuration.list({ state: "needs_approval" })` shows, with where the user approves each.
 
 ```ts
+const written = "/abs/path/of/the/file/you/wrote";
 const checked = await configuration.check("project");
-if (
-  checked.resources.some((r) => r.diagnostics.some((d) => d.level === "error"))
-)
-  return checked;
+const mine = checked.resources.filter((r) => r.path === written);
+if (mine.some((r) => r.diagnostics.some((d) => d.level === "error")))
+  return mine;
 return await configuration.reload("project");
 ```
 

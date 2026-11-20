@@ -1,3 +1,4 @@
+import { configurationResourceSchema } from "@nervekit/contracts/configuration";
 import { codedError } from "../errors.js";
 import { defineMethod } from "../sdk-args.js";
 import type { SdkMethod } from "../sdk-types.js";
@@ -48,9 +49,17 @@ export const configurationMethods: SdkMethod[] = [
     signature:
       '/** Everything configured, after precedence: profiles, rule sets, overlays, launch catalog, skills, prompt suggestions, extensions; built-in, user and this project. Filter with any of kind, scope, state, e.g. `{ kind: "rule-set" }` for the ids a profile may select, `{ state: "needs_approval" }` for what waits for the user, `{ kind: "extension", state: "incompatible" }` after an update. Reads loaded state; `check` reads the disk. */ list(filter?: { kind?: ConfigurationResource["kind"]; scope?: ConfigurationResource["scope"]; state?: ConfigurationResource["state"] }): Promise<ConfigurationResult>',
     parse: (options): ConfigurationListFilter => {
-      for (const key of ["kind", "scope", "state"] as const)
-        if (options[key] !== undefined && typeof options[key] !== "string")
-          throw new Error(`${key} must be a string.`);
+      // A misspelt value would match nothing and read as "nothing configured".
+      for (const key of ["kind", "scope", "state"] as const) {
+        const allowed = configurationResourceSchema.shape[key].options;
+        if (
+          options[key] !== undefined &&
+          !(allowed as readonly unknown[]).includes(options[key])
+        )
+          throw new Error(
+            `${key} must be one of ${allowed.map((value) => `"${value}"`).join(", ")}.`,
+          );
+      }
       return options;
     },
     resource: () => "configuration",

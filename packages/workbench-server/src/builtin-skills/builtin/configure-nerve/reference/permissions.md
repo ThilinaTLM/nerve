@@ -10,7 +10,7 @@ Policy decides which calls run; it is not an operating-system sandbox. A shell c
 
 ## Procedure
 
-1. `configuration.describe()`: the rule set this conversation uses (`ruleSet.id`) and what selected it. Overlay rules apply only under the rule set they name; ask whether the rule should also apply under others.
+1. `configuration.describe()`: the rule set this conversation uses (`ruleSet.id`) and what selected it. Overlay rules apply only under the rule set they name. `configuration.explain` the call: if it is already allowed under the rule set in use, say so and ask which rule set the user means before writing anything. Otherwise write for the rule set in use, and ask whether the rule should also apply under others.
 2. Identify the exact calls: tool, command, path, URL or operation. For a prompt the user saw, `configuration.explain({ tool, args })` names the rule that decided.
 3. Pick the mechanism below and the scope: user overlay for a personal rule (works at once), project overlay for a team rule (the user approves it).
 4. Write the narrowest rule. Take tool names and groups from `configuration.tools.list()`; they are case-sensitive. Matchers: `reference/permission-matchers.md`.

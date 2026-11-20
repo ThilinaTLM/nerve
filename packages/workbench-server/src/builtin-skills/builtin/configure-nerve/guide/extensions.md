@@ -70,7 +70,7 @@ Edit the sources in its folder (not `dist/`), then run steps 5 to 7. Work in pla
 
 ## Upgrade after a Nerve update
 
-When `status` says the extension is `incompatible` ("Built with SDK …"), or the user asks to upgrade:
+Find the extensions with `configuration.list({ kind: "extension" })` (`path` is the folder; `state: "incompatible"` needs an upgrade). Upgrade one when it is `incompatible` ("Built with SDK …") or the user asks. Folders under the Nerve home are outside the project, so run commands there with `cd <folder> && …` in the command and leave the shell tool's `cwd` unset:
 
 ```sh
 node scripts/upgrade-extension.mjs <extension-folder>
