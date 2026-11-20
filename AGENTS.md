@@ -8,7 +8,7 @@
 - Never stop the daemon that hosts your session. Every daemon (desktop, dev, demo/screenshots) runs `packages/workbench-server/dist/main.js`, so `pkill -f`/`killall`/port kills hit the live one too. Stop only processes you started, by PID, or let their owner (`launch`, `async_bash`, `packages/website/scripts/screenshots/run.ts`) stop them.
 - DB schema changes are sensitive; the schema must stay small. Before planning any table/column change, discuss alternatives (files, memory, existing columns) and justify the change with the user, and get explicit approval. Test schema/migration changes on a copied/fresh slot (`pnpm storage:copy --slot N`), not slot 1.
 - The root `package.json` version is the latest release. All unreleased data changes since then belong in a single migration step; extend it instead of adding another.
-- Use .worktrees to create additional worktrees only when tasks need to be handled in parallel.
+- Use ./worktrees to create additional worktrees only when tasks need to be handled in parallel.
 
 **Architecture**
 

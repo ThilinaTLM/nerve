@@ -23,7 +23,7 @@ target/
 .env
 .env.*
 !.env.example
-.worktrees
+worktrees
 
 # Local Design Lab prototypes (runner and catalog remain versioned)
 /packages/workbench-app/src/lib/app/design-lab/wireframes/
