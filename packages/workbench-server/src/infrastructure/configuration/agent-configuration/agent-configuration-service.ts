@@ -52,6 +52,7 @@ import {
 } from "@nervekit/contracts/agent-configuration";
 import {
   ScopedDocumentStore,
+  type AcceptDocument,
   ScopeUnavailableError,
   freezeJson,
   type ScopeGeneration,
@@ -227,21 +228,24 @@ export class AgentConfigurationService {
     this.track(scope);
     return this.agents.ensureLoaded(scope);
   }
-  /** With `keepLoaded`, an invalid file never replaces a valid loaded document (`rejected` has its issues). */
-  async reload(scope: AgentScope, keepLoaded = false) {
+  /** With `keep`, an invalid or unaccepted file never replaces a valid loaded document (`rejected` has its issues). */
+  async reload(
+    scope: AgentScope,
+    keep?: { accept?: AcceptDocument<AgentDocument> },
+  ) {
     this.retryScope(scope);
     const blocked = await this.prepareScope(this.paths.preferenceScope(scope));
     if (blocked) return blocked;
     this.track(scope);
-    const result = keepLoaded
-      ? await this.agents.reloadKeepingLoaded(scope)
+    const result = keep
+      ? await this.agents.reloadKeepingLoaded(scope, keep.accept)
       : await this.agents.reload(scope);
     this.healthSignals.publish(scope);
     return result;
   }
   /** Issues of the agent preferences file as it is on disk; activates nothing. */
-  inspectAgent(scope: AgentScope) {
-    return this.agents.inspect(scope);
+  inspectAgent(scope: AgentScope, accept?: AcceptDocument<AgentDocument>) {
+    return this.agents.inspect(scope, accept);
   }
   inspectCreation(scope: PreferenceScope) {
     return this.creation.inspect(scope);

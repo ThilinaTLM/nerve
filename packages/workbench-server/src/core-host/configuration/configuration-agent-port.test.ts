@@ -43,6 +43,7 @@ async function setup(t: test.TestContext) {
     service,
     policy: {
       check: (paths) => source.check(paths),
+      selectableRuleSetIds: () => source.selectableRuleSetIds(),
       reload: (paths) => {
         reloaded.push(paths);
         return source.reload(paths);
@@ -142,6 +143,104 @@ void test("an invalid edit of a loaded file keeps the previous version and says 
   assert.notEqual(
     (await service.ensureLoaded({ scope: "user" })).status,
     "unavailable",
+  );
+});
+
+void test("warnings report mistakes that load; preferences selecting a missing rule set are not activated", async (t) => {
+  const { home, port, service } = await setup(t);
+  await mkdir(join(home, "config", "rule-sets"), { recursive: true });
+  await writeFile(
+    join(home, "config", "rule-sets", "mine.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      id: "other",
+      name: "Mine",
+      source: "user",
+      enabled: true,
+      rules: [
+        {
+          id: "shell",
+          enabled: true,
+          priority: 1,
+          enforcement: "overridable",
+          when: { toolNames: ["Bash"] },
+          decision: "allow",
+        },
+        {
+          id: "any-shell",
+          enabled: true,
+          priority: 2,
+          enforcement: "overridable",
+          when: { toolNames: ["bash"] },
+          decision: "allow",
+        },
+      ],
+    }),
+  );
+  await writeFile(
+    join(home, "config", "permissions.json"),
+    JSON.stringify({
+      schemaVersion: 2,
+      overlays: [{ ruleSetId: "nope", rules: [] }],
+    }),
+  );
+  const { resources } = await port.reload("user");
+  assert.deepEqual(
+    resources.map(({ kind, state, diagnostics }) => ({
+      kind,
+      state,
+      codes: diagnostics.map(({ level, code }) => `${level}:${code}`),
+    })),
+    [
+      {
+        kind: "permission-overlay",
+        state: "active",
+        codes: ["warning:unknown-rule-set"],
+      },
+      {
+        kind: "rule-set",
+        state: "active",
+        codes: [
+          "warning:rule-set-id-mismatch",
+          "warning:unknown-tool-name",
+          "warning:unbounded-allow",
+        ],
+      },
+    ],
+  );
+  assert.match(
+    resources[1].diagnostics[1].message,
+    /Use "bash"/,
+    "a name that differs only in casing gets the right one",
+  );
+  // Selecting a rule set that does not exist would block every tool call.
+  const agent = join(home, "config", "agent.json");
+  await writeFile(
+    agent,
+    JSON.stringify({
+      schemaVersion: 1,
+      revision: 1,
+      overrides: { permissionRuleSetId: "missing" },
+    }),
+  );
+  const checked = await port.check("user");
+  const preferences = checked.resources.find(
+    (resource) => resource.kind === "agent-preferences",
+  );
+  assert.equal(preferences?.state, "invalid");
+  assert.equal(
+    preferences?.diagnostics[0].pointer,
+    "/overrides/permissionRuleSetId",
+  );
+  const reloaded = (await port.reload("user")).resources.find(
+    (resource) => resource.kind === "agent-preferences",
+  );
+  assert.equal(reloaded?.previousVersionActive, true);
+  const state = await service.ensureLoaded({ scope: "user" });
+  assert.equal(
+    state.status !== "unavailable" &&
+      state.value.document.overrides.permissionRuleSetId,
+    undefined,
   );
 });
 

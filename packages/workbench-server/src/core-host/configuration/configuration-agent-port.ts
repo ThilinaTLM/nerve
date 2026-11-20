@@ -79,7 +79,10 @@ function identify(
  */
 export function createConfigurationAgentPort(options: {
   service: AgentConfigurationService;
-  policy: Pick<ScopedPermissionPolicySource, "reload" | "check">;
+  policy: Pick<
+    ScopedPermissionPolicySource,
+    "reload" | "check" | "selectableRuleSetIds"
+  >;
   /** The conversation whose project the scope `"project"` names. */
   conversationId: string;
   trustedResources: Pick<CoreStorage["trustedResources"], "find">;
@@ -263,7 +266,11 @@ export function createConfigurationAgentPort(options: {
       const target = preference(scope);
       const state = await service.ensureLoaded(target);
       return resources(scope, [
-        ...(await inspectScope(service, target))
+        ...(
+          await inspectScope(service, target, {
+            ruleSetIds: await policy.selectableRuleSetIds(),
+          })
+        )
           .filter(own(scope))
           .map((issue) => fromAgentConfiguration(issue, false)),
         ...(service.untrustedProject(state)
@@ -280,13 +287,21 @@ export function createConfigurationAgentPort(options: {
       ]);
     },
     async reload(scope) {
-      const kept = await reloadScopeKeepingLoaded(service, preference(scope));
-      // The user scope also covers every rule set and every permission file loaded so far.
+      // Permission files first, so preferences that select a new rule set find it. The user
+      // scope also covers every rule set and every permission file loaded so far.
       const reports = await policy.reload(permissionPaths(scope));
+      const { kept, concerns } = await reloadScopeKeepingLoaded(
+        service,
+        preference(scope),
+        { ruleSetIds: await policy.selectableRuleSetIds() },
+      );
       return resources(scope, [
         ...kept
           .filter(own(scope))
           .map((issue) => fromAgentConfiguration(issue, true)),
+        ...concerns
+          .filter(own(scope))
+          .map((issue) => fromAgentConfiguration(issue, false)),
         ...(await loaded(scope)).map((issue) =>
           fromAgentConfiguration(issue, false),
         ),

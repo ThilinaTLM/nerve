@@ -54,13 +54,16 @@ return await configuration.reload("project");
 
 Both return `{ resources }`: only the files that have a diagnostic, so an empty list means every file of that scope is valid. Each resource has `kind`, `id`, `scope`, `path`, `state` and `diagnostics` (`level`, `code`, `message`, `pointer`); the message says what is wrong and what to do.
 
-| `state`                                     | Meaning                                                                           | You                                                         |
-| ------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `invalid`                                   | The file is not in use.                                                           | Fix it, check again.                                        |
-| `active` with `previousVersionActive: true` | The file on disk is invalid, so the version loaded before your edit stays in use. | Fix it and reload; nothing is broken yet.                   |
-| `needs_approval`                            | The file is valid and ignored until the user approves its exact content.          | Tell the user where (`approval.where`). You cannot approve. |
+| `state`                                     | Meaning                                                                                                                                                           | You                                                               |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `invalid`                                   | The file is not in use.                                                                                                                                           | Fix it, check again.                                              |
+| `active` with `previousVersionActive: true` | The file on disk is invalid, so the version loaded before your edit stays in use.                                                                                 | Fix it and reload; nothing is broken yet.                         |
+| `needs_approval`                            | The file is valid and ignored until the user approves its exact content.                                                                                          | Tell the user where (`approval.where`). You cannot approve.       |
+| `active` with only `warning` diagnostics    | The file is in use and probably does not do what was meant: a tool name that matches nothing, a rule set id that does not exist, an `allow` on every `bash` call. | Read the message and fix it, or tell the user why it is intended. |
 
 Rule sets are covered by user scope, the launch catalog by project scope. Skills are not covered.
+
+Preferences that select a rule set which does not exist are treated like an invalid file, because they would block every tool call.
 
 Leave no `error` diagnostic behind when you end your turn: after a restart there is no loaded version to fall back to, and an invalid permission file then blocks tool calls (model replies still work). Reloading never approves trust.
 

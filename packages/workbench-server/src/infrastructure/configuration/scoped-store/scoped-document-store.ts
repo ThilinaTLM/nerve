@@ -75,7 +75,17 @@ type Candidate<D> =
 export type KeptReload<S, D> = ScopeHealth<S, D> & {
   /** Issues of the file on disk; set when it was invalid and the loaded generation stays in force. */
   readonly rejected?: readonly DocumentIssue[];
+  /** Issues `accept` raised for a file that was activated all the same, because nothing valid was loaded. */
+  readonly concerns?: readonly DocumentIssue[];
 };
+
+/**
+ * A caller's acceptance rule for a parsed file: facts the schema cannot know, such as whether
+ * a referenced resource exists. Issues keep a loaded generation in force, like parse errors.
+ */
+export type AcceptDocument<D> = (
+  document: Readonly<D>,
+) => readonly DocumentIssue[];
 
 export interface ScopedDocumentOptions<S, D extends SchemaDocument> {
   /** Must return a stable identity/path for each document, including its domain. */
@@ -169,21 +179,35 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
    * Validate, then activate: like `reload`, but a file that is invalid on disk never
    * replaces a valid loaded generation. Its issues come back as `rejected`.
    */
-  reloadKeepingLoaded(scope: S): Promise<KeptReload<S, D>> {
+  reloadKeepingLoaded(
+    scope: S,
+    accept?: AcceptDocument<D>,
+  ): Promise<KeptReload<S, D>> {
     return this.serialize(scope, async () => {
       const candidate = await this.candidate(scope);
+      const issues = candidate.ok
+        ? (accept?.(candidate.document) ?? [])
+        : candidate.issues;
       const loaded = this.peek(scope);
-      if (!candidate.ok && loaded && loaded.status !== "unavailable")
-        return { ...loaded, rejected: candidate.issues };
-      return this.apply(scope, candidate);
+      if (issues.length > 0 && loaded && loaded.status !== "unavailable")
+        return { ...loaded, rejected: issues };
+      const state = this.apply(scope, candidate);
+      return candidate.ok && issues.length > 0
+        ? { ...state, concerns: issues }
+        : state;
     });
   }
 
   /** Issues of the file on disk; empty when it is valid. Activates nothing. */
-  inspect(scope: S): Promise<readonly DocumentIssue[]> {
+  inspect(
+    scope: S,
+    accept?: AcceptDocument<D>,
+  ): Promise<readonly DocumentIssue[]> {
     return this.serialize(scope, async () => {
       const candidate = await this.candidate(scope);
-      return candidate.ok ? [] : candidate.issues;
+      return candidate.ok
+        ? (accept?.(candidate.document) ?? [])
+        : candidate.issues;
     });
   }
 

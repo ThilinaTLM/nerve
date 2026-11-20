@@ -9,6 +9,7 @@ import {
   type LoadedPermissionFile,
   type PermissionFileReport,
 } from "./permission-files.js";
+import { permissionFileWarnings } from "./permission-warnings.js";
 import { readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { isPathInside } from "@nervekit/tools/execution";
@@ -29,7 +30,11 @@ import {
   builtInPermissionRuleSets,
   type OperationRisk,
 } from "@nervekit/tools/policy";
-import { classifyToolRisk } from "@nervekit/tools/catalog";
+import {
+  allScopedToolNames,
+  allToolDescriptors,
+  classifyToolRisk,
+} from "@nervekit/tools/catalog";
 import {
   classifyQuickScriptArguments,
   summarizeScannedCalls,
@@ -60,6 +65,8 @@ export interface ScopedPermissionPolicySource extends AdmissionPolicySource {
   reload(paths?: readonly string[]): Promise<PermissionFileReport[]>;
   /** Validates the files on disk and changes nothing. Without `paths`: the user overlay and every rule set. */
   check(paths?: readonly string[]): Promise<PermissionFileReport[]>;
+  /** Ids of the loaded rule sets a conversation can select: built-in and valid, enabled user ones. */
+  selectableRuleSetIds(): Promise<string[]>;
 }
 
 /** Lazy policy authority. Files are cached until an application save or explicit health reload. */
@@ -170,20 +177,59 @@ export function createScopedPermissionSource(options: {
       };
     }
   };
-  const report = (
-    path: string,
-    candidate: LoadedPermissionFile,
-  ): PermissionFileReport => {
+  const builtinRuleSetIds = new Set(
+    builtInPermissionRuleSets.map((entry) => entry.id),
+  );
+  type Examined = {
+    report: PermissionFileReport;
+    parsed: ReturnType<typeof parsePermissionFile>;
+  };
+  const examine = (path: string, candidate: LoadedPermissionFile): Examined => {
     const identity = identifyPermissionFile(options.home, path);
     const parsed = parsePermissionFile(identity, candidate);
     return {
-      path,
-      ...identity,
-      diagnostics: parsed.ok ? [] : parsed.diagnostics,
-      ...(candidate.kind === "bytes"
-        ? { contentDigest: overlayDigest(candidate.bytes) }
-        : {}),
+      parsed,
+      report: {
+        path,
+        ...identity,
+        diagnostics: parsed.ok ? [] : parsed.diagnostics,
+        ...(candidate.kind === "bytes"
+          ? { contentDigest: overlayDigest(candidate.bytes) }
+          : {}),
+      },
     };
+  };
+  /** Adds the warnings of the files that parsed: mistakes that load cleanly. */
+  const withWarnings = async (
+    examined: readonly Examined[],
+  ): Promise<PermissionFileReport[]> => {
+    const loaded = await rules().catch(() => undefined);
+    const context = {
+      toolNames: new Set([
+        ...allToolDescriptors().map((tool) => tool.name),
+        ...allScopedToolNames(),
+      ]),
+      builtinRuleSetIds,
+      ruleSetIds: new Set([
+        ...(loaded?.values.map((entry) => entry.id) ?? builtinRuleSetIds),
+        ...examined.flatMap(({ parsed }) =>
+          parsed.ok && parsed.ruleSet ? [parsed.ruleSet.id] : [],
+        ),
+      ]),
+    };
+    return examined.map(({ report, parsed }) =>
+      parsed.ok
+        ? {
+            ...report,
+            diagnostics: permissionFileWarnings(
+              report.path,
+              report,
+              parsed,
+              context,
+            ),
+          }
+        : report,
+    );
   };
   function blocked(
     path: string,
@@ -242,11 +288,19 @@ export function createScopedPermissionSource(options: {
       epoch++;
       policies.clear();
     },
+    async selectableRuleSetIds() {
+      const loaded = await rules().catch(() => undefined);
+      return (loaded?.values ?? builtInPermissionRuleSets)
+        .filter((entry) => entry.enabled)
+        .map((entry) => entry.id);
+    },
     async check(paths) {
       const user = paths ? undefined : await userPaths();
-      const reports = await Promise.all(
-        (paths ?? user!.paths).map(async (path) =>
-          report(path, await readPermissionFile(path)),
+      const reports = await withWarnings(
+        await Promise.all(
+          (paths ?? user!.paths).map(async (path) =>
+            examine(path, await readPermissionFile(path)),
+          ),
         ),
       );
       return user?.folder ? [...reports, user.folder] : reports;
@@ -254,18 +308,17 @@ export function createScopedPermissionSource(options: {
     async reload(paths) {
       const user = paths ? undefined : await userPaths();
       const targets = new Set(paths ?? [...user!.paths, ...files.keys()]);
-      const reports = await Promise.all(
-        [...targets].map(async (path) => {
+      const examined = await Promise.all(
+        [...targets].map(async (path): Promise<Examined> => {
           const candidate = await readPermissionFile(path);
-          const result = report(path, candidate);
+          const result = examine(path, candidate);
           const loaded = files.get(path);
           // Validate, then activate: an invalid file never replaces a valid loaded version.
-          if (
-            result.diagnostics.length > 0 &&
-            loaded &&
-            parse(path, await loaded).ok
-          )
-            return { ...result, previousVersionActive: true as const };
+          if (!result.parsed.ok && loaded && parse(path, await loaded).ok)
+            return {
+              ...result,
+              report: { ...result.report, previousVersionActive: true },
+            };
           // Shared per-path promises publish exactly one generation for all conversations.
           files.set(path, Promise.resolve(candidate));
           return result;
@@ -273,6 +326,7 @@ export function createScopedPermissionSource(options: {
       );
       catalog = undefined;
       source.invalidate();
+      const reports = await withWarnings(examined);
       return user?.folder ? [...reports, user.folder] : reports;
     },
     async ensureLoaded(input) {
