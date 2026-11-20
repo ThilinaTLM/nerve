@@ -24,6 +24,5 @@ export type {
   SettingsNavGroup,
   SettingsNavItem,
   SettingsScopeHeader,
-  SettingsScopeRow,
   SettingsPageDef,
 } from "./settings-component-contracts";
