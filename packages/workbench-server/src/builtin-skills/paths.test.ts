@@ -29,6 +29,7 @@ void test("resolves bundled skills but rejects unknown names and traversal", () 
 void test("bundles supporting files beside a built-in skill", () => {
   const root = dirname(builtinSkillFilePath("engineering-docs") ?? "");
   for (const file of [
+    "reference/agent-files.md",
     "reference/architecture.md",
     "reference/proposals.md",
     "scripts/doccheck.mjs",

@@ -49,7 +49,7 @@ Size is a signal, not a limit. Length follows the topic: a design system with to
 
 ## Glossary
 
-Always a separate file `docs/architecture/glossary.md` (keeps README compact; glossary grows independently). Linked from README map and agent-guidance block. Format: title, one-line purpose, alphabetical table: term | meaning here | not to be confused with. No other prose.
+Always a separate file `docs/architecture/glossary.md` (keeps README compact; glossary grows independently). Linked from README map and the root agent file's docs block. Format: title, one-line purpose, alphabetical table: term | meaning here | not to be confused with. No other prose.
 
 Include:
 
@@ -95,7 +95,7 @@ Must be a blockquote starting `> **Known debt:**` (other forms are reported by `
 
 - Only after the user confirmed it, or under debt delegation the user gave explicitly; then list it in the report (SKILL.md "Asking the user").
 - Every debt marker links a proposal; that proposal links back to the architecture page (checked by `hygiene`).
-- Roadmap gets a debt item for it.
+- That proposal carries the `debt` label.
 - Partially fixed: keep the marker, narrowed to what remains.
 - Remove marker when proposal is decommissioned.
 

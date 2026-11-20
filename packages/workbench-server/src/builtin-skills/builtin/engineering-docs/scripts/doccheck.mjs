@@ -2,10 +2,10 @@
 // Doc checks. Node >= 18, no dependencies. Run from repo root. Report-only.
 //   node doccheck.mjs links   [PATH...]  broken relative links/#anchors in .md and .html (default: docs)
 //   node doccheck.mjs refs    [PATH...]  backticked repo paths/symbols absent from code (advisory, WARN only)
-//   node doccheck.mjs hygiene [DOCS]     debt/index integrity (ERROR); size, MUST density, stale drafts,
-//                                        roadmap links, glossary (WARN)            (default DOCS: docs)
+//   node doccheck.mjs hygiene [DOCS]     debt links, proposal headers (ERROR); size, MUST density, stale drafts,
+//                                        proposals README, debt label, glossary (WARN)  (default DOCS: docs)
 // Exit: 0 = ok or WARN only; 1 = any ERROR; 2 = usage error, path not found, internal error.
-// Not checked: root-relative (/x) links, agent-guidance block, links inside HTML comments.
+// Not checked: root-relative (/x) links, agent instruction files, links inside HTML comments.
 // Silence a size WARN on a deliberately long file with <!-- size: reviewed -->.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -242,6 +242,36 @@ const DEBT =
   /^[ \t]*>[ \t]*\**known debt\**[ \t]*:[\s\S]*?(?=\n(?![ \t]*>)|(?![\s\S]))/gim;
 const DEBT_LOOSE = /^[ \t]*(?:[-*+][ \t]+)?\**known debt\**[ \t]*:/gim;
 
+const STATUSES = ["Draft", "Accepted", "Rejected"];
+const TYPE_LABELS = ["feature", "change", "bug", "debt", "refactor"];
+const HEADER_HINT = `expected "# <Title>" then "**Status:** ${STATUSES.join("|")} · **Labels:** <type>[, ...]" with type in ${TYPE_LABELS.join("|")}`;
+
+// Proposal header: first non-empty line "# Title", next "**Status:** X · **Labels:** a, b".
+function parseHeader(s) {
+  const [title, meta] = stripComments(s)
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!/^# \S/.test(title ?? ""))
+    return { error: 'missing "# <Title>" first line' };
+  const m = /^\*\*Status:\*\*\s*(\S+)\s*·\s*\*\*Labels:\*\*\s*(.*)$/.exec(
+    meta ?? "",
+  );
+  if (!m) return { error: "malformed header" };
+  const status = m[1];
+  const labels = m[2]
+    .split(",")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!STATUSES.includes(status))
+    return { error: `unknown status "${status}"` };
+  const bad = labels.filter((l) => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(l));
+  if (bad.length) return { error: `labels not kebab-case: ${bad.join(", ")}` };
+  if (!labels.some((l) => TYPE_LABELS.includes(l)))
+    return { error: "no type label" };
+  return { status, labels };
+}
+
 function hygiene(args) {
   const docs = normalize(args[0] ?? "docs").replace(/[\\/]$/, "");
   if (!isDir(docs)) usage(`docs directory not found: ${docs}`);
@@ -299,6 +329,11 @@ function hygiene(args) {
         out.push(
           `ERROR ${posix(relative(".", p))}: debt proposal does not link back to ${posix(f)}`,
         );
+      const h = parseHeader(read(p));
+      if (h.labels && !h.labels.includes("debt"))
+        out.push(
+          `WARN ${posix(relative(".", p))}: linked from Known debt in ${posix(f)} but lacks the "debt" label`,
+        );
     }
   }
 
@@ -308,62 +343,34 @@ function hygiene(args) {
   else if (existsSync(readme) && !linksTo(readme, join(arch, "glossary.md")))
     out.push(`WARN ${posix(readme)}: does not link glossary.md`);
 
-  const idx = join(prop, "README.md");
-  if (!existsSync(idx)) return out;
-  const entryOf = (p) => (isDir(p) ? join(p, "README.md") : p);
-  const listed = new Set(
-    linkTargets(idx)
-      .filter(
-        (t) => t && !external(t) && !t.startsWith("#") && !t.startsWith("../"),
-      )
-      .map((t) => resolve(entryOf(resolve(prop, splitTarget(t)[0]))))
-      .filter((p) => under(p, resolve(prop))),
-  );
-  for (const p of listed)
-    if (!existsSync(p))
-      out.push(
-        `ERROR ${posix(idx)}: index points to missing ${posix(relative(".", p))}`,
-      );
+  if (!isDir(prop)) return out;
+  if (existsSync(join(prop, "README.md")))
+    out.push(
+      `WARN ${posix(prop)}/README.md: proposals have no index; move content into proposal headers/files and delete it`,
+    );
   const gitOk = inGit();
   for (const name of readdirSync(prop).sort()) {
     const p = join(prop, name);
-    if (
-      name === "README.md" ||
-      !existsSync(p) ||
-      (!isDir(p) && extname(name) !== ".md")
-    )
+    if (name === "README.md" || (!isDir(p) && extname(name) !== ".md"))
       continue;
-    const entry = entryOf(p);
+    const entry = isDir(p) ? join(p, "README.md") : p;
     if (!existsSync(entry)) {
       out.push(`ERROR ${posix(p)}: folder proposal without README.md`);
       continue;
     }
-    if (!listed.has(resolve(entry)))
-      out.push(`ERROR ${posix(entry)}: not in proposals index`);
+    const h = parseHeader(read(entry));
+    if (h.error) {
+      out.push(`ERROR ${posix(entry)}: ${h.error}; ${HEADER_HINT}`);
+      continue;
+    }
     const ts = gitOk ? git("log", "-1", "--format=%ct", "--", p)?.trim() : "";
     if (
       ts &&
       Date.now() / 1000 - Number(ts) > STALE_DAYS * 86400 &&
-      /Status:?\**:?\s*Draft/i.test(read(entry))
+      h.status === "Draft"
     )
       out.push(
         `WARN ${posix(entry)}: Draft untouched > ${STALE_DAYS} days (ask: revive, reject, keep)`,
-      );
-  }
-  const roadmap =
-    /^## Roadmap\b([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(
-      stripCode(read(idx)),
-    )?.[1] ?? "";
-  // An item is a "- [ ]" / "* [ ]" line plus its indented continuation lines.
-  for (const [item] of roadmap.matchAll(
-    /^\s*[-*+] \[[ xX]\][^\n]*(?:\n[ \t]+\S[^\n]*)*/gm,
-  )) {
-    const ok = [...item.matchAll(/\]\(([^)\s]+)\)/g)].some(
-      (m) => !external(m[1]) && /(\.md|\/)$/.test(splitTarget(m[1])[0]),
-    );
-    if (!ok)
-      out.push(
-        `WARN ${posix(idx)}: roadmap item without proposal link: ${item.trim().split("\n")[0].slice(0, 70)}`,
       );
   }
   return out;
