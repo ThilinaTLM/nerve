@@ -54,7 +54,7 @@ await extensions.reload("<id>"); // re-reads the folder; never grants consent
 return await extensions.status("<id>");
 ```
 
-Nerve sees a new or changed extension folder only after `extensions.reload`; until then the old state is reported. When a user and a project extension share an id, `configuration.list({ kind: "extension" })` shows both with their scope and which one is shadowed.
+Nerve loads a new or changed extension folder only on `extensions.reload`. `configuration.check("user")` (or `"project"`) reads the folders on disk and reports a folder that is valid but not loaded yet as `reload-needed`. When a user and a project extension share an id, `configuration.list({ kind: "extension" })` shows both with their scope and which one is shadowed.
 
 `status` returns `state`, `consent`, `switch`, `diagnostics` and `recentErrors` (since the last reload: backend exceptions, plus uncaught frame errors and CSP violations with `operation: "frame:<kind>/<id>"`; console output is not included). A frame only runs once the user has allowed the extension and opened it, so after they try it, read the status again before you say it works. Fix every `error` diagnostic, run `check`, and reload again. Expected end state for a new extension: `state: "pending_consent"`, `consent: "pending"`.
 

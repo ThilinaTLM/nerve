@@ -54,6 +54,11 @@ $effect(() => {
   });
 });
 
+// Files change without an event (an edit in the editor, a pull), so opening the list reads again.
+$effect(() => {
+  if (activityInbox.open) untrack(() => void attention.refresh());
+});
+
 $effect(() => {
   if (!attention.loaded) return;
   const entries = attention.entries;

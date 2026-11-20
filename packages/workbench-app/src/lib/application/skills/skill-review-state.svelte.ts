@@ -36,6 +36,8 @@ export class SkillReviewState {
       if (request !== this.#request) return;
       this.review = review;
       this.phase = "ready";
+      // The files may have changed since the bell and the counts were read.
+      configurationAttention.refreshSoon();
     } catch (error) {
       if (request !== this.#request) return;
       // The review fails the same way for a missing skill and for a broken

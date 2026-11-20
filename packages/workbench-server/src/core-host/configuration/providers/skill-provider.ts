@@ -90,6 +90,7 @@ export function skillProvider(options: {
                   ...approvalDiagnostic(APPROVAL),
                   ...(status === "changed"
                     ? {
+                        code: "approval-outdated",
                         message: `Its files changed since the user approved it, so it is not used until they approve it again in ${APPROVAL.where}. You cannot approve it; tell the user.`,
                       }
                     : {}),

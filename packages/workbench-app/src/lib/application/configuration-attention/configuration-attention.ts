@@ -129,7 +129,12 @@ export function attentionTarget(
 }
 
 function reviewDetail(resource: ConfigurationResource): string {
-  if (resource.kind === "skill") return "Not used until you approve it.";
+  if (resource.kind === "skill")
+    return resource.diagnostics.some(
+      (diagnostic) => diagnostic.code === "approval-outdated",
+    )
+      ? "Changed since you approved it. Not used until you approve it again."
+      : "Not used until you approve it.";
   if (resource.kind === "extension") return "Not loaded until you allow it.";
   return "Ignored until you approve it.";
 }
@@ -161,7 +166,8 @@ export function attentionEntry(
           ? `${label} needs an upgrade`
           : `${label} can't load`,
     origin: resource.scope === "project" ? PROJECT_ORIGIN : USER_ORIGIN,
-    detail: first ?? reviewDetail(resource),
+    // The diagnostic of a waiting item addresses the agent; the user reads this line.
+    detail: group === "review" ? reviewDetail(resource) : (first ?? ""),
     ...(target ? { target } : {}),
     ...(group === "broken"
       ? { askAgent: upgrade ? ("upgrade" as const) : ("fix" as const) }

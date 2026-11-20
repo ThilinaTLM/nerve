@@ -371,6 +371,8 @@ export async function newConversationWithPrompt(
     const target = { kind: "pending-conversation", id, projectId } as const;
     const drafts = conversationDraftStore();
     const current = drafts.getPrompt(target);
+    // A new conversation that was never sent is reused, so asking twice must not repeat the text.
+    if (current.includes(prompt)) return;
     drafts.setPrompt(
       target,
       current.trim() ? `${current}\n\n${prompt}` : prompt,

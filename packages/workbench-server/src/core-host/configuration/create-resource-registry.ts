@@ -48,6 +48,11 @@ export function createResourceRegistry(options: {
       trust: createProjectSkillTrust(options.trustedResources),
     }),
   );
-  registry.register(extensionProvider({ catalog: options.extensionCatalog }));
+  registry.register(
+    extensionProvider({
+      catalog: options.extensionCatalog,
+      home: options.home,
+    }),
+  );
   return registry;
 }

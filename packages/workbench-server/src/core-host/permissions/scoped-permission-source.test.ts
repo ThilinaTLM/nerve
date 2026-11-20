@@ -130,7 +130,11 @@ void test("admission reads live selection, keeps the loaded policy over an inval
     );
     assert.equal((await prepare(input)).check().kind, "policy");
     await rm(projectPath);
-    await source.reload([projectPath]);
+    assert.deepEqual(
+      (await source.reload([projectPath]))[0].diagnostics,
+      [],
+      "a removed file reports nothing",
+    );
     assert.equal((await prepare(input)).check().kind, "policy");
     // A file that is already invalid when it is first loaded has no version to keep.
     const cold = createScopedPermissionSource({

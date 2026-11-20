@@ -88,14 +88,14 @@ interface ConfigurationResourceProvider {
 
 `ResourceContext` is `{ scope, projectId, conversationId? }`.
 
-| Provider              | Owner today                                   | Notes                                                                                                    |
-| --------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Preferences, profiles | `AgentConfigurationService`                   | Already has `health()` and reload                                                                        |
-| Rule sets, overlays   | Permission source                             | Gains `check`; the port's own parsing is deleted                                                         |
-| Launch catalog        | `LaunchDefinitionService`                     | Read fresh on every use: `reload` equals `check`                                                         |
-| Skills                | Resource loader over the harness skill loader | `reload` equals `check`; reports frontmatter errors, shadowed names and project skills awaiting approval |
-| Prompt suggestions    | `PromptSuggestionService`                     | Predicate approval maps to `needs_approval`                                                              |
-| Extensions            | Extension catalog                             | `reload` by scope calls the catalog's reload for each folder                                             |
+| Provider              | Owner today                                   | Notes                                                                                                     |
+| --------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Preferences, profiles | `AgentConfigurationService`                   | Already has `health()` and reload                                                                         |
+| Rule sets, overlays   | Permission source                             | Gains `check`; the port's own parsing is deleted                                                          |
+| Launch catalog        | `LaunchDefinitionService`                     | Read fresh on every use: `reload` equals `check`                                                          |
+| Skills                | Resource loader over the harness skill loader | `reload` equals `check`; reports frontmatter errors, shadowed names and project skills awaiting approval  |
+| Prompt suggestions    | `PromptSuggestionService`                     | Predicate approval maps to `needs_approval`                                                               |
+| Extensions            | Extension catalog                             | `check` reads the folders on disk (`reload-needed` when valid but not loaded); `reload` reloads the scope |
 
 A new configurable thing becomes visible to the agent and the user by adding a provider.
 
