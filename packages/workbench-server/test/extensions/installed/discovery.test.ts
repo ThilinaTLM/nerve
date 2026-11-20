@@ -122,6 +122,12 @@ void test("discovery honours ignore files and reads only dist/", async () => {
     JSON.stringify(fixtureManifest({ id: "src-only" })),
   );
   const reads = await readInstalledExtensions(dir, NERVE);
+  const notBuilt = reads.find((read) => read.folderName === "src-only")!;
+  assert.equal(notBuilt.diagnostics[0]!.code, "not-built");
+  assert.match(
+    notBuilt.diagnostics[0]!.message,
+    /Ask the agent .* to build it/,
+  );
   assert.deepEqual(
     reads.map((read) => [read.folderName, Boolean(read.manifest)]),
     [

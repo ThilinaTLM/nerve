@@ -13,6 +13,7 @@ import {
   main,
   packageManager,
   parseArgs,
+  printForeignDependencies,
   resolveSdk,
   run,
   upgradeNotes,
@@ -44,7 +45,8 @@ main(() => {
     if (sdk.overrides) pkg.overrides = sdk.overrides;
     writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
     console.log(`SDK ${from} -> ${sdk.dependency}`);
-    if (run(pm.install[0], pm.install[1], folder) !== 0)
+    printForeignDependencies(folder);
+    if (run(pm.update[0], pm.update[1], folder) !== 0)
       throw new UserError(
         `${manager} install failed in ${folder}; see the output above.`,
       );

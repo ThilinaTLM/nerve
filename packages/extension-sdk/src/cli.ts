@@ -160,7 +160,7 @@ export async function main(
         if (flags.get("install") === true) {
           const code = await new Promise<number>((done) => {
             void import("node:child_process").then(({ spawn }) =>
-              spawn("npm", ["install"], {
+              spawn("npm", ["install", "--ignore-scripts"], {
                 cwd: folder,
                 stdio: "inherit",
                 shell: process.platform === "win32",
@@ -170,7 +170,7 @@ export async function main(
           if (code !== 0) return code;
         } else if (flags.get("quiet") !== true)
           console.log(
-            `Next: cd ${folder} && npm install && npx nerve-ext check`,
+            `Next: cd ${folder} && npm install --ignore-scripts && npx nerve-ext check`,
           );
         return 0;
       }

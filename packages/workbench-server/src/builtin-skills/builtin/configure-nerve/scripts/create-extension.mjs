@@ -14,7 +14,6 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
 import {
   SDK_PACKAGE,
   UserError,
@@ -22,22 +21,16 @@ import {
   main,
   packageManager,
   parseArgs,
+  printForeignDependencies,
   resolveSdk,
   run,
   targetFolder,
 } from "./lib.mjs";
 
+/** Dependencies of the SDK itself are fetched without running their install scripts too. */
+const NO_INSTALL_SCRIPTS = { npm_config_ignore_scripts: "true" };
 const KINDS = ["preview", "page", "panel", "theme", "integration"];
 const ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
-
-function distIgnored(folder) {
-  const result = spawnSync(
-    "git",
-    ["check-ignore", "-q", join(folder, "dist", "manifest.json")],
-    { cwd: folder, stdio: "ignore" },
-  );
-  return result.status === 0;
-}
 
 /** NERVE_EXTENSION_SDK_SPEC (maintainers): install the spec with its overrides into a temp folder, run its `nerve-ext`. */
 function initFromLocalSdk(pm, sdk, initArgs) {
@@ -51,7 +44,7 @@ function initFromLocalSdk(pm, sdk, initArgs) {
         overrides: sdk.overrides,
       }),
     );
-    if (run(pm.install[0], pm.install[1], tools) !== 0) return 1;
+    if (run(pm.update[0], pm.update[1], tools) !== 0) return 1;
     return run(
       process.execPath,
       [
@@ -122,14 +115,15 @@ main(() => {
     "--quiet",
   ];
   const initialized = sdk.version
-    ? run(...pm.dlx(sdk.spec, initArgs), dirname(folder))
+    ? run(...pm.dlx(sdk.spec, initArgs), dirname(folder), NO_INSTALL_SCRIPTS)
     : initFromLocalSdk(pm, sdk, initArgs);
   if (initialized !== 0)
     throw new UserError(
       `Could not run ${sdk.spec}. Check the network connection and that this version is published on npm.`,
     );
   patchDependency(folder, sdk);
-  if (run(pm.install[0], pm.install[1], folder) !== 0)
+  printForeignDependencies(folder);
+  if (run(...pm.install(folder), folder) !== 0)
     throw new UserError(
       `${manager} install failed in ${folder}; see the output above.`,
     );
@@ -141,10 +135,6 @@ main(() => {
     );
     return code;
   }
-  if (scope === "project" && distIgnored(folder))
-    console.warn(
-      `warning: git ignores ${join(folder, "dist")}. Commit dist/ so teammates get a loadable extension: add "!.nerve/extensions/*/dist/" to the project's .gitignore.`,
-    );
   console.log(
     `\nReady: ${folder}\nNext: implement it, run \`nerve-ext check\`, reload it with extensions.reload("${id}") and read extensions.status("${id}").`,
   );

@@ -99,10 +99,9 @@ void test("init pins the SDK version exactly and refuses a bad id or a used fold
       pkg.dependencies["@nervekit/extension-sdk"],
       await sdkVersion(),
     );
-    assert.match(
-      await readFile(join(folder, ".gitignore"), "utf8"),
-      /node_modules/,
-    );
+    const ignored = await readFile(join(folder, ".gitignore"), "utf8");
+    assert.match(ignored, /^node_modules\/$/m);
+    assert.match(ignored, /^dist\/$/m);
     await assert.rejects(
       initExtension({ id: "pinned", kind: "theme", cwd: root }),
       /not empty/,

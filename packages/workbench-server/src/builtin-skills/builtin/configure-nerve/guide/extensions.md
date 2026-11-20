@@ -10,9 +10,9 @@ Node.js 24 or newer and npm (or pnpm). `scripts/create-extension.mjs` checks the
 
 Ask one focused question only when the request does not settle these.
 
-- **Scope.** `user`: `${NERVE_HOME:-$HOME/.nerve}/agent/extensions/<id>/`, available in every project. `project`: `<project>/.nerve/extensions/<id>/`, shared through the repository (commit `dist/`, since teammates do not build). Project extensions cannot contribute themes.
+- **Scope.** `user`: `${NERVE_HOME:-$HOME/.nerve}/agent/extensions/<id>/`, available in every project. `project`: `<project>/.nerve/extensions/<id>/`, shared through the repository as sources (`dist/` stays out of git; teammates build it). Project extensions cannot contribute themes.
 - **Kind.** `preview` (render a file type), `page` (a tab not tied to a file), `panel` (a dock panel), `theme` (colors), `integration` (a `quick_script` namespace and direct tools for a service). Combine kinds the feature needs in one extension, comma-separated (`integration,panel`).
-- **Id.** Lowercase letters, digits and single hyphens (`csv-viewer`); it is also the folder name.
+- **Id.** Lowercase letters, digits and single hyphens (`csv-viewer`); it is also the folder name. Tool names must start with the id with underscores and `_` (`csv_viewer_get`), and account kinds with the id; the build and Nerve reject others.
 
 ## 3. Scaffold
 
@@ -20,7 +20,7 @@ Ask one focused question only when the request does not settle these.
 node scripts/create-extension.mjs <id> --kind <kind>[,<kind>] --scope <user|project> [--project <dir>]
 ```
 
-The script writes the project, installs dependencies and runs `nerve-ext check`. Each kind adds a working sample to replace, with tests beside it:
+The script writes the project, installs dependencies without running install scripts (`--ignore-scripts`) and runs `nerve-ext check`. Each kind adds a working sample to replace, with tests beside it:
 
 | Path                                         | Holds                                                     |
 | -------------------------------------------- | --------------------------------------------------------- |
@@ -30,7 +30,7 @@ The script writes the project, installs dependencies and runs `nerve-ext check`.
 | `src/themes/<id>.json`                       | Theme tokens                                              |
 | `docs/`                                      | Doc topics listed in the namespace's `docs`               |
 
-Read `src/extension.ts` and the sample before changing them. Rename the sample folders and ids to fit the feature; keep the layout when you add contributions.
+Install further dependencies with `npm install --ignore-scripts <name>`. Read `src/extension.ts` and the sample before changing them. Rename the sample folders and ids to fit the feature; keep the layout when you add contributions.
 
 ## 4. Implement with least permissions
 
@@ -78,4 +78,14 @@ It moves `@nervekit/extension-sdk` to this Nerve's version, prints the `UPGRADIN
 
 ## Share
 
-`reference/extensions/sharing.md`: moving between user and project scope, committing `dist/`, giving a folder to someone else.
+`reference/extensions/sharing.md`: moving between user and project scope, sharing sources, building a folder someone else made.
+
+## A folder you did not scaffold in this conversation
+
+A folder that arrived from a teammate, a repository or the user shows `not-built` (no `dist/`). Its `package.json` can pull in any package. Before installing:
+
+```sh
+node scripts/install-extension.mjs <extension-folder> --list
+```
+
+Show the user the dependency list it prints and wait for their go-ahead. Then run the same command without `--list`: it installs with the folder's lockfile and without install scripts, and runs `nerve-ext check`. A dependency's code still runs during the build and the tests.

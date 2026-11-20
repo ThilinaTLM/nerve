@@ -160,7 +160,7 @@ export async function readFolder(
     if ((cause as NodeJS.ErrnoException).code === "ENOENT")
       return fail(
         "not-built",
-        "There is no dist/manifest.json. Build the extension so dist/ exists; the configure-nerve skill (Forge profile) covers how.",
+        "This folder has no dist/manifest.json, so it is not built. Ask the agent in the Forge profile to build it (the configure-nerve skill covers it). Nerve never builds or installs an extension itself.",
       );
     return fail(
       "manifest-unreadable",

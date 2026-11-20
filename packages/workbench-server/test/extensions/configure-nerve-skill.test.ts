@@ -41,6 +41,11 @@ type Lib = {
     input: { id: string; scope?: string; project?: string; dir?: string },
     env?: Record<string, string>,
   ): string;
+  foreignDependencies(folder: string): string[];
+  packageManager(name: string): {
+    install(folder: string): [string, string[]];
+    update: [string, string[]];
+  };
   parseArgs(
     argv: string[],
     flags: string[],
@@ -102,4 +107,40 @@ void test("the create script resolves the user and project folders", () => {
     () => lib.parseArgs(["--nope", "1"], ["kind"]),
     /Unknown option/,
   );
+});
+
+void test("installs ignore scripts, use the lockfile when there is one, and list dependencies besides the SDK", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "nerve-skill-install-"));
+  try {
+    await writeFile(
+      join(folder, "package.json"),
+      JSON.stringify({
+        dependencies: {
+          "@nervekit/extension-sdk": "0.41.1",
+          "left-pad": "^1.0.0",
+        },
+        devDependencies: { zod: "4" },
+      }),
+    );
+    assert.deepEqual(lib.foreignDependencies(folder), [
+      "left-pad@^1.0.0",
+      "zod@4",
+    ]);
+    const npm = lib.packageManager("npm");
+    assert.deepEqual(npm.install(folder), [
+      "npm",
+      ["install", "--ignore-scripts"],
+    ]);
+    await writeFile(join(folder, "package-lock.json"), "{}");
+    assert.deepEqual(npm.install(folder), ["npm", ["ci", "--ignore-scripts"]]);
+    assert.deepEqual(npm.update, ["npm", ["install", "--ignore-scripts"]]);
+    const pnpm = lib.packageManager("pnpm");
+    await writeFile(join(folder, "pnpm-lock.yaml"), "");
+    assert.deepEqual(pnpm.install(folder), [
+      "pnpm",
+      ["install", "--frozen-lockfile", "--ignore-scripts"],
+    ]);
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
 });

@@ -4,7 +4,7 @@ The one dependency of a Nerve extension project: the extension API, the test hel
 
 ```sh
 npx @nervekit/extension-sdk init csv-viewer --kind integration   # or: nerve-ext init
-cd csv-viewer && npm install
+cd csv-viewer && npm install --ignore-scripts
 npx nerve-ext check
 ```
 

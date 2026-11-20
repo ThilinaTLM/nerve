@@ -132,9 +132,10 @@ export function targetFolder({ id, scope, project, dir }, env = process.env) {
 }
 
 /** Runs a command with inherited output; returns its exit code. */
-export function run(command, args, cwd) {
+export function run(command, args, cwd, env) {
   const result = spawnSync(command, args, {
     cwd,
+    ...(env ? { env: { ...process.env, ...env } } : {}),
     stdio: "inherit",
     shell: process.platform === "win32",
   });
@@ -163,11 +164,21 @@ export function checkPrerequisites() {
   );
 }
 
-/** Commands of the package manager: install, run `nerve-ext <args>`, and fetch-and-run the SDK. */
+/**
+ * Commands of the package manager: install, run `nerve-ext <args>`, and fetch-and-run the SDK.
+ * Install scripts never run (`--ignore-scripts`). `install(folder)` uses the lockfile when the
+ * folder has one (`npm ci`, `pnpm install --frozen-lockfile`), so a received extension gets the
+ * versions its author locked; `update` is for a changed `package.json` (it rewrites the lockfile).
+ */
 export function packageManager(name) {
+  const lock = (folder, file) => existsSync(join(folder, file));
   return name === "pnpm"
     ? {
-        install: ["pnpm", ["install"]],
+        install: (folder) =>
+          lock(folder, "pnpm-lock.yaml")
+            ? ["pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"]]
+            : ["pnpm", ["install", "--ignore-scripts"]],
+        update: ["pnpm", ["install", "--ignore-scripts"]],
         ext: (args) => ["pnpm", ["exec", "nerve-ext", ...args]],
         dlx: (spec, args) => [
           "pnpm",
@@ -175,13 +186,44 @@ export function packageManager(name) {
         ],
       }
     : {
-        install: ["npm", ["install"]],
+        install: (folder) =>
+          lock(folder, "package-lock.json")
+            ? ["npm", ["ci", "--ignore-scripts"]]
+            : ["npm", ["install", "--ignore-scripts"]],
+        update: ["npm", ["install", "--ignore-scripts"]],
         ext: (args) => ["npx", ["--no-install", "nerve-ext", ...args]],
         dlx: (spec, args) => [
           "npx",
           ["--yes", `--package=${spec}`, "--", "nerve-ext", ...args],
         ],
       };
+}
+
+/** The dependencies of an extension folder other than the SDK packages, as `name@range` lines. */
+export function foreignDependencies(folder) {
+  const file = join(folder, "package.json");
+  if (!existsSync(file)) return [];
+  const pkg = JSON.parse(readFileSync(file, "utf8"));
+  return [
+    "dependencies",
+    "devDependencies",
+    "optionalDependencies",
+    "peerDependencies",
+  ]
+    .flatMap((section) => Object.entries(pkg[section] ?? {}))
+    .filter(([name]) => !name.startsWith("@nervekit/"))
+    .map(([name, range]) => `${name}@${range}`);
+}
+
+/** Prints the dependencies an install in `folder` would fetch, other than the SDK packages. */
+export function printForeignDependencies(folder) {
+  const list = foreignDependencies(folder);
+  console.log(
+    list.length > 0
+      ? `Dependencies besides the Nerve SDK packages (${list.length}):\n${list.map((line) => `  ${line}`).join("\n")}`
+      : "Dependencies besides the Nerve SDK packages: none.",
+  );
+  return list;
 }
 
 /** Prints a UserError as one line and exits 1; other errors keep their stack. */
