@@ -14,12 +14,13 @@ If both have the same id, the project one wins and the user one shows as `shadow
 ## Share with a team (project scope)
 
 1. Create it with `--scope project`, or move the folder to `<project>/.nerve/extensions/<id>/`.
-2. Commit `dist/` together with the sources. Teammates do not build; Nerve reads `dist/` only. `create-extension.mjs` warns when git ignores `dist/`; fix it with `!.nerve/extensions/*/dist/` in `.gitignore`. Keep `node_modules/` out of git.
-3. Each teammate sees it as pending and reviews and allows it themselves in Settings → Extensions. A project extension asks again after any change to its files.
+2. Commit the sources and the lockfile; the scaffold's `.gitignore` keeps `dist/` and `node_modules/` out of git. Nerve never builds or installs by itself.
+3. A teammate who pulls it sees `not-built`. They ask the agent to build it: it follows "A folder you did not scaffold in this conversation" in `guide/extensions.md` (list the dependencies, wait, then `scripts/install-extension.mjs`).
+4. They review and allow it themselves in Settings → Extensions. A project extension asks again after any change to its files.
 
 ## Share with a person
 
-Send the folder without `node_modules/`, after `nerve-ext check` has produced `dist/`. The receiver copies it to their user folder (or a project's `.nerve/extensions/`), reloads in Settings → Extensions, and reviews it. Accounts and secrets are never part of the folder; the receiver adds their own.
+Send the sources without `node_modules/` and `dist/`. The receiver copies the folder to their user folder (or a project's `.nerve/extensions/`) and asks the agent to build it, as above; then they reload in Settings → Extensions and review it. Accounts and secrets are never part of the folder; the receiver adds their own.
 
 ## Updates
 

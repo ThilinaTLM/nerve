@@ -27,7 +27,9 @@ const VERBS = new Set([
 const OTHER_NAMES: Record<string, string> = {
   "atlassian.defaults": "the configured sites, project and space",
   "configuration.reload": "re-reads files; changes nothing",
-  "configuration.status": "state of the last load",
+  "configuration.check": "validates files; changes nothing",
+  "configuration.explain": "evaluates the policy; runs nothing",
+  "configuration.describe": "the conversation's own context, not a resource",
   "confluence.comments.reply": "Confluence's word for a child comment",
   "confluence.comments.resolve": "Confluence's action on an inline comment",
   "confluence.pages.move": "Confluence's action",
@@ -57,6 +59,7 @@ const OTHER_NAMES: Record<string, string> = {
   "sdk.describe": "discovery",
   "sdk.docs": "discovery",
   "search.web": "namespace per extension: web search is not part of `web`",
+  "launches.move": "places an entry in the catalog tree",
   "web.fetch": "mirrors the web_fetch tool",
 };
 

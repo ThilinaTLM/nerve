@@ -1,0 +1,156 @@
+import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
+import { projectPermissionsConfiguration } from "./project-permission-migrations.js";
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import type { CoreStorage } from "@nervekit/conversation-core";
+import type { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
+import { createScopedPermissionSource } from "./scoped-permission-source.js";
+import { createExecutionAdmission } from "./execution-admission/admission.js";
+
+void test("admission reads live selection, keeps the loaded policy over an invalid file, and reloads only after explicit publication", async () => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-policy-source-"));
+  await mkdir(join(home, "config"));
+  let generation = 1;
+  let selection = "autonomous";
+  const storage = {
+    conversations: {
+      get: (id: string) => ({ id, projectId: "p", parentConversationId: null }),
+    },
+    projects: { get: () => ({ id: "p", directory: home }) },
+    trustedResources: { find: () => undefined },
+  } as unknown as CoreStorage;
+  const agents = {
+    async captureEffective() {
+      const captured = generation;
+      return {
+        view: {
+          status: "available",
+          resolution: { settings: { permissionRuleSetId: selection } },
+          sources: [{ path: "agent.json", generation: captured }],
+        },
+        isCurrent: () => captured === generation,
+      };
+    },
+  } as unknown as AgentConfigurationService;
+  const migrations = new ProjectMigrationService({ home });
+  const source = createScopedPermissionSource({
+    projectMigration: migrations,
+    home,
+    storage,
+    agents,
+    trustGeneration: () => 0,
+    requestGenerations: () => ({ advertised: 3 }),
+  });
+  const prepare = createExecutionAdmission(source);
+  const input = {
+    toolCallId: "call",
+    conversationId: "c",
+    projectDir: home,
+    toolName: "write",
+    origin: "model" as const,
+    args: { path: "file.txt", content: "hello" },
+    cwd: home,
+    target: {},
+    requestCaptureId: "capture",
+  };
+  try {
+    const first = await prepare(input);
+    const allowed = first.check();
+    assert.equal(allowed.kind, "policy");
+    if (allowed.kind !== "policy") return;
+    assert.equal(allowed.supervision.decision, "allow");
+    const previousFind = storage.trustedResources.find;
+    storage.trustedResources.find = () => {
+      throw new Error("Final checks must not query storage");
+    };
+    assert.equal(first.check().kind, "policy");
+    storage.trustedResources.find = previousFind;
+    await source.validateChildPermission("read_only");
+    await assert.rejects(
+      source.validateChildPermission("supervised"),
+      /not sub-agent safe/,
+    );
+    selection = "read_only";
+    generation++;
+    assert.equal(first.check().kind, "stale");
+    const next = await prepare(input);
+    const denied = next.check();
+    assert.equal(denied.kind, "policy");
+    if (denied.kind !== "policy") return;
+    assert.equal(denied.supervision.decision, "deny");
+    assert.notEqual(
+      allowed.evidence.binding.policyAuthorityDigest,
+      denied.evidence.binding.policyAuthorityDigest,
+    );
+    assert.deepEqual(denied.evidence.requestGenerations, { advertised: 3 });
+    const path = join(home, "config", "permissions.json");
+    await writeFile(path, "broken");
+    assert.equal(
+      (await prepare(input)).check().kind,
+      "policy",
+      "external files are not polled",
+    );
+    source.invalidate();
+    assert.equal(
+      (await prepare({ ...input, conversationId: "fresh" })).check().kind,
+      "policy",
+      "a new policy derivation must reuse the published user document",
+    );
+    assert.equal((await prepare(input)).check().kind, "policy");
+    const [kept] = await source.reload([path]);
+    assert.equal(next.check().kind, "stale");
+    assert.equal(kept.previousVersionActive, true);
+    assert.equal(kept.diagnostics[0].code, "malformed-json");
+    assert.equal(
+      (await prepare(input)).check().kind,
+      "policy",
+      "an invalid file never replaces the valid version loaded before it",
+    );
+    await writeFile(path, JSON.stringify({ schemaVersion: 2, overlays: [] }));
+    assert.deepEqual((await source.reload([path]))[0].diagnostics, []);
+    assert.equal((await prepare(input)).check().kind, "policy");
+    const projectPath = join(home, ".nerve/config/permissions.json");
+    await mkdir(join(home, ".nerve/config"), { recursive: true });
+    await writeFile(projectPath, "invalid untrusted project overlay");
+    await migrations.load(
+      { projectId: "p", directory: home },
+      projectPermissionsConfiguration,
+    );
+    assert.equal(
+      (await prepare(input)).check().kind,
+      "policy",
+      "the project had no overlay when it was loaded, and that stays in force",
+    );
+    assert.equal(
+      (await source.reload([projectPath]))[0].previousVersionActive,
+      true,
+    );
+    assert.equal((await prepare(input)).check().kind, "policy");
+    await rm(projectPath);
+    assert.deepEqual(
+      (await source.reload([projectPath]))[0].diagnostics,
+      [],
+      "a removed file reports nothing",
+    );
+    assert.equal((await prepare(input)).check().kind, "policy");
+    // A file that is already invalid when it is first loaded has no version to keep.
+    const cold = createScopedPermissionSource({
+      projectMigration: new ProjectMigrationService({ home }),
+      home,
+      storage,
+      agents,
+      trustGeneration: () => 0,
+      requestGenerations: () => undefined,
+    });
+    await writeFile(path, "broken");
+    const blocked = (await createExecutionAdmission(cold)(input)).check();
+    assert.equal(blocked.kind, "blocked");
+    if (blocked.kind === "blocked")
+      assert.equal(blocked.request.diagnostics[0].path, path);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});

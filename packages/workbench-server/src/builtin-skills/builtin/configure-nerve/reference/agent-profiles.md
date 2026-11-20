@@ -6,6 +6,14 @@ A profile packages how an agent works: instructions plus settings for model, thi
 - A **sub-agent profile** defines a teammate the lead can delegate to with `subagent_prompt`. The lead sees each one as `name: whenToUse` and picks by that line.
 - `usableBy: "both"` makes one profile serve both roles; its settings must then fit the sub-agent limits below.
 
+## Procedure
+
+1. Settle the role (lead, sub-agent or both), the job and what it may do. For a sub-agent, agree on `whenToUse` with the user; the lead picks by that line.
+2. Choose settings: permission rule set first (`configuration.list({ kind: "rule-set" })`), then model (`configuration.describe()` lists `availableModels`) and thinking if the user has a preference, then tools and skills. Recommend by default; require only what the purpose depends on. If no rule set gives the needed behavior, create one first (`reference/permissions.md`).
+3. Write the file: user scope for a personal profile, project scope for a team one.
+4. `configuration.check`, then `configuration.reload`.
+5. Tell the user how to use it: a lead profile from the composer's profile picker or `/profile <name>`; a sub-agent profile is offered to the lead when delegation is on. A project profile first needs approval in Settings → This project → Trust. A profile already in use needs **Apply updated profile**.
+
 ## Common requests
 
 - **Read-only teammate** (reviewer, researcher): a sub-agent profile requiring `read_only`, like the example under "File". It can read and search but not run commands.
@@ -14,22 +22,15 @@ A profile packages how an agent works: instructions plus settings for model, thi
 
 ## Built-in profiles
 
-| Name        | Role      | Purpose                                                                                  |
-| ----------- | --------- | ---------------------------------------------------------------------------------------- |
-| `coding`    | lead      | General work; the default for new conversations. No extra instructions or settings.      |
-| `planning`  | lead      | Clarify, research and present a plan; requires the `planning` rule set and Plan Present. |
-| `lead`      | lead      | Coordinates sub-agents; requires delegation.                                             |
-| `forge`     | lead      | Configures and extends Nerve; requires the `configure-nerve` skill.                      |
-| `explore`   | sub-agent | Read-only research; recommends the `read_only` rule set.                                 |
-| `developer` | sub-agent | Autonomous implementation; recommends the `autonomous` rule set.                         |
+Lead: `coding` (the default), `planning`, `lead` (coordinates sub-agents), `forge` (configures Nerve). Sub-agent: `explore` (read-only research), `developer` (autonomous implementation). `configuration.list({ kind: "agent-profile" })` lists them with the user's and the project's, and which are shadowed.
 
 A user or project file with the same name replaces a built-in completely. To adjust one, copy its intent into a new file rather than expecting a merge.
 
 ## File
 
-User: `<home>/agent/agent-profiles/<name>.json`. Project: `<project>/.nerve/agent-profiles/<name>.json` (needs trust, see `reference/overview.md`). The file name is the profile `name` plus `.json`.
+User: `<home>/agent/agent-profiles/<name>.json`. Project: `<project>/.nerve/agent-profiles/<name>.json` (the user approves it in Settings → This project → Trust). The file name is the profile `name` plus `.json`.
 
-Project files carry an extra top-level `"version": 3`; user files have no `version`.
+Project files carry an extra top-level `"version": 3`. In a user file, drop that line from the example below.
 
 ```json
 {
@@ -47,7 +48,7 @@ Project files carry an extra top-level `"version": 3`; user files have no `versi
 
 ## Fields
 
-Exact shape with every constraint: `reference/schemas/agent-profile.user.schema.json` and `reference/schemas/agent-profile.project.schema.json`. After writing, `configuration.reload` reports any field that does not match.
+After writing, `configuration.check` reports any field that does not match. The generated schema (`reference/schemas/agent-profile.schema.json`) is for a diagnostic you cannot resolve.
 
 | Field             | Required | Value                                                                                                                                                                                                                                           |
 | ----------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -78,7 +79,7 @@ All fields optional; include only what the profile needs.
 | `compaction`          | Any of `auto` (boolean), `profile` (`aggressive`, `balanced`, `conservative`, `custom`), `customTriggerPercent` (integer 60–90).                                                                                                                                                                                                                                                                                    |
 | `retry`               | Any of `enabled` (boolean), `maxRetries` (integer ≥ 0), `baseDelayMs` (integer > 0).                                                                                                                                                                                                                                                                                                                                |
 | `tools`               | Per tool, each entry non-empty: `python_exec` `{ enabled?, settings?: { interpreterPath? } }`; `web_search`, `web_fetch`, `quick_script` `{ enabled }`; `bash` `{ settings: { shellPath?, maxTimeoutMs? (1000–3600000), autoPromotion?: { enabled, afterMs } } }`. Lead only: `plan_present` `{ enabled?, settings?: { approvalProfile: <lead profile name> } }`, `subagents` `{ enabled }` (delegation on or off). |
-| `skills`              | `{ "file"?: { "<skill>": true                                                                                                                                                                                                                                                                                                                                                                                       | false }, "nerve"?: {...}, "agentBrowser"?: {...} }`. Profiles cannot set `skills.defaults`. |
+| `skills`              | Per source (`file`, `nerve`, `agentBrowser`), an object of skill name to `true` or `false`, e.g. `{ "file": { "release-notes": false } }`. Profiles cannot set `skills.defaults`.                                                                                                                                                                                                                                   |
 | `subagents`           | Lead only: per sub-agent profile name, `{ enabled?, model?, reasoningLevel? }` (non-empty) to turn a teammate on or off or give it a launch model.                                                                                                                                                                                                                                                                  |
 
 Sub-agent profiles (`usableBy` `subagent` or `both`) may not use `tools.plan_present`, `tools.subagents` or `subagents`.
@@ -102,4 +103,8 @@ Rules every sub-agent follows regardless of its profile:
 
 ## Applying changes
 
-A conversation that already uses a profile keeps a snapshot of it. After editing a profile, the user applies the new version with **Apply updated profile** (or switches to the profile again). New conversations and new sub-agents use the current file after a reload (`reference/overview.md`).
+A conversation that already uses a profile keeps a snapshot of it. After editing a profile, the user applies the new version with **Apply updated profile** (or switches to the profile again). New conversations and new sub-agents use the current file after `configuration.reload`.
+
+## Agent preferences (`agent.json`)
+
+`<home>/config/agent.json` and `<project>/.nerve/config/agent.json` hold the default model, thinking level, rule set selection and tool and skill toggles. The user changes them in Settings; edit them only when the user asks for exactly that change. The fields are the settings object above, wrapped as `{ "schemaVersion": 1, "revision": <n>, "overrides": { ... } }`. Keep `revision` as it is; the project file also carries a top-level `"version": 2`, keep it. `permissionRuleSetId` must name a rule set that exists, or the file is refused.

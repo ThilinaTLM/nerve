@@ -1,7 +1,14 @@
 <script lang="ts">
 import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import type { Project } from "@nervekit/contracts/core";
-import { openProjectSettingsPane } from "$lib/application/settings";
+import {
+  openProjectSettingsPane,
+  openSettingsPane,
+} from "$lib/application/settings";
+import { attentionCounts } from "$lib/application/configuration-attention/configuration-attention";
+import { configurationAttention } from "$lib/application/configuration-attention/configuration-attention-state.svelte";
+import { projectGuides } from "$lib/application/configuration-attention/project-guides";
+import { projectGuidesState } from "$lib/application/configuration-attention/project-guides-state.svelte";
 import SettingsView from "$lib/app/composition/settings/SettingsView.svelte";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import {
@@ -42,27 +49,77 @@ let {
 
 const status = $derived(workspaceSelectors.status);
 const activeProject = $derived(workspaceSelectors.activeProject);
-const projectSettingsAction = $derived.by(() => {
-  if (target.kind !== "user" || !activeProject) return undefined;
-  const { id, name } = activeProject;
-  // Switching scope keeps the open page and detail when the project has them.
-  const keep = !!settingsPageDetail("project", pageId);
-  return {
-    name,
-    onOpen: () =>
-      void openProjectSettingsPane(
-        id,
-        pageId && Object.hasOwn(pagesByScope.project, pageId)
-          ? pageId
-          : undefined,
-        keep && itemId ? { item: itemId } : {},
-      ),
-  };
+// The project this tab is about: its own, or the open project in user settings.
+const scopeProject = $derived(
+  target.kind === "project" ? project : (activeProject ?? undefined),
+);
+const entries = $derived(configurationAttention.entriesFor(scopeProject?.id));
+const counts = $derived(attentionCounts(entries));
+const scopeLinks = $derived({
+  // Switching scope keeps the open page and detail when the other scope has them.
+  onOpenUser: () =>
+    void openSettingsPane(
+      pageId && Object.hasOwn(pagesByScope.user, pageId) ? pageId : undefined,
+      settingsPageDetail("user", pageId) && itemId ? { item: itemId } : {},
+    ),
+  ...(scopeProject
+    ? {
+        project: {
+          id: scopeProject.id,
+          name: scopeProject.name,
+          path: scopeProject.directory,
+          onOpen: () =>
+            void openProjectSettingsPane(
+              scopeProject.id,
+              pageId && Object.hasOwn(pagesByScope.project, pageId)
+                ? pageId
+                : undefined,
+              settingsPageDetail("project", pageId) && itemId
+                ? { item: itemId }
+                : {},
+            ),
+        },
+      }
+    : {}),
 });
+const attention = $derived({
+  project: counts.project,
+  pages: counts.pages[target.kind],
+});
+
+// "In this project" rows on user pages: what the open project brings.
+$effect(() => {
+  if (target.kind !== "user" || !workbenchStartupState.progressiveActive)
+    return;
+  void configurationAttention.resources;
+  void projectGuidesState.load(activeProject?.id);
+});
+const guides = $derived(
+  target.kind === "user" &&
+    activeProject &&
+    projectGuidesState.projectId === activeProject.id
+    ? projectGuides({
+        projectName: activeProject.name,
+        skills: projectGuidesState.skills,
+        projectExtensions: projectGuidesState.projectExtensions,
+        pending: counts.pages.project,
+      })
+    : {},
+);
 const settingsSaveStatus = $derived(settingsSelectors.settingsSaveStatus);
 const settingsMessage = $derived(settingsSelectors.settingsMessage);
 const skillsProjectId = $derived(
   target.kind === "project" ? target.projectId : undefined,
+);
+
+// A project's own skills open a review page; known once this project's list is in.
+const skillItems = $derived(
+  target.kind === "project" &&
+    settingsState.skillsProjectId === target.projectId
+    ? settingsState.skills
+        .filter((skill) => skill.source === "project")
+        .map((skill) => ({ id: skill.name, label: skill.name }))
+    : undefined,
 );
 
 // The breadcrumb names the open extension, and the shell opens only listed
@@ -96,8 +153,13 @@ $effect(() => {
 
 <SettingsView
   {target}
-  {projectSettingsAction}
-  detailItems={extensionItems ? { extensions: extensionItems } : {}}
+  {scopeLinks}
+  {attention}
+  {guides}
+  detailItems={{
+    ...(extensionItems ? { extensions: extensionItems } : {}),
+    ...(skillItems ? { skills: skillItems } : {}),
+  }}
   {status}
   bind:settingsDraft={settingsState.settingsDraft}
   applicationConfiguration={settingsState.applicationConfiguration}

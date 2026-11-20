@@ -2,13 +2,13 @@ import { MissingAssetError } from "@nervekit/conversation-core";
 import {
   createConfigurationReload,
   resolveWithConfigurationRetry,
-} from "../../core-host/configuration-reload.js";
+} from "../../core-host/configuration/configuration-reload.js";
 import { subscribeConfigurationNotifications } from "./configuration-notifications.js";
 import {
   cachedConversationSummary,
   cachedConversationSnapshot,
   cachedAgentFields,
-} from "../../core-host/cached-agent-summary.js";
+} from "../../core-host/configuration/cached-agent-summary.js";
 import { createId } from "@nervekit/contracts";
 import {
   previewSystemPromptParamsSchema,
@@ -46,8 +46,13 @@ import {
 import { ZodError } from "zod";
 import type WebSocket from "ws";
 import type { ServerAdapterContexts } from "../contexts.js";
-import { listAvailableSkills } from "../../core-host/resource-loader.js";
-import { listPermissionRuleSets } from "../../core-host/permission-rule-sets.js";
+import {
+  discoverSkillFiles,
+  listAvailableSkills,
+} from "../../core-host/resources/resource-loader.js";
+import { needsAttention } from "../../core-host/configuration/resource-registry.js";
+import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
+import { listPermissionRuleSets } from "../../core-host/permissions/permission-rule-sets.js";
 import { orchestratorSource } from "./messages.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import type { LocalProtocolSession } from "./protocol-websocket.js";
@@ -400,7 +405,43 @@ export function createConversationProtocolSession(
         storageHome: platform.storage.paths.home,
         nerveSkills: platform.nerveSkills.skills,
         agentBrowserSkills: platform.agentBrowserSkills.skills,
+        ...(project
+          ? {
+              projectSkills: {
+                trust: createProjectSkillTrust(core.trust),
+                projectId: project.id,
+              },
+            }
+          : {}),
       });
+    },
+    // What is broken or waits for the user, for the bell: every kind, user scope and the open project.
+    "configuration.attention": async ({ projectId }) => {
+      const project = projectId ? core.projects.get(projectId) : null;
+      if (projectId && !project) throw new Error("Project not found");
+      const context = project
+        ? { projectId: project.id, projectDirectory: project.directory }
+        : {};
+      const found = [
+        ...(await state.configurationResources.list({
+          scope: "user",
+          ...context,
+        })),
+        ...(await state.configurationResources.list({
+          scope: "project",
+          ...context,
+        })),
+      ];
+      return { resources: found.filter(needsAttention) };
+    },
+    "skill.review": async ({ projectId, name }) => {
+      const project = core.projects.get(projectId);
+      if (!project) throw new Error("Project not found");
+      const skill = (
+        await discoverSkillFiles(project.directory, platform.storage.paths.home)
+      ).project.skills.find((entry) => entry.name === name);
+      if (!skill) throw new Error(`The project has no skill named "${name}".`);
+      return createProjectSkillTrust(core.trust).review(projectId, skill);
     },
     "tool.list": () => ({ tools: allToolDescriptors() }),
     "completion.slash.list": () => ({ items: slashCommandCompletionItems }),

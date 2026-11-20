@@ -7,7 +7,7 @@ import {
   shutdownServerRuntime,
   type ServerRuntime,
 } from "../../src/app/runtime/server-runtime.js";
-import { withPeer } from "./../support/peer-address.js";
+import { withPeer } from "../support/peer-address.js";
 import { createApp } from "../../src/app/server.js";
 import { initializeStorage } from "../../src/infrastructure/storage-bootstrap/index.js";
 

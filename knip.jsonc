@@ -30,7 +30,7 @@
       "entry": [
         "{test,src}/**/*.test.ts",
         "src/git/read/git-isolated-reader-helper.ts",
-        "src/quick-script/extension-host/sandbox-runtime/extension-runtime.ts",
+        "src/extension-host/sandbox-runtime/extension-runtime.ts",
       ],
       // Types for shell-quote are consumed implicitly by tsc, not by an import.
       // Sandbox libraries are copied as assets by scripts/build/copy-quick-script-assets.ts, not imported.
@@ -68,14 +68,9 @@
         "assets/vitest.config.mjs",
       ],
       "ignore": ["templates/**"],
-      // zod: imported by the inlined contracts schema in dist/. shadcn-svelte, tw-animate-css, tailwindcss: imported by
+      // shadcn-svelte, tw-animate-css, tailwindcss: imported by
       // ui-kit's app.css, which the generated Vite/Tailwind build resolves from this package.
-      "ignoreDependencies": [
-        "zod",
-        "shadcn-svelte",
-        "tw-animate-css",
-        "tailwindcss",
-      ],
+      "ignoreDependencies": ["shadcn-svelte", "tw-animate-css", "tailwindcss"],
     },
     "packages/extensions": {
       // Bundled into a browser asset by the build, not imported.

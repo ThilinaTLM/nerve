@@ -1,6 +1,6 @@
 import { Type } from "typebox";
 import type { ToolDefinition } from "../catalog/index.js";
-import { createExtensionToolDefinitions } from "./extension-host/direct-tools.js";
+import { createExtensionToolDefinitions } from "../extension-host/direct-tools.js";
 import type { QuickScriptRegistry } from "./registry.js";
 import type { QuickScriptContext } from "./runtime/sdk-types.js";
 import { executeQuickScript } from "./runtime/quick-script.js";

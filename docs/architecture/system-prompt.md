@@ -26,9 +26,9 @@ Skill references such as `{{skill:<name>}}` resolve to bundled skill paths durin
 
 ## Where it lives
 
-| Concern                                 | Owner                                                                                                                                                                                          |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tool filtering and resource preparation | [`scopedTurnResources`](../../packages/workbench-server/src/core-host/scoped-turn-resources.ts)                                                                                                |
-| Assembly and custom-prompt behavior     | [`buildNerveSystemPrompt`](../../packages/workbench-server/src/core-host/nerve-system-prompt.ts) and [prompt tests](../../packages/workbench-server/src/core-host/nerve-system-prompt.test.ts) |
-| Skill-reference resolution              | [`resolveSkillPlaceholders`](../../packages/workbench-server/src/builtin-skills/paths.ts) and [bundled skills](../../packages/workbench-server/src/builtin-skills/builtin/)                    |
-| Exact tool descriptions and schemas     | [Tool catalog](../../packages/tools/src/catalog/) and its owning tests                                                                                                                         |
+| Concern                                 | Owner                                                                                                                                                                                                              |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tool filtering and resource preparation | [`scopedTurnResources`](../../packages/workbench-server/src/core-host/resources/scoped-turn-resources.ts)                                                                                                          |
+| Assembly and custom-prompt behavior     | [`buildNerveSystemPrompt`](../../packages/workbench-server/src/core-host/resources/nerve-system-prompt.ts) and [prompt tests](../../packages/workbench-server/src/core-host/resources/nerve-system-prompt.test.ts) |
+| Skill-reference resolution              | [`resolveSkillPlaceholders`](../../packages/workbench-server/src/builtin-skills/paths.ts) and [bundled skills](../../packages/workbench-server/src/builtin-skills/builtin/)                                        |
+| Exact tool descriptions and schemas     | [Tool catalog](../../packages/tools/src/catalog/) and its owning tests                                                                                                                                             |

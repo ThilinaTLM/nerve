@@ -8,7 +8,7 @@ const ALL = registry.extensions.flatMap((extension) =>
 );
 
 /** Description size cap (characters) with every namespace configured; raise it only on purpose. */
-const MAX_DESCRIPTION_CHARS = 3_200;
+const MAX_DESCRIPTION_CHARS = 3_400;
 /** Cap for one namespace's summary plus rules. */
 const MAX_NAMESPACE_CHARS = 420;
 

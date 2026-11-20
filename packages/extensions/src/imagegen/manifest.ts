@@ -18,7 +18,6 @@ export const imagegenExtension = defineExtension({
   id: "imagegen",
   name: "Image generation",
   description: "Generate images from a text prompt.",
-  apiVersion: 1,
   icon: "image-plus",
   enabledByDefault: false,
   settings: {

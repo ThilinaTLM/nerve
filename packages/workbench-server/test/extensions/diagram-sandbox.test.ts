@@ -15,11 +15,13 @@ import {
   sandboxedBuiltinExtensions,
 } from "@nervekit/extensions";
 import {
+  routedExtensionCode,
+  sandboxExtensionCode,
+} from "@nervekit/tools/extension-host";
+import {
   classifyQuickScriptScript,
   createQuickScriptRegistry,
   executeQuickScript,
-  routedExtensionCode,
-  sandboxExtensionCode,
 } from "@nervekit/tools/quick-script";
 
 /*

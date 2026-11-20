@@ -1,4 +1,4 @@
-import type { ScopedPermissionPolicySource } from "../../../core-host/scoped-permission-source.js";
+import type { ScopedPermissionPolicySource } from "../../../core-host/permissions/scoped-permission-source.js";
 import { Hono } from "hono";
 import { settingsResolutionRequestSchema } from "@nervekit/contracts/settings";
 import type { ProviderCatalogStore } from "../../../domains/providers/provider-catalog.store.js";

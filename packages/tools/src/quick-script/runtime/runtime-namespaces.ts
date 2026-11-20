@@ -1,4 +1,6 @@
 import { FILES_DTS_TYPES, IMAGE_CHAIN_OPS } from "./files/dts-types.js";
+import { LAUNCHES_DTS_TYPES } from "./launches/dts-types.js";
+import { launchesMethods } from "./launches/launches-methods.js";
 import { CONFIGURATION_DTS_TYPES } from "./configuration/dts-types.js";
 import { configurationMethods } from "./configuration/configuration-methods.js";
 import { EXTENSIONS_DTS_TYPES } from "./extensions/dts-types.js";
@@ -77,9 +79,17 @@ export const runtimeNamespaces: SdkNamespace[] = [
   {
     id: "configuration",
     summary:
-      'reload(scope), status(scope) with scope "user" or "project": re-read hand-edited agent.json, profiles, permission files and rule sets and get their problems; see the configure-nerve skill',
+      "describe(), list(filter), tools.list(), explain(call), check(scope), reload(scope): what is configured and in effect, tool names as rules match them, why a call is allowed or prompted, and validating then activating hand-edited files; see the configure-nerve skill",
     methods: configurationMethods,
     types: CONFIGURATION_DTS_TYPES,
+    docs: [],
+  },
+  {
+    id: "launches",
+    summary:
+      "list, create, update, remove, folders.create, move: the project's launch definitions; see the configure-nerve skill",
+    methods: launchesMethods,
+    types: LAUNCHES_DTS_TYPES,
     docs: [],
   },
   {

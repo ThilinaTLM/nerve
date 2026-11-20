@@ -1,5 +1,5 @@
 import { extname } from "node:path";
-import { isArtifactName } from "@nervekit/extension-api";
+import { isArtifactName } from "@nervekit/extension-api/host";
 
 export const ARTIFACT_PREFIX = "artifact:";
 

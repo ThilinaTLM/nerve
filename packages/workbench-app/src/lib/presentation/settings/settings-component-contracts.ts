@@ -58,11 +58,20 @@ export type SettingsNavGroup = {
   items: SettingsNavItem[];
 };
 
-/** Identity block above the nav: "User settings", or a project name. */
+/** One scope in the header above the nav: "Your settings" or the open project. */
+export type SettingsScopeRow = {
+  id: "user" | "project";
+  label: string;
+  icon: Component;
+  /** Count of items in this scope that need the user. */
+  badge?: SettingsNavBadge;
+  selected: boolean;
+  /** Tooltip, e.g. the project's path. */
+  title?: string;
+  onSelect: () => void;
+};
+
+/** The scopes the user can switch between, above the nav. */
 export type SettingsScopeHeader = {
-  title: string;
-  /** Optional second line, e.g. the project name. */
-  subtitle?: string;
-  /** Optional navigation to a related settings scope. */
-  action?: { label: string; title?: string; onSelect: () => void };
+  scopes: SettingsScopeRow[];
 };

@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import {
   readFolder,
   readInstalledExtensions,
-} from "../../../src/core-host/extension-catalog/read-installed.js";
+} from "../../../src/core-host/extensions/extension-catalog/read-installed.js";
 import { fixtureManifest, writeExtension } from "./fixtures.js";
 
 const NERVE = "0.41.1";
@@ -122,6 +122,12 @@ void test("discovery honours ignore files and reads only dist/", async () => {
     JSON.stringify(fixtureManifest({ id: "src-only" })),
   );
   const reads = await readInstalledExtensions(dir, NERVE);
+  const notBuilt = reads.find((read) => read.folderName === "src-only")!;
+  assert.equal(notBuilt.diagnostics[0]!.code, "not-built");
+  assert.match(
+    notBuilt.diagnostics[0]!.message,
+    /Ask the agent .* to build it/,
+  );
   assert.deepEqual(
     reads.map((read) => [read.folderName, Boolean(read.manifest)]),
     [
@@ -150,12 +156,43 @@ void test("SDK compatibility: oldest <= sdkVersion <= running version, otherwise
   assert.equal(reads.get("oldest")!.incompatible, undefined);
   assert.match(
     reads.get("too-old")!.incompatible!,
-    /Built with SDK 0\.38\.0; this Nerve needs 0\.41\.0 or later\. Ask the agent in the Forge profile to upgrade it\./,
+    /Built with SDK 0\.38\.0; the manifest format and the backend API changed in SDK 0\.41\.0.*Ask the agent in the Forge profile to upgrade it\./,
   );
   assert.match(
     reads.get("too-new")!.incompatible!,
     /newer than this Nerve \(0\.41\.1\).*Forge profile/,
   );
+});
+
+void test("the SDK version is checked before the manifest schema: a newer SDK with a field this Nerve does not know is incompatible, not invalid", async () => {
+  const dir = await fresh();
+  await writeExtension(
+    dir,
+    { id: "from-the-future", sdkVersion: "0.42.0" },
+    (manifest) => {
+      manifest.somethingNew = { shape: "unknown" };
+    },
+  );
+  await writeExtension(
+    dir,
+    { id: "typo", sdkVersion: "0.41.1" },
+    (manifest) => {
+      manifest.somethingNew = true;
+    },
+  );
+  const reads = new Map(
+    (await readInstalledExtensions(dir, NERVE)).map((read) => [
+      read.folderName,
+      read,
+    ]),
+  );
+  const future = reads.get("from-the-future")!;
+  assert.match(future.incompatible!, /newer than this Nerve/);
+  assert.equal(future.sdkVersion, "0.42.0");
+  assert.deepEqual(future.diagnostics, []);
+  // The same field at a compatible version is an invalid manifest.
+  assert.equal(reads.get("typo")!.incompatible, undefined);
+  assert.match(reads.get("typo")!.diagnostics[0]!.message, /somethingNew/);
 });
 
 void test("icons and doc topics are read from dist/ and checked like the built-ins'", async () => {

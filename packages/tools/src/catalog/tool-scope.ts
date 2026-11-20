@@ -49,3 +49,8 @@ export function scopedToolDefinitions(
     ? []
     : [...(scopes.get(toolScopeKey(scope))?.values() ?? [])];
 }
+
+/** Names of the installed extensions' direct tools in every project scope. */
+export function allScopedToolNames(): string[] {
+  return [...scopes.values()].flatMap((scope) => [...scope.keys()]);
+}

@@ -1,3 +1,4 @@
+import type { FileDiagnostic } from "@nervekit/contracts/configuration";
 import ignore from "ignore";
 import type { ExecutionEnv } from "../../environment/contracts.js";
 import type { Skill } from "./skill.js";
@@ -15,23 +16,17 @@ import { validateDescription, validateName } from "./validation.js";
 type IgnoreMatcher = ReturnType<typeof ignore>;
 
 export type SkillDiagnosticCode =
-  | "file_info_failed"
-  | "list_failed"
-  | "read_failed"
-  | "parse_failed"
-  | "invalid_metadata";
+  | "file-info-failed"
+  | "list-failed"
+  | "read-failed"
+  | "parse-failed"
+  | "invalid-metadata";
 
-/** Warning produced while loading skills. */
-export interface SkillDiagnostic {
-  /** Diagnostic severity. Currently only warnings are emitted. */
-  type: "warning";
-  /** Stable diagnostic code. */
-  code: SkillDiagnosticCode;
-  /** Human-readable diagnostic message. */
-  message: string;
-  /** Path associated with the diagnostic. */
-  path: string;
-}
+/**
+ * Produced while loading skills. `error`: the skill (or the folder) did not load.
+ * `warning`: it loaded, with metadata that breaks a rule.
+ */
+export type SkillDiagnostic = FileDiagnostic & { code: SkillDiagnosticCode };
 
 /**
  * Load skills from one or more directories.
@@ -50,8 +45,8 @@ export async function loadSkills(
     if (!rootInfoResult.ok) {
       if (rootInfoResult.error.code !== "not_found") {
         diagnostics.push({
-          type: "warning",
-          code: "file_info_failed",
+          level: "error",
+          code: "file-info-failed",
           message: rootInfoResult.error.message,
           path: dir,
         });
@@ -118,8 +113,8 @@ async function loadSkillsFromDirInternal(
   if (!dirInfoResult.ok) {
     if (dirInfoResult.error.code !== "not_found") {
       diagnostics.push({
-        type: "warning",
-        code: "file_info_failed",
+        level: "error",
+        code: "file-info-failed",
         message: dirInfoResult.error.message,
         path: dir,
       });
@@ -135,8 +130,8 @@ async function loadSkillsFromDirInternal(
   const entriesResult = await env.listDir(dir);
   if (!entriesResult.ok) {
     diagnostics.push({
-      type: "warning",
-      code: "list_failed",
+      level: "error",
+      code: "list-failed",
       message: entriesResult.error.message,
       path: dir,
     });
@@ -207,8 +202,8 @@ async function addIgnoreRules(
     if (!info.ok) {
       if (info.error.code !== "not_found") {
         diagnostics.push({
-          type: "warning",
-          code: "file_info_failed",
+          level: "warning",
+          code: "file-info-failed",
           message: info.error.message,
           path: ignorePath,
         });
@@ -219,8 +214,8 @@ async function addIgnoreRules(
     const content = await env.readTextFile(ignorePath);
     if (!content.ok) {
       diagnostics.push({
-        type: "warning",
-        code: "read_failed",
+        level: "warning",
+        code: "read-failed",
         message: content.error.message,
         path: ignorePath,
       });
@@ -242,8 +237,8 @@ async function loadSkillFromFile(
   const rawContent = await env.readTextFile(filePath);
   if (!rawContent.ok) {
     diagnostics.push({
-      type: "warning",
-      code: "read_failed",
+      level: "error",
+      code: "read-failed",
       message: rawContent.error.message,
       path: filePath,
     });
@@ -253,8 +248,8 @@ async function loadSkillFromFile(
   const parsed = parseFrontmatter<SkillFrontmatter>(rawContent.value);
   if (!parsed.ok) {
     diagnostics.push({
-      type: "warning",
-      code: "parse_failed",
+      level: "error",
+      code: "parse-failed",
       message: parsed.error.message,
       path: filePath,
     });
@@ -269,10 +264,11 @@ async function loadSkillFromFile(
       ? frontmatter.description
       : undefined;
 
+  const missingDescription = !description || description.trim() === "";
   for (const error of validateDescription(description)) {
     diagnostics.push({
-      type: "warning",
-      code: "invalid_metadata",
+      level: missingDescription ? "error" : "warning",
+      code: "invalid-metadata",
       message: error,
       path: filePath,
     });
@@ -283,14 +279,14 @@ async function loadSkillFromFile(
   const name = frontmatterName || parentDirName;
   for (const error of validateName(name, parentDirName)) {
     diagnostics.push({
-      type: "warning",
-      code: "invalid_metadata",
+      level: "warning",
+      code: "invalid-metadata",
       message: error,
       path: filePath,
     });
   }
 
-  if (!description || description.trim() === "") {
+  if (missingDescription) {
     return { skill: null, diagnostics };
   }
 

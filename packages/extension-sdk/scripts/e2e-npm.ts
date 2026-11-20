@@ -52,7 +52,11 @@ try {
     join(tools, "package.json"),
     '{"name":"tools","private":true}\n',
   );
-  run("npm", ["install", "--no-audit", "--no-fund", ...files], tools);
+  run(
+    "npm",
+    ["install", "--ignore-scripts", "--no-audit", "--no-fund", ...files],
+    tools,
+  );
   const workspace = join(root, "workspace");
   await mkdir(workspace);
   const bin = join(tools, "node_modules", ".bin", "nerve-ext");
@@ -60,7 +64,11 @@ try {
   const project = join(workspace, fixtureId);
 
   // 3. Install the project from the same tarballs (the pinned version is not on npm yet).
-  run("npm", ["install", "--no-audit", "--no-fund", ...files], project);
+  run(
+    "npm",
+    ["install", "--ignore-scripts", "--no-audit", "--no-fund", ...files],
+    project,
+  );
   const pkg = JSON.parse(await readFile(join(project, "package.json"), "utf8"));
   assert.match(
     pkg.dependencies["@nervekit/extension-sdk"],
@@ -91,7 +99,11 @@ try {
     workspace,
   );
   const preview = join(workspace, "csv-viewer");
-  run("npm", ["install", "--no-audit", "--no-fund", ...files], preview);
+  run(
+    "npm",
+    ["install", "--ignore-scripts", "--no-audit", "--no-fund", ...files],
+    preview,
+  );
   console.log(run("npx", ["nerve-ext", "check"], preview));
   const previewManifest = JSON.parse(
     await readFile(join(preview, "dist", "manifest.json"), "utf8"),

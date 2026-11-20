@@ -676,8 +676,8 @@ describe("installed extensions", () => {
         entry({
           state: "invalid",
           diagnostics: [
-            { level: "warning", message: "w" },
-            { level: "error", message: "e" },
+            { level: "warning", code: "w", message: "w" },
+            { level: "error", code: "e", message: "e" },
           ],
         }),
       ),

@@ -36,62 +36,20 @@ export {
   createQuickScriptToolDefinition,
   quickScriptHostTools,
 } from "./tool.js";
-export { createExtensionToolDefinitions } from "./extension-host/direct-tools.js";
-export {
-  configuredNamespaces,
-  deriveAvailability,
-} from "./extension-host/availability.js";
 export type {
-  AvailabilityInput,
-  DerivedAvailability,
-  ExtensionState,
-} from "./extension-host/availability.js";
-export {
-  inProcessExtensionCode,
-  type ExtensionCode,
-  type ExtensionCodeAdapter,
-  type ExtensionCodeHost,
-} from "./extension-host/code-adapter.js";
-export {
-  routedExtensionCode,
-  sandboxExtensionCode,
-  readSandboxedDefinitionData,
-  type SandboxExtensionCodeOptions,
-} from "./extension-host/sandbox-adapter.js";
-export { resolveExtensionIcon } from "./extension-host/icon.js";
-export type {
-  ExtensionHostPorts,
-  ExtensionStoreErrorCode,
-  ExtensionStorePort,
-} from "./extension-host/ports.js";
-export type {
-  ExtensionAgentDiagnostic,
-  ExtensionAgentError,
-  ExtensionAgentPort,
-  ExtensionAgentStatus,
-} from "./extension-host/agent-port.js";
-export type {
-  ConfigurationAgentDiagnostic,
   ConfigurationAgentPort,
+  ConfigurationDescription,
+  ConfigurationExplanation,
+  ConfigurationTool,
   ConfigurationAgentResult,
   ConfigurationAgentScope,
 } from "./runtime/configuration/configuration-port.js";
-export { openAvailabilityCode } from "./extension-host/host-context.js";
-export {
-  callExtensionMethodFromUi,
-  defaultUiCallTimeoutMs,
-  ExtensionUiCallError,
-  type ExtensionUiCall,
-} from "./extension-host/ui-call.js";
-export {
-  extensionMetadata,
-  extensionSettingsDefinition,
-} from "./extension-host/descriptors.js";
-export {
-  accountKindIsTestable,
-  testExtensionAccount,
-} from "./extension-host/account-test.js";
-export type { AccountTestOutcome } from "./extension-host/account-test.js";
+export type {
+  LaunchEntryDefinition,
+  LaunchEntryFolder,
+  LaunchPlacement,
+  LaunchesAgentPort,
+} from "./runtime/launches/launches-port.js";
 export type {
   NamespaceAvailability,
   QuickScriptAvailability,

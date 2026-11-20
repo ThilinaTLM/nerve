@@ -1,4 +1,4 @@
-import { canonicalDigest } from "./execution-admission/admission.js";
+import { canonicalDigest } from "./permissions/execution-admission/admission.js";
 import { prepareShellProcess } from "../infrastructure/process-host/shell-process.js";
 import {
   projectProcessOutput,

@@ -1,10 +1,9 @@
 import {
   ExtensionError,
   method,
-  nonEmptyString,
-  parseOptions,
   type ExtensionContext,
 } from "@nervekit/extension-api";
+import { nonEmptyString, parseOptions } from "@nervekit/extension-api/host";
 import { providerFor } from "./providers/index.js";
 import type { SearchResponse } from "./providers/provider.js";
 

@@ -6,7 +6,7 @@ Some resources run code or widen authority when Nerve loads them: project permis
 
 1. **Every trust decision is a row in `trusted_resource`** in core SQLite (`data/nerve.sqlite`). There are no trust files. _Why:_ one store gives one Trust view, atomic decisions, cascade on project removal, and keeps decisions out of the documents the agent's file tools edit.
 2. **A decision is bound to content.** It names the exact content approved (`content_digest`); different content is not trusted, whatever its path.
-3. **Only the user decides.** Decisions are made through user-UI operations; no agent tool, `quick_script` namespace or extension API can reach them, and a test asserts it for each kind.
+3. **Only the user decides.** Decisions are made through user-UI operations; no agent tool, `quick_script` namespace or extension API can reach them. No test enforces this yet; review it for every new agent surface.
 4. **Unknown means untrusted.** A missing row, a `rejected` row, a digest mismatch or an unreadable record all leave the resource unused, with a diagnostic that names the review.
 5. **Nothing runs before trust.** Trust is checked before any code of the resource runs or any of its settings applies.
 
@@ -24,23 +24,25 @@ Some resources run code or widen authority when Nerve loads them: project permis
 
 ## Kinds
 
-| Kind                   | Resource                                                    | Digest covers                                   | `grants`               | Decided in                      |
-| ---------------------- | ----------------------------------------------------------- | ----------------------------------------------- | ---------------------- | ------------------------------- |
-| `project_permissions`  | `.nerve/config/permissions.json`                            | Exact file bytes                                | —                      | Settings → This project → Trust |
-| `project_capabilities` | `.nerve/config/agent.json`, capabilities, `extensions.json` | Exact file bytes                                | —                      | Settings → This project → Trust |
-| `agent_profile`        | `.nerve/agent-profiles/*`                                   | Exact file bytes                                | —                      | Settings → This project → Trust |
-| `prompt_suggestion`    | A suggestion's `enable-js` predicate (user or project)      | The predicate source                            | —                      | Settings → Suggestions          |
-| `extension`            | An installed extension folder (user or project)             | Every file in `dist/`, by relative path, sorted | Grant snapshot (below) | Settings → Extensions           |
+| Kind                   | Resource                                                                                                  | Digest covers                                                                                   | `grants`               | Decided in                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------- |
+| `project_permissions`  | `.nerve/config/permissions.json`                                                                          | Exact file bytes                                                                                | —                      | Settings → This project → Trust |
+| `project_capabilities` | `.nerve/config/agent.json`, capabilities, `extensions.json`                                               | Exact file bytes                                                                                | —                      | Settings → This project → Trust |
+| `agent_profile`        | `.nerve/agent-profiles/*`                                                                                 | Exact file bytes                                                                                | —                      | Settings → This project → Trust |
+| `prompt_suggestion`    | A suggestion's `enable-js` predicate (user or project)                                                    | The predicate source                                                                            | —                      | Settings → Suggestions          |
+| `project_skill`        | A project skill folder (`.nerve/skills/<name>`, `.agents/skills/<name>` in the project and its ancestors) | Every file of the folder the skill loader does not ignore, by relative path, in code-unit order | —                      | Project settings → Skills       |
+| `extension`            | An installed extension folder (user or project)                                                           | Every file in `dist/`, by relative path, sorted                                                 | Grant snapshot (below) | Settings → Extensions           |
 
 Extension consent is the one decision the generic `trust.decide` operation cannot grant: it only withdraws it (`rejected`), because consent must name the content hash the user reviewed (`extensions.grantConsent`). A rejected extension is treated as pending review, never silently allowed again, and its row stays so Settings → This project → Trust can list it. Removing a row (`trust.delete`) only returns a resource to unknown.
 
-Skills are not trusted resources: they are instructions, not code or authority, and the [resources reference](../../packages/website/src/content/docs/reference/resources.md) tells users to review repository-controlled ones.
+**Project skills.** A skill is instructions, but its folder can hold scripts the skill tells the agent to run, and a repository is an untrusted source. So a project skill is advertised to the agent and can be applied only while the exact content of its folder is approved ([`project-skill-trust.ts`](../../packages/workbench-server/src/core-host/resources/project-skill-trust.ts), enforced in the [resource loader](../../packages/workbench-server/src/core-host/resources/resource-loader.ts) on every turn). The review (`skill.review`) lists every file with scripts marked; the decision is an ordinary `trust.decide`. User and built-in skills need no approval: the user put them there. A skill the agent writes at project scope waits for the user like any other project file.
 
 ## When an approval stops applying
 
 | Resource                             | Needs approval again when                                                                    |
 | ------------------------------------ | -------------------------------------------------------------------------------------------- |
 | Project files and project extensions | Any content change. A repository is an untrusted source.                                     |
+| Project skills                       | Any change of any file in the skill folder.                                                  |
 | Prompt-suggestion predicates         | The predicate changes.                                                                       |
 | User extensions                      | The update adds a grant. A code-only change keeps the approval and updates `content_digest`. |
 
@@ -52,19 +54,19 @@ The `extension` grant snapshot lists what the user approved: network origins, ca
 
 ## Change risk
 
-| Change                                          | Risk                                                                                                                                              |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| New trust kind                                  | Add it to the contracts enum, define what its digest covers and its re-approval rule, and add it to the agent-unreachable test. No table rebuild. |
-| What a digest covers                            | Existing approvals stop matching; needs a migration step that recomputes or drops them.                                                           |
-| A `grants` schema                               | Older snapshots must still parse; widening is safe, narrowing needs a migration.                                                                  |
-| A path that reaches trust from an agent surface | Self-approval. Never.                                                                                                                             |
+| Change                                          | Risk                                                                                                                                                |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New trust kind                                  | Add it to the contracts enum, define what its digest covers and its re-approval rule, and confirm no agent surface can decide it. No table rebuild. |
+| What a digest covers                            | Existing approvals stop matching; needs a migration step that recomputes or drops them.                                                             |
+| A `grants` schema                               | Older snapshots must still parse; widening is safe, narrowing needs a migration.                                                                    |
+| A path that reaches trust from an agent surface | Self-approval. Never.                                                                                                                               |
 
 ## Where it lives
 
-| Concern               | Owner                                                                                                                                                                                  |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Table and repository  | [`schema.ts`](../../packages/conversation-core/src/storage/schema.ts), [`trusted-resource.repository.ts`](../../packages/conversation-core/src/storage/trusted-resource.repository.ts) |
-| Decisions and lookups | [`TrustedResourceService`](../../packages/conversation-core/src/conversations/trusted-resource.service.ts)                                                                             |
-| Project file kinds    | [`project-migration/descriptors.ts`](../../packages/workbench-server/src/infrastructure/configuration/project-migration/descriptors.ts)                                                |
-| Prompt suggestions    | [`prompt-suggestion-trust.repository.ts`](../../packages/workbench-server/src/domains/prompt-suggestions/prompt-suggestion-trust.repository.ts)                                        |
-| Extensions            | [`extension-consent.ts`](../../packages/workbench-server/src/core-host/extension-catalog/extension-consent.ts) (the gate over the service; the catalog in the same folder consults it) |
+| Concern               | Owner                                                                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Table and repository  | [`schema.ts`](../../packages/conversation-core/src/storage/schema.ts), [`trusted-resource.repository.ts`](../../packages/conversation-core/src/storage/trusted-resource.repository.ts)            |
+| Decisions and lookups | [`TrustedResourceService`](../../packages/conversation-core/src/conversations/trusted-resource.service.ts)                                                                                        |
+| Project file kinds    | [`project-migration/descriptors.ts`](../../packages/workbench-server/src/infrastructure/configuration/project-migration/descriptors.ts)                                                           |
+| Prompt suggestions    | [`prompt-suggestion-trust.repository.ts`](../../packages/workbench-server/src/domains/prompt-suggestions/prompt-suggestion-trust.repository.ts)                                                   |
+| Extensions            | [`extension-consent.ts`](../../packages/workbench-server/src/core-host/extensions/extension-catalog/extension-consent.ts) (the gate over the service; the catalog in the same folder consults it) |

@@ -4,7 +4,7 @@ The exact extension API is in the TypeScript declarations under `reference/exten
 
 ## Backend (`reference/extensions/api/extension-api/`)
 
-Import everything from `@nervekit/extension-sdk`, which re-exports this package.
+Import everything from `@nervekit/extension-sdk`, which re-exports this package. A direct `@nervekit/extension-api` import fails the build.
 
 | Start from                                                                        | For                                                                                               |
 | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |

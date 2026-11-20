@@ -1,5 +1,5 @@
 import type { QuickScriptRegistry } from "../registry.js";
-import { ExtensionRuntime } from "../extension-host/runtime.js";
+import { ExtensionRuntime } from "../../extension-host/runtime.js";
 import { librariesPrelude } from "./libraries.js";
 import {
   RUNTIME_HEAD,

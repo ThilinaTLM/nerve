@@ -1,9 +1,9 @@
 import {
   defineTool,
   ExtensionError,
-  nonEmptyString,
   type ExtensionContext,
 } from "@nervekit/extension-api";
+import { nonEmptyString } from "@nervekit/extension-api/host";
 
 export const THINKING_LEVELS = [
   "off",

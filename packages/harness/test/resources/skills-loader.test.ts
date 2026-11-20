@@ -242,3 +242,41 @@ describe("skill loader Windows paths", () => {
     );
   });
 });
+
+describe("skill loader diagnostics", () => {
+  it("reports a skill that does not load as an error and a rule it breaks as a warning", async () => {
+    const root = "/skills";
+    const env = new MemoryExecutionEnv(root, {
+      [`${root}/no-description/SKILL.md`]:
+        "---\nname: no-description\n---\nBody\n",
+      [`${root}/renamed/SKILL.md`]:
+        "---\nname: other-name\ndescription: Loads under another name.\n---\nBody\n",
+    });
+
+    const result = await loadSkills(env, root);
+
+    assert.deepEqual(
+      result.skills.map((skill) => skill.name),
+      ["other-name"],
+    );
+    assert.deepEqual(
+      result.diagnostics.map(({ level, code, path }) => ({
+        level,
+        code,
+        path,
+      })),
+      [
+        {
+          level: "error",
+          code: "invalid-metadata",
+          path: `${root}/no-description/SKILL.md`,
+        },
+        {
+          level: "warning",
+          code: "invalid-metadata",
+          path: `${root}/renamed/SKILL.md`,
+        },
+      ],
+    );
+  });
+});

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fileDiagnosticSchema } from "../configuration/diagnostic.js";
 
 export const PROMPT_SUGGESTION_NAME_MAX_LENGTH = 64;
 export const PROMPT_SUGGESTION_LABEL_MAX_LENGTH = 80;
@@ -102,21 +103,11 @@ export type PromptSuggestionStatus = z.infer<
   typeof promptSuggestionStatusSchema
 >;
 
-export const promptSuggestionDiagnosticSchema = z.object({
-  type: z.literal("warning"),
-  code: z.string().min(1),
-  message: z.string().min(1),
-  path: z.string().min(1),
-});
-export type PromptSuggestionDiagnostic = z.infer<
-  typeof promptSuggestionDiagnosticSchema
->;
-
 export const promptSuggestionListResponseSchema = z.object({
   suggestions: z.array(promptSuggestionSchema),
   trustRequests: z.array(promptSuggestionTrustRequestSchema),
   statuses: z.array(promptSuggestionStatusSchema),
-  diagnostics: z.array(promptSuggestionDiagnosticSchema).optional(),
+  diagnostics: z.array(fileDiagnosticSchema).optional(),
 });
 export type PromptSuggestionListResponse = z.infer<
   typeof promptSuggestionListResponseSchema

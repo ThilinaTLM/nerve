@@ -6,9 +6,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, test } from "node:test";
 import { sandbox } from "@nervekit/native";
-import { loadInstalledExtension } from "../../../src/core-host/extension-catalog/load-installed.js";
-import { readInstalledExtensions } from "../../../src/core-host/extension-catalog/read-installed.js";
-import { overrideTrustGate } from "../../../src/core-host/extension-catalog/trust-gate.js";
+import { loadInstalledExtension } from "../../../src/core-host/extensions/extension-catalog/load-installed.js";
+import { readInstalledExtensions } from "../../../src/core-host/extensions/extension-catalog/read-installed.js";
+import { overrideTrustGate } from "../../../src/core-host/extensions/extension-catalog/trust-gate.js";
 
 /*
  * `sdk-fixture/sdk-probe/dist` is what `nerve-ext build` writes for the `integration` template

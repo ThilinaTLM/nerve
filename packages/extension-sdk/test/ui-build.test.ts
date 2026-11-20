@@ -478,7 +478,10 @@ void test("a .tsx entry without react reports how to install it", async () => {
     const problems = await problemsOf(() =>
       buildExtension({ projectDir: folder }),
     );
-    assert.match(problems[0]!.fix, /npm install react react-dom/);
+    assert.match(
+      problems[0]!.fix,
+      /npm install --ignore-scripts react react-dom/,
+    );
   });
 });
 

@@ -1,6 +1,6 @@
 # Agent configuration scope service
 
-`AgentConfigurationService` uses the Phase 1 contracts and scoped store. The composition root now registers it for runtime request, compaction, retry, child creation and admission consumers. JSON and validated in-memory generations are authority; the summary cache is display-only. For runtime and profile-save orchestration, see `core-host/scoped-configuration-runtime.md`.
+`AgentConfigurationService` uses the Phase 1 contracts and scoped store. The composition root now registers it for runtime request, compaction, retry, child creation and admission consumers. JSON and validated in-memory generations are authority; the summary cache is display-only. For runtime and profile-save orchestration, see [scoped configuration](../../../../../../docs/architecture/configuration.md).
 
 ## Construction ports
 

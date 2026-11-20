@@ -368,8 +368,6 @@ export type ExtensionUi = {
 export type ExtensionDefinition = {
   /** Stable, kebab-case; settings, accounts and operations are keyed by it. Equals the folder name; lower-case letters, digits and single hyphens, starts with a letter, at most 64 characters. */
   id: string;
-  /** The extension API version this definition is written against; always `1`. */
-  apiVersion: 1;
   /** Name on the Extensions page. */
   name: string;
   /** One line for the Extensions page. */

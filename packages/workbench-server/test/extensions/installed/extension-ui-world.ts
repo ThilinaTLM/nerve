@@ -5,13 +5,13 @@ import { join } from "node:path";
 import { after, before } from "node:test";
 import { sandbox } from "@nervekit/native";
 import { resolveExtensions } from "@nervekit/contracts/extensions";
-import { overrideTrustGate } from "../../../src/core-host/extension-catalog/trust-gate.js";
+import { overrideTrustGate } from "../../../src/core-host/extensions/extension-catalog/trust-gate.js";
 import {
   ExtensionStore,
   type ExtensionStoreChange,
-} from "../../../src/core-host/extension-store/extension-store.js";
-import { ExtensionUiService } from "../../../src/core-host/extension-ui/extension-ui-service.js";
-import { ExtensionUiError } from "../../../src/core-host/extension-ui/extension-ui-error.js";
+} from "../../../src/core-host/extensions/extension-store/extension-store.js";
+import { ExtensionUiService } from "../../../src/core-host/extensions/extension-ui/extension-ui-service.js";
+import { ExtensionUiError } from "../../../src/core-host/extensions/extension-ui/extension-ui-error.js";
 import { createExtensionFrameRoutes } from "../../../src/adapters/http/routes/extension-frame-routes.js";
 import { writeExtension, createTestCatalog } from "./fixtures.js";
 

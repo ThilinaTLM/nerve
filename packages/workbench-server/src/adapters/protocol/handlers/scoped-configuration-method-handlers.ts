@@ -1,5 +1,5 @@
 import { toTrustedDigest } from "@nervekit/contracts/core";
-import { createConfigurationReload } from "../../../core-host/configuration-reload.js";
+import { createConfigurationReload } from "../../../core-host/configuration/configuration-reload.js";
 import { readFile } from "node:fs/promises";
 import {
   agentPreferencesSchema,

@@ -200,8 +200,8 @@ function evaluateEnableJs(
     return result === true;
   } catch (error) {
     diagnostics.push({
-      type: "warning",
-      code: "enable_failed",
+      level: "warning",
+      code: "enable-failed",
       message: `enable predicate failed for ${definition.name}: ${
         error instanceof Error ? error.message : String(error)
       }`,

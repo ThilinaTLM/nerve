@@ -30,8 +30,8 @@ export async function loadPromptSuggestionDefinitions(
       entries = await readdir(input.dir, { withFileTypes: true });
     } catch (error) {
       diagnostics.push({
-        type: "warning",
-        code: "list_failed",
+        level: "error",
+        code: "list-failed",
         message: error instanceof Error ? error.message : String(error),
         path: input.dir,
       });
@@ -87,8 +87,8 @@ async function loadSuggestionFile(
         return {
           diagnostics: [
             {
-              type: "warning",
-              code: "invalid_metadata",
+              level: "error",
+              code: "invalid-metadata",
               path: filePath,
               message:
                 "Suggestion is invalid or incompatible; fix it and reload.",
@@ -101,8 +101,8 @@ async function loadSuggestionFile(
     raw = await readFile(filePath, "utf8");
   } catch (error) {
     diagnostics.push({
-      type: "warning",
-      code: "read_failed",
+      level: "error",
+      code: "read-failed",
       message: error instanceof Error ? error.message : String(error),
       path: filePath,
     });

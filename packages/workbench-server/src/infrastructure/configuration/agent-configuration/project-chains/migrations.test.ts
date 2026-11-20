@@ -22,7 +22,7 @@ import {
 } from "./scoped-migrations.js";
 import { projectProfileConfiguration } from "./profile-migrations.js";
 import { projectExtensionsConfiguration } from "../../extensions/project-extensions.js";
-import { projectPermissionsConfiguration } from "../../../../core-host/project-permission-migrations.js";
+import { projectPermissionsConfiguration } from "../../../../core-host/permissions/project-permission-migrations.js";
 
 async function fixture(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "project-chains-"));

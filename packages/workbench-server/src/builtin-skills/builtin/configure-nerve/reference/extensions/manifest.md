@@ -10,6 +10,13 @@
 - **Permissions.** Declare only what the feature needs. Each network origin and capability is a line the user must accept.
 - **Not allowed in installed extensions:** `prelude` and settings `migrations`. The build reports them.
 
+## Icons
+
+| Where                      | Accepts                                                                                                                                                                                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The extension's `icon`     | One of `blocks`, `eye`, `globe`, `image-plus`, `layers`, `workflow`, or the path of an SVG in the extension folder (`icon.svg`: at most 16 KB, square `viewBox`, no scripts or external references). Anything else makes the extension `invalid`. |
+| A page's or panel's `icon` | Any lucide name in kebab-case (`layout-dashboard`, `list-checks`). An unknown name shows a puzzle piece.                                                                                                                                          |
+
 ## Agent-facing text limits
 
 Text a model reads is checked when the folder loads; an extension over a limit is `invalid` with the limit in its diagnostics. Keep descriptions short and put detail in doc topics (`docs/*.md`, listed in a namespace's `docs`).

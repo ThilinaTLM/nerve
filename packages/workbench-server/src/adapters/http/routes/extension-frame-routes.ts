@@ -5,13 +5,13 @@ import {
   baseCssUrl,
   frameUrlPrefix,
   type ExtensionUiService,
-} from "../../../core-host/extension-ui/extension-ui-service.js";
+} from "../../../core-host/extensions/extension-ui/extension-ui-service.js";
 import {
   frameMimeTypes,
   framePath,
   readContainedFile,
   type FrameFile,
-} from "../../../core-host/extension-ui/frame-files.js";
+} from "../../../core-host/extensions/extension-ui/frame-files.js";
 
 /** `dist/ext-frame/` of this build: the base stylesheet and its fonts (`scripts/build/build-extension-frame-css.ts`). */
 export function resolveFrameAssetsPath(moduleUrl: string): string {

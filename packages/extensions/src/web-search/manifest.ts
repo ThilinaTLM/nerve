@@ -14,7 +14,6 @@ import {
 /** Web search through the provider of the selected account (`providers/`); `web.fetch` is built into quick_script. */
 export const webSearchExtension = defineExtension({
   id: "web-search",
-  apiVersion: 1,
   name: "Web Search",
   description: "Search the web with your own search provider account.",
   icon: "icon.svg",

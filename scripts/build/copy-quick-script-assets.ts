@@ -61,7 +61,6 @@ await build({
     join(
       packageRoot,
       "src",
-      "quick-script",
       "extension-host",
       "sandbox-runtime",
       "extension-runtime.ts",

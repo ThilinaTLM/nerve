@@ -1,4 +1,7 @@
-import { consentSourcesOf } from "../../core-host/extension-catalog/extension-consent.js";
+import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
+import { storagePaths } from "../../infrastructure/storage-bootstrap/index.js";
+import { promptSuggestionProvider } from "../../core-host/configuration/providers/prompt-suggestion-provider.js";
+import { consentSourcesOf } from "../../core-host/extensions/extension-catalog/extension-consent.js";
 import { toTrustedDigest } from "@nervekit/contracts/core";
 import {
   createdPrReference,
@@ -19,8 +22,8 @@ import {
   createHostExtensionCatalog,
   registerHostTools,
 } from "../../core-host/host-tools.js";
-import type { ExtensionCatalog } from "../../core-host/extension-catalog/extension-catalog.js";
-import { listAvailableSkills } from "../../core-host/resource-loader.js";
+import type { ExtensionCatalog } from "../../core-host/extensions/extension-catalog/extension-catalog.js";
+import { listAvailableSkills } from "../../core-host/resources/resource-loader.js";
 import { UnifiedCompletionService } from "../../domains/completions/unified-completion-service.js";
 import { createCompletionDependencies } from "./create-completion-dependencies.js";
 import { createWorkspaceMonitorPublisher } from "./workspace-monitor-publisher.js";
@@ -45,7 +48,7 @@ import type { ResourceLimits } from "@nervekit/contracts/settings";
 import type { NerveSkillCatalog } from "../../builtin-skills/index.js";
 import type { AgentBrowserSkillCatalog } from "../../core-host/agent-browser-skills.js";
 import { CoreScratchNoteService } from "../../core-host/scratch-note.service.js";
-import { ExtensionStore } from "../../core-host/extension-store/extension-store.js";
+import { ExtensionStore } from "../../core-host/extensions/extension-store/extension-store.js";
 import { createConversationCore } from "./create-conversation-core.js";
 import { createWorkbenchLaunchResources } from "../../domains/launches/adapters/workbench-launch-adapters.js";
 import { LaunchService } from "../../domains/launches/application/launch.service.js";
@@ -169,6 +172,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,
+    configurationResources,
   } = createConversationCore(
     { ...deps, accounts, extensionCatalog, extensionStore },
     { launches, definitions: launchDefinitions },
@@ -366,6 +370,14 @@ export function createRuntimeServices(deps: RuntimeDeps) {
         : undefined;
     },
   });
+  configurationResources.register(
+    promptSuggestionProvider({
+      suggestions: promptSuggestions,
+      userDirectory:
+        storage.paths.suggestionsPath ??
+        storagePaths(storage.paths.home).suggestionsPath,
+    }),
+  );
   const completionMetadata = (id: string) => {
     const conversation = coreStorage.conversations.get(id);
     if (!conversation) throw new Error("Conversation not found");
@@ -410,6 +422,10 @@ export function createRuntimeServices(deps: RuntimeDeps) {
               storageHome: storage.paths.home,
               nerveSkills: deps.nerveSkills.skills,
               agentBrowserSkills: deps.agentBrowserSkills.skills,
+              projectSkills: {
+                trust: createProjectSkillTrust(conversationCore.trust),
+                projectId: scope.projectId,
+              },
             })
           ).skills,
         launches: () => launches.list(),
@@ -441,6 +457,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,
+    configurationResources,
     coreStorage,
     launches,
     launchDefinitions,

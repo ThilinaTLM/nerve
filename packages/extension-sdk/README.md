@@ -4,7 +4,7 @@ The one dependency of a Nerve extension project: the extension API, the test hel
 
 ```sh
 npx @nervekit/extension-sdk init csv-viewer --kind integration   # or: nerve-ext init
-cd csv-viewer && npm install
+cd csv-viewer && npm install --ignore-scripts
 npx nerve-ext check
 ```
 
@@ -18,7 +18,7 @@ npx nerve-ext check
 
 Errors name what is wrong, where, and the fix.
 
-- `@nervekit/extension-sdk`: re-exports `@nervekit/extension-api` (`defineExtension`, `defineNamespace`, `method`, types).
+- `@nervekit/extension-sdk`: the one import for extension code; re-exports the public `@nervekit/extension-api` (`defineExtension`, `defineNamespace`, `method`, types). The build rejects a direct `@nervekit/extension-api` import.
 - `@nervekit/extension-sdk/testing`: `createFakeContext`, `createFakeBridge`, Vitest's `describe`, `it`, `expect`, `vi`, and Svelte's `mount`, `unmount`, `flushSync`, `tick` for component tests.
 - `@nervekit/extension-sdk/build`: `buildExtension({ projectDir })`, the function behind `nerve-ext build`.
 - `@nervekit/extension-sdk/ui`: re-exports `@nervekit/ui-kit` (the bridge client follows).

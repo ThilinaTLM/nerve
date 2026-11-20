@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { diagnosticSchema } from "../configuration/diagnostic.js";
 
 /** Where an extension comes from. Precedence: project, then user, then built-in. */
 export const extensionSourceSchema = z.enum(["builtin", "user", "project"]);
@@ -18,14 +19,6 @@ export const extensionStateSchema = z.enum([
   "shadowed",
 ]);
 export type ExtensionState = z.infer<typeof extensionStateSchema>;
-
-export const extensionCatalogDiagnosticSchema = z.strictObject({
-  level: z.enum(["error", "warning"]),
-  message: z.string(),
-});
-export type ExtensionCatalogDiagnostic = z.infer<
-  typeof extensionCatalogDiagnosticSchema
->;
 
 /** One line of what an extension asks consent for, in plain language. */
 export const extensionConsentItemSchema = z.strictObject({
@@ -93,7 +86,7 @@ export const extensionCatalogEntrySchema = z.strictObject({
   sdkVersion: z.string().optional(),
   /** `shadowed` only: the source that has the id. */
   shadowedBy: extensionSourceSchema.optional(),
-  diagnostics: z.array(extensionCatalogDiagnosticSchema),
+  diagnostics: z.array(diagnosticSchema),
   /** Installed extensions: everything the manifest adds or asks for, in plain language. */
   adds: z.array(extensionConsentItemSchema).optional(),
   /** `pending_consent` only: what to review before allowing. */

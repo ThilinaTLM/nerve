@@ -4,7 +4,6 @@ import { explainImageTool, THINKING_LEVELS } from "./explain-image.js";
 /** Image explanation: a vision model describes images to agents whose model cannot see them. */
 export const imageExplanationExtension = defineExtension({
   id: "image-explanation",
-  apiVersion: 1,
   name: "Image explanation",
   description: "Let text-only models understand images through a vision model.",
   icon: "eye",

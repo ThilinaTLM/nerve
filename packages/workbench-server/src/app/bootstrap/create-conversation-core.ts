@@ -1,20 +1,21 @@
-import { consentSourcesOf } from "../../core-host/extension-catalog/extension-consent.js";
+import { consentSourcesOf } from "../../core-host/extensions/extension-catalog/extension-consent.js";
 import { toTrustedDigest } from "@nervekit/contracts/core";
-import { ConversationTitleService } from "../../domains/conversation-titles/title.service.js";
+import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
+import { createConversationTitles } from "./create-conversation-titles.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import {
   assertExtensionToolOffered,
   extensionAvailability,
-} from "../../core-host/extension-availability.js";
+} from "../../core-host/extensions/extension-availability.js";
 import {
   createExtensionPorts,
   extensionStates,
   selectedAccountsTarget,
-} from "../../core-host/extension-ports.js";
+} from "../../core-host/extensions/extension-ports.js";
 import { createHostExtensionCatalog } from "../../core-host/host-tools.js";
-import type { ExtensionCatalog } from "../../core-host/extension-catalog/extension-catalog.js";
+import type { ExtensionCatalog } from "../../core-host/extensions/extension-catalog/extension-catalog.js";
 import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
-import { conversationExtensions } from "../../core-host/conversation-extensions.js";
+import { conversationExtensions } from "../../core-host/extensions/conversation-extensions.js";
 import { ExtensionSettingsService } from "../../infrastructure/configuration/extensions/extension-settings-service.js";
 import { type QuickScriptContext } from "@nervekit/tools/quick-script";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
@@ -29,15 +30,19 @@ import { agentConfigurationOperations } from "../../infrastructure/configuration
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { conversationAgentBlocked } from "./conversation-agent-blocked.js";
-import { createConfigurationAgentPort } from "../../core-host/configuration-agent-port.js";
-import { createScopedPermissionSource } from "../../core-host/scoped-permission-source.js";
+import type { LaunchDefinitionService } from "../../domains/launch-definitions/launch-definition.service.js";
+import { resolveShell } from "./resolve-shell.js";
+import { createLaunchesAgentPort } from "../../core-host/configuration/launches-agent-port.js";
+import { createResourceRegistry } from "../../core-host/configuration/create-resource-registry.js";
+import { createConfigurationAgentPort } from "../../core-host/configuration/configuration-agent-port.js";
+import { createScopedPermissionSource } from "../../core-host/permissions/scoped-permission-source.js";
 import { resolveAgentModel } from "@nervekit/harness/models";
-import { scopedConversationCreation } from "../../core-host/scoped-conversation-creation.js";
+import { scopedConversationCreation } from "../../core-host/configuration/scoped-conversation-creation.js";
 import { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import { bundledAgentProfiles } from "../../infrastructure/configuration/agent-configuration/builtins/index.js";
-import { createScopedAgentConfiguration } from "../../core-host/scoped-agent-configuration.js";
-import type { ExtensionStore } from "../../core-host/extension-store/extension-store.js";
-import { scopedTurnResources } from "../../core-host/scoped-turn-resources.js";
+import { createScopedAgentConfiguration } from "../../core-host/configuration/scoped-agent-configuration.js";
+import type { ExtensionStore } from "../../core-host/extensions/extension-store/extension-store.js";
+import { scopedTurnResources } from "../../core-host/resources/scoped-turn-resources.js";
 import { clampAgentThinkingLevel } from "@nervekit/harness/models";
 import { mkdirSync } from "node:fs";
 import { createId } from "@nervekit/contracts";
@@ -46,7 +51,7 @@ import {
   LaunchTool,
   type LaunchToolOptions,
 } from "../../core-host/launch-tool.js";
-import { readFile, realpath } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import {
   ConversationCore,
   type ConversationCoreOptions,
@@ -56,7 +61,6 @@ import {
 } from "@nervekit/conversation-core";
 import {
   resolvePythonRuntime,
-  resolveBashShellConfig,
   ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
@@ -64,15 +68,15 @@ import {
   classifyQuickScriptArguments,
   quickScriptToolRisk,
 } from "@nervekit/tools/quick-script";
-import { listAvailableSkills } from "../../core-host/resource-loader.js";
+import { listAvailableSkills } from "../../core-host/resources/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
 import { createVisionHost } from "../../core-host/vision-models.js";
-import { createPermissionPort } from "../../core-host/permission.adapter.js";
+import { createPermissionPort } from "../../core-host/permissions/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
 import { createToolHostPort } from "../../core-host/tool-host.adapter.js";
 import { createQuickScriptAuthorizer } from "../../core-host/quick-script-broker.js";
 import { isToolEnabled } from "../../core-host/tool-enablement.js";
-import { createExecutionAdmission } from "../../core-host/execution-admission/admission.js";
+import { createExecutionAdmission } from "../../core-host/permissions/execution-admission/admission.js";
 import type { RuntimeDeps } from "./create-runtime-services.js";
 import { ImageGenerationService } from "../../domains/image-generation/image-generation.service.js";
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
@@ -83,7 +87,9 @@ export function createConversationCore(
     extensionCatalog?: ExtensionCatalog;
     extensionStore: ExtensionStore;
   },
-  launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
+  launchServices: Pick<LaunchToolOptions, "launches"> & {
+    definitions: LaunchDefinitionService;
+  },
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
   processHost?: CoreProcessHost,
   migrations?: ProjectMigrationService,
@@ -175,19 +181,7 @@ export function createConversationCore(
             manualPath: settings.tools?.python_exec?.settings?.interpreterPath,
           })
         : undefined;
-    let shell: { available: true; path: string } | { available: false };
-    try {
-      shell = {
-        available: true,
-        path: await realpath(
-          resolveBashShellConfig({
-            shellPath: settings.tools?.bash?.settings?.shellPath,
-          }).shell,
-        ),
-      };
-    } catch {
-      shell = { available: false };
-    }
+    const shell = await resolveShell(settings.tools?.bash?.settings?.shellPath);
     return { extensions, python, shell, projectId: conversation.projectId };
   };
   let credentialEpoch = 0;
@@ -319,12 +313,18 @@ export function createConversationCore(
           ...(quickScript
             ? {
                 configurationAgent: createConfigurationAgentPort({
-                  service: agentConfiguration,
+                  registry: configurationResources,
+                  agentConfiguration,
                   policy: admissionPolicy,
                   home: deps.storage.paths.home,
                   conversationId: input.conversationId,
-                  trustedResources: storage.trustedResources,
-                  launchDefinitions: launchServices.definitions,
+                  projectDirectory: input.projectDir ?? input.cwd,
+                  cwd: input.cwd,
+                  availableModels: () => deps.providerCatalog.resolvedModels(),
+                }),
+                launchesAgent: createLaunchesAgentPort({
+                  definitions: launchServices.definitions,
+                  projectId: resources.projectId,
                 }),
                 extensionAgent: extensionCatalog.agentPort({
                   projectDir: input.projectDir ?? input.cwd,
@@ -624,6 +624,7 @@ export function createConversationCore(
       tools: tools.definitions,
       nerveSkills: () => deps.nerveSkills.skills,
       agentBrowserSkills: () => deps.agentBrowserSkills.skills,
+      projectSkillTrust: createProjectSkillTrust(storage.trustedResources),
       hasChildren: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
       registry: (projectDir) => extensionCatalog.registryFor(projectDir),
@@ -645,6 +646,18 @@ export function createConversationCore(
     registryFor: (projectDirectory) =>
       extensionCatalog.registryFor(projectDirectory),
   });
+  const configurationResources = createResourceRegistry({
+    home: deps.storage.paths.home,
+    agentConfiguration,
+    policy: admissionPolicy,
+    trustedResources: storage.trustedResources,
+    launchDefinitions: launchServices.definitions,
+    extensionCatalog,
+    builtinSkills: () => [
+      ...deps.nerveSkills.skills,
+      ...deps.agentBrowserSkills.skills,
+    ],
+  });
   const userApproved = (toolCallId: string) => {
     const supervision = storage.toolCalls.get(toolCallId)?.supervision;
     return (
@@ -655,24 +668,7 @@ export function createConversationCore(
     createExecutionAdmission(admissionPolicy),
     (call) => extensionCatalog.registryFor(call.projectDir),
   );
-  const conversationTitles = new ConversationTitleService({
-    settings: () => deps.storage.settings.conversationTitles,
-    resolve: (selection) => models.resolve(selection),
-    log: (context) => {
-      // Failures are warnings so they surface at the default log level.
-      const level = context.category === "ready" ? "info" : "warn";
-      void deps.logger[level]("Conversation title generation", {
-        context,
-      }).catch(() => undefined);
-    },
-  });
-  deps.events.subscribeNotify((event) => {
-    if (
-      event.type === "settings.updated" &&
-      !deps.storage.settings.conversationTitles.enabled
-    )
-      conversationTitles.cancelQueued();
-  });
+  const conversationTitles = createConversationTitles(deps, models);
   const core: ConversationCore = new ConversationCore({
     gitRemotes: async (projectId) => {
       const project = storage.projects.get(projectId);
@@ -793,6 +789,7 @@ export function createConversationCore(
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,
+    configurationResources,
     subagentHost,
   };
 }

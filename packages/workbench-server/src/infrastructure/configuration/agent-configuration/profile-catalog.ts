@@ -33,6 +33,7 @@ import {
   AgentConfigurationPaths,
   diagnostic,
   healthDiagnostics,
+  issueDiagnostics,
   parserIssues,
   type AgentScope,
   type ConfigurationDiagnostic,
@@ -291,40 +292,65 @@ export class AgentProfileCatalog {
     const directory = this.options.paths.profiles(scope);
     let cached = this.listings.get(directory);
     if (!cached) {
-      cached = (async () => {
-        try {
-          const names: string[] = [];
-          const diagnostics: ConfigurationDiagnostic[] = [];
-          for (const file of await readdir(directory)) {
-            if (!file.endsWith(".json")) continue;
-            const name = file.slice(0, -5);
-            if (profileDefinitionSchema.shape.name.safeParse(name).success)
-              names.push(name);
-            else
-              diagnostics.push(
-                diagnostic(
-                  scope,
-                  `profile:${name}`,
-                  path.join(directory, file),
-                  "invalid-value",
-                  "/name",
-                ),
-              );
-          }
-          this.extraDiagnostics.set(directory, freezeJson(diagnostics));
-          return { names, diagnostics };
-        } catch (error) {
-          const diagnostics =
-            errorCode(error) === "ENOENT"
-              ? []
-              : [diagnostic(scope, "profile:catalog", directory, "io-error")];
-          this.extraDiagnostics.set(directory, diagnostics);
-          return { names: [], diagnostics };
-        }
-      })();
+      cached = this.listDirectory(scope).then((listing) => {
+        this.extraDiagnostics.set(directory, freezeJson(listing.diagnostics));
+        return listing;
+      });
       this.listings.set(directory, cached);
     }
     return cached;
+  }
+
+  /** The profile files of a scope as they are on disk now. */
+  private async listDirectory(
+    scope: PreferenceScope,
+  ): Promise<{ names: string[]; diagnostics: ConfigurationDiagnostic[] }> {
+    const directory = this.options.paths.profiles(scope);
+    try {
+      const names: string[] = [];
+      const diagnostics: ConfigurationDiagnostic[] = [];
+      for (const file of await readdir(directory)) {
+        if (!file.endsWith(".json")) continue;
+        const name = file.slice(0, -5);
+        if (profileDefinitionSchema.shape.name.safeParse(name).success)
+          names.push(name);
+        else
+          diagnostics.push(
+            diagnostic(
+              scope,
+              `profile:${name}`,
+              path.join(directory, file),
+              "invalid-value",
+              "/name",
+            ),
+          );
+      }
+      return { names, diagnostics };
+    } catch (error) {
+      return {
+        names: [],
+        diagnostics:
+          errorCode(error) === "ENOENT"
+            ? []
+            : [diagnostic(scope, "profile:catalog", directory, "io-error")],
+      };
+    }
+  }
+
+  /** Diagnostics of the scope's profile files as they are on disk; activates nothing. */
+  async inspect(scope: PreferenceScope): Promise<ConfigurationDiagnostic[]> {
+    const listing = await this.listDirectory(scope);
+    const found = await Promise.all(
+      listing.names.map(async (name) =>
+        issueDiagnostics(
+          scope,
+          `profile:${name}`,
+          this.options.paths.profile(scope, name),
+          await this.store.inspect({ ...scope, name }),
+        ),
+      ),
+    );
+    return [...listing.diagnostics, ...found.flat()];
   }
 
   private async loadProjectCatalog(projectId: string): Promise<void> {
@@ -579,7 +605,15 @@ export class AgentProfileCatalog {
     return this.store.reload(target);
   }
 
-  async reloadCatalog(scope: PreferenceScope): Promise<void> {
+  /**
+   * Re-reads every loaded profile of the scope and the folder listing. With `keepLoaded`, a file
+   * that is invalid on disk never replaces a valid loaded profile; the diagnostics of those
+   * files are returned.
+   */
+  async reloadCatalog(
+    scope: PreferenceScope,
+    keepLoaded = false,
+  ): Promise<ConfigurationDiagnostic[]> {
     this.listings.delete(this.options.paths.profiles(scope));
     const known = [...this.loaded.values()].filter(
       (entry) =>
@@ -587,8 +621,23 @@ export class AgentProfileCatalog {
         (scope.scope === "user" ||
           (entry.scope === "project" && entry.projectId === scope.projectId)),
     );
-    await Promise.all(known.map((entry) => this.store.reload(entry)));
+    const rejected = await Promise.all(
+      known.map(async (entry) => {
+        if (!keepLoaded) {
+          await this.store.reload(entry);
+          return [];
+        }
+        const result = await this.store.reloadKeepingLoaded(entry);
+        return issueDiagnostics(
+          entry,
+          `profile:${entry.name}`,
+          this.options.paths.profile(entry, entry.name),
+          result.rejected ?? [],
+        );
+      }),
+    );
     await this.names(scope);
+    return rejected.flat();
   }
 
   health(): ConfigurationDiagnostic[] {

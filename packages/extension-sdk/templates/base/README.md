@@ -14,7 +14,10 @@ Tests sit next to the code they cover (`*.test.ts`).
 
 ## Commands
 
+- `npm install --ignore-scripts`: install dependencies (`npm ci --ignore-scripts` with a lockfile). Install scripts never run.
 - `npx nerve-ext check`: type check, build, validation and tests. Run it until it passes.
 - `npx nerve-ext dev`: rebuild `dist/` on every change.
+
+`dist/` and `node_modules/` are not in version control: share the sources, and whoever receives them builds `dist/` with `npx nerve-ext check`.
 
 After a build, reload the extension in Nerve (Settings → Extensions) and allow it there.

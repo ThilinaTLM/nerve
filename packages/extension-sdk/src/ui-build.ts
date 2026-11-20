@@ -121,7 +121,7 @@ export async function planUi(
         problems.push({
           what: `The ${sourceField} '${source}' must be a .svelte component, a .ts module or a .tsx module.`,
           where: where(kind, index, sourceField),
-          fix: "Write the UI as a Svelte component (src/<kind>/<name>/<Name>.svelte), or as a .ts/.tsx module whose default export mounts into an element and returns its cleanup (a .tsx entry needs `npm install react react-dom`).",
+          fix: "Write the UI as a Svelte component (src/<kind>/<name>/<Name>.svelte), or as a .ts/.tsx module whose default export mounts into an element and returns its cleanup (a .tsx entry needs `npm install --ignore-scripts react react-dom`).",
         });
 
       if (kind === "themes") {
@@ -228,6 +228,11 @@ const frameForbidden: {
   name: string;
   fix: string;
 }[] = [
+  {
+    pattern: /^@nervekit\/extension-api(\/|$)/,
+    name: "direct API import",
+    fix: "Extensions import only from '@nervekit/extension-sdk'. Change the import to '@nervekit/extension-sdk' (types and helpers) or '@nervekit/extension-sdk/ui' (frame code).",
+  },
   {
     pattern:
       /^@nervekit\/ui-kit\/components\/(ui\/(alert-dialog|dialog)|composites\/(confirm-dialog|dialog-shell|form-dialog))(\/|$)/,
@@ -392,7 +397,7 @@ export async function buildFrames(
         });
         if (!resolved)
           this.error(
-            `Could not resolve '${source}': React is not installed (npm install react react-dom).`,
+            `Could not resolve '${source}': React is not installed (npm install --ignore-scripts react react-dom).`,
           );
         return resolved;
       }
@@ -498,11 +503,11 @@ function viteProblems(
       what: `The UI build of '${frame.id}' failed: ${message}`,
       where,
       fix: /react\/jsx(-dev)?-runtime/.test(message)
-        ? "A .tsx or .jsx file needs React: run `npm install react react-dom` in the extension folder."
+        ? "A .tsx or .jsx file needs React: run `npm install --ignore-scripts react react-dom` in the extension folder."
         : unresolved && message.includes("@lucide/svelte")
           ? 'Import icons from "@nervekit/extension-sdk/icons" (for example `import { Copy } from "@nervekit/extension-sdk/icons"`) instead of installing @lucide/svelte.'
           : unresolved
-            ? "Install the package as a dependency of the extension (npm install <name>), or correct the import path. Frames run in the browser: Node.js built-ins are not available."
+            ? "Install the package as a dependency of the extension (npm install --ignore-scripts <name>), or correct the import path. Frames run in the browser: Node.js built-ins are not available."
             : "Fix the code at that location; UI components are Svelte 5 components (or a .ts module) that run in a browser frame.",
     },
   ];

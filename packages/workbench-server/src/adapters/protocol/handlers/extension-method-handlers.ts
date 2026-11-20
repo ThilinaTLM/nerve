@@ -1,10 +1,10 @@
 import { toTrustedDigest } from "@nervekit/contracts/core";
 import { readFile } from "node:fs/promises";
 import type { ExtensionTarget } from "@nervekit/contracts/extensions";
-import type { InstalledExtensionRef } from "../../../core-host/extension-catalog/extension-catalog.js";
+import type { InstalledExtensionRef } from "../../../core-host/extensions/extension-catalog/extension-catalog.js";
 import { withFileMutation } from "../../../infrastructure/storage-bootstrap/file-mutations.js";
 import { digestBytes } from "../../../infrastructure/configuration/scoped-store/scoped-document-store.js";
-import { toScopeRef } from "../../../core-host/extension-views.js";
+import { toScopeRef } from "../../../core-host/extensions/extension-views.js";
 import { defineWorkbenchMethodHandlersFor } from "../method-handler-registry.js";
 import type { ServerAdapterContexts } from "../../contexts.js";
 

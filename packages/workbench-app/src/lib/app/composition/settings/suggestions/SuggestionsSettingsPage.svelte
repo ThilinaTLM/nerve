@@ -271,7 +271,11 @@ function copyPath(path: string): void {
   {/if}
 
   {#each promptSuggestionsState.diagnostics as diagnostic (`${diagnostic.path}:${diagnostic.code}:${diagnostic.message}`)}
-    <Callout layout="block" tone="warning" text={diagnostic.message} />
+    <Callout
+      layout="block"
+      tone={diagnostic.level === "error" ? "destructive" : "warning"}
+      text={diagnostic.message}
+    />
   {/each}
 {/snippet}
 

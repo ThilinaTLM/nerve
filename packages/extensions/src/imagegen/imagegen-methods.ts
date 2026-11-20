@@ -1,10 +1,9 @@
+import { ExtensionError, method } from "@nervekit/extension-api";
 import {
-  ExtensionError,
   isArtifactName,
-  method,
   nonEmptyString,
   parseOptions,
-} from "@nervekit/extension-api";
+} from "@nervekit/extension-api/host";
 import {
   assertCallOptions,
   imagegenSettingsOf,

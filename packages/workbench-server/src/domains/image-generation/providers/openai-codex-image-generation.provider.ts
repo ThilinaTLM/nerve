@@ -2,7 +2,7 @@ import type {
   ImageBackendRequest,
   ImageGenerateRequest,
   ImageGenerateResponse,
-} from "@nervekit/extension-api";
+} from "@nervekit/extension-api/host";
 import { ApplicationError } from "../../../core/application-error.js";
 import {
   chatGptAccountIdFromAccessToken,

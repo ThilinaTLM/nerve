@@ -50,6 +50,10 @@
       "types": "./dist/domains/completions/index.d.ts",
       "import": "./dist/domains/completions/index.js"
     },
+    "./configuration": {
+      "types": "./dist/domains/configuration/index.d.ts",
+      "import": "./dist/domains/configuration/index.js"
+    },
     "./core": {
       "types": "./dist/domains/core/index.d.ts",
       "import": "./dist/domains/core/index.js"

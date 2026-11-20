@@ -45,8 +45,8 @@ export function parseSuggestionMarkdown(
   const parsed = parseFrontmatter<Frontmatter>(raw);
   if (!parsed.ok) {
     diagnostics.push({
-      type: "warning",
-      code: "parse_failed",
+      level: "error",
+      code: "parse-failed",
       message: parsed.error.message,
       path: filePath,
     });
@@ -56,8 +56,8 @@ export function parseSuggestionMarkdown(
 
   if (raw.length > PROMPT_SUGGESTION_PROMPT_MAX_LENGTH + 10_000) {
     diagnostics.push({
-      type: "warning",
-      code: "invalid_metadata",
+      level: "error",
+      code: "invalid-metadata",
       message: `suggestion file exceeds the supported size`,
       path: filePath,
     });
@@ -71,8 +71,8 @@ export function parseSuggestionMarkdown(
       : fallbackName;
   for (const message of validateName(name)) {
     diagnostics.push({
-      type: "warning",
-      code: "invalid_metadata",
+      level: "error",
+      code: "invalid-metadata",
       message,
       path: filePath,
     });
@@ -84,8 +84,8 @@ export function parseSuggestionMarkdown(
       : titleFromName(name);
   if (label.length > PROMPT_SUGGESTION_LABEL_MAX_LENGTH) {
     diagnostics.push({
-      type: "warning",
-      code: "invalid_metadata",
+      level: "error",
+      code: "invalid-metadata",
       message: `label exceeds ${PROMPT_SUGGESTION_LABEL_MAX_LENGTH} characters (${label.length})`,
       path: filePath,
     });
@@ -101,8 +101,8 @@ export function parseSuggestionMarkdown(
     description.length > PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH
   ) {
     diagnostics.push({
-      type: "warning",
-      code: "invalid_metadata",
+      level: "error",
+      code: "invalid-metadata",
       message: `description exceeds ${PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH} characters (${description.length})`,
       path: filePath,
     });
@@ -111,15 +111,15 @@ export function parseSuggestionMarkdown(
   const promptBody = body.trim();
   if (!promptBody) {
     diagnostics.push({
-      type: "warning",
-      code: "invalid_metadata",
+      level: "error",
+      code: "invalid-metadata",
       message: "prompt body is required",
       path: filePath,
     });
   } else if (promptBody.length > PROMPT_SUGGESTION_PROMPT_MAX_LENGTH) {
     diagnostics.push({
-      type: "warning",
-      code: "invalid_metadata",
+      level: "error",
+      code: "invalid-metadata",
       message: `prompt exceeds ${PROMPT_SUGGESTION_PROMPT_MAX_LENGTH} characters (${promptBody.length})`,
       path: filePath,
     });
@@ -135,8 +135,8 @@ export function parseSuggestionMarkdown(
   );
   if (!whenResult.success) {
     diagnostics.push({
-      type: "warning",
-      code: "invalid_metadata",
+      level: "error",
+      code: "invalid-metadata",
       message: `invalid when metadata: ${whenResult.error.issues.map((issue) => issue.message).join(", ")}`,
       path: filePath,
     });
@@ -150,7 +150,7 @@ export function parseSuggestionMarkdown(
     : undefined;
 
   if (
-    diagnostics.some((diagnostic) => diagnostic.code === "invalid_metadata")
+    diagnostics.some((diagnostic) => diagnostic.code === "invalid-metadata")
   ) {
     return { diagnostics };
   }

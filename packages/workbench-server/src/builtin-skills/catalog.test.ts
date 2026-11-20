@@ -38,7 +38,7 @@ void test("configure-nerve extension reference mirrors the limits and runtime AP
   const { readFile } = await import("node:fs/promises");
   const { dirname, join } = await import("node:path");
   const { agentTextLimits } =
-    await import("../core-host/extension-catalog/agent-text-limits.js");
+    await import("../core-host/extensions/extension-catalog/agent-text-limits.js");
   const skill = (await loadNerveSkills()).find(
     (candidate) => candidate.name === "configure-nerve",
   )!;

@@ -175,18 +175,35 @@ export function healthDiagnostics<S extends AgentScope, D>(
   document: string,
 ): ConfigurationDiagnostic[] {
   return health.status === "unavailable"
-    ? health.issues.map((issue) => ({
-        ...diagnostic(
-          health.scope,
-          document,
-          health.path,
-          issue.code,
-          issue.pointer,
-          health.schemaVersion,
-        ),
-        ...(issue.message ? { message: issue.message } : {}),
-      }))
+    ? issueDiagnostics(
+        health.scope,
+        document,
+        health.path,
+        health.issues,
+        health.schemaVersion,
+      )
     : [];
+}
+
+/** Store issues of one file as located diagnostics. */
+export function issueDiagnostics(
+  scope: AgentScope,
+  document: string,
+  file: string,
+  issues: readonly DocumentIssue[],
+  schemaVersion?: number,
+): ConfigurationDiagnostic[] {
+  return issues.map((issue) => ({
+    ...diagnostic(
+      scope,
+      document,
+      file,
+      issue.code,
+      issue.pointer,
+      schemaVersion,
+    ),
+    ...(issue.message ? { message: issue.message } : {}),
+  }));
 }
 
 /** Legacy profile receipts are readable metadata, never part of a new document generation. */

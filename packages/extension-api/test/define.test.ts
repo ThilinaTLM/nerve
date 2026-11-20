@@ -70,7 +70,6 @@ void test("definitions are returned unchanged and errors carry their fix", () =>
   assert.equal(
     defineExtension({
       id: "x",
-      apiVersion: 1,
       name: "X",
       description: "",
       icon: "box",

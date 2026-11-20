@@ -1,0 +1,84 @@
+import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
+import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
+import type { ScopedPermissionPolicySource } from "./scoped-permission-source.js";
+import { join } from "node:path";
+import type { CoreStorage, PermissionPort } from "@nervekit/conversation-core";
+import { permissionRuleSchema } from "@nervekit/contracts/permissions";
+import { mutatePermissionOverlay } from "./permission-overlays.js";
+import {
+  ConfigurationScopePaths,
+  userConfigurationRoot,
+} from "../../infrastructure/configuration/scope-paths.js";
+import { createExecutionAdmission } from "./execution-admission/admission.js";
+
+export function createPermissionPort(
+  home: string,
+  storage: CoreStorage,
+  admissionPolicy: ScopedPermissionPolicySource,
+  projectMigration?: ProjectMigrationService,
+): PermissionPort {
+  const migrations =
+    projectMigration ??
+    new ProjectMigrationService({
+      home,
+      trust: projectMigrationTrust(() => storage, {
+        "permission-overlay": "project_permissions",
+      }),
+    });
+  const paths = (conversationId: string, projectDir: string) => {
+    const resolver = new ConfigurationScopePaths({
+      userConfigPath: userConfigurationRoot(home),
+      conversationsPath: join(home, "data", "conversations"),
+      // The core supplies the active project's directory to the permission port.
+      projectDirectory: () => projectDir,
+      projectOf: (id) => {
+        const conversation = storage.conversations.get(id);
+        if (!conversation) throw new Error("Conversation not found");
+        return conversation.projectId;
+      },
+    });
+    const conversation = resolver.resolve(
+      { scope: "conversation", conversationId },
+      "permissions.json",
+    );
+    return {
+      user: resolver.resolve({ scope: "user" }, "permissions.json").path,
+      project: resolver.resolve(
+        { scope: "project", projectId: conversation.projectId },
+        "permissions.json",
+      ).path,
+      conversation: conversation.path,
+    };
+  };
+  return {
+    prepareAdmission: createExecutionAdmission(admissionPolicy),
+    async addRule(input) {
+      const path = paths(input.conversationId, input.projectDir)[input.scope];
+      const rule = permissionRuleSchema.parse(input.rule);
+      const projectId = storage.conversations.get(
+        input.conversationId,
+      )?.projectId;
+      await mutatePermissionOverlay(
+        input.scope,
+        path,
+        (document) => {
+          let overlay = document.overlays.find(
+            (item) => item.ruleSetId === input.ruleSetId,
+          );
+          if (!overlay) {
+            overlay = { ruleSetId: input.ruleSetId, rules: [] };
+            document.overlays.push(overlay);
+          }
+          overlay.rules = [
+            ...overlay.rules.filter((item) => item.id !== rule.id),
+            rule,
+          ];
+        },
+        input.scope === "project" && projectId
+          ? { context: { projectId, directory: input.projectDir }, migrations }
+          : undefined,
+      );
+      await admissionPolicy.reload([path]);
+    },
+  };
+}

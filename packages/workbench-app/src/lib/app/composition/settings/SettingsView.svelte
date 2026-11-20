@@ -27,6 +27,7 @@ import {
   skillSourceSectionIds,
   sourcesForScope,
 } from "$lib/domain/skills/skill-catalog";
+import type { ProjectGuide } from "$lib/application/configuration-attention/project-guides";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import SettingsPageActions from "./SettingsPageActions.svelte";
 import SettingsPageContent from "./SettingsPageContent.svelte";
@@ -61,8 +62,15 @@ type Props = {
   authProviders?: AuthProviderMetadata[];
   /** The project of a project target. */
   project?: Project;
-  /** Shortcut from user settings to the currently active project. */
-  projectSettingsAction?: { name: string; onOpen: () => void };
+  /** Switching between your settings and the project's. */
+  scopeLinks?: {
+    onOpenUser: () => void;
+    project?: { id: string; name: string; path?: string; onOpen: () => void };
+  };
+  /** Items that need the user: in the project, and per page of this scope. */
+  attention?: { project: number; pages: Readonly<Record<string, number>> };
+  /** "In this project" rows by user page id. */
+  guides?: Readonly<Record<string, ProjectGuide>>;
   skills?: AvailableSkill[];
   skillsLoading?: boolean;
   skillsError?: string;
@@ -92,7 +100,9 @@ let {
   models = [],
   authProviders = [],
   project,
-  projectSettingsAction,
+  scopeLinks,
+  attention = { project: 0, pages: {} },
+  guides = {},
   skills = [],
   skillsLoading = false,
   skillsError,
@@ -144,9 +154,12 @@ const pages = $derived(
   }),
 );
 
-/** Project pages that differ from the user's settings are marked with their count. */
-const badges = $derived(
-  Object.fromEntries(
+/**
+ * Pages with items that need the user show their count; project pages that
+ * differ from the user's settings show how many differ.
+ */
+const badges = $derived({
+  ...Object.fromEntries(
     Object.entries(target.kind === "project" ? controllers.pageDiffs() : {})
       .filter(([, count]) => count > 0)
       .map(([id, count]) => [
@@ -154,19 +167,28 @@ const badges = $derived(
         { text: String(count), tone: "info" as const },
       ]),
   ),
-);
+  ...Object.fromEntries(
+    Object.entries(attention.pages)
+      .filter(([, count]) => count > 0)
+      .map(([id, count]) => [
+        id,
+        { text: String(count), tone: "warning" as const },
+      ]),
+  ),
+});
 const groups = $derived(settingsNavFor(target, badges));
-const scopeHeader = $derived({
-  ...settingsScopeHeader(target, project),
-  ...(target.kind === "user" && projectSettingsAction
-    ? {
-        action: {
-          label: "Project settings",
-          title: `Open settings for ${projectSettingsAction.name}`,
-          onSelect: projectSettingsAction.onOpen,
-        },
-      }
-    : {}),
+const scopeHeader = $derived.by(() => {
+  const open = scopeLinks?.project;
+  const named =
+    open ??
+    (target.kind === "project"
+      ? { name: project?.name ?? "Project", path: project?.directory }
+      : undefined);
+  return settingsScopeHeader(target, {
+    ...(named ? { project: { ...named, pending: attention.project } } : {}),
+    onOpenUser: scopeLinks?.onOpenUser ?? (() => undefined),
+    onOpenProject: open?.onOpen ?? (() => undefined),
+  });
 });
 
 // Stale ids (restored state, old links) land on the scope's default page.
@@ -242,6 +264,8 @@ function statusText(): string {
       {theme}
       {onThemeChange}
       {onSkillsRetry}
+      guide={guides[page.id]}
+      onOpenGuide={scopeLinks?.project?.onOpen}
     />
   {/snippet}
 </SettingsShell>

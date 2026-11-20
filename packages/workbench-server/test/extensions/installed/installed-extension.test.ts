@@ -8,17 +8,19 @@ import { resolveExtensions } from "@nervekit/contracts/extensions";
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import {
   accountKindIsTestable,
-  classifyQuickScriptScript,
   configuredNamespaces,
+  testExtensionAccount,
+} from "@nervekit/tools/extension-host";
+import {
+  classifyQuickScriptScript,
   executeQuickScript,
   quickScriptDescription,
-  testExtensionAccount,
 } from "@nervekit/tools/quick-script";
 import type { AccountsReader } from "../../../src/domains/accounts/accounts.service.js";
 import { hostRegistry } from "../../../src/core-host/host-tools.js";
-import { overrideTrustGate } from "../../../src/core-host/extension-catalog/trust-gate.js";
-import { extensionAvailability } from "../../../src/core-host/extension-availability.js";
-import { createExtensionPorts } from "../../../src/core-host/extension-ports.js";
+import { overrideTrustGate } from "../../../src/core-host/extensions/extension-catalog/trust-gate.js";
+import { extensionAvailability } from "../../../src/core-host/extensions/extension-availability.js";
+import { createExtensionPorts } from "../../../src/core-host/extensions/extension-ports.js";
 import { writeExtension, createTestCatalog } from "./fixtures.js";
 
 /*
@@ -30,7 +32,7 @@ import { writeExtension, createTestCatalog } from "./fixtures.js";
 const skip = !sandbox.isPersistentAvailable();
 const accounts: AccountsReader = {
   get: async (kind, id) =>
-    kind === "probe-account"
+    kind === "e2e-probe-account"
       ? {
           id,
           kind,
@@ -58,8 +60,7 @@ async function setup(settings: Record<string, unknown> = {}) {
   await writeExtension(userRoot, {
     id: "e2e-probe",
     namespace: "probee2e",
-    toolPrefix: "e2e",
-    accountKind: "probe-account",
+    accountKind: "e2e-probe-account",
   });
   const catalog = createTestCatalog({
     home,
@@ -199,9 +200,9 @@ void test(
       return definition.executor(args, context);
     };
     // Bound to the namespace method.
-    const echo = await run("e2e_echo", { text: "via tool" });
+    const echo = await run("e2e_probe_echo", { text: "via tool" });
     assert.match(echo.content, /"text": "via tool"/);
-    assert.equal(echo.details.tool, "e2e_echo");
+    assert.equal(echo.details.tool, "e2e_probe_echo");
     assert.ok(
       authorized.some(
         (request) =>
@@ -209,11 +210,11 @@ void test(
       ),
     );
     // Own implementation with `present`.
-    const ping = await run("e2e_ping", { n: 7 });
+    const ping = await run("e2e_probe_ping", { n: 7 });
     assert.equal(ping.content, "pong 7");
     // A registry without the extension (another project) refuses the call.
     await assert.rejects(
-      toolDefinitionByName("e2e_ping", "")!.executor!(
+      toolDefinitionByName("e2e_probe_ping", "")!.executor!(
         {},
         { ...context, registry: hostRegistry },
       ),
@@ -227,7 +228,7 @@ void test(
   { skip },
   async () => {
     const { registry } = await setup();
-    assert.equal(accountKindIsTestable(registry, "probe-account"), true);
+    assert.equal(accountKindIsTestable(registry, "e2e-probe-account"), true);
     const ports = {
       accounts: {
         get: async () => undefined,
@@ -240,7 +241,7 @@ void test(
       ports,
       account: {
         id: "good",
-        kind: "probe-account",
+        kind: "e2e-probe-account",
         name: "Good",
         fields: { site: "https://probe.test" },
       },
@@ -254,7 +255,7 @@ void test(
       ports,
       account: {
         id: "bad",
-        kind: "probe-account",
+        kind: "e2e-probe-account",
         name: "Bad",
         fields: { site: "bad" },
       },

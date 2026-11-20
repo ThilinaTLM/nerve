@@ -46,6 +46,10 @@
       "types": "./dist/execution/index.d.ts",
       "import": "./dist/execution/index.js"
     },
+    "./extension-host": {
+      "types": "./dist/extension-host/index.d.ts",
+      "import": "./dist/extension-host/index.js"
+    },
     "./quick-script": {
       "types": "./dist/quick-script/index.d.ts",
       "import": "./dist/quick-script/index.js"

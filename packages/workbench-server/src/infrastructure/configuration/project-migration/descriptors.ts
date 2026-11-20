@@ -5,7 +5,7 @@ import {
   projectCapabilitiesConfiguration,
 } from "../agent-configuration/project-chains/scoped-migrations.js";
 import { projectExtensionsConfiguration } from "../extensions/project-extensions.js";
-import { projectPermissionsConfiguration } from "../../../core-host/project-permission-migrations.js";
+import { projectPermissionsConfiguration } from "../../../core-host/permissions/project-permission-migrations.js";
 import type { TrustedResourceKind } from "@nervekit/contracts/core";
 import { launchDefinitionsConfiguration } from "../../../domains/launch-definitions/launch-definition-migrations.js";
 import type { ProjectConfigurationType } from "./project-migration.js";

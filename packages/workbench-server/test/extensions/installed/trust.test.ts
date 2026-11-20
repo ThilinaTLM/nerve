@@ -5,19 +5,19 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { InstalledExtensionManifest } from "@nervekit/contracts/extensions";
 import { version } from "../../../src/app/version.js";
-import { hashExtensionContent } from "../../../src/core-host/extension-catalog/content-hash.js";
+import { hashExtensionContent } from "../../../src/core-host/extensions/extension-catalog/content-hash.js";
 import {
   buildConsent,
   grantSnapshot,
   isEmptyGrant,
   newGrants,
-} from "../../../src/core-host/extension-catalog/consent-summary.js";
-import { ExtensionConsentRepository } from "../../../src/core-host/extension-catalog/extension-consent.js";
+} from "../../../src/core-host/extensions/extension-catalog/consent-summary.js";
+import { ExtensionConsentRepository } from "../../../src/core-host/extensions/extension-catalog/extension-consent.js";
 import type {
   ExtensionTrustVerdict,
   InstalledExtensionCandidate,
-} from "../../../src/core-host/extension-catalog/trust-gate.js";
-import { readFolder } from "../../../src/core-host/extension-catalog/read-installed.js";
+} from "../../../src/core-host/extensions/extension-catalog/trust-gate.js";
+import { readFolder } from "../../../src/core-host/extensions/extension-catalog/read-installed.js";
 import { testConsent, writeExtension } from "./fixtures.js";
 
 let root = "";
@@ -67,7 +67,7 @@ const verdict = (value: unknown) =>
 
 const withTool = (manifest: Json) => {
   (manifest.tools as Json[]).push({
-    name: "extra_tool",
+    name: "usr_extra",
     description: "Another tool.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
     risk: "none",
@@ -131,7 +131,7 @@ void test("nothing runs before consent; consent is bound to the reviewed files",
   assert.equal(row.name, "first");
   assert.equal(row.status, "trusted");
   assert.equal(row.contentDigest, `sha256:${pending.consent!.contentHash}`);
-  assert.deepEqual(row.grants?.tools, ["probe_echo", "probe_ping"]);
+  assert.deepEqual(row.grants?.tools, ["first_echo", "first_ping"]);
   // Revoking keeps the row as rejected, and the extension is pending review again.
   await trust.revoke(await candidate(extensions, "first"));
   assert.equal(
@@ -199,7 +199,7 @@ void test("user extensions keep consent through code-only changes and ask again 
   assert.equal(grew.consent?.update, true);
   assert.deepEqual(
     grew.consent?.items.map((item) => item.text),
-    ["Adds agent tools: extra_tool"],
+    ["Adds agent tools: usr_extra"],
   );
   await trust.grant(
     await candidate(extensions, "usr"),
@@ -280,7 +280,7 @@ const manifestOf = async (edit?: (manifest: Json) => void) => {
   const { extensions } = await world();
   await writeExtension(
     extensions,
-    { id: "summary", accountKind: "probe-account" },
+    { id: "summary", accountKind: "summary-account" },
     (m) => {
       m.permissions = {
         network: ["api.github.com"],
@@ -299,9 +299,9 @@ void test("the consent summary is plain language from the manifest", async () =>
     consent.items.map((item) => item.text),
     [
       "Connects to api.github.com",
-      "Uses your Probe account (account kind probe-account)",
+      "Uses your Probe account (account kind summary-account)",
       "Uses a vision model",
-      "Adds agent tools: probe_echo, probe_ping",
+      "Adds agent tools: summary_echo, summary_ping",
       "Adds SDK namespace probe (operations echo)",
     ],
   );
@@ -400,7 +400,7 @@ void test("grant diffs list only what is new; shrinking is empty", async () => {
   } as InstalledExtensionManifest);
   assert.ok(isEmptyGrant(newGrants(full, smaller)));
   const added = newGrants(smaller, full);
-  assert.deepEqual(added.tools, ["probe_echo", "probe_ping"]);
+  assert.deepEqual(added.tools, ["summary_echo", "summary_ping"]);
   assert.deepEqual(added.capabilities, ["models.vision"]);
   assert.deepEqual(added.network, []);
   // A new operation of an existing namespace is new; the namespace is not.

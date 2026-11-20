@@ -11,16 +11,18 @@ import { version as nerveVersion } from "../app/version.js";
 import {
   ExtensionCatalog,
   type ExtensionCatalogOptions,
-} from "./extension-catalog/extension-catalog.js";
+} from "./extensions/extension-catalog/extension-catalog.js";
 import {
   ExtensionConsentRepository,
   type ExtensionConsentSources,
-} from "./extension-catalog/extension-consent.js";
+} from "./extensions/extension-catalog/extension-consent.js";
 import {
-  createQuickScriptRegistry,
   routedExtensionCode,
   sandboxExtensionCode,
   extensionSettingsDefinition,
+} from "@nervekit/tools/extension-host";
+import {
+  createQuickScriptRegistry,
   quickScriptHostTools,
 } from "@nervekit/tools/quick-script";
 
