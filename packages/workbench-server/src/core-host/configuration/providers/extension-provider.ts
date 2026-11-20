@@ -26,7 +26,7 @@ const STALE: ConfigurationResource["diagnostics"][number] = {
   level: "warning",
   code: "reload-needed",
   message:
-    'The folder on disk differs from the loaded version. Run `extensions.reload("<id>")` to load it.',
+    'The folder on disk is valid now; the diagnostics of the loaded version are out of date. Run `extensions.reload("<id>")` to load it.',
 };
 
 /**
