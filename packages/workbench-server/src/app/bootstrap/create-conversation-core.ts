@@ -29,6 +29,9 @@ import { agentConfigurationOperations } from "../../infrastructure/configuration
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { conversationAgentBlocked } from "./conversation-agent-blocked.js";
+import type { LaunchDefinitionService } from "../../domains/launch-definitions/launch-definition.service.js";
+import { resolveShell } from "./resolve-shell.js";
+import { createLaunchesAgentPort } from "../../core-host/configuration/launches-agent-port.js";
 import { createConfigurationAgentPort } from "../../core-host/configuration/configuration-agent-port.js";
 import { createScopedPermissionSource } from "../../core-host/permissions/scoped-permission-source.js";
 import { resolveAgentModel } from "@nervekit/harness/models";
@@ -46,7 +49,7 @@ import {
   LaunchTool,
   type LaunchToolOptions,
 } from "../../core-host/launch-tool.js";
-import { readFile, realpath } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import {
   ConversationCore,
   type ConversationCoreOptions,
@@ -56,7 +59,6 @@ import {
 } from "@nervekit/conversation-core";
 import {
   resolvePythonRuntime,
-  resolveBashShellConfig,
   ToolExecutionError,
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
@@ -83,7 +85,9 @@ export function createConversationCore(
     extensionCatalog?: ExtensionCatalog;
     extensionStore: ExtensionStore;
   },
-  launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
+  launchServices: Pick<LaunchToolOptions, "launches"> & {
+    definitions: LaunchDefinitionService;
+  },
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
   processHost?: CoreProcessHost,
   migrations?: ProjectMigrationService,
@@ -175,19 +179,7 @@ export function createConversationCore(
             manualPath: settings.tools?.python_exec?.settings?.interpreterPath,
           })
         : undefined;
-    let shell: { available: true; path: string } | { available: false };
-    try {
-      shell = {
-        available: true,
-        path: await realpath(
-          resolveBashShellConfig({
-            shellPath: settings.tools?.bash?.settings?.shellPath,
-          }).shell,
-        ),
-      };
-    } catch {
-      shell = { available: false };
-    }
+    const shell = await resolveShell(settings.tools?.bash?.settings?.shellPath);
     return { extensions, python, shell, projectId: conversation.projectId };
   };
   let credentialEpoch = 0;
@@ -324,6 +316,10 @@ export function createConversationCore(
                   conversationId: input.conversationId,
                   trustedResources: storage.trustedResources,
                   launchDefinitions: launchServices.definitions,
+                }),
+                launchesAgent: createLaunchesAgentPort({
+                  definitions: launchServices.definitions,
+                  projectId: resources.projectId,
                 }),
                 extensionAgent: extensionCatalog.agentPort({
                   projectDir: input.projectDir ?? input.cwd,

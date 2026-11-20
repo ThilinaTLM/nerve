@@ -42,6 +42,12 @@ export type {
   ConfigurationAgentScope,
 } from "./runtime/configuration/configuration-port.js";
 export type {
+  LaunchEntryDefinition,
+  LaunchEntryFolder,
+  LaunchPlacement,
+  LaunchesAgentPort,
+} from "./runtime/launches/launches-port.js";
+export type {
   NamespaceAvailability,
   QuickScriptAvailability,
 } from "./manifest-types.js";

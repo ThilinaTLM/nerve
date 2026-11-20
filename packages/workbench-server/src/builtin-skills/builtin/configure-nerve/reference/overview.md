@@ -43,7 +43,7 @@ Any edit to such a file, including yours, withdraws the approval until the user 
 
 Nerve does not watch files. After you edit configuration by hand:
 
-- Skills: read again from the next agent run. Launch definitions: read again on next use.
+- Skills: read again from the next agent run. Launch definitions: read again on next use; change them with `launches.*`, not by hand.
 - Agent profiles, permission files and agent preferences: cached until reloaded. Check the files on disk, fix what is reported, then reload:
 
 ```ts

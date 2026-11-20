@@ -57,6 +57,7 @@ const OTHER_NAMES: Record<string, string> = {
   "sdk.describe": "discovery",
   "sdk.docs": "discovery",
   "search.web": "namespace per extension: web search is not part of `web`",
+  "launches.move": "places an entry in the catalog tree",
   "web.fetch": "mirrors the web_fetch tool",
 };
 

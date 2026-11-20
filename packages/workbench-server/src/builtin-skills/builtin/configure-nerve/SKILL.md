@@ -27,8 +27,8 @@ Files under `<home>` are usually not in git, and a permission file that is inval
 
 1. Before changing an existing file, read it in full; that is your copy to restore if the change goes wrong. Keep content you did not mean to change.
 2. After writing, check with the method for that kind of file and fix what it reports until it is clean:
-   - Agent profiles, permission files, `agent.json`, launch definitions: `configuration.check(scope)` in quick_script, then `configuration.reload(scope)` once it is clean (`reference/overview.md`, "Apply changes").
-   - Launch definitions, additionally: start the entry with the `launch` tool and read its logs.
+   - Agent profiles, permission files, `agent.json`, and launch definitions you repaired by hand: `configuration.check(scope)` in quick_script, then `configuration.reload(scope)` once it is clean (`reference/overview.md`, "Apply changes").
+   - Launch definitions: write them with `launches.create(...)` (never by hand), then start the entry with the `launch` tool and read its logs.
    - Skills: read `SKILL.md` back; the skill is loaded from the next agent run.
    - Extensions: `nerve-ext check` (`guide/extensions.md`).
 3. Before a permission change, restate in one sentence what will be allowed, prompted or denied afterwards, unless the user dictated the exact rule.

@@ -26,8 +26,8 @@ Reference: `reference/skills.md`.
 Reference: `reference/launches.md`.
 
 1. Find the right command from the project (`package.json` scripts, `Makefile`, docs) instead of guessing; ask when there are several candidates.
-2. Read the catalog file; create it if missing. Add or change the entry, keep ids unique, renumber sibling `order` values.
-3. Run `configuration.check("project")` and fix a `launch-catalog` resource if it reports one: an invalid catalog reads as empty. Then start the entry with the `launch` tool, read its logs, and stop it unless the user wants it running.
+2. Write it with the `launches` namespace in quick_script, not by editing `definitions.json`: `await launches.list()` shows what exists (with ids); `await launches.create({ label: "web", command: "pnpm dev", port: 3000 })` adds one; `launches.update`, `launches.remove`, `launches.folders.create` and `launches.move` cover the rest. Nerve fills ids, timestamps and order, and handles the lock. Say what you are adding before you call it.
+3. Start the entry with the `launch` tool, read its logs, and stop it unless the user wants it running. If `launches` reports that the file is invalid, fix the file by hand with `reference/launches.md` and `configuration.check("project")`.
 
 ## Create or change an agent profile
 

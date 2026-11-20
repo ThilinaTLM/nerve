@@ -4,6 +4,10 @@ A launch definition is a saved project command: a dev server, test watcher, buil
 
 Use a launch for a process someone starts repeatedly. A one-off command does not need one.
 
+## Write it with `launches`
+
+In quick_script, `launches` changes the catalog through Nerve itself: `list()`, `create({ label, command, cwd, port, runPolicy, folder, before })`, `update({ id, ... })` (omitted fields stay, `null` clears `label`, `cwd` or `port`), `remove(id)`, `folders.create({ label, folder, before })` and `move({ id, folder, before })`. Ids, timestamps and `order` are filled in, and the rules below are applied for you. Never edit `definitions.json` by hand when `launches` can do the change. The file format below is for reading it and for repairing it when `launches` says it is invalid.
+
 ## File
 
 Project scope only: `<project>/.nerve/launches/definitions.json`. There is no user-scope catalog. A missing file is an empty catalog. Nerve reads the file on every use, so no reload is needed.
@@ -73,9 +77,9 @@ Folder: `id` (starts with `launchfolder_`), `label` (non-empty, trimmed), `paren
 
 The `launch` tool finds a definition by its name: the `label`, or the command when there is no label. Two definitions with the same name make the name ambiguous, so give each a distinct label. Folder placement does not affect the name.
 
-## Editing safely
+## Repairing the file
 
-The app edits this file under a lock (`definitions.json.lock`). Edit only when the user is not rearranging launches at the same moment, keep entries you did not intend to change, and validate the result by reading it back. If the app reports the catalog as corrupted after your edit, fix the file; the app will not overwrite it.
+If `launches` fails because the file is invalid, fix the file by hand: read it in full, keep entries you did not mean to change, then run `configuration.check("project")` until it is clean. Nerve will not overwrite an invalid file.
 
 Changing a definition does not affect runs already in progress; the next run uses the new command.
 

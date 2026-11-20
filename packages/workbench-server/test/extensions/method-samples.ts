@@ -26,6 +26,27 @@ export const SAMPLES: Record<string, unknown[][]> = {
   "extensions.status": [["csv-viewer"]],
   "configuration.reload": [["project"], [{ scope: "user" }]],
   "configuration.check": [["user"]],
+  "launches.list": [[]],
+  "launches.create": [
+    [{ command: "pnpm dev" }],
+    [
+      {
+        label: "web",
+        command: "pnpm dev",
+        port: 3000,
+        folder: "launchfolder_a",
+        before: "launchdef_b",
+      },
+    ],
+  ],
+  "launches.update": [
+    [{ id: "launchdef_a", command: "pnpm start", port: null }],
+  ],
+  "launches.remove": [["launchdef_a"], [{ id: "launchdef_a" }]],
+  "launches.folders.create": [[{ label: "apps" }]],
+  "launches.move": [
+    [{ id: "launchdef_a", folder: null, before: "launchdef_b" }],
+  ],
   "sdk.list": [[]],
   "sdk.describe": [["jira.issues"]],
   "sdk.search": [["sprint"], ["sprint", { in: "jira", offset: 0 }]],

@@ -1,4 +1,5 @@
 import type { ExtensionAgentPort } from "../../extension-host/agent-port.js";
+import type { LaunchesAgentPort } from "./launches/launches-port.js";
 import type { ConfigurationAgentPort } from "./configuration/configuration-port.js";
 import type { ExtensionHostPorts } from "../../extension-host/ports.js";
 import type { ExtensionCodeAdapter } from "../../extension-host/code-adapter.js";
@@ -59,6 +60,8 @@ export interface ExtensionExecutionContext {
   extensionAgent?: ExtensionAgentPort;
   /** Check and reload of the configuration files (`configuration.*`); absent: the namespace fails with FORBIDDEN. */
   configurationAgent?: ConfigurationAgentPort;
+  /** The project's launch catalog (`launches.*`); absent: the namespace fails with FORBIDDEN. */
+  launchesAgent?: LaunchesAgentPort;
   /** How the host reaches extension code; absent: in the host process. */
   extensionCodeAdapter?: ExtensionCodeAdapter;
   /** Set while an extension's direct tool runs: streams into a live view section; false when the section is not live. */
