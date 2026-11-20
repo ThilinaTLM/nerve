@@ -49,6 +49,56 @@ export const get = method({
 - Settings hold no secrets; read them with `ctx.settings.get`.
 - `ctx.extensionStore` keeps this extension's data per project, across conversations and shared with its frames (`host.extensionStore`); revisions and `ifRevision` work as in `ui.md` ("Keeping state"), and a stale write throws `CONFLICT`. Without an open project it throws `BAD_REQUEST`. Use artifacts for files the conversation and agent should see, the store for the extension's own state.
 
+### An account kind
+
+The user adds accounts of the kind in Settings; a setting of type `account` selects one; `auth` on a request names that setting.
+
+```ts
+defineExtension({
+  id: "acme",
+  // ...
+  accounts: {
+    // Kind names start with the extension id.
+    "acme-api": {
+      label: "Acme account",
+      fields: { site: { type: "string", format: "url", label: "Site" } },
+      secret: {
+        label: "API token",
+        help: "Create one under Profile → Tokens.",
+      },
+      auth: { scheme: "bearer" },
+      // The token is sent only to these origins; `{site}` comes from the account's fields.
+      origins: ["{site}"],
+      // Behind the Test button in Settings.
+      test: async (account, ctx) => {
+        const response = await ctx.http.request({
+          url: `${account.fields.site}/api/me`,
+          auth: { account: "account" },
+        });
+        return response.ok
+          ? { ok: true, message: "Signed in." }
+          : { ok: false, message: `Acme answered ${response.status}.` };
+      },
+    },
+  },
+  settings: {
+    version: 1,
+    fields: {
+      account: { type: "account", kind: "acme-api", label: "Account" },
+    },
+  },
+  // `{account.site}` is the selected account's field.
+  permissions: { network: ["{account.site}"] },
+});
+
+// In a method:
+const { site } = (await ctx.accounts.selected("account"))!.fields;
+await ctx.http.request({
+  url: `${site}/api/items`,
+  auth: { account: "account" },
+});
+```
+
 ## Sessions
 
 `session: (ctx) => ...` runs once per `quick_script` run, on first use, and holds clients and caches. Keep plain data in it, never `ctx`: a `ctx` belongs to the call that opened the session and is invalid in later calls. Take `ctx` from `run`'s third argument every time.
@@ -59,7 +109,7 @@ Throw `ExtensionError` (`reference/extensions/api/extension-api/errors.d.ts`) wi
 
 ## Direct tools
 
-A direct tool exposes a method to the model without a script: give `method: "<namespace>.<method>"`, or its own `risk`, `parse`, `authorize` and `run`. Prefer a namespace method when scripts would combine calls; add a direct tool for the one or two actions the model needs often. Tool names are global; prefix them with the extension id.
+A direct tool exposes a method to the model without a script: give `method: "<namespace>.<method>"`, or its own `risk`, `parse`, `authorize` and `run`. Prefer a namespace method when scripts would combine calls; add a direct tool for the one or two actions the model needs often. Tool names are global; prefix them with the extension id. A tool bound to a method calls the method's `parse` with one element, the tool's arguments object (`parse: ([args]) => ...`), not the positional arguments of a script call. Write a `parse` that accepts both when the method has both callers.
 
 ## Tests
 

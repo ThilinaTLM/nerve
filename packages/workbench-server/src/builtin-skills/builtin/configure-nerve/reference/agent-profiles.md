@@ -48,7 +48,7 @@ Project files carry an extra top-level `"version": 3`. In a user file, drop that
 
 ## Fields
 
-After writing, `configuration.check` reports any field that does not match. The generated schema (`reference/schemas/agent-profile.user.schema.json`, `.project.`) is for a diagnostic you cannot resolve.
+After writing, `configuration.check` reports any field that does not match. The generated schema (`reference/schemas/agent-profile.schema.json`) is for a diagnostic you cannot resolve.
 
 | Field             | Required | Value                                                                                                                                                                                                                                           |
 | ----------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -306,6 +306,28 @@ void test("valid lead and sub-agent profiles report nothing; an invalid field is
   );
 });
 
+void test("a profile that names a missing rule set loads with a warning", async (t) => {
+  const { home, port } = await setup(t);
+  await writeFile(
+    join(home, "agent", "agent-profiles", "careful.json"),
+    JSON.stringify({
+      ...JSON.parse(VALID_PROFILE("careful", "lead")),
+      requirements: { permissionRuleSetId: "no-such-set" },
+    }),
+  );
+  for (const { resources } of [
+    await port.check("user"),
+    await port.reload("user"),
+  ]) {
+    assert.equal(resources.length, 1);
+    assert.equal(resources[0].state, "active");
+    assert.deepEqual(
+      resources[0].diagnostics.map((entry) => [entry.code, entry.pointer]),
+      [["unknown-rule-set", "/requirements/permissionRuleSetId"]],
+    );
+  }
+});
+
 void test("the project scope reports an unreadable launch catalog", async (t) => {
   const { port, setLaunchProblem } = await setup(t);
   setLaunchProblem({

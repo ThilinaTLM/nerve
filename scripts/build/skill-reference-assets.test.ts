@@ -25,41 +25,25 @@ const skillSource = join(
   "packages/workbench-server/src/builtin-skills/builtin/configure-nerve",
 );
 
-test("generates a described JSON Schema for every configuration file", () => {
+test("generates one described JSON Schema per configuration document", () => {
   const schemas = generateConfigurationSchemas();
   assert.deepEqual(Object.keys(schemas).sort(), [
-    "agent-preferences.project.schema.json",
-    "agent-preferences.user.schema.json",
-    "agent-profile.project.schema.json",
-    "agent-profile.user.schema.json",
+    "agent-preferences.schema.json",
+    "agent-profile.schema.json",
     "launch-definitions.schema.json",
-    "permission-overlays.project.schema.json",
-    "permission-overlays.user.schema.json",
+    "permission-overlays.schema.json",
     "permission-rule-set.schema.json",
   ]);
   for (const [name, schema] of Object.entries(schemas))
     assert.ok(schema.description, `${name} has a root description`);
-  const project = schemas["agent-profile.project.schema.json"]!;
-  assert.deepEqual(project.required?.[0], "version");
-  assert.ok(project.properties?.["version"]);
-  assert.ok(
-    !schemas["agent-profile.user.schema.json"]!.properties?.["version"],
-  );
-  assert.deepEqual(
-    (
-      schemas["agent-preferences.project.schema.json"]!.properties?.[
-        "version"
-      ] as { const?: number }
-    ).const,
-    2,
+  assert.match(
+    schemas["agent-profile.schema.json"]!.description!,
+    /"version": 3/,
   );
   // Defaults are optional in the input shape.
   const launch = JSON.stringify(schemas["launch-definitions.schema.json"]);
   assert.match(launch, /"runPolicy"/);
-  const definitions = schemas["launch-definitions.schema.json"]!.properties![
-    "definitions"
-  ] as { items: { required: string[] } };
-  assert.ok(!definitions.items.required.includes("runPolicy"));
+  assert.doesNotMatch(launch, /"required":\[[^\]]*"runPolicy"/);
 });
 
 test("writes schemas and public declarations into the skill folder", async () => {
@@ -68,7 +52,7 @@ test("writes schemas and public declarations into the skill folder", async () =>
     await writeSkillReferenceAssets(dir);
     const reference = join(dir, "reference");
     const schemas = await readdir(join(reference, "schemas"));
-    assert.equal(schemas.length, 8);
+    assert.equal(schemas.length, 5);
     JSON.parse(
       await readFile(
         join(reference, "schemas/permission-rule-set.schema.json"),

@@ -22,70 +22,45 @@ type JsonSchema = Record<string, unknown> & {
   required?: string[];
 };
 
-/** Project files carry a top-level `version` of their own format; user files have none. */
-const projectVersion = (version: number) => ({
-  const: version,
-  type: "number",
-  description: `Project files only: always ${version}. Independent of \`schemaVersion\`; user files have no \`version\`.`,
-});
-
-function inputSchema(schema: z.ZodType): JsonSchema {
-  return z.toJSONSchema(schema, { io: "input" }) as JsonSchema;
-}
-
-/** Puts a required top-level `version` first, as project files carry it. */
-function withProjectVersion(
-  schema: JsonSchema,
-  version: number,
-  note?: string,
-): JsonSchema {
+/** Shared parts become `$defs` so a document repeats nothing. */
+function inputSchema(schema: z.ZodType, note: string): JsonSchema {
+  const json = z.toJSONSchema(schema, {
+    io: "input",
+    reused: "ref",
+  }) as JsonSchema;
   return {
-    ...schema,
-    description: [schema.description, note].filter(Boolean).join(" "),
-    properties: { version: projectVersion(version), ...schema.properties },
-    required: ["version", ...(schema.required ?? [])],
+    ...json,
+    description: [json.description, note].filter(Boolean).join(" "),
   };
 }
 
-function withNote(schema: JsonSchema, note: string): JsonSchema {
-  return {
-    ...schema,
-    description: [schema.description, note].filter(Boolean).join(" "),
-  };
-}
+/** Project files carry a top-level `version` of their own; a note says so instead of a second file. */
+const projectVersion = (version: number) =>
+  `A project file also has a top-level \`"version": ${version}\`; a user file has none.`;
 
-/** File name (without directory) to JSON Schema of the on-disk configuration documents. */
+/** File name (without directory) to JSON Schema of each on-disk configuration document. */
 export function generateConfigurationSchemas(): Record<string, JsonSchema> {
-  const profile = inputSchema(profileDefinitionSchema);
-  const overlays = inputSchema(permissionOverlayDocumentSchema);
-  const preferences = inputSchema(agentPreferencesSchema);
   return {
-    "agent-profile.user.schema.json": profile,
-    "agent-profile.project.schema.json": withProjectVersion(
-      profile,
-      3,
-      "Project profile file: needs the user's trust approval before it is used.",
+    "agent-profile.schema.json": inputSchema(
+      profileDefinitionSchema,
+      `Agent profile file. ${projectVersion(3)} A project profile needs the user's approval before it is used.`,
     ),
-    "agent-preferences.user.schema.json": withNote(
-      preferences,
-      "User file `<home>/config/agent.json`.",
+    "agent-preferences.schema.json": inputSchema(
+      agentPreferencesSchema,
+      `\`<home>/config/agent.json\` and \`<project>/.nerve/config/agent.json\`. ${projectVersion(2)}`,
     ),
-    "agent-preferences.project.schema.json": withProjectVersion(
-      preferences,
-      2,
-      "Project file `<project>/.nerve/config/agent.json`.",
+    "permission-rule-set.schema.json": inputSchema(
+      permissionRuleSetSchema,
+      "One rule set file in `<home>/config/permission-rule-sets/`.",
     ),
-    "permission-rule-set.schema.json": inputSchema(permissionRuleSetSchema),
-    "permission-overlays.user.schema.json": withNote(
-      overlays,
-      "User file `<home>/config/permissions.json`: `guardrail` rules are allowed here.",
+    "permission-overlays.schema.json": inputSchema(
+      permissionOverlayDocumentSchema,
+      `\`<home>/config/permissions.json\` and \`<project>/.nerve/config/permissions.json\`. ${projectVersion(3)} In a project file every rule must be \`overridable\`, and an \`allow\` rule may not match the \`nerve_home\` or \`nerve_data\` roots.`,
     ),
-    "permission-overlays.project.schema.json": withProjectVersion(
-      overlays,
-      3,
-      "Project file `<project>/.nerve/config/permissions.json`: all rules must be `overridable`, and an `allow` rule may not match `nerve_home` or `nerve_data` roots.",
+    "launch-definitions.schema.json": inputSchema(
+      launchDefinitionFileSchema,
+      "`<project>/.nerve/launches/definitions.json`.",
     ),
-    "launch-definitions.schema.json": inputSchema(launchDefinitionFileSchema),
   };
 }
 
@@ -168,10 +143,7 @@ export async function writeSkillReferenceAssets(
   const schemas = join(reference, "schemas");
   await mkdir(schemas, { recursive: true });
   for (const [name, schema] of Object.entries(generateConfigurationSchemas()))
-    await writeFile(
-      join(schemas, name),
-      `${JSON.stringify(schema, null, 2)}\n`,
-    );
+    await writeFile(join(schemas, name), `${JSON.stringify(schema)}\n`);
 
   const api = join(repoRoot, "packages", "extension-api", "dist");
   const apiFiles = await declarationFiles(api).catch((): string[] => []);

@@ -115,8 +115,38 @@ export function agentConfigurationProvider(options: {
     ruleSetIds: await options.selectableRuleSetIds(),
   });
 
+  /** A profile that names a missing rule set loads, but blocks every tool call once applied. */
+  function unknownRuleSets(
+    entry: ProfileCatalogEntry,
+    ruleSetIds: readonly string[],
+  ): ResourceFinding[] {
+    const at = {
+      kind: "agent-profile" as const,
+      id: entry.name,
+      scope: entry.source,
+      path: entry.path,
+    };
+    return (["recommendations", "requirements"] as const).flatMap((section) => {
+      const id = entry.definition?.[section]?.permissionRuleSetId;
+      return id === undefined || ruleSetIds.includes(id)
+        ? []
+        : [
+            {
+              ...at,
+              diagnostic: {
+                level: "warning" as const,
+                code: "unknown-rule-set",
+                pointer: `/${section}/permissionRuleSetId`,
+                message: `No rule set has the id "${id}", so every tool call of a conversation using this profile is blocked. Available: ${[...ruleSetIds].sort().join(", ")}.`,
+              },
+            },
+          ];
+    });
+  }
+
   function profile(
     entry: ProfileCatalogEntry,
+    ruleSetIds: readonly string[],
     shadowedBy?: "user" | "project",
   ): ConfigurationResource {
     const [resource] = resourcesFromFindings([
@@ -127,6 +157,7 @@ export function agentConfigurationProvider(options: {
         ...(entry.source === "builtin" ? {} : { path: entry.path }),
       },
       ...entry.diagnostics.map((issue) => finding(issue)),
+      ...unknownRuleSets(entry, ruleSetIds),
     ]);
     if (resource.state !== "active") return resource;
     if (shadowedBy) return { ...resource, state: "shadowed", shadowedBy };
@@ -164,6 +195,7 @@ export function agentConfigurationProvider(options: {
     async list(context) {
       const scope = target(context);
       const listing = await service.profiles.listForEditing(scope);
+      const { ruleSetIds } = await hand();
       const stray = resourcesFromFindings(
         listing.diagnostics.filter(own(context)).map((issue) => finding(issue)),
       );
@@ -172,7 +204,7 @@ export function agentConfigurationProvider(options: {
           ...(await preferences(context)),
           ...listing.profiles
             .filter((entry) => entry.source === "project")
-            .map((entry) => profile(entry)),
+            .map((entry) => profile(entry, ruleSetIds)),
           ...stray,
         ];
       // A project copy hides the user's or the built-in profile of the same name.
@@ -191,7 +223,11 @@ export function agentConfigurationProvider(options: {
       return [
         ...(await preferences(context)),
         ...listing.profiles.flatMap((entry) => [
-          profile(entry, inProject.has(entry.name) ? "project" : undefined),
+          profile(
+            entry,
+            ruleSetIds,
+            inProject.has(entry.name) ? "project" : undefined,
+          ),
           ...(entry.shadows === "builtin"
             ? [
                 {
@@ -209,19 +245,22 @@ export function agentConfigurationProvider(options: {
       ];
     },
     async check(context) {
+      const facts = await hand();
       return resourcesFromFindings([
-        ...(await inspectScope(service, target(context), await hand()))
+        ...(await inspectScope(service, target(context), facts))
           .filter(own(context))
           .map((issue) => finding(issue)),
+        ...(await profileWarnings(context, facts.ruleSetIds)),
         ...(await untrusted(context)),
       ]);
     },
     async reload(context) {
       const scope = target(context);
+      const facts = await hand();
       const { kept, concerns } = await reloadScopeKeepingLoaded(
         service,
         scope,
-        await hand(),
+        facts,
       );
       await service.ensureLoaded(scope);
       await service.loadCreation(scope);
@@ -239,8 +278,19 @@ export function agentConfigurationProvider(options: {
         ]
           .filter(own(context))
           .map((issue) => finding(issue)),
+        ...(await profileWarnings(context, facts.ruleSetIds)),
         ...(await untrusted(context)),
       ]);
     },
   };
+
+  async function profileWarnings(
+    context: ResourceContext,
+    ruleSetIds: readonly string[],
+  ): Promise<ResourceFinding[]> {
+    const { profiles } = await service.profiles.listForEditing(target(context));
+    return profiles
+      .filter((entry) => entry.source === context.scope)
+      .flatMap((entry) => unknownRuleSets(entry, ruleSetIds));
+  }
 }
