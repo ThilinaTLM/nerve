@@ -218,7 +218,9 @@ export function createServerAdapterContexts(
         projectMigration: services.projectMigration,
         home: infrastructure.storage.paths.home,
         storage: services.coreStorage,
-        published: (path) => services.admissionPolicy.reload([path]),
+        published: async (path) => {
+          await services.admissionPolicy.reload([path]);
+        },
         projectDirectory: (id) =>
           services.conversationCore.projects.get(id)?.directory,
       }),

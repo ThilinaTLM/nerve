@@ -10,7 +10,7 @@ import type { AgentConfigurationService } from "../../infrastructure/configurati
 import { createScopedPermissionSource } from "./scoped-permission-source.js";
 import { createExecutionAdmission } from "./execution-admission/admission.js";
 
-void test("admission reads live selection, blocks invalid policy, and reloads only after explicit publication", async () => {
+void test("admission reads live selection, keeps the loaded policy over an invalid file, and reloads only after explicit publication", async () => {
   const home = await mkdtemp(join(tmpdir(), "nerve-policy-source-"));
   await mkdir(join(home, "config"));
   let generation = 1;
@@ -100,15 +100,17 @@ void test("admission reads live selection, blocks invalid policy, and reloads on
       "a new policy derivation must reuse the published user document",
     );
     assert.equal((await prepare(input)).check().kind, "policy");
-    await source.reload([path]);
+    const [kept] = await source.reload([path]);
     assert.equal(next.check().kind, "stale");
-    const blocked = (await prepare(input)).check();
-    assert.equal(blocked.kind, "blocked");
-    if (blocked.kind === "blocked")
-      assert.equal(blocked.request.diagnostics[0].path, path);
+    assert.equal(kept.previousVersionActive, true);
+    assert.equal(kept.diagnostics[0].code, "malformed-json");
+    assert.equal(
+      (await prepare(input)).check().kind,
+      "policy",
+      "an invalid file never replaces the valid version loaded before it",
+    );
     await writeFile(path, JSON.stringify({ schemaVersion: 2, overlays: [] }));
-    assert.equal((await prepare(input)).check().kind, "blocked");
-    await source.reload([path]);
+    assert.deepEqual((await source.reload([path]))[0].diagnostics, []);
     assert.equal((await prepare(input)).check().kind, "policy");
     const projectPath = join(home, ".nerve/config/permissions.json");
     await mkdir(join(home, ".nerve/config"), { recursive: true });
@@ -119,20 +121,31 @@ void test("admission reads live selection, blocks invalid policy, and reloads on
     );
     assert.equal(
       (await prepare(input)).check().kind,
-      "blocked",
-      "health learned by another loader invalidates previously published policies",
+      "policy",
+      "the project had no overlay when it was loaded, and that stays in force",
     );
-    const projectBlocked = (await prepare(input)).check();
     assert.equal(
-      projectBlocked.kind,
-      "blocked",
-      "invalid overlays fail closed even without a trust grant",
+      (await source.reload([projectPath]))[0].previousVersionActive,
+      true,
     );
-    if (projectBlocked.kind === "blocked")
-      assert.equal(projectBlocked.request.diagnostics[0].path, projectPath);
+    assert.equal((await prepare(input)).check().kind, "policy");
     await rm(projectPath);
     await source.reload([projectPath]);
     assert.equal((await prepare(input)).check().kind, "policy");
+    // A file that is already invalid when it is first loaded has no version to keep.
+    const cold = createScopedPermissionSource({
+      projectMigration: new ProjectMigrationService({ home }),
+      home,
+      storage,
+      agents,
+      trustGeneration: () => 0,
+      requestGenerations: () => undefined,
+    });
+    await writeFile(path, "broken");
+    const blocked = (await createExecutionAdmission(cold)(input)).check();
+    assert.equal(blocked.kind, "blocked");
+    if (blocked.kind === "blocked")
+      assert.equal(blocked.request.diagnostics[0].path, path);
   } finally {
     await rm(home, { recursive: true, force: true });
   }

@@ -46,7 +46,7 @@ export const projectPermissionsConfiguration: ProjectConfigurationType<ProjectPe
     resetDescription:
       "Remove this overlay that is blocking tool execution; user-level policy will apply. Model-only replies remain available.",
     fallbackDescription:
-      "Tool execution is blocked in this project until the overlay is fixed or reset. Model-only replies remain available.",
+      "The overlay on disk is not applied. If an earlier version was loaded, it stays in use; otherwise tool execution is blocked in this project until the overlay is fixed or reset. Model-only replies remain available.",
     path: "config/permissions.json",
     currentVersion: 3,
     version: { field: "version", absent: 1 },

@@ -43,7 +43,11 @@ An allowing rule must cover the complete request because a tool can affect sever
 
 ## Trust and child policy
 
-Project overlay trust binds to a **digest**, a hash of the file's exact bytes, so edits require renewed trust before they can grant permission. Untrusted project overlays are excluded with diagnostics. Unknown, disabled or malformed selected policy and malformed required overlays block affected execution because approval must not substitute for missing security configuration. A malformed project overlay blocks tool execution in that project until it is fixed or reset; reset removes the overlay so the user-level policy applies. Model replies without tools continue, because they need no authorization.
+Project overlay trust binds to a **digest**, a hash of the file's exact bytes, so edits require renewed trust before they can grant permission. Untrusted project overlays are excluded with diagnostics. Unknown, disabled or malformed selected policy and malformed required overlays block affected execution because approval must not substitute for missing security configuration. A malformed project overlay blocks tool execution in that project until it is fixed or reset; reset removes the overlay so the user-level policy applies.
+
+**Validate, then activate.** Blocking applies to a file that is unusable when it is first loaded. Once a valid version of an overlay or rule set is loaded, a later invalid edit never replaces it: `reload` reports the file's diagnostics with `previousVersionActive` and the loaded version stays in force until the file is valid again. A project with no overlay counts as a valid loaded state. This keeps one bad hand edit, by the user or the agent, from locking every tool call. [`permission-files.ts`](../../packages/workbench-server/src/core-host/permissions/permission-files.ts) is the only validator of these files; the policy and the diagnostics both come from it.
+
+Model replies without tools continue, because they need no authorization.
 
 Children use an allowed rule set without Baseline or overlays, and selection rejects rule sets that contain an enabled `prompt` rule. Child authorization is independent of the lead's policy; the restrictions are owned by [agent profiles and delegation](conversation-core/delegation.md#rules-enforced-for-every-sub-agent).
 

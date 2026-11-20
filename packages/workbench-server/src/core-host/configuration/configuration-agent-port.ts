@@ -1,9 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  permissionOverlayDocumentForOriginSchema,
-  permissionRuleSetSchema,
-} from "@nervekit/contracts/permissions";
 import type {
   ConfigurationAgentDiagnostic,
   ConfigurationAgentPort,
@@ -16,10 +11,11 @@ import type {
   ConfigurationDiagnostic,
   PreferenceScope,
 } from "../../infrastructure/configuration/agent-configuration/document-adapters.js";
-import { overlayDigest } from "../permissions/permission-overlays.js";
-import { projectPermissionValue } from "../permissions/project-permission-migrations.js";
+import type { PermissionFileReport } from "../permissions/permission-files.js";
 import type { ScopedPermissionPolicySource } from "../permissions/scoped-permission-source.js";
 
+const PREVIOUS_ACTIVE =
+  "The version loaded before this edit stays in use until the file is fixed and reloaded.";
 const UNTRUSTED =
   "Ignored until the user approves its exact content in Settings → This project → Trust.";
 
@@ -45,28 +41,13 @@ function explain(issue: ConfigurationDiagnostic): string {
   return `${meaning}${issue.message ? ` Detail: ${issue.message}` : ""}`;
 }
 
-/** One line naming the first problem of a document, bounded. */
-function describe(error: unknown): string {
-  const issue =
-    typeof error === "object" && error !== null && "issues" in error
-      ? (error as { issues: { path: PropertyKey[]; message: string }[] })
-          .issues[0]
-      : undefined;
-  const text = issue
-    ? `${issue.path.map(String).join(".") || "(root)"}: ${issue.message}`
-    : error instanceof Error
-      ? error.message
-      : String(error);
-  return text.length > 300 ? `${text.slice(0, 300)}…` : text;
-}
-
 /**
  * The `configuration.*` quick_script namespace for one project: re-reads the files an agent edited
  * by hand and reports what is still wrong. It writes no file and never grants trust.
  */
 export function createConfigurationAgentPort(options: {
   service: AgentConfigurationService;
-  policy: Pick<ScopedPermissionPolicySource, "reload">;
+  policy: Pick<ScopedPermissionPolicySource, "reload" | "check">;
   home: string;
   /** The conversation whose project the scope `"project"` names. */
   conversationId: string;
@@ -102,17 +83,6 @@ export function createConfigurationAgentPort(options: {
       message: untrusted ? UNTRUSTED : explain(issue),
       ...(issue.pointer ? { pointer: issue.pointer } : {}),
     };
-  }
-
-  function overlayApproved(path: string, content: string): boolean {
-    const row = options.trustedResources.find(
-      "project_permissions",
-      projectId,
-      path,
-    );
-    return (
-      row?.status === "trusted" && row.contentDigest === overlayDigest(content)
-    );
   }
 
   async function agentDiagnostics(
@@ -161,74 +131,52 @@ export function createConfigurationAgentPort(options: {
     });
   }
 
-  async function permissionDiagnostics(
+  /** Reports of the permission source, which owns the validation of these files. */
+  function permissionDiagnostics(
     scope: ConfigurationAgentScope,
-  ): Promise<ConfigurationAgentDiagnostic[]> {
-    const found: ConfigurationAgentDiagnostic[] = [];
-    const file = overlayPath(scope);
-    let content: string | undefined;
-    try {
-      content = await readFile(file, "utf8");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-        found.push({
+    reports: readonly PermissionFileReport[],
+  ): ConfigurationAgentDiagnostic[] {
+    return reports
+      .filter((report) => report.scope === scope)
+      .flatMap((report) => {
+        const at = {
           scope,
-          document: "permissions.json",
-          path: file,
-          level: "error",
-          code: "io-error",
-          message: describe(error),
-        });
-    }
-    if (content !== undefined) {
-      try {
-        const value: unknown = JSON.parse(content);
-        if (scope === "project") projectPermissionValue(value);
-        else permissionOverlayDocumentForOriginSchema("user").parse(value);
-      } catch (error) {
-        found.push({
-          scope,
-          document: "permissions.json",
-          path: file,
-          level: "error",
-          code: "invalid-value",
-          message: describe(error),
-        });
-      }
-      if (scope === "project" && !overlayApproved(file, content))
-        found.push({
-          scope,
-          document: "permissions.json",
-          path: file,
-          level: "warning",
-          code: "untrusted",
-          message: UNTRUSTED,
-        });
-    }
-    if (scope === "user") {
-      const directory = join(home, "config", "rule-sets");
-      const names = await readdir(directory).catch(() => [] as string[]);
-      for (const name of names
-        .filter((entry) => entry.endsWith(".json"))
-        .sort()) {
-        const path = join(directory, name);
-        try {
-          permissionRuleSetSchema.parse(
-            JSON.parse(await readFile(path, "utf8")),
-          );
-        } catch (error) {
+          document: report.document,
+          path: report.path,
+        };
+        const found = report.diagnostics.map(
+          (diagnostic): ConfigurationAgentDiagnostic => ({
+            ...at,
+            ...diagnostic,
+            message: report.previousVersionActive
+              ? `${diagnostic.message} ${PREVIOUS_ACTIVE}`
+              : diagnostic.message,
+          }),
+        );
+        const row =
+          scope === "project" && report.contentDigest
+            ? options.trustedResources.find(
+                "project_permissions",
+                projectId,
+                report.path,
+              )
+            : undefined;
+        if (
+          scope === "project" &&
+          report.contentDigest &&
+          !(
+            row?.status === "trusted" &&
+            row.contentDigest === report.contentDigest
+          )
+        )
           found.push({
-            scope,
-            document: `rule-set:${name.slice(0, -5)}`,
-            path,
-            level: "error",
-            code: "invalid-value",
-            message: describe(error),
+            ...at,
+            level: "warning",
+            code: "untrusted",
+            message: UNTRUSTED,
           });
-        }
-      }
-    }
-    return found;
+        return found;
+      });
   }
 
   async function launchDiagnostics(
@@ -249,11 +197,17 @@ export function createConfigurationAgentPort(options: {
     ];
   }
 
-  async function status(scope: ConfigurationAgentScope) {
+  const permissionPaths = (scope: ConfigurationAgentScope) =>
+    scope === "user" ? undefined : [overlayPath(scope)];
+
+  async function result(
+    scope: ConfigurationAgentScope,
+    reports: readonly PermissionFileReport[],
+  ) {
     return {
       diagnostics: [
         ...(await agentDiagnostics(scope)).map(convert),
-        ...(await permissionDiagnostics(scope)),
+        ...permissionDiagnostics(scope, reports),
         ...(await launchDiagnostics(scope)),
       ],
     };
@@ -265,10 +219,10 @@ export function createConfigurationAgentPort(options: {
       await service.reload(target);
       await service.reloadCreation(target);
       await service.profiles.reloadCatalog(target);
-      // The user scope also covers every rule set, so one call drops all cached policy files.
-      await policy.reload(scope === "user" ? undefined : [overlayPath(scope)]);
-      return await status(scope);
+      // The user scope also covers every rule set and every file loaded so far.
+      return await result(scope, await policy.reload(permissionPaths(scope)));
     },
-    status,
+    status: async (scope) =>
+      await result(scope, await policy.check(permissionPaths(scope))),
   };
 }

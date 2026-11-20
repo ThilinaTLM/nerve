@@ -76,7 +76,7 @@ Upgrades happen at load time rather than at startup because projects may be unre
 
 Feature loaders contain no format conversion; they accept only the current schema and delegate everything else to the migration service. Feature writes are refused while a file is corrupted or incompatible, so a fallback can never overwrite the original. Only a confirmed reset replaces a corrupted file, and reset revokes rather than grants trust. An upgrade keeps an existing approval only when the exact original bytes were approved, because the output is a deterministic conversion of approved input.
 
-Each type declares its fallback, reset effect and wording in its descriptor; see the [project-chains README](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/project-chains/README.md). An invalid permission overlay is the notable case: it blocks tool execution in that project while plain model replies continue.
+Each type declares its fallback, reset effect and wording in its descriptor; see the [project-chains README](../../packages/workbench-server/src/infrastructure/configuration/agent-configuration/project-chains/README.md). An invalid permission overlay is the notable case: when no valid version of it is loaded, it blocks tool execution in that project while plain model replies continue ([validate, then activate](permissions.md#trust-and-child-policy)).
 
 ## Extension settings
 

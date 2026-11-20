@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
+import type { CoreStorage } from "@nervekit/conversation-core";
+import { createScopedPermissionSource } from "../permissions/scoped-permission-source.js";
 import { createConfigurationAgentPort } from "./configuration-agent-port.js";
 
 async function setup(t: test.TestContext) {
@@ -27,13 +29,23 @@ async function setup(t: test.TestContext) {
     await service.flushSummaries();
     await rm(home, { recursive: true, force: true });
   });
+  // The real source: it owns the validation the port reports.
+  const source = createScopedPermissionSource({
+    home,
+    storage: {} as CoreStorage,
+    agents: service,
+    trustGeneration: () => 0,
+    requestGenerations: () => undefined,
+  });
   const reloaded: (readonly string[] | undefined)[] = [];
   let launchProblem: { path: string; reason: string } | undefined;
   const port = createConfigurationAgentPort({
     service,
     policy: {
-      reload: async (paths) => {
+      check: (paths) => source.check(paths),
+      reload: (paths) => {
         reloaded.push(paths);
+        return source.reload(paths);
       },
     },
     home,
@@ -76,15 +88,31 @@ void test("reload reports invalid permission files and rule sets, and reloads th
   await mkdir(join(home, "config", "rule-sets"), { recursive: true });
   await writeFile(join(home, "config", "rule-sets", "mine.json"), "{}");
   const { diagnostics } = await port.reload("user");
-  assert.deepEqual(diagnostics.map((entry) => entry.document).sort(), [
-    "permissions.json",
-    "rule-set:mine",
-  ]);
-  assert.match(
-    diagnostics.find((entry) => entry.document === "permissions.json")!.message,
-    /overlays/,
+  assert.deepEqual(
+    [...new Set(diagnostics.map((entry) => entry.document))].sort(),
+    ["permissions.json", "rule-set:mine"],
+  );
+  assert.equal(
+    diagnostics.find((entry) => entry.document === "permissions.json")!.pointer,
+    "/overlays",
   );
   assert.deepEqual(reloaded, [undefined]);
+});
+
+void test("an invalid edit of a loaded permission file keeps the previous version and says so", async (t) => {
+  const { home, port } = await setup(t);
+  const file = join(home, "config", "permissions.json");
+  await writeFile(file, JSON.stringify({ schemaVersion: 2, overlays: [] }));
+  assert.deepEqual(await port.reload("user"), { diagnostics: [] });
+  await writeFile(file, "{ not json");
+  // `status` checks the disk and activates nothing.
+  const checked = await port.status("user");
+  assert.equal(checked.diagnostics[0].code, "malformed-json");
+  assert.doesNotMatch(checked.diagnostics[0].message, /stays in use/);
+  const { diagnostics } = await port.reload("user");
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].level, "error");
+  assert.match(diagnostics[0].message, /stays in use/);
 });
 
 void test("project reload flags an unapproved overlay as untrusted and never trusts it", async (t) => {

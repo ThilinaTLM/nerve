@@ -1,20 +1,23 @@
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { projectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration-trust.js";
+import { projectPermissionsConfiguration } from "./project-permission-migrations.js";
 import {
-  projectPermissionsConfiguration,
-  projectPermissionValue,
-} from "./project-permission-migrations.js";
-import { readFile, readdir } from "node:fs/promises";
+  identifyPermissionFile,
+  parsePermissionFile,
+  readPermissionFile,
+  ruleSetDirectory,
+  type LoadedPermissionFile,
+  type PermissionFileReport,
+} from "./permission-files.js";
+import { readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { isPathInside } from "@nervekit/tools/execution";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import { supervisionSchema } from "@nervekit/contracts/core";
 import type { ConfigurationDiagnostic } from "../../infrastructure/configuration/agent-configuration/document-adapters.js";
-import {
-  permissionRuleSetSchema,
-  permissionOverlayDocumentForOriginSchema,
-  type PermissionOverlayDocument,
-  type ToolRisk,
+import type {
+  PermissionOverlayDocument,
+  ToolRisk,
 } from "@nervekit/contracts/permissions";
 import { activeToolNameSchema } from "@nervekit/contracts/tools";
 import {
@@ -41,11 +44,6 @@ import {
 import { emptyOverlayDocument, overlayDigest } from "./permission-overlays.js";
 import { hostRegistry } from "../host-tools.js";
 
-type Loaded =
-  | { kind: "missing" }
-  | { kind: "bytes"; bytes: string }
-  | { kind: "error" };
-
 class PolicyDocumentError extends Error {
   constructor(readonly policyPath: string) {
     super("Invalid permission document");
@@ -54,8 +52,14 @@ class PolicyDocumentError extends Error {
 
 export interface ScopedPermissionPolicySource extends AdmissionPolicySource {
   validateChildPermission(id: string): Promise<void>;
-  /** Explicit disk publication, separate from in-memory policy re-evaluation. */
-  reload(paths?: readonly string[]): Promise<void>;
+  /**
+   * Explicit disk publication, separate from in-memory policy re-evaluation. A file that is
+   * invalid on disk never replaces a valid loaded version. Without `paths`: the user overlay,
+   * every rule set and every file loaded so far.
+   */
+  reload(paths?: readonly string[]): Promise<PermissionFileReport[]>;
+  /** Validates the files on disk and changes nothing. Without `paths`: the user overlay and every rule set. */
+  check(paths?: readonly string[]): Promise<PermissionFileReport[]>;
 }
 
 /** Lazy policy authority. Files are cached until an application save or explicit health reload. */
@@ -88,7 +92,7 @@ export function createScopedPermissionSource(options: {
     Parameters<AdmissionPolicySource["ensureLoaded"]>[0],
     Awaited<ReturnType<typeof classifyQuickScriptArguments>>
   >();
-  const files = new Map<string, Promise<Loaded>>();
+  const files = new Map<string, Promise<LoadedPermissionFile>>();
   let catalog:
     | Promise<{ values: typeof builtInPermissionRuleSets; invalid: string[] }>
     | undefined;
@@ -107,38 +111,80 @@ export function createScopedPermissionSource(options: {
   const read = (path: string) => {
     let pending = files.get(path);
     if (!pending) {
-      pending = readFile(path, "utf8").then(
-        (bytes): Loaded => ({ kind: "bytes", bytes }),
-        (error: NodeJS.ErrnoException): Loaded =>
-          error.code === "ENOENT" ? { kind: "missing" } : { kind: "error" },
-      );
+      pending = readPermissionFile(path);
       files.set(path, pending);
     }
     return pending;
   };
+  const parse = (path: string, loaded: LoadedPermissionFile) =>
+    parsePermissionFile(identifyPermissionFile(options.home, path), loaded);
+  /** Rule set files on disk; an unreadable folder throws. */
+  const ruleSetPaths = async () => {
+    const directory = ruleSetDirectory(options.home);
+    const names = await readdir(directory).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return [];
+        throw error;
+      },
+    );
+    return names
+      .filter((name) => name.endsWith(".json"))
+      .sort()
+      .map((name) => join(directory, name));
+  };
   const rules = () =>
     (catalog ??= (async () => {
-      const directory = join(options.home, "config", "rule-sets");
-      const names = await readdir(directory).catch(
-        (error: NodeJS.ErrnoException) => {
-          if (error.code === "ENOENT") return [];
-          throw error;
-        },
-      );
       const values = [...builtInPermissionRuleSets];
       const invalid: string[] = [];
-      for (const name of names.filter((name) => name.endsWith(".json"))) {
-        const path = join(directory, name);
-        const loaded = await read(path);
-        try {
-          if (loaded.kind !== "bytes") throw new Error("Unreadable ruleset");
-          values.push(permissionRuleSetSchema.parse(JSON.parse(loaded.bytes)));
-        } catch {
-          invalid.push(path);
-        }
+      for (const path of await ruleSetPaths()) {
+        const parsed = parse(path, await read(path));
+        if (parsed.ok && parsed.ruleSet) values.push(parsed.ruleSet);
+        else invalid.push(path);
       }
       return { values, invalid };
     })());
+  const userOverlayPath = join(options.home, "config", "permissions.json");
+  /** The user overlay and every rule set; an unreadable rule-set folder is reported on the folder. */
+  const userPaths = async (): Promise<{
+    paths: string[];
+    folder?: PermissionFileReport;
+  }> => {
+    try {
+      return { paths: [userOverlayPath, ...(await ruleSetPaths())] };
+    } catch (error) {
+      return {
+        paths: [userOverlayPath],
+        folder: {
+          path: ruleSetDirectory(options.home),
+          scope: "user",
+          kind: "rule-set",
+          document: "rule-sets",
+          diagnostics: [
+            {
+              level: "error",
+              code: "io-error",
+              message: `The rule-set folder could not be read: ${(error as Error).message}`,
+            },
+          ],
+        },
+      };
+    }
+  };
+  const report = (
+    path: string,
+    candidate: LoadedPermissionFile,
+  ): PermissionFileReport => {
+    const identity = identifyPermissionFile(options.home, path);
+    const parsed = parsePermissionFile(identity, candidate);
+    return {
+      path,
+      ...identity,
+      diagnostics: parsed.ok ? [] : parsed.diagnostics,
+      ...(candidate.kind === "bytes"
+        ? { contentDigest: overlayDigest(candidate.bytes) }
+        : {}),
+    };
+  };
   function blocked(
     path: string,
     code: string,
@@ -196,22 +242,38 @@ export function createScopedPermissionSource(options: {
       epoch++;
       policies.clear();
     },
+    async check(paths) {
+      const user = paths ? undefined : await userPaths();
+      const reports = await Promise.all(
+        (paths ?? user!.paths).map(async (path) =>
+          report(path, await readPermissionFile(path)),
+        ),
+      );
+      return user?.folder ? [...reports, user.folder] : reports;
+    },
     async reload(paths) {
-      source.invalidate();
-      if (!paths) {
-        files.clear();
-        catalog = undefined;
-      } else {
-        for (const path of paths) files.delete(path);
-        if (
-          paths.some((path) =>
-            isPathInside(join(options.home, "config", "rule-sets"), path),
+      const user = paths ? undefined : await userPaths();
+      const targets = new Set(paths ?? [...user!.paths, ...files.keys()]);
+      const reports = await Promise.all(
+        [...targets].map(async (path) => {
+          const candidate = await readPermissionFile(path);
+          const result = report(path, candidate);
+          const loaded = files.get(path);
+          // Validate, then activate: an invalid file never replaces a valid loaded version.
+          if (
+            result.diagnostics.length > 0 &&
+            loaded &&
+            parse(path, await loaded).ok
           )
-        )
-          catalog = undefined;
-      }
-      // Shared per-path promises publish exactly one generation for all conversations.
-      if (paths) await Promise.all(paths.map(read));
+            return { ...result, previousVersionActive: true as const };
+          // Shared per-path promises publish exactly one generation for all conversations.
+          files.set(path, Promise.resolve(candidate));
+          return result;
+        }),
+      );
+      catalog = undefined;
+      source.invalidate();
+      return user?.folder ? [...reports, user.folder] : reports;
     },
     async ensureLoaded(input) {
       // Composing the project's extensions publishes their direct tools for the request below.
@@ -301,13 +363,17 @@ export function createScopedPermissionSource(options: {
         );
         if (projectOverlay.classification === "migrated")
           files.delete(paths.project);
+        // Read whether or not it is trusted, so a later invalid edit has a version to fall back to.
+        const projectFile = await read(paths.project);
         const trust = trustIdentity(project.id, paths.project);
         const trustDigest = canonicalDigest(trust);
         let result: CurrentPolicy;
         try {
+          // An unusable file on disk blocks only when no valid version is loaded.
           if (
-            projectOverlay.classification === "corrupted" ||
-            projectOverlay.classification === "incompatible"
+            (projectOverlay.classification === "corrupted" ||
+              projectOverlay.classification === "incompatible") &&
+            !parse(paths.project, projectFile).ok
           )
             throw new PolicyDocumentError(paths.project);
           const definitions = await rules();
@@ -339,20 +405,9 @@ export function createScopedPermissionSource(options: {
                 overlayDigest(loaded.bytes) !== trust?.contentDigest
               )
                 continue;
-              try {
-                if (loaded.kind === "error")
-                  throw new Error("Unreadable policy");
-                documents[origin] =
-                  loaded.kind === "missing"
-                    ? emptyOverlayDocument()
-                    : origin === "project"
-                      ? projectPermissionValue(JSON.parse(loaded.bytes))
-                      : permissionOverlayDocumentForOriginSchema(origin).parse(
-                          JSON.parse(loaded.bytes),
-                        );
-              } catch {
-                throw new PolicyDocumentError(paths[origin]);
-              }
+              const parsed = parse(paths[origin], loaded);
+              if (!parsed.ok) throw new PolicyDocumentError(paths[origin]);
+              documents[origin] = parsed.overlay ?? emptyOverlayDocument();
             }
             const overlay = (origin: keyof typeof paths) =>
               documents[origin]?.overlays.find(
@@ -490,7 +545,12 @@ export function createScopedPermissionSource(options: {
     const path = issue?.path ?? previous?.path;
     if (path) {
       publishedHealth.set(health.projectId, { signature, path });
-      files.delete(path);
+      // A file that turned unusable keeps the version loaded before it; anything else is re-read.
+      if (
+        issue?.classification !== "corrupted" &&
+        issue?.classification !== "incompatible"
+      )
+        files.delete(path);
       source.invalidate();
     }
   });

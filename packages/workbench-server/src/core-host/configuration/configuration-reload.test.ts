@@ -53,6 +53,7 @@ void test("explicit Retry reloads invalid agent dependencies and the exact publi
   const reload = createConfigurationReload(service, {
     reload: async (value) => {
       paths.push(value);
+      return [];
     },
   });
   await reload.retry("c", [
