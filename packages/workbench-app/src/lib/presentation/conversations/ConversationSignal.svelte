@@ -65,24 +65,24 @@ const launchpad = $derived(variant === "launchpad");
     </p>
     {#if starters.length > 0}
       <div
-        class="mt-6 grid w-full grid-cols-1 gap-3 @xl:grid-cols-2"
+        class="mt-6 grid w-full max-w-md grid-cols-2 gap-3"
         role="group"
         aria-label="Start a conversation"
       >
         {#each starters as starter (starter.profile)}
           <button
             type="button"
-            class="flex min-h-24 cursor-pointer overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-colors outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
+            class="flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-colors outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >
             <span
-              class="starter-art block w-28 shrink-0 border-r border-border-subtle bg-well"
+              class="starter-art block h-24 shrink-0 border-b border-border-subtle bg-well"
             >
               <ProfileStarterArt profile={starter.profile} class="size-full" />
             </span>
-            <span class="flex min-w-0 flex-1 flex-col justify-center gap-1 p-3">
-              <span class="flex items-center gap-2">
+            <span class="flex min-w-0 flex-1 flex-col gap-1 p-3">
+              <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span class="text-ui font-medium text-foreground"
                   >{starter.label}</span
                 >
