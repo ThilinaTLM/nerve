@@ -6,7 +6,7 @@ Some resources run code or widen authority when Nerve loads them: project permis
 
 1. **Every trust decision is a row in `trusted_resource`** in core SQLite (`data/nerve.sqlite`). There are no trust files. _Why:_ one store gives one Trust view, atomic decisions, cascade on project removal, and keeps decisions out of the documents the agent's file tools edit.
 2. **A decision is bound to content.** It names the exact content approved (`content_digest`); different content is not trusted, whatever its path.
-3. **Only the user decides.** Decisions are made through user-UI operations; no agent tool, `quick_script` namespace or extension API can reach them, and a test asserts it for each kind.
+3. **Only the user decides.** Decisions are made through user-UI operations; no agent tool, `quick_script` namespace or extension API can reach them. No test enforces this yet; review it for every new agent surface.
 4. **Unknown means untrusted.** A missing row, a `rejected` row, a digest mismatch or an unreadable record all leave the resource unused, with a diagnostic that names the review.
 5. **Nothing runs before trust.** Trust is checked before any code of the resource runs or any of its settings applies.
 
@@ -54,12 +54,12 @@ The `extension` grant snapshot lists what the user approved: network origins, ca
 
 ## Change risk
 
-| Change                                          | Risk                                                                                                                                              |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| New trust kind                                  | Add it to the contracts enum, define what its digest covers and its re-approval rule, and add it to the agent-unreachable test. No table rebuild. |
-| What a digest covers                            | Existing approvals stop matching; needs a migration step that recomputes or drops them.                                                           |
-| A `grants` schema                               | Older snapshots must still parse; widening is safe, narrowing needs a migration.                                                                  |
-| A path that reaches trust from an agent surface | Self-approval. Never.                                                                                                                             |
+| Change                                          | Risk                                                                                                                                                |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New trust kind                                  | Add it to the contracts enum, define what its digest covers and its re-approval rule, and confirm no agent surface can decide it. No table rebuild. |
+| What a digest covers                            | Existing approvals stop matching; needs a migration step that recomputes or drops them.                                                             |
+| A `grants` schema                               | Older snapshots must still parse; widening is safe, narrowing needs a migration.                                                                    |
+| A path that reaches trust from an agent surface | Self-approval. Never.                                                                                                                               |
 
 ## Where it lives
 
