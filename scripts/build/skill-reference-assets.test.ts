@@ -27,7 +27,8 @@ const skillSource = join(
 test("generates a described JSON Schema for every configuration file", () => {
   const schemas = generateConfigurationSchemas();
   assert.deepEqual(Object.keys(schemas).sort(), [
-    "agent-preferences.schema.json",
+    "agent-preferences.project.schema.json",
+    "agent-preferences.user.schema.json",
     "agent-profile.project.schema.json",
     "agent-profile.user.schema.json",
     "launch-definitions.schema.json",
@@ -42,6 +43,14 @@ test("generates a described JSON Schema for every configuration file", () => {
   assert.ok(project.properties?.["version"]);
   assert.ok(
     !schemas["agent-profile.user.schema.json"]!.properties?.["version"],
+  );
+  assert.deepEqual(
+    (
+      schemas["agent-preferences.project.schema.json"]!.properties?.[
+        "version"
+      ] as { const?: number }
+    ).const,
+    2,
   );
   // Defaults are optional in the input shape.
   const launch = JSON.stringify(schemas["launch-definitions.schema.json"]);
@@ -58,7 +67,7 @@ test("writes schemas and public declarations into the skill folder", async () =>
     await writeSkillReferenceAssets(dir);
     const reference = join(dir, "reference");
     const schemas = await readdir(join(reference, "schemas"));
-    assert.equal(schemas.length, 7);
+    assert.equal(schemas.length, 8);
     JSON.parse(
       await readFile(
         join(reference, "schemas/permission-rule-set.schema.json"),

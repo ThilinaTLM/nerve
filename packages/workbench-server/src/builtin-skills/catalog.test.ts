@@ -15,7 +15,7 @@ void test("loads the complete validated built-in Nerve skill catalog", async () 
   );
   assert.equal(new Set(skills.map((skill) => skill.name)).size, skills.length);
   const configure = skills.find((skill) => skill.name === "configure-nerve");
-  assert.match(configure?.description ?? "", /^Use only when /);
+  assert.match(configure?.description ?? "", /^Use when /);
   assert.match(configure?.filePath ?? "", /configure-nerve[/\\]SKILL\.md$/);
   const docs = skills.find((skill) => skill.name === "engineering-docs");
   assert.match(docs?.description ?? "", /^Use when /);

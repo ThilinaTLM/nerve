@@ -10,6 +10,7 @@ import type {
   ConfigurationAgentScope,
 } from "@nervekit/tools/quick-script";
 import type { CoreStorage } from "@nervekit/conversation-core";
+import type { LaunchDefinitionService } from "../domains/launch-definitions/launch-definition.service.js";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import type {
   ConfigurationDiagnostic,
@@ -21,6 +22,29 @@ import type { ScopedPermissionPolicySource } from "./scoped-permission-source.js
 
 const UNTRUSTED =
   "Ignored until the user approves its exact content in Settings → This project → Trust.";
+
+/** What a diagnostic code means and what to do next; `issue.message` adds the parser's detail. */
+const EXPLANATIONS: Record<string, string> = {
+  "malformed-json":
+    "Not valid JSON, so the whole file is ignored. Fix the syntax.",
+  "invalid-value":
+    "Invalid value. Correct it against the file's JSON Schema in the configure-nerve skill.",
+  "unknown-field":
+    "Unknown field; unknown keys are rejected. Remove it or correct its name.",
+  "future-version":
+    "Written by a newer Nerve version, which this version cannot read. Leave the file as it is and tell the user to upgrade Nerve.",
+  "io-error":
+    "Could not be read. Check that it exists and is readable by the user running Nerve.",
+  "legacy-conversion-required":
+    "Uses an older format that could not be converted automatically. Leave the file as it is; the user can repair it in Settings.",
+};
+
+function explain(issue: ConfigurationDiagnostic): string {
+  const at = issue.pointer ? `${issue.pointer}: ` : "";
+  const meaning = EXPLANATIONS[issue.code];
+  if (!meaning) return `${at}${issue.message ?? issue.code}`;
+  return `${at}${meaning}${issue.message ? ` Detail: ${issue.message}` : ""}`;
+}
 
 /** One line naming the first problem of a document, bounded. */
 function describe(error: unknown): string {
@@ -48,6 +72,7 @@ export function createConfigurationAgentPort(options: {
   /** The conversation whose project the scope `"project"` names. */
   conversationId: string;
   trustedResources: Pick<CoreStorage["trustedResources"], "find">;
+  launchDefinitions: Pick<LaunchDefinitionService, "problem">;
 }): ConfigurationAgentPort {
   const { service, policy, home } = options;
   const projectId = service.paths.locations.conversationOwner(
@@ -73,9 +98,7 @@ export function createConfigurationAgentPort(options: {
       scope: issue.scope as ConfigurationAgentScope,
       document: issue.document === "agent" ? "agent.json" : issue.document,
       path: issue.path,
-      message: untrusted
-        ? UNTRUSTED
-        : `${issue.message ?? issue.code}${issue.pointer ? ` at ${issue.pointer}` : ""}`,
+      message: untrusted ? UNTRUSTED : explain(issue),
       ...(untrusted ? { trust: "untrusted" as const } : {}),
     };
   }
@@ -97,14 +120,14 @@ export function createConfigurationAgentPort(options: {
     const target = preference(scope);
     const state = await service.ensureLoaded(target);
     await service.loadCreation(target);
-    // Listing loads every profile file of the scope, so its problems enter `health()`.
-    const listing = await service.profiles.list(
-      scope === "project" ? projectId : undefined,
-    );
+    // Listing loads every profile file of the scope, so its problems enter `health()`. The editing
+    // listing reports file and trust problems only: whether a profile suits a lead or a sub-agent
+    // depends on where it is used, not on the file.
+    const listing = await service.profiles.listForEditing(target);
     const issues = [
       ...service.health(),
       ...listing.diagnostics,
-      ...Object.values(listing.profiles).flatMap((entry) => entry.diagnostics),
+      ...listing.profiles.flatMap((entry) => entry.diagnostics),
       ...(service.untrustedProject(state)
         ? [
             {
@@ -200,11 +223,28 @@ export function createConfigurationAgentPort(options: {
     return found;
   }
 
+  async function launchDiagnostics(
+    scope: ConfigurationAgentScope,
+  ): Promise<ConfigurationAgentDiagnostic[]> {
+    if (scope !== "project") return [];
+    const problem = await options.launchDefinitions.problem(projectId);
+    if (!problem) return [];
+    return [
+      {
+        scope,
+        document: "launches",
+        path: problem.path,
+        message: `Invalid (${problem.reason}). Until it is fixed, the project has no launch definitions.`,
+      },
+    ];
+  }
+
   async function status(scope: ConfigurationAgentScope) {
     return {
       diagnostics: [
         ...(await agentDiagnostics(scope)).map(convert),
         ...(await permissionDiagnostics(scope)),
+        ...(await launchDiagnostics(scope)),
       ],
     };
   }

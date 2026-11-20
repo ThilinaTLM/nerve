@@ -27,7 +27,7 @@ export interface LaunchToolOptions {
     | "restartPrepared"
     | "cancel"
   >;
-  definitions: Pick<LaunchDefinitionService, "list" | "get">;
+  definitions: Pick<LaunchDefinitionService, "list" | "get" | "problem">;
   project(conversationId: string): Project;
   notify(conversationId: string, launch: LaunchRecord, text: string): void;
   inspectPort?: typeof inspectConfiguredPort;
@@ -75,6 +75,8 @@ interface LaunchSnapshot {
   project: Project;
   definitions: LaunchDefinition[];
   launches: LaunchRecord[];
+  /** Set when the catalog file is invalid and therefore reads as empty. */
+  catalogProblem?: string;
   selection?: LaunchSelection;
   start?: PreparedLaunchStartInput;
 }
@@ -82,6 +84,7 @@ function selectLaunch(
   args: Record<string, unknown>,
   definitions: LaunchDefinition[],
   launches: LaunchRecord[],
+  catalogProblem?: string,
 ): LaunchSelection {
   const definitionIds = new Set(definitions.map((item) => item.id));
   const isStandalone = (launch: LaunchRecord) =>
@@ -115,7 +118,11 @@ function selectLaunch(
   if (runId && !launch)
     throw new Error("Launch run not found for this name in this project.");
   if (!definition && !launch)
-    throw new Error("Launch name not found in this project.");
+    throw new Error(
+      catalogProblem
+        ? `Launch name not found: the project's launch definitions cannot be read (${catalogProblem}). Fix the file, then retry.`
+        : "Launch name not found in this project.",
+    );
   return { definition, launch };
 }
 
@@ -211,6 +218,9 @@ export class LaunchTool {
     if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
     const project = this.options.project(conversationId);
     const definitions = await this.options.definitions.list(project.id);
+    const problem = await this.options.definitions.problem(project.id);
+    const catalogProblem =
+      problem && `${problem.path} is invalid: ${problem.reason}`;
     const launches = await this.options.launches.list({
       projectId: project.id,
     });
@@ -218,12 +228,14 @@ export class LaunchTool {
       project,
       definitions,
       launches,
+      ...(catalogProblem ? { catalogProblem } : {}),
     });
     if (action !== "status")
       snapshot.selection = selectLaunch(
         args,
         snapshot.definitions,
         snapshot.launches,
+        snapshot.catalogProblem,
       );
     if (action === "start" || action === "restart") {
       const { definition, launch } = snapshot.selection!;
@@ -322,6 +334,11 @@ export class LaunchTool {
       return {
         content:
           [
+            ...(snapshot.catalogProblem
+              ? [
+                  `Launch definitions cannot be read, so none are listed: ${snapshot.catalogProblem}`,
+                ]
+              : []),
             ...definitions.flatMap((definition) => {
               const runs = launches.filter(
                 (launch) => launch.definitionId === definition.id,

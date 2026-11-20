@@ -22,23 +22,27 @@ type JsonSchema = Record<string, unknown> & {
   required?: string[];
 };
 
-const projectVersion = {
-  const: 3,
+/** Project files carry a top-level `version` of their own format; user files have none. */
+const projectVersion = (version: number) => ({
+  const: version,
   type: "number",
-  description:
-    "Project files only: always 3. Independent of `schemaVersion`; user files have no `version`.",
-};
+  description: `Project files only: always ${version}. Independent of \`schemaVersion\`; user files have no \`version\`.`,
+});
 
 function inputSchema(schema: z.ZodType): JsonSchema {
   return z.toJSONSchema(schema, { io: "input" }) as JsonSchema;
 }
 
-/** Puts a required top-level `version: 3` first, as project files carry it. */
-function withProjectVersion(schema: JsonSchema, note?: string): JsonSchema {
+/** Puts a required top-level `version` first, as project files carry it. */
+function withProjectVersion(
+  schema: JsonSchema,
+  version: number,
+  note?: string,
+): JsonSchema {
   return {
     ...schema,
     description: [schema.description, note].filter(Boolean).join(" "),
-    properties: { version: projectVersion, ...schema.properties },
+    properties: { version: projectVersion(version), ...schema.properties },
     required: ["version", ...(schema.required ?? [])],
   };
 }
@@ -54,13 +58,23 @@ function withNote(schema: JsonSchema, note: string): JsonSchema {
 export function generateConfigurationSchemas(): Record<string, JsonSchema> {
   const profile = inputSchema(profileDefinitionSchema);
   const overlays = inputSchema(permissionOverlayDocumentSchema);
+  const preferences = inputSchema(agentPreferencesSchema);
   return {
     "agent-profile.user.schema.json": profile,
     "agent-profile.project.schema.json": withProjectVersion(
       profile,
+      3,
       "Project profile file: needs the user's trust approval before it is used.",
     ),
-    "agent-preferences.schema.json": inputSchema(agentPreferencesSchema),
+    "agent-preferences.user.schema.json": withNote(
+      preferences,
+      "User file `<home>/config/agent.json`.",
+    ),
+    "agent-preferences.project.schema.json": withProjectVersion(
+      preferences,
+      2,
+      "Project file `<project>/.nerve/config/agent.json`.",
+    ),
     "permission-rule-set.schema.json": inputSchema(permissionRuleSetSchema),
     "permission-overlays.user.schema.json": withNote(
       overlays,
@@ -68,6 +82,7 @@ export function generateConfigurationSchemas(): Record<string, JsonSchema> {
     ),
     "permission-overlays.project.schema.json": withProjectVersion(
       overlays,
+      3,
       "Project file `<project>/.nerve/config/permissions.json`: all rules must be `overridable`, and an `allow` rule may not match `nerve_home` or `nerve_data` roots.",
     ),
     "launch-definitions.schema.json": inputSchema(launchDefinitionFileSchema),

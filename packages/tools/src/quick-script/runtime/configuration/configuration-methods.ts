@@ -32,7 +32,7 @@ export const configurationMethods: SdkMethod[] = [
     bare: "scope",
     options: ["scope"],
     signature:
-      '/** Re-read Nerve\'s configuration files of the scope ("project" is this conversation\'s project) after you edited them: agent.json, conversation defaults, agent profiles (new and removed files too), permission overlays and, for "user", rule sets. Returns what is still wrong; empty means all files load. Never trusts anything: a project file listed with `trust: "untrusted"` stays ignored until the user approves it in Settings → This project → Trust. */ reload(scope: "user" | "project" | { scope: "user" | "project" }): Promise<ConfigurationResult>',
+      '/** Re-read Nerve\'s configuration files of the scope ("project" is this conversation\'s project) after you edited them: agent.json, conversation defaults, agent profiles (new and removed files too), permission overlays, for "project" the launch definitions, and for "user" rule sets. Returns what is still wrong; empty means all files load. Never trusts anything: a project file listed with `trust: "untrusted"` stays ignored until the user approves it in Settings → This project → Trust. */ reload(scope: "user" | "project" | { scope: "user" | "project" }): Promise<ConfigurationResult>',
     parse: (options) => parseScope(options),
     authorize: (scope) => ({
       targets: [`configuration:scope/${scope}`],

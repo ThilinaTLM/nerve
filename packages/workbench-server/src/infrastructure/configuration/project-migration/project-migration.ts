@@ -65,8 +65,25 @@ export interface ProjectConfigurationResult<T> {
   path: string;
   sourceDigest?: string;
 }
-const message = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+/** One readable line; a schema error names its first issue instead of dumping every issue as JSON. */
+function message(error: unknown): string {
+  const issues: unknown[] =
+    typeof error === "object" &&
+    error !== null &&
+    "issues" in error &&
+    Array.isArray(error.issues)
+      ? error.issues
+      : [];
+  const first = issues[0] as
+    | { path?: PropertyKey[]; message?: string }
+    | undefined;
+  if (first?.message) {
+    const at = first.path?.map(String).join(".");
+    const more = issues.length > 1 ? ` (+${issues.length - 1} more)` : "";
+    return `${at ? `${at}: ` : ""}${first.message}${more}`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
 /** Lazy, per-resource migration. This service never scans projects or watches files. */
 export class ProjectMigrationService {
   private readonly resolvedListeners = new Set<

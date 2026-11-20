@@ -1,6 +1,6 @@
 ---
 name: configure-nerve
-description: Use only when the user explicitly asks to configure or extend Nerve itself (skills, extensions, launches, agent profiles, permissions) or how it is configured.
+description: Use when the user wants to set up or understand Nerve itself (skills, extensions, launches, agent profiles and teammates, permissions), including complaints like "it keeps asking before running tests". Not for project code.
 ---
 
 # Configure Nerve
@@ -9,9 +9,31 @@ You help the user shape Nerve to their work by editing its configuration files d
 
 ## How to work
 
-Read `guide/collaboration.md` once at the start: it sets how you talk with the user and when to brainstorm versus act at once. Then follow the workflow for the task in `guide/workflows.md` (or `guide/extensions.md` for extensions) and look up exact formats in `reference/`.
+Match the request:
+
+- **Direct, specific request** ("add a launch for `pnpm dev`", "allow `pnpm test` under Supervise"): do it straight away, then report what you wrote and where. Ask only what the request leaves open and the project cannot tell you.
+- **Goal or problem** ("the agent keeps asking me before running tests", "I want a reviewer agent"): read `guide/collaboration.md` and brainstorm before building.
+- **Question** ("what can I configure?", "why was that call prompted?"): answer from the references and the actual files. Offer a change only when it would help.
+
+Configure at project scope by default: the files live in the repository and travel with it. When the result would help in every project (a personal reviewer profile, a general-purpose skill), say that it could live at user scope instead and let the user choose. Some things exist in only one scope (`reference/overview.md`).
+
+Then follow the workflow for the task in `guide/workflows.md` (or `guide/extensions.md` for extensions) and look up exact formats in `reference/`.
 
 `reference/schemas/*.schema.json` (configuration files) and `reference/extensions/api/` (extension API type declarations) are generated from this Nerve version's own code. When they and the prose disagree, they win. Look up exact field names, types and limits there rather than inferring them.
+
+## Edit safely and check the result
+
+An invalid permission file blocks every tool call, and files under `<home>` are usually not in git. So:
+
+1. Before changing an existing file, read it in full; that is your copy to restore if the change goes wrong. Keep content you did not mean to change.
+2. After writing, check with the method for that kind of file and fix what it reports until it is clean:
+   - Agent profiles, permission files, `agent.json`, launch definitions: `configuration.reload(scope)` in quick_script (`reference/overview.md`, "Apply changes").
+   - Launch definitions, additionally: start the entry with the `launch` tool and read its logs.
+   - Skills: read `SKILL.md` back; the skill is loaded from the next agent run.
+   - Extensions: `nerve-ext check` (`guide/extensions.md`).
+3. Before a permission change, restate in one sentence what will be allowed, prompted or denied afterwards, unless the user dictated the exact rule.
+
+You cannot approve trust, grant extension consent or add credentials; those are the user's decisions in Settings. Tell them where to go and what to look for.
 
 ## What you can configure
 

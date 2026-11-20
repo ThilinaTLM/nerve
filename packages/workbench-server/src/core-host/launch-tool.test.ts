@@ -42,6 +42,7 @@ const record: LaunchRecord = {
 function fixture() {
   let rows: LaunchRecord[] = [];
   let current = { ...definition };
+  let problem: { path: string; reason: string } | undefined;
   const notices: string[] = [];
   const starts: unknown[] = [];
   const restarts: string[] = [];
@@ -93,7 +94,8 @@ function fixture() {
   const options: LaunchToolOptions = {
     launches,
     definitions: {
-      list: async () => [current],
+      list: async () => (problem ? [] : [current]),
+      problem: async () => problem,
       get: async (_project, id) => {
         assert.equal(id, definition.id);
         return current;
@@ -117,6 +119,9 @@ function fixture() {
     },
     setOutcome: (value: typeof outcome) => {
       outcome = value;
+    },
+    setProblem: (value: { path: string; reason: string }) => {
+      problem = value;
     },
   };
 }
@@ -146,6 +151,22 @@ void test("status formats definitions first, idle, readiness, port and exits", a
   assert.equal(
     (await f.tool.execute({ action: "status" }, "conv_one")).content,
     '"Dev" — command: "old command" idle\n"Ad hoc" — command: "old command"; runId: launch_one running',
+  );
+});
+
+void test("an unreadable catalog is named in status and in a failed lookup", async () => {
+  const f = fixture();
+  f.setProblem({
+    path: "/project/.nerve/launches/definitions.json",
+    reason: "bad order",
+  });
+  assert.match(
+    (await f.tool.execute({ action: "status" }, "conv_one")).content,
+    /^Launch definitions cannot be read, so none are listed: .*bad order/,
+  );
+  await assert.rejects(
+    f.tool.execute({ action: "start", name: "Dev" }, "conv_one"),
+    /cannot be read \(.*bad order\)\. Fix the file/,
   );
 });
 
