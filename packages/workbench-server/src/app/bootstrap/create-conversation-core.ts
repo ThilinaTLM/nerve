@@ -324,6 +324,7 @@ export function createConversationCore(
                   home: deps.storage.paths.home,
                   conversationId: input.conversationId,
                   trustedResources: storage.trustedResources,
+                  launchDefinitions: launchServices.definitions,
                 }),
                 extensionAgent: extensionCatalog.agentPort({
                   projectDir: input.projectDir ?? input.cwd,

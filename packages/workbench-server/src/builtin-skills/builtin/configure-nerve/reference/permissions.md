@@ -20,6 +20,12 @@ Policy decides which calls run; it is not an operating-system sandbox. A shell c
 
 Prefer the narrowest rule that solves the request.
 
+## Common requests
+
+- **Stop being asked for one command**: add a rule to the overlay of the rule set the user works with, matching `bash` with `primaryArgument` `equals` or `in` and the exact command lines (example under "Overlay files"). To limit it to one folder, see "Working directory".
+- **Always ask before something, even under Auto**: a guardrail `prompt` rule in the user overlay of each rule set it should protect (example at the end of "Overlay files").
+- **A teammate that runs only certain commands**: a user rule set that allows them and denies the rest (example under "Rule set file"), required by a sub-agent profile (`reference/agent-profiles.md`).
+
 ## Built-in rule sets
 
 | Id           | Name      | Behavior                                                                                                                        |
@@ -103,6 +109,15 @@ Patterns use POSIX path globbing on the whole value: `*` matches within one `/`-
 - `https://api.github.com/**` matches every URL on that host path.
 - For commands, the whole command line is one value, so `pnpm test*` also matches `pnpm test && rm -rf build`. Prefer `equals` or `in` with exact commands. Use a glob only when its wildcard cannot reach a second command, and remember `*` stops at `/`.
 
+### Working directory
+
+A `bash` rule on the command line ignores the folder it runs in: `equals "npm test"` also allows `npm test` with `cwd` set to any folder of the project, which matters in a repository with several packages. To pin the folder, add an `arguments` matcher on `args.cwd`:
+
+- Project root only: `{ "path": "args.cwd", "operator": "exists", "value": false }`.
+- One folder: `{ "path": "args.cwd", "operator": "equals", "value": "packages/web" }`.
+
+`args.cwd` is compared as the agent wrote it, so another spelling of the same folder (`./packages/web`, an absolute path) does not match and gets the rule set's normal decision, usually a prompt.
+
 ### What each tool exposes
 
 | Tool                           | Kind / group / risk                         | Primary argument                                                                                                | Targets                          |
@@ -143,7 +158,7 @@ An `allow` rule with `targets.quantifier: "all"` covers a call only when the cal
   "schemaVersion": 1,
   "id": "review",
   "name": "Review",
-  "description": "Reads and research run freely; anything that changes something is refused.",
+  "description": "Reads, research and the test suite run freely; anything else is refused.",
   "source": "user",
   "enabled": true,
   "rules": [
@@ -164,8 +179,22 @@ An `allow` rule with `targets.quantifier: "all"` covers a call only when the cal
       "decision": "allow"
     },
     {
+      "id": "allow-tests",
+      "enabled": true,
+      "priority": 100,
+      "enforcement": "overridable",
+      "when": {
+        "toolNames": ["bash"],
+        "primaryArgument": {
+          "operator": "in",
+          "value": ["pnpm test", "pnpm lint"]
+        }
+      },
+      "decision": "allow"
+    },
+    {
       "id": "deny-rest",
-      "description": "Review mode does not change anything.",
+      "description": "Review mode changes nothing and runs only the tests.",
       "enabled": true,
       "priority": 0,
       "enforcement": "overridable",
@@ -180,7 +209,7 @@ An `allow` rule with `targets.quantifier: "all"` covers a call only when the cal
 - `name`: 1–128 characters; shown in the permission picker. `description`: optional, 1–1024.
 - `source`: `"user"`. `enabled`: a disabled rule set cannot be selected.
 - `rules`: 1–256 rules, all `overridable`. End with a catch-all rule (`"when": {}`) so every call gets a deliberate decision.
-- For use by sub-agents: no enabled `prompt` rules.
+- For use by sub-agents: no enabled `prompt` rules. A sub-agent requiring this example can run `pnpm test` and `pnpm lint` and is refused everything else that is not a read.
 
 If the selected rule set is missing, disabled or invalid, tool calls are blocked rather than falling back.
 

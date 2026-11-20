@@ -119,7 +119,13 @@ export function parserIssues(error: unknown): DocumentIssue[] {
         code: "unknown-field" as const,
         pointer: pointer([...segments, key]),
       }));
-    return [{ code: "invalid-value" as const, pointer: pointer(segments) }];
+    return [
+      {
+        code: "invalid-value" as const,
+        pointer: pointer(segments),
+        message: issue.message,
+      },
+    ];
   });
 }
 function pointer(parts: readonly string[]): string {

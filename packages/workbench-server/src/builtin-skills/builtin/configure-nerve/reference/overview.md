@@ -19,7 +19,7 @@
 
 Agent preferences (`agent.json`) hold the default model, thinking level, rule set selection, tool and skill toggles. The user changes them in Settings; read them to understand the current setup, and edit them only when the user asks for exactly that change. Their fields are the settings object described in `reference/agent-profiles.md` ("Settings object"), wrapped as `{ "schemaVersion": 1, "revision": <n>, "overrides": { ... } }`. Keep `revision` as it is.
 
-Exact shape of `agent.json`: `reference/schemas/agent-preferences.schema.json`.
+Exact shape of `agent.json`: `reference/schemas/agent-preferences.user.schema.json` and `reference/schemas/agent-preferences.project.schema.json`. The project file also carries a top-level `"version": 2`; keep it.
 
 A conversation also has its own `agent.json` and `permissions.json` under `<home>/data/conversations/<id>/config/`. Nerve manages them; do not edit them.
 
@@ -43,8 +43,8 @@ Any edit to such a file, including yours, withdraws the approval until the user 
 
 Nerve does not watch files. After you edit configuration by hand:
 
-- Launch definitions and skills: read again on next use (skills from the next agent run).
-- Agent profiles, permission files and agent preferences: cached until reloaded. Reload and read the result:
+- Skills: read again from the next agent run. Launch definitions: read again on next use.
+- Agent profiles, permission files and agent preferences: cached until reloaded. Reload and read the result; it also reports an invalid launch catalog:
 
 ```ts
 return await configuration.reload("project"); // or "user"
@@ -52,9 +52,9 @@ return await configuration.reload("project"); // or "user"
 
 `configuration.status(scope)` returns the same result without reloading; use it to inspect the current state before a change.
 
-The result is `{ diagnostics }`; an empty list means every file of that scope loads. Each diagnostic has `scope`, `document` (`agent.json`, `conversation-defaults`, `profile:<name>`, `permissions.json`, `rule-set:<id>`), `path` and `message`. Project files waiting for the user's approval also carry `trust: "untrusted"`. Rule sets are checked with user scope. Launch definitions and skills are not covered.
+The result is `{ diagnostics }`; an empty list means every file of that scope loads. Each diagnostic has `scope`, `document` (`agent.json`, `conversation-defaults`, `profile:<name>`, `permissions.json`, `rule-set:<id>`, `launches`), `path` and a `message` that says what is wrong and what to do. Project files waiting for the user's approval also carry `trust: "untrusted"`; only the user can clear those. Rule sets are checked with user scope, the launch catalog with project scope. Skills are not covered.
 
-An invalid permission file blocks tool calls (model replies still work), so fix every diagnostic before ending your turn and reload again. Reloading never approves trust.
+An invalid permission file blocks tool calls (model replies still work), so fix every diagnostic without `trust` before ending your turn, and reload again. Reloading never approves trust.
 
 ## Failure behavior to keep in mind
 

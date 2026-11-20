@@ -9,6 +9,7 @@ import { createId } from "@nervekit/contracts";
 import { type Project } from "@nervekit/contracts/core";
 import { ApplicationError } from "../../core/application-error.js";
 import type { LaunchDefinitionRepository } from "./launch-definition.repository.js";
+import { launchDefinitionsConfiguration } from "./launch-definition-migrations.js";
 
 type Entry =
   | LaunchDefinitionFile["definitions"][number]
@@ -129,6 +130,21 @@ export class LaunchDefinitionService {
   }
   async list(projectId: string): Promise<LaunchDefinition[]> {
     return (await this.catalog(projectId)).definitions;
+  }
+  /** Why the project's catalog file is unusable, if it is; it then reads as an empty catalog. */
+  async problem(
+    projectId: string,
+  ): Promise<{ path: string; reason: string } | undefined> {
+    await this.catalog(projectId);
+    const issue = this.repository
+      .health(projectId)
+      .issues.find(
+        (item) =>
+          item.type === launchDefinitionsConfiguration.id &&
+          (item.classification === "corrupted" ||
+            item.classification === "incompatible"),
+      );
+    return issue && { path: issue.path, reason: issue.message };
   }
   async get(
     projectId: string,

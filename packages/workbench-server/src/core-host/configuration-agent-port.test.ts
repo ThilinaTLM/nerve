@@ -28,6 +28,7 @@ async function setup(t: test.TestContext) {
     await rm(home, { recursive: true, force: true });
   });
   const reloaded: (readonly string[] | undefined)[] = [];
+  let launchProblem: { path: string; reason: string } | undefined;
   const port = createConfigurationAgentPort({
     service,
     policy: {
@@ -38,8 +39,18 @@ async function setup(t: test.TestContext) {
     home,
     conversationId: "c",
     trustedResources: { find: () => null },
+    launchDefinitions: { problem: async () => launchProblem },
   });
-  return { home, project, port, reloaded, service };
+  return {
+    home,
+    project,
+    port,
+    reloaded,
+    service,
+    setLaunchProblem: (value: { path: string; reason: string }) => {
+      launchProblem = value;
+    },
+  };
 }
 
 void test("reload makes a newly written invalid profile visible; status keeps the last load", async (t) => {
@@ -89,4 +100,45 @@ void test("project reload flags an unapproved overlay as untrusted and never tru
     [{ document: "permissions.json", trust: "untrusted" }],
   );
   assert.deepEqual(reloaded, [[file]]);
+});
+
+void test("valid lead and sub-agent profiles report nothing; an invalid field is explained", async (t) => {
+  const { home, port } = await setup(t);
+  const profile = (name: string, usableBy: string) =>
+    writeFile(
+      join(home, "agent", "agent-profiles", `${name}.json`),
+      JSON.stringify({
+        schemaVersion: 1,
+        name,
+        whenToUse: "Review a finished change.",
+        usableBy,
+        instructions: "",
+      }),
+    );
+  await profile("reviewer", "subagent");
+  await profile("writer", "lead");
+  assert.deepEqual(await port.reload("user"), { diagnostics: [] });
+  await profile("reviewer", "teammate");
+  const { diagnostics } = await port.reload("user");
+  assert.equal(diagnostics.length, 1);
+  assert.match(
+    diagnostics[0].message,
+    /^\/usableBy: Invalid value\. .* Detail: Invalid option/,
+  );
+});
+
+void test("project status reports an unreadable launch catalog", async (t) => {
+  const { port, setLaunchProblem } = await setup(t);
+  setLaunchProblem({
+    path: "/p/.nerve/launches/definitions.json",
+    reason: "x",
+  });
+  assert.deepEqual(
+    (await port.status("project")).diagnostics.map(({ document, path }) => ({
+      document,
+      path,
+    })),
+    [{ document: "launches", path: "/p/.nerve/launches/definitions.json" }],
+  );
+  assert.deepEqual(await port.status("user"), { diagnostics: [] });
 });

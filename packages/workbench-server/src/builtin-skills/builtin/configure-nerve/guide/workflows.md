@@ -1,6 +1,6 @@
 # Workflows
 
-Each workflow assumes the approach in `guide/collaboration.md`: brainstorm when the user brings a goal, act directly when they bring a precise request. Look up formats in the linked reference before writing.
+Each workflow assumes the approach in `SKILL.md`: act directly on a precise request, brainstorm first (`guide/collaboration.md`) when the user brings a goal. Look up formats in the linked reference before writing.
 
 ## Survey the current setup
 
@@ -8,7 +8,8 @@ Use this when the user asks what is configured or what is possible, and before p
 
 1. Read what exists at both scopes (`reference/overview.md`, "Where each thing lives"): skills folders, extensions folders, `.nerve/launches/definitions.json`, profile folders, rule sets, `permissions.json` files, `agent.json` files.
 2. Summarize in the user's terms: what the agent does by default, which teammates exist, what runs without asking, what saved commands exist. Skip empty categories unless the user asked about them.
-3. Suggest one or two improvements that fit what you saw (for example a launch for the dev server named in `package.json`), and ask before making them.
+3. Point out risky rules you find: an `allow` rule on `bash` or `python_exec` with no `primaryArgument`, or with a glob such as `**` or `*`, lets every command run without asking (`reference/permissions.md`, "Globs"). Explain what it allows and propose exact commands instead; change it only if the user agrees.
+4. Suggest one or two improvements that fit what you saw (for example a launch for the dev server named in `package.json`), and ask before making them.
 
 ## Create or improve a skill
 
@@ -26,7 +27,7 @@ Reference: `reference/launches.md`.
 
 1. Find the right command from the project (`package.json` scripts, `Makefile`, docs) instead of guessing; ask when there are several candidates.
 2. Read the catalog file; create it if missing. Add or change the entry, keep ids unique, renumber sibling `order` values.
-3. Validate by starting it with the `launch` tool and reading its logs, then stop it unless the user wants it running.
+3. Run `configuration.reload("project")` and fix any `launches` diagnostic: an invalid catalog reads as empty. Then start the entry with the `launch` tool, read its logs, and stop it unless the user wants it running.
 
 ## Create or change an agent profile
 

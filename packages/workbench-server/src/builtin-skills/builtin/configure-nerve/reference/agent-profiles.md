@@ -6,6 +6,12 @@ A profile packages how an agent works: instructions plus settings for model, thi
 - A **sub-agent profile** defines a teammate the lead can delegate to with `subagent_prompt`. The lead sees each one as `name: whenToUse` and picks by that line.
 - `usableBy: "both"` makes one profile serve both roles; its settings must then fit the sub-agent limits below.
 
+## Common requests
+
+- **Read-only teammate** (reviewer, researcher): a sub-agent profile requiring `read_only`, like the example under "File". It can read and search but not run commands.
+- **Teammate that also runs certain commands** (a reviewer that runs the tests): a user rule set that allows exactly those commands and denies the rest (`reference/permissions.md`, "Rule set file"), required by a sub-agent profile. Rule sets exist only at user scope, so put the profile at user scope too; a project profile requiring it would break for teammates who lack the rule set.
+- **A different way for the main agent to work**: a lead profile with instructions, plus a rule set or tool settings only if the purpose depends on them.
+
 ## Built-in profiles
 
 | Name        | Role      | Purpose                                                                                  |
@@ -33,7 +39,7 @@ Project files carry an extra top-level `"version": 3`; user files have no `versi
   "label": "Reviewer",
   "whenToUse": "Review a finished change for bugs, missing tests and convention breaks; reports findings, edits nothing.",
   "usableBy": "subagent",
-  "instructions": "Review the change you are given. Read the diff and the code around it, run the relevant tests, and report findings ordered by severity with file paths and line numbers. Do not edit files.",
+  "instructions": "Review the change you are given. Read the diff and the code around it, and report findings ordered by severity with file paths and line numbers. Do not edit files.",
   "recommendations": { "reasoningLevel": "high" },
   "requirements": { "permissionRuleSetId": "read_only" }
 }
@@ -41,7 +47,7 @@ Project files carry an extra top-level `"version": 3`; user files have no `versi
 
 ## Fields
 
-Exact shape with every constraint: `reference/schemas/agent-profile.user.schema.json` and `reference/schemas/agent-profile.project.schema.json`. Validate a file against it before writing when you are unsure.
+Exact shape with every constraint: `reference/schemas/agent-profile.user.schema.json` and `reference/schemas/agent-profile.project.schema.json`. After writing, `configuration.reload` reports any field that does not match.
 
 | Field             | Required | Value                                                                                                                                                                                                                                           |
 | ----------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

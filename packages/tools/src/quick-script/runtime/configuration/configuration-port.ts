@@ -7,7 +7,7 @@ export type ConfigurationAgentScope = "user" | "project";
 
 export type ConfigurationAgentDiagnostic = {
   scope: "user" | "project";
-  /** `agent.json`, `conversation-defaults`, `profile:<name>`, `permissions.json` or `rule-set:<id>`. */
+  /** `agent.json`, `conversation-defaults`, `profile:<name>`, `permissions.json`, `rule-set:<id>` or `launches`. */
   document: string;
   path: string;
   message: string;
