@@ -90,7 +90,7 @@ All present fields must match.
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `toolNames`       | The tool name is one of these (1–256).                                                                                                                |
 | `toolKinds`       | Tool kind: `filesystem`, `command`, `code`, `external_read`, `interaction`, `orchestration`, `deployment`, `integration`, `other`.                    |
-| `toolGroups`      | Tool group, or the quick_script namespace for SDK operations (any of these).                                                                          |
+| `toolGroups`      | Tool group (any of these). An extension's tool and its SDK operations carry both the extension id and the namespace (`web-search` and `search`).      |
 | `baseRisks`       | Risk of the call: `read`, `write`, `external_read`, `external_write`, `secret`, `destructive`, `deployment`, `agent_spawn`, `interaction`, `unknown`. |
 | `primaryArgument` | Value matcher on the tool's primary argument (table below).                                                                                           |
 | `primaryTarget`   | Target matcher on the call's first target.                                                                                                            |
@@ -143,7 +143,7 @@ A `bash` rule on the command line ignores the folder it runs in: `equals "npm te
 
 Paths are resolved to the most specific root: `project` (the project directory), `plans`, `nerve_data`, `nerve_home`. A path outside all roots has no root and matches only matchers without `root` and `pattern`.
 
-`bash` always has risk `unknown` in rules, so `baseRisks: ["read"]` never matches a shell command; match shell commands by `toolNames` plus `primaryArgument`. A quick_script SDK call is checked once per operation it performs; its risk is `read`, `external_read`, `external_write` or `destructive` by method. Extension tools are matched through their quick_script operations, not by tool name.
+`bash` always has risk `unknown` in rules, so `baseRisks: ["read"]` never matches a shell command; match shell commands by `toolNames` plus `primaryArgument`. A quick_script SDK call is checked once per operation it performs; its risk is `read`, `external_read`, `external_write` or `destructive` by method. An extension's direct tool (`web_search`) is admitted by its tool name, and the operation it runs is checked again as a quick_script operation (`search.web`). A group rule (`toolGroups: ["search"]` or `["web-search"]`) covers both routes; `toolNames` names only the tool. Prefer a risk rule, then a group rule for one extension or namespace; use a tool or operation name only for a single call.
 
 ### Allow rules and targets
 

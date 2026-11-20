@@ -57,7 +57,12 @@ export interface NormalizedPermissionRequest {
   /** The project directory whose installed extensions' direct tools this request may name. */
   toolScope?: string;
   /** Set for a quick_script SDK operation checked by name (`jira.issues.create`), not for a script. */
-  operation?: { namespace: string; baseRisk: StaticToolRisk };
+  operation?: {
+    namespace: string;
+    /** Extension contributing the namespace; its id is a second permission group. */
+    extensionId?: string;
+    baseRisk: StaticToolRisk;
+  };
   /** Risk of the arguments of a tool classified asynchronously (`quick_script`), awaited by the caller before evaluation. */
   argumentRisk?: ToolRisk;
 }
@@ -464,7 +469,14 @@ function requestMetadata(request: NormalizedPermissionRequest) {
   if (request.operation)
     return {
       ...metadata,
-      groups: [request.operation.namespace],
+      groups: [
+        ...new Set([
+          request.operation.namespace,
+          ...(request.operation.extensionId
+            ? [request.operation.extensionId]
+            : []),
+        ]),
+      ],
       baseRisk: request.operation.baseRisk,
       primaryTargetComplete: true,
     };

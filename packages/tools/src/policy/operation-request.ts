@@ -42,12 +42,17 @@ export function operationBaseRisk(risk: OperationRisk): StaticToolRisk {
   }
 }
 
-/** Request for one quick_script SDK operation: `operation` is the primary argument, the namespace the tool group. */
+/**
+ * Request for one quick_script SDK operation: `operation` is the primary argument; the namespace
+ * and, for an extension's namespace, the extension id are its tool groups.
+ */
 export function normalizeOperationRequest(input: {
   operation: string;
   /** Normalized resources, `jira:issue/APP-12`. */
   targets: readonly string[];
   risk: OperationRisk;
+  /** Id of the extension that contributes the operation's namespace; absent for runtime namespaces. */
+  extensionId?: string;
   conversationId: string;
   projectId?: string;
 }): NormalizedPermissionRequest {
@@ -66,12 +71,23 @@ export function normalizeOperationRequest(input: {
     conversationId: input.conversationId,
     operation: {
       namespace: input.operation.split(".")[0],
+      ...(input.extensionId === undefined
+        ? {}
+        : { extensionId: input.extensionId }),
       baseRisk: operationBaseRisk(input.risk),
     },
   };
   request.primaryTarget = request.targets[0];
   if (input.projectId !== undefined) request.projectId = input.projectId;
   return request;
+}
+
+function extensionIdFor(
+  operation: string,
+  extensionOf: ((namespace: string) => string | undefined) | undefined,
+): { extensionId?: string } {
+  const id = extensionOf?.(operation.split(".")[0]);
+  return id === undefined ? {} : { extensionId: id };
 }
 
 /** One SDK call a script's scan found: its operation, risk and normalized targets (undefined when only known at run time). */
@@ -130,6 +146,8 @@ export function composeScriptAdmission(input: {
   script: PermissionEvaluationResult;
   calls: readonly ScriptOperationCall[];
   policy: EffectivePermissionPolicy;
+  /** Extension id of a namespace, undefined for runtime namespaces. */
+  extensionOf?: (namespace: string) => string | undefined;
   conversationId: string;
   projectId?: string;
 }): ScriptAdmission {
@@ -143,6 +161,7 @@ export function composeScriptAdmission(input: {
         operation: call.operation,
         targets: call.targets ?? [],
         risk: call.risk,
+        ...extensionIdFor(call.operation, input.extensionOf),
         conversationId: input.conversationId,
         ...(input.projectId === undefined
           ? {}

@@ -261,7 +261,13 @@ export function createExtensionToolDefinitions(
       ],
       permissionMetadata: {
         kind: "integration",
-        groups: [extension.id],
+        // The extension, and the namespace of the method a bound tool runs (`search.web`: `search`).
+        groups: [
+          ...new Set([
+            extension.id,
+            ...(isMethodTool(tool) ? [tool.method.split(".")[0]] : []),
+          ]),
+        ],
         baseRisk: staticRisk,
         primaryArguments: Object.keys(tool.parameters.properties ?? {}).slice(
           0,

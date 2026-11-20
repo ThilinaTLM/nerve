@@ -37,6 +37,7 @@ import {
 } from "@nervekit/tools/catalog";
 import {
   classifyQuickScriptArguments,
+  findQuickScriptNamespace,
   summarizeScannedCalls,
   type QuickScriptRegistry,
 } from "@nervekit/tools/quick-script";
@@ -98,6 +99,11 @@ export function createScopedPermissionSource(options: {
   const scans = new WeakMap<
     Parameters<AdmissionPolicySource["ensureLoaded"]>[0],
     Awaited<ReturnType<typeof classifyQuickScriptArguments>>
+  >();
+  /** The extension that contributes each namespace, as the request's project sees it. */
+  const namespaceOwners = new WeakMap<
+    Parameters<AdmissionPolicySource["ensureLoaded"]>[0],
+    (namespace: string) => string | undefined
   >();
   const files = new Map<string, Promise<LoadedPermissionFile>>();
   let catalog:
@@ -331,19 +337,21 @@ export function createScopedPermissionSource(options: {
     },
     async ensureLoaded(input) {
       // Composing the project's extensions publishes their direct tools for the request below.
-      await options.registryFor?.(
-        projectOf(input.conversationId).project.directory,
-      );
+      const registry = options.registryFor
+        ? await options.registryFor(
+            projectOf(input.conversationId).project.directory,
+          )
+        : hostRegistry;
+      namespaceOwners.set(input, (namespace) => {
+        const owner = findQuickScriptNamespace(namespace, registry)?.owner;
+        return owner === "runtime" ? undefined : owner;
+      });
       if (input.toolName === "quick_script" && !nestedOperation(input))
         scans.set(
           input,
           await classifyQuickScriptArguments(
             input.args as Record<string, unknown>,
-            options.registryFor
-              ? await options.registryFor(
-                  projectOf(input.conversationId).project.directory,
-                )
-              : hostRegistry,
+            registry,
           ),
         );
       while (true) {
@@ -355,6 +363,10 @@ export function createScopedPermissionSource(options: {
           operation
             ? normalizeOperationRequest({
                 ...operation,
+                ...extensionIdOf(
+                  namespaceOwners.get(input),
+                  operation.operation,
+                ),
                 conversationId: input.conversationId,
                 projectId: context.project.id,
               })
@@ -507,6 +519,9 @@ export function createScopedPermissionSource(options: {
                         script,
                         calls: scanned.calls,
                         policy,
+                        ...(namespaceOwners.has(actual)
+                          ? { extensionOf: namespaceOwners.get(actual)! }
+                          : {}),
                         conversationId: request.conversationId,
                         ...(request.projectId === undefined
                           ? {}
@@ -623,6 +638,14 @@ function withScriptOperations(
   return operations.length > 0
     ? `${reason} Script operations: ${operations.join(", ")}.`
     : reason;
+}
+
+function extensionIdOf(
+  ownerOf: ((namespace: string) => string | undefined) | undefined,
+  operation: string,
+): { extensionId?: string } {
+  const id = ownerOf?.(operation.split(".")[0]);
+  return id === undefined ? {} : { extensionId: id };
 }
 
 /** The SDK operation a quick-script broker check names, or undefined for any other request. */
