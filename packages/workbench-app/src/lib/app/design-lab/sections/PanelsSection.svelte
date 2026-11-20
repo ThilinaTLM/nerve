@@ -6,6 +6,7 @@ import {
   idleConversationActivity,
   type ConversationActivity,
 } from "$lib/presentation/conversations/conversation-activity";
+import ConfigurationAttentionItem from "$lib/presentation/activity/ConfigurationAttentionItem.svelte";
 import NotificationEntry from "$lib/presentation/activity/NotificationEntry.svelte";
 import MaterialFileIcon from "$lib/presentation/files/MaterialFileIcon.svelte";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
@@ -745,6 +746,37 @@ const activityExamples: {
         actions={[
           { label: "Retry", onSelect: () => {} },
           { label: "View logs", onSelect: () => {}, disabled: true },
+        ]}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ConfigurationAttentionItem"
+      source="presentation/activity/ConfigurationAttentionItem.svelte"
+      usage="Activity bell"
+      layout="stack"
+      description="Configuration that waits for the user's review or does not work, in two groups."
+    >
+      <ConfigurationAttentionItem
+        rows={[
+          {
+            key: "skill",
+            group: "review",
+            title: "Skill release-notes",
+            context: "In this project, from the repository",
+            detail: "Not used until you approve it.",
+            actions: [{ label: "Review", onSelect: () => {} }],
+          },
+          {
+            key: "extension",
+            group: "broken",
+            title: "Extension team-board can't load",
+            context: "Yours, every project",
+            detail: 'dist/manifest.json: Unrecognized key: "apiVersion"',
+            actions: [
+              { label: "Ask the agent to fix", onSelect: () => {} },
+              { label: "Details", onSelect: () => {} },
+            ],
+          },
         ]}
       />
     </GallerySpecimen>
