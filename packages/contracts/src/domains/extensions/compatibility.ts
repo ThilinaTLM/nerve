@@ -1,7 +1,7 @@
 /**
  * The oldest SDK version whose extensions this Nerve still loads. Raise it only when a release
  * breaks the extension API, the UI bridge, the manifest format, `ui-kit` components or theme token
- * names (see the installable extensions proposal, "Compatibility and versions").
+ * names (see docs/architecture/extension-platform.md, "Installed extensions").
  */
 export const oldestCompatibleSdkVersion = "0.41.0";
 
