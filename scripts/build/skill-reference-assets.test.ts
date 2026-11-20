@@ -13,6 +13,7 @@ import {
   permissionRuleSetSchema,
 } from "../../packages/contracts/src/domains/permissions/permission-rule-sets.ts";
 import { launchDefinitionFileSchema } from "../../packages/contracts/src/domains/launch-definitions/launch-definition.ts";
+import { themeTokenNames } from "../../packages/contracts/src/domains/extensions/theme-file.ts";
 import { repoRoot } from "../workspace/repo.ts";
 import {
   generateConfigurationSchemas,
@@ -90,6 +91,58 @@ test("writes schemas and public declarations into the skill folder", async () =>
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+// The prose points at declarations as `Symbol` (`reference/extensions/api/<package>/<file>.d.ts`):
+// each pointer must name an export of that generated file, and themes.md must mention every token.
+test("declaration pointers in the extension references name exports of the generated files", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "skill-pointers-"));
+  try {
+    await writeSkillReferenceAssets(dir);
+    const extensions = join(skillSource, "reference", "extensions");
+    const files = [
+      join(skillSource, "guide", "extensions.md"),
+      ...(await readdir(extensions))
+        .filter((name) => name.endsWith(".md"))
+        .map((name) => join(extensions, name)),
+    ];
+    let count = 0;
+    for (const file of files) {
+      const text = await readFile(file, "utf8");
+      for (const [, symbol, path] of text.matchAll(
+        /`(\w+)` \(`(reference\/extensions\/api\/extension-(?:api|sdk)\/[\w/-]+\.d\.ts)`\)/g,
+      )) {
+        const declaration = await readFile(join(dir, path!), "utf8");
+        assert.match(
+          declaration,
+          new RegExp(
+            `export (?:declare )?(?:const|function|type|interface|class|let) ${symbol}\\b`,
+          ),
+          `${file}: ${symbol} is not exported by ${path}`,
+        );
+        count++;
+      }
+    }
+    assert.ok(count >= 20, `only ${count} pointers found`);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("themes.md lists every theme token", async () => {
+  const themes = await readFile(
+    join(skillSource, "reference/extensions/themes.md"),
+    "utf8",
+  );
+  const missing = themeTokenNames.filter(
+    (name) => !themes.includes(`\`${name}`),
+  );
+  assert.deepEqual(
+    missing,
+    [],
+    `themes.md must mention: ${missing.join(", ")}`,
+  );
+  assert.ok(themes.includes(`all ${themeTokenNames.length} tokens`));
 });
 
 /** Fenced ```json blocks of a reference document. */

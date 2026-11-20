@@ -34,7 +34,6 @@ after(() => void server.close());
 
 const extension = defineExtension({
   id: "probe",
-  apiVersion: 1,
   name: "Probe",
   description: "Test extension.",
   icon: "blocks",

@@ -1,0 +1,4220 @@
+===== declarations extension-api/src/authorization.d.ts =====
+export type Risk = "none" | "read" | "external_read" | "write" | "external_write" | "destructive";
+export type OperationTarget = {
+    kind: "resource";
+    value: string;
+};
+export type OperationAuthorization = {
+    operation?: string;
+    targets: readonly (OperationTarget | string)[];
+    risk?: Risk;
+    summary: string;
+};
+export type ToolAuthorization = {
+    toolName: string;
+    args: Record<string, unknown>;
+    summary: string;
+};
+export type Authorization = OperationAuthorization | ToolAuthorization;
+export type AuthorizeResult = Authorization | readonly Authorization[] | undefined;
+
+===== declarations extension-api/src/define.d.ts =====
+import type { ExtensionDefinition, MethodDefinition, NamespaceDefinition, ToolDefinition } from "./definition.js";
+export declare function defineExtension(definition: ExtensionDefinition): ExtensionDefinition;
+export declare function defineNamespace<Session = undefined>(definition: NamespaceDefinition<Session>): NamespaceDefinition<Session>;
+export declare function method<Input, Output = unknown, Session = any>(definition: MethodDefinition<Session, Input, Output>): MethodDefinition<Session, Input, Output>;
+export declare function defineTool<const T extends ToolDefinition>(definition: T): T;
+
+===== declarations extension-api/src/definition.d.ts =====
+import type { AuthorizeResult, Risk } from "./authorization.js";
+import type { AccountKind, ExtensionSettings } from "./settings.js";
+import type { ExtensionContext } from "./types.js";
+export type MethodDefinition<Session = unknown, Input = unknown, Output = unknown> = {
+    risk: Risk;
+    riskFromArgs?: boolean;
+    signature: string;
+    parse(args: readonly unknown[]): Input;
+    authorize?(input: Input): AuthorizeResult;
+    resource?(input: Input): string;
+    run(session: Session, input: Input, ctx: ExtensionContext): Promise<Output> | Output;
+};
+export type Availability = {
+    available: true;
+} | {
+    available: false;
+    reason: string;
+    fix: string;
+};
+export type DocTopic = {
+    id: string;
+    whenToRead: string;
+    file: string;
+};
+export type Requires = {
+    account?: string;
+};
+export type NamespaceDefinition<Session = unknown> = {
+    id: string;
+    label?: string;
+    enabledBy?: string | readonly string[];
+    requires?: Requires;
+    helper?: boolean;
+    summary: string;
+    rules?: readonly string[];
+    types: string;
+    docs?: readonly DocTopic[];
+    session?: (ctx: ExtensionContext) => Promise<Session> | Session;
+    methods: Readonly<Record<string, MethodDefinition<Session, any, any>>>;
+    configuration?: (ctx: ExtensionContext) => string | undefined;
+    availability?: (ctx: ExtensionContext) => Promise<Availability> | Availability;
+};
+export type ViewSectionType = "text" | "markdown" | "links" | "table" | "artifacts";
+export declare const VIEW_SECTION_TYPES: readonly ViewSectionType[];
+export declare const VIEW_SECTION_ID: RegExp;
+export type ViewSection = {
+    id: string;
+    type: ViewSectionType;
+    label?: string;
+    live?: "stream" | "transient";
+};
+export type ToolView = {
+    header?: {
+        argument: string;
+        format?: "text" | "path";
+    };
+    meta?: readonly string[];
+    sections: readonly ViewSection[];
+};
+export declare const DEFAULT_TOOL_VIEW: ToolView;
+export type JsonSchemaObject = {
+    type: "object";
+    properties?: Record<string, unknown>;
+    required?: readonly string[];
+    additionalProperties?: boolean;
+    [key: string]: unknown;
+};
+type ToolBase = {
+    name: string;
+    label?: string;
+    description: string;
+    parameters: JsonSchemaObject;
+    view?: ToolView;
+    enabledBy?: string;
+    requires?: Requires;
+    availability?: (ctx: ExtensionContext) => Promise<Availability> | Availability;
+};
+export type MethodToolDefinition = ToolBase & {
+    method: string;
+};
+export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
+    risk: Risk;
+    parse(args: Record<string, unknown>): Input;
+    authorize?(input: Input): AuthorizeResult;
+    run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
+    present?(output: Output): {
+        text: string;
+        sections?: Record<string, unknown>;
+        details?: {
+            query?: string;
+            answer?: string;
+        };
+    };
+};
+export type ToolDefinition = MethodToolDefinition | OwnToolDefinition;
+export declare function isMethodTool(tool: ToolDefinition): tool is MethodToolDefinition;
+export type Capability = "models.image" | "models.vision";
+export type ExtensionPermissions = {
+    network?: string[];
+    capabilities?: Capability[];
+};
+export type PreviewEditMode = "source" | "custom" | "none";
+export type PreviewContribution = {
+    id: string;
+    label: string;
+    match: {
+        extensions: readonly string[];
+    };
+    entry: string;
+    edit?: PreviewEditMode;
+};
+export type PageContribution = {
+    id: string;
+    label: string;
+    icon: string;
+    newMenu?: boolean;
+    entry: string;
+};
+export type PanelContribution = {
+    id: string;
+    label: string;
+    icon: string;
+    entry: string;
+};
+export type ThemeContribution = {
+    id: string;
+    label: string;
+    file: string;
+};
+export type ExtensionUi = {
+    previews?: readonly PreviewContribution[];
+    pages?: readonly PageContribution[];
+    panels?: readonly PanelContribution[];
+    themes?: readonly ThemeContribution[];
+};
+export type ExtensionDefinition = {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    enabledByDefault: boolean;
+    settings: ExtensionSettings;
+    accounts?: Readonly<Record<string, AccountKind>>;
+    permissions?: ExtensionPermissions;
+    namespaces: readonly NamespaceDefinition<any>[];
+    tools?: readonly ToolDefinition[];
+    prelude?: string;
+    ui?: ExtensionUi;
+    limits?: Readonly<Record<string, number>>;
+};
+export {};
+
+===== declarations extension-api/src/errors.d.ts =====
+export declare function isArtifactName(name: string): boolean;
+export declare const EXTENSION_ERROR_CODES: readonly ["BAD_REQUEST", "NOT_FOUND", "CONFLICT", "FORBIDDEN", "DENIED", "RATE_LIMITED", "UNAUTHORIZED", "SERVER_ERROR"];
+export type ExtensionErrorCode = (typeof EXTENSION_ERROR_CODES)[number];
+export declare class ExtensionError extends Error {
+    readonly code: ExtensionErrorCode;
+    readonly fix?: string;
+    constructor(code: ExtensionErrorCode, message: string, options?: {
+        fix?: string;
+        cause?: unknown;
+    });
+}
+
+===== declarations extension-api/src/index.d.ts =====
+export type { Risk, OperationTarget, OperationAuthorization, ToolAuthorization, Authorization, AuthorizeResult, } from "./authorization.js";
+export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountInfo, AccountTestResult, AccountKindData, AccountKind, } from "./settings.js";
+export type { ArtifactRef, ArtifactInfo, FormPart, HttpRequest, HttpArtifactOptions, HttpResponse, ReportEntry, ImageOptions, ImageRequest, ImageResult, VisionRequest, VisionResult, VisionExplainRequest, ExtensionContext, } from "./types.js";
+export { ExtensionError } from "./errors.js";
+export type { ExtensionErrorCode } from "./errors.js";
+export type { MethodDefinition, Availability, DocTopic, Requires, NamespaceDefinition, ViewSectionType, ViewSection, ToolView, JsonSchemaObject, MethodToolDefinition, OwnToolDefinition, ToolDefinition, Capability, ExtensionPermissions, PreviewEditMode, PreviewContribution, PageContribution, PanelContribution, ThemeContribution, ExtensionUi, ExtensionDefinition, } from "./definition.js";
+export { defineExtension, defineNamespace, method, defineTool, } from "./define.js";
+
+===== declarations extension-api/src/settings.d.ts =====
+import type { ExtensionContext } from "./types.js";
+export type SettingScope = "user" | "project" | "conversation";
+type FieldBase = {
+    label: string;
+    description?: string;
+    section?: string;
+    scopes?: SettingScope[];
+    visibleWhen?: {
+        field: string;
+        equals: string | boolean;
+    };
+    advanced?: boolean;
+};
+export type SettingField = (FieldBase & {
+    type: "boolean";
+    default: boolean;
+}) | (FieldBase & {
+    type: "string";
+    default?: string;
+    format?: "url" | "text";
+    placeholder?: string;
+    maxLength?: number;
+}) | (FieldBase & {
+    type: "number";
+    default?: number;
+    min?: number;
+    max?: number;
+    step?: number;
+    unit?: string;
+}) | (FieldBase & {
+    type: "enum";
+    default: string;
+    options: {
+        value: string;
+        label: string;
+        description?: string;
+    }[];
+}) | (FieldBase & {
+    type: "account";
+    kind: string | string[];
+}) | (FieldBase & {
+    type: "model";
+    capability?: "image" | "vision";
+});
+export type SettingsSchema = {
+    sections?: {
+        id: string;
+        title: string;
+        description?: string;
+    }[];
+    fields: Record<string, SettingField>;
+};
+export type ExtensionSettings = SettingsSchema & {
+    version: number;
+    migrations?: Readonly<Record<number, (settings: Record<string, unknown>) => Record<string, unknown>>>;
+};
+export type AccountAuth = {
+    scheme: "basic";
+    user: string;
+} | {
+    scheme: "bearer";
+} | {
+    scheme: "header";
+    name: string;
+};
+export type AccountInfo = {
+    id: string;
+    name: string;
+    kind: string;
+    fields: Record<string, unknown>;
+};
+export type AccountTestResult = {
+    ok: true;
+    message?: string;
+} | {
+    ok: false;
+    message: string;
+    fix?: string;
+    reason?: "rejected" | "restricted" | "unavailable" | "unreachable";
+};
+export type AccountKindData = {
+    label: string;
+    fields: Record<string, SettingField>;
+    secret: {
+        label: string;
+        help?: string;
+    };
+    auth?: AccountAuth;
+    origins?: string[];
+};
+export type AccountKind = AccountKindData & {
+    test?: (account: AccountInfo, ctx: ExtensionContext) => Promise<AccountTestResult>;
+};
+export {};
+
+===== declarations extension-api/src/testing.d.ts =====
+import type { ExtensionContext, HttpRequest, HttpResponse, ImageRequest, ImageResult, VisionRequest, VisionResult } from "./types.js";
+import type { Risk } from "./authorization.js";
+import type { AccountInfo } from "./settings.js";
+export type FakeContextRecord = {
+    requests: HttpRequest[];
+    authorized: {
+        operation: string;
+        targets: readonly string[];
+        risk: Risk;
+    }[];
+    created: string[];
+    updated: string[];
+    deleted: string[];
+    notes: string[];
+    logs: {
+        level: "debug" | "warn";
+        message: string;
+        data?: unknown;
+    }[];
+    progress: {
+        section: string;
+        chunk: string;
+    }[];
+    store: Map<string, {
+        value: unknown;
+        revision: number;
+    }>;
+    artifacts: Map<string, {
+        bytes: Uint8Array;
+        mediaType: string;
+        name: string;
+    }>;
+};
+export type FakeContextOptions = {
+    settings?: Record<string, unknown>;
+    accounts?: Record<string, AccountInfo>;
+    authorize?: (check: FakeContextRecord["authorized"][number]) => void | Promise<void>;
+    http?: (request: HttpRequest) => HttpResponse | Promise<HttpResponse>;
+    image?: (request: ImageRequest) => ImageResult | Promise<ImageResult>;
+    vision?: {
+        explain: (request: VisionRequest, progress: (section: string, chunk: string) => void) => VisionResult | Promise<VisionResult>;
+        ready?: boolean;
+    };
+    htmlToMarkdown?: (html: string) => string | Promise<string>;
+    store?: Record<string, unknown>;
+    signal?: AbortSignal;
+};
+export declare function createFakeContext(options?: FakeContextOptions): {
+    ctx: ExtensionContext;
+    record: FakeContextRecord;
+};
+
+===== declarations extension-api/src/types.d.ts =====
+import type { Risk } from "./authorization.js";
+import type { AccountInfo } from "./settings.js";
+export type ArtifactRef = {
+    handle: string;
+    name: string;
+    bytes: number;
+    mediaType: string;
+};
+export type ArtifactInfo = ArtifactRef & {
+    width?: number;
+    height?: number;
+};
+export type FormPart = {
+    name: string;
+    value: string;
+} | {
+    name: string;
+    filename: string;
+    mediaType?: string;
+    data: Uint8Array | {
+        handle: string;
+    };
+};
+export type HttpRequest = {
+    url: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string | Uint8Array | {
+        json: unknown;
+    } | {
+        form: readonly FormPart[];
+    };
+    auth?: {
+        account: string;
+    };
+    timeoutMs?: number;
+    maxBytes?: number;
+    response?: "json" | "text" | "bytes" | "artifact";
+    artifact?: HttpArtifactOptions;
+};
+export type HttpArtifactOptions = {
+    name?: string;
+    baseName?: string;
+    extension?: string;
+    inlineText?: boolean;
+};
+export type HttpResponse = {
+    status: number;
+    ok: boolean;
+    headers: Record<string, string>;
+    url: string;
+    body: unknown;
+};
+export type ReportEntry = string;
+export type ImageOptions = {
+    backend: string;
+    model: string;
+    quality: string;
+    size: string;
+    background: string;
+};
+export type ImageRequest = {
+    prompt: string;
+    inputs: readonly {
+        data: Uint8Array;
+        mimeType: string;
+    }[];
+    options: ImageOptions;
+};
+export type ImageResult = {
+    provider: string;
+    model: string;
+    images: readonly {
+        data: Uint8Array;
+        revisedPrompt?: string;
+    }[];
+};
+export type VisionRequest = {
+    image: Uint8Array;
+    prompt?: string;
+    progress?: {
+        thinking?: string;
+        text?: string;
+    };
+};
+export type VisionResult = {
+    text: string;
+    model: string;
+};
+export type VisionExplainRequest = {
+    extensionId: string;
+    image: Uint8Array;
+    prompt?: string;
+    onDelta?: (update: {
+        kind: "thinking" | "text";
+        delta: string;
+    }) => void;
+    signal?: AbortSignal;
+};
+export interface ExtensionContext {
+    settings: {
+        get<T = unknown>(key: string): T | undefined;
+    };
+    accounts: {
+        selected(field: string): Promise<AccountInfo | undefined>;
+    };
+    http: {
+        request(request: HttpRequest): Promise<HttpResponse>;
+    };
+    artifacts: {
+        write(name: string, data: Uint8Array | string, mediaType?: string): Promise<ArtifactRef>;
+        read(handle: string): Promise<{
+            bytes: Uint8Array;
+            mediaType: string;
+            name: string;
+        }>;
+        info(handle: string): Promise<ArtifactInfo>;
+        freshName(base: string, extension: string): Promise<string>;
+    };
+    extensionStore: {
+        get(key: string): Promise<{
+            value: unknown;
+            revision: number;
+        } | undefined>;
+        set(key: string, value: unknown, options?: {
+            ifRevision?: number;
+        }): Promise<{
+            revision: number;
+        }>;
+        delete(key: string, options?: {
+            ifRevision?: number;
+        }): Promise<void>;
+        keys(options?: {
+            prefix?: string;
+        }): Promise<{
+            key: string;
+            revision: number;
+            size: number;
+        }[]>;
+    };
+    text: {
+        htmlToMarkdown(html: string): Promise<string>;
+    };
+    authorize(check: {
+        operation: string;
+        targets: readonly string[];
+        risk: Risk;
+    }): Promise<void>;
+    report: {
+        created(entry: ReportEntry): void;
+        updated(entry: ReportEntry): void;
+        deleted(entry: ReportEntry): void;
+        note(text: string): void;
+    };
+    models: {
+        image?: {
+            generate(request: ImageRequest): Promise<ImageResult>;
+        };
+        vision?: {
+            explain(request: VisionRequest): Promise<VisionResult>;
+            ready(): Promise<boolean>;
+        };
+    };
+    progress(section: string, chunk: string): void;
+    signal: AbortSignal;
+    log: {
+        debug(message: string, data?: unknown): void;
+        warn(message: string, data?: unknown): void;
+    };
+}
+
+===== declarations extension-sdk/src/index.d.ts =====
+export * from "@nervekit/extension-api";
+
+===== declarations extension-sdk/src/testing.d.ts =====
+export * from "@nervekit/extension-api/testing";
+export { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
+export { flushSync, mount, tick, unmount } from "svelte";
+export { createFakeBridge, type FakeBridge, type FakeBridgeOptions, } from "./ui/testing.js";
+
+===== declarations extension-sdk/src/ui.d.ts =====
+export { host, mode, themeKind, startFrame, type Host } from "./ui/host.js";
+export { BridgeError, createBridgeClient, type BridgeClient, type BridgeTransport, } from "./ui/client.js";
+export type { BridgeErrorCode, BridgeJson, BridgeMethods, ClipboardImageType, ConfirmOptions, ContributionKind, ExtensionStoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, MethodName, Mode, NotifyLevel, PreviewEdit, ProjectInfo, ThemeChange, ThemeKind, } from "./ui/bridge-types.js";
+export * from "./ui/components.js";
+
+===== declarations extension-sdk/src/ui/bridge-types.d.ts =====
+export type BridgeJson = string | number | boolean | null | BridgeJson[] | {
+    [key: string]: BridgeJson;
+};
+export type ThemeKind = "light" | "dark";
+export type Mode = "preview" | "edit";
+export type ContributionKind = "preview" | "page" | "panel";
+export type PreviewEdit = "source" | "custom" | "none";
+export type BridgeErrorCode = "invalid_request" | "not_allowed" | "unknown_method" | "not_found" | "too_large" | "cancelled" | "backend_error" | "conflict" | "failed";
+export type FileInfo = {
+    path: string;
+    name: string;
+    extension: string;
+    size: number;
+    modifiedAt?: string | undefined;
+};
+export type FileChunk = {
+    offset: number;
+    dataBase64: string;
+    length: number;
+    size: number;
+    eof: boolean;
+};
+export type MenuItem = {
+    id: string;
+    label: string;
+    disabled?: boolean | undefined;
+    destructive?: boolean | undefined;
+};
+export type ConfirmOptions = {
+    title: string;
+    message?: string | undefined;
+    confirmLabel?: string | undefined;
+    cancelLabel?: string | undefined;
+    destructive?: boolean | undefined;
+};
+export type NotifyLevel = "info" | "success" | "warning" | "error";
+export type ProjectInfo = {
+    id: string;
+    name: string;
+    directory: string;
+};
+export type FrameInit = {
+    extensionId: string;
+    contribution: {
+        kind: ContributionKind;
+        id: string;
+        edit?: PreviewEdit;
+    };
+    mode: Mode;
+    themeKind: ThemeKind;
+    pageParams?: BridgeJson;
+};
+export type FileChange = {
+    size: number;
+    modifiedAt?: string | undefined;
+};
+export type ThemeChange = {
+    kind: ThemeKind;
+    tokensCss: string;
+};
+export type ExtensionStoreChange = {
+    key: string;
+    revision: number | null;
+};
+export type ClipboardImageType = "image/png" | "image/jpeg" | "image/webp";
+type Methods = {
+    "file.info": {
+        params: Record<string, never>;
+        result: FileInfo;
+    };
+    "file.read": {
+        params: {
+            offset?: number | undefined;
+            length?: number | undefined;
+        };
+        result: FileChunk;
+    };
+    "file.write": {
+        params: {
+            content: string;
+            encoding: "utf8" | "base64";
+        };
+        result: {
+            size: number;
+        };
+    };
+    "mode.get": {
+        params: Record<string, never>;
+        result: {
+            mode: Mode;
+        };
+    };
+    call: {
+        params: {
+            method: string;
+            args?: BridgeJson | undefined;
+        };
+        result: {
+            value?: BridgeJson | undefined;
+        };
+    };
+    "settings.get": {
+        params: Record<string, never>;
+        result: {
+            values: Record<string, BridgeJson>;
+        };
+    };
+    "viewState.get": {
+        params: Record<string, never>;
+        result: {
+            state: BridgeJson | null;
+        };
+    };
+    "viewState.set": {
+        params: {
+            state: BridgeJson;
+        };
+        result: Record<string, never>;
+    };
+    "ui.confirm": {
+        params: ConfirmOptions;
+        result: {
+            confirmed: boolean;
+        };
+    };
+    "ui.showMenu": {
+        params: {
+            items: MenuItem[];
+            position?: {
+                x: number;
+                y: number;
+            } | undefined;
+        };
+        result: {
+            id: string | null;
+        };
+    };
+    "ui.notify": {
+        params: {
+            message: string;
+            level?: NotifyLevel | undefined;
+        };
+        result: Record<string, never>;
+    };
+    openFile: {
+        params: {
+            path: string;
+        };
+        result: Record<string, never>;
+    };
+    openPage: {
+        params: {
+            id: string;
+            params?: BridgeJson | undefined;
+        };
+        result: Record<string, never>;
+    };
+    "project.info": {
+        params: Record<string, never>;
+        result: ProjectInfo;
+    };
+    "composer.insert": {
+        params: {
+            text: string;
+        };
+        result: Record<string, never>;
+    };
+    "clipboard.writeText": {
+        params: {
+            text: string;
+        };
+        result: Record<string, never>;
+    };
+    "clipboard.writeImage": {
+        params: {
+            dataBase64: string;
+            mediaType: ClipboardImageType;
+        };
+        result: Record<string, never>;
+    };
+    "extensionStore.get": {
+        params: {
+            key: string;
+        };
+        result: {
+            value: BridgeJson | null;
+            revision: number | null;
+        };
+    };
+    "extensionStore.set": {
+        params: {
+            key: string;
+            value: BridgeJson;
+            ifRevision?: number | undefined;
+        };
+        result: {
+            revision: number;
+        };
+    };
+    "extensionStore.delete": {
+        params: {
+            key: string;
+            ifRevision?: number | undefined;
+        };
+        result: Record<string, never>;
+    };
+    "extensionStore.keys": {
+        params: {
+            prefix?: string | undefined;
+        };
+        result: {
+            keys: {
+                key: string;
+                revision: number;
+                size: number;
+            }[];
+        };
+    };
+};
+export type BridgeMethods = Methods;
+export type MethodName = keyof Methods;
+export {};
+
+===== declarations extension-sdk/src/ui/client.d.ts =====
+import type { BridgeErrorCode, BridgeMethods, ExtensionStoreChange, FileChange, FrameInit, Mode, MethodName, ThemeChange, ThemeKind } from "./bridge-types.js";
+export declare class BridgeError extends Error {
+    readonly code: BridgeErrorCode;
+    constructor(code: BridgeErrorCode, message: string);
+}
+export type BridgeTransport = {
+    post(message: unknown): void;
+    listen(handler: (data: unknown) => void): () => void;
+};
+type Listeners = {
+    themeChanged: ((change: ThemeChange) => void)[];
+    fileChanged: ((change: FileChange) => void)[];
+    modeChanged: ((change: {
+        mode: Mode;
+    }) => void)[];
+    extensionStoreChanged: ((change: ExtensionStoreChange) => void)[];
+};
+export type BridgeClient = {
+    readonly ready: Promise<FrameInit & {
+        baseCssUrl: string;
+        tokensCss: string;
+    }>;
+    request<M extends MethodName>(method: M, params: BridgeMethods[M]["params"]): Promise<BridgeMethods[M]["result"]>;
+    on<E extends keyof Listeners>(event: E, handler: Listeners[E][number]): () => void;
+    close(): void;
+};
+export declare function createBridgeClient(transport: BridgeTransport): BridgeClient;
+export declare function windowTransport(): BridgeTransport;
+export declare function applyTheme(root: HTMLElement, kind: ThemeKind, tokensCss: string): void;
+type FrameErrorKind = "error" | "unhandledrejection" | "csp";
+type FrameErrorReport = {
+    kind: FrameErrorKind;
+    message: string;
+    source?: string;
+};
+export declare function shortUrl(value: string): string;
+export declare function startFrameErrorReporting(target: EventTarget, post: (message: unknown) => void): {
+    report(error: FrameErrorReport): void;
+    stop(): void;
+};
+export declare const frameErrors: {
+    report(error: FrameErrorReport): void;
+    stop(): void;
+} | undefined;
+export {};
+
+===== declarations extension-sdk/src/ui/components.d.ts =====
+// Types of `ui/components.ts` (the implementation is compiled by the extension's UI build and
+// stays out of this program: the UI kit's sources need the Svelte compiler to type-check).
+// `test/ui-components.test.ts` keeps both files' export names equal.
+import type { Component } from "svelte";
+
+
+type Part = Component<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+type Parts<Names extends string> = Record<Names, Part>;
+
+type ClassValue = string | false | null | undefined | ClassValue[];
+
+
+export function cn(...inputs: ClassValue[]): string;
+
+export const Button: Part;
+
+export function buttonVariants(options?: {
+  
+  variant?: string;
+  
+  size?: string;
+  
+  class?: string;
+}): string;
+
+export const Badge: Part;
+
+export function badgeVariants(options?: {
+  
+  variant?: string;
+  
+  class?: string;
+}): string;
+
+export const Input: Part;
+
+export const Textarea: Part;
+
+export const Label: Part;
+
+export const Checkbox: Part;
+
+export const Switch: Part;
+
+export const Skeleton: Part;
+
+export const Spinner: Part;
+
+export const Kbd: Part;
+
+export const Separator: Part;
+
+export const Progress: Part;
+
+export const ScrollArea: Part;
+
+export const Tabs: Parts<"Root" | "List" | "Trigger" | "Content">;
+
+export const Select: Parts<"Root" | "Item" | "Content" | "Trigger" | "Portal">;
+
+export const Tooltip: Parts<
+  "Root" | "Trigger" | "Content" | "Provider" | "Portal"
+>;
+
+export const Collapsible: Parts<"Root" | "Content" | "Trigger">;
+
+export const Empty: Parts<
+  "Root" | "Header" | "Media" | "Title" | "Description" | "Content"
+>;
+
+export const RadioGroup: Parts<"Root" | "Item">;
+
+export const ToggleGroup: Parts<"Root" | "Item">;
+
+export const Resizable: Parts<"PaneGroup" | "Pane" | "Handle">;
+
+export const Callout: Part;
+
+export const GroupLabel: Part;
+
+export const IconAction: Part;
+
+export const SearchInput: Part;
+
+export const StatusDot: Part;
+
+export const ProgressRing: Part;
+
+export const ScrollRegion: Part;
+
+===== declarations extension-sdk/src/ui/host.d.ts =====
+import { type Readable } from "svelte/store";
+import { type BridgeClient } from "./client.js";
+import type { BridgeJson, ClipboardImageType, ConfirmOptions, ExtensionStoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, Mode, NotifyLevel, PreviewEdit, ProjectInfo, ThemeChange, ThemeKind, ContributionKind } from "./bridge-types.js";
+export declare const mode: Readable<Mode>;
+export declare const themeKind: Readable<ThemeKind>;
+export declare function attach(next: BridgeClient): BridgeClient;
+declare function readAll(): Promise<Uint8Array>;
+export declare const host: {
+    readonly ready: Promise<FrameInit>;
+    readonly extensionId: string;
+    readonly contribution: {
+        kind: ContributionKind;
+        id: string;
+        edit?: PreviewEdit;
+    };
+    readonly pageParams: BridgeJson | undefined;
+    file: {
+        info: () => Promise<FileInfo>;
+        read: (options?: {
+            offset?: number;
+            length?: number;
+        }) => Promise<FileChunk>;
+        bytes: typeof readAll;
+        text: () => Promise<string>;
+        write: (content: string | Uint8Array) => Promise<{
+            size: number;
+        }>;
+    };
+    mode: {
+        get: () => Promise<Mode>;
+    };
+    call: (method: string, args?: BridgeJson) => Promise<BridgeJson | undefined>;
+    clipboard: {
+        writeText: (text: string) => Promise<void>;
+        writeImage: (image: Blob | Uint8Array, mediaType?: ClipboardImageType) => Promise<void>;
+    };
+    extensionStore: {
+        get: (key: string) => Promise<{
+            value: BridgeJson | null;
+            revision: number | null;
+        }>;
+        set: (key: string, value: BridgeJson, options?: {
+            ifRevision?: number;
+        }) => Promise<{
+            revision: number;
+        }>;
+        delete: (key: string, options?: {
+            ifRevision?: number;
+        }) => Promise<void>;
+        keys: (prefix?: string) => Promise<{
+            key: string;
+            revision: number;
+            size: number;
+        }[]>;
+    };
+    settings: {
+        get: () => Promise<Record<string, BridgeJson>>;
+    };
+    viewState: {
+        get: () => Promise<BridgeJson | null>;
+        set: (state: BridgeJson) => Promise<void>;
+    };
+    ui: {
+        confirm: (options: ConfirmOptions) => Promise<boolean>;
+        showMenu: (items: MenuItem[], position?: {
+            x: number;
+            y: number;
+        }) => Promise<string | null>;
+        notify: (message: string, level?: NotifyLevel) => Promise<void>;
+    };
+    openFile: (path: string) => Promise<void>;
+    openPage: (id: string, params?: BridgeJson) => Promise<void>;
+    project: {
+        info: () => Promise<ProjectInfo>;
+    };
+    composer: {
+        insert: (text: string) => Promise<void>;
+    };
+    onThemeChange: (handler: (change: ThemeChange) => void) => (() => void);
+    onModeChange: (handler: (change: {
+        mode: Mode;
+    }) => void) => (() => void);
+    onExtensionStoreChange: (handler: (change: ExtensionStoreChange) => void) => (() => void);
+    onFileChange: (handler: (change: FileChange) => void) => (() => void);
+};
+export type Host = typeof host;
+export declare function startFrame(options: {
+    target: HTMLElement;
+    render: (target: HTMLElement) => void | (() => void);
+}): Promise<void>;
+export {};
+
+===== declarations extension-sdk/src/ui/testing.d.ts =====
+import type { BridgeJson, ConfirmOptions, ContributionKind, MenuItem, Mode, NotifyLevel, PreviewEdit, ThemeKind } from "./bridge-types.js";
+export type FakeBridgeOptions = {
+    kind?: ContributionKind;
+    id?: string;
+    extensionId?: string;
+    edit?: PreviewEdit;
+    mode?: Mode;
+    themeKind?: ThemeKind;
+    tokensCss?: string;
+    pageParams?: BridgeJson;
+    file?: {
+        path?: string;
+        content: string | Uint8Array;
+        modifiedAt?: string;
+    };
+    settings?: Record<string, BridgeJson>;
+    viewState?: BridgeJson | null;
+    project?: {
+        id?: string;
+        name?: string;
+        directory?: string;
+    };
+    userActivation?: boolean;
+    store?: Record<string, BridgeJson>;
+    call?: (method: string, args: BridgeJson | undefined) => BridgeJson | undefined | Promise<BridgeJson | undefined>;
+    confirm?: boolean | ((options: ConfirmOptions) => boolean);
+    menu?: string | null | ((items: MenuItem[]) => string | null);
+};
+export type FakeBridge = {
+    requests: {
+        method: string;
+        params: unknown;
+    }[];
+    readonly fileBytes: Uint8Array;
+    readonly fileText: string;
+    notifications: {
+        message: string;
+        level: NotifyLevel;
+    }[];
+    opened: {
+        files: string[];
+        pages: {
+            id: string;
+            params?: BridgeJson;
+        }[];
+    };
+    composerText: string[];
+    viewState: BridgeJson | null;
+    clipboard: {
+        text?: string;
+        image?: {
+            bytes: Uint8Array;
+            mediaType: string;
+        };
+    }[];
+    store: Map<string, {
+        value: BridgeJson;
+        revision: number;
+    }>;
+    frameErrors: {
+        kind: string;
+        message: string;
+        source?: string;
+    }[];
+    ready: Promise<void>;
+    emitThemeChanged(kind: ThemeKind, tokensCss: string): void;
+    emitModeChanged(mode: Mode): void;
+    emitFileChanged(change: {
+        size: number;
+        modifiedAt?: string;
+    }, content?: string | Uint8Array): void;
+    emitExtensionStoreChanged(key: string, revision: number | null): void;
+    close(): void;
+};
+export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridge;
+
+===== ui bridge =====
+{
+  "protocolVersion": 1,
+  "methods": {
+    "file.info": {
+      "kinds": [
+        "preview"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "modifiedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "extension",
+          "size"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "file.read": {
+      "kinds": [
+        "preview"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "length": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1048576
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "dataBase64": {
+            "type": "string"
+          },
+          "length": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "eof": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "offset",
+          "dataBase64",
+          "length",
+          "size",
+          "eof"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "file.write": {
+      "kinds": [
+        "preview"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string",
+            "enum": [
+              "utf8",
+              "base64"
+            ]
+          }
+        },
+        "required": [
+          "content",
+          "encoding"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "size"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "mode.get": {
+      "kinds": [
+        "preview"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "edit"
+            ]
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "call": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "args": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "settings.get": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema0"
+            }
+          }
+        },
+        "required": [
+          "values"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "viewState.get": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/__schema0"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "viewState.set": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "ui.confirm": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "confirmLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "cancelLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "destructive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "confirmed"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ui.showMenu": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "items": {
+            "minItems": 1,
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "disabled": {
+                  "type": "boolean"
+                },
+                "destructive": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ui.notify": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "info",
+              "success",
+              "warning",
+              "error"
+            ]
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "openFile": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "openPage": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "params": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "project.info": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "directory": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "directory"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "composer.insert": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "clipboard.writeText": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "clipboard.writeImage": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "dataBase64": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+          },
+          "mediaType": {
+            "type": "string",
+            "enum": [
+              "image/png",
+              "image/jpeg",
+              "image/webp"
+            ]
+          }
+        },
+        "required": [
+          "dataBase64",
+          "mediaType"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "extensionStore.get": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]*$"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/__schema0"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "revision"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "extensionStore.set": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]*$"
+          },
+          "value": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "ifRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "extensionStore.delete": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-][A-Za-z0-9._-]*$"
+          },
+          "ifRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "extensionStore.keys": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "prefix": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "key",
+                "revision",
+                "size"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "events": {
+    "themeChanged": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "payload": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "light",
+              "dark"
+            ]
+          },
+          "tokensCss": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        },
+        "required": [
+          "kind",
+          "tokensCss"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "fileChanged": {
+      "kinds": [
+        "preview"
+      ],
+      "payload": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "modifiedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "size"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "modeChanged": {
+      "kinds": [
+        "preview"
+      ],
+      "payload": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "edit"
+            ]
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "extensionStoreChanged": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "payload": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "revision"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+
+===== installed manifest schema =====
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "icon": {
+      "type": "string",
+      "minLength": 1
+    },
+    "enabledByDefault": {
+      "type": "boolean"
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "fields": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[a-z][A-Za-z0-9]*$"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "project",
+                        "conversation"
+                      ]
+                    }
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "advanced": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "boolean"
+                  },
+                  "default": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "label",
+                  "type",
+                  "default"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "project",
+                        "conversation"
+                      ]
+                    }
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "advanced": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "string"
+                  },
+                  "default": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "url",
+                      "text"
+                    ]
+                  },
+                  "placeholder": {
+                    "type": "string"
+                  },
+                  "maxLength": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "label",
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "project",
+                        "conversation"
+                      ]
+                    }
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "advanced": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "number"
+                  },
+                  "default": {
+                    "type": "number"
+                  },
+                  "min": {
+                    "type": "number"
+                  },
+                  "max": {
+                    "type": "number"
+                  },
+                  "step": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "unit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "label",
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "project",
+                        "conversation"
+                      ]
+                    }
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "advanced": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "enum"
+                  },
+                  "default": {
+                    "type": "string"
+                  },
+                  "options": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "label"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "label",
+                  "type",
+                  "default",
+                  "options"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "project",
+                        "conversation"
+                      ]
+                    }
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "advanced": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "account"
+                  },
+                  "kind": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "label",
+                  "type",
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "project",
+                        "conversation"
+                      ]
+                    }
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "advanced": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "model"
+                  },
+                  "capability": {
+                    "type": "string",
+                    "enum": [
+                      "image",
+                      "vision"
+                    ]
+                  }
+                },
+                "required": [
+                  "label",
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "version": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "fields",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "accounts": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fields": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^[a-z][A-Za-z0-9]*$"
+            },
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "project",
+                          "conversation"
+                        ]
+                      }
+                    },
+                    "visibleWhen": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "equals": {
+                          "type": [
+                            "string",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "equals"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "advanced": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "boolean"
+                    },
+                    "default": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "type",
+                    "default"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "project",
+                          "conversation"
+                        ]
+                      }
+                    },
+                    "visibleWhen": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "equals": {
+                          "type": [
+                            "string",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "equals"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "advanced": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "string"
+                    },
+                    "default": {
+                      "type": "string"
+                    },
+                    "format": {
+                      "type": "string",
+                      "enum": [
+                        "url",
+                        "text"
+                      ]
+                    },
+                    "placeholder": {
+                      "type": "string"
+                    },
+                    "maxLength": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "project",
+                          "conversation"
+                        ]
+                      }
+                    },
+                    "visibleWhen": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "equals": {
+                          "type": [
+                            "string",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "equals"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "advanced": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "number"
+                    },
+                    "default": {
+                      "type": "number"
+                    },
+                    "min": {
+                      "type": "number"
+                    },
+                    "max": {
+                      "type": "number"
+                    },
+                    "step": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    },
+                    "unit": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "project",
+                          "conversation"
+                        ]
+                      }
+                    },
+                    "visibleWhen": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "equals": {
+                          "type": [
+                            "string",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "equals"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "advanced": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "enum"
+                    },
+                    "default": {
+                      "type": "string"
+                    },
+                    "options": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "type",
+                    "default",
+                    "options"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "project",
+                          "conversation"
+                        ]
+                      }
+                    },
+                    "visibleWhen": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "equals": {
+                          "type": [
+                            "string",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "equals"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "advanced": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "account"
+                    },
+                    "kind": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "minItems": 1,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "type",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "project",
+                          "conversation"
+                        ]
+                      }
+                    },
+                    "visibleWhen": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "equals": {
+                          "type": [
+                            "string",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "equals"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "advanced": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "model"
+                    },
+                    "capability": {
+                      "type": "string",
+                      "enum": [
+                        "image",
+                        "vision"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "secret": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "help": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "auth": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "scheme": {
+                    "type": "string",
+                    "const": "basic"
+                  },
+                  "user": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "pattern": "^[a-z][A-Za-z0-9]*$"
+                  }
+                },
+                "required": [
+                  "scheme",
+                  "user"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "scheme": {
+                    "type": "string",
+                    "const": "bearer"
+                  }
+                },
+                "required": [
+                  "scheme"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "scheme": {
+                    "type": "string",
+                    "const": "header"
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9-]+$"
+                  }
+                },
+                "required": [
+                  "scheme",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "origins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "test": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "label",
+          "fields",
+          "secret"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "properties": {
+        "network": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "models.image",
+              "models.vision"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "namespaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9]{0,31}$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "enabledBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            ]
+          },
+          "requires": {
+            "type": "object",
+            "properties": {
+              "account": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "helper": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "rules": {
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "types": {
+            "type": "string"
+          },
+          "docs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_/-]*$"
+                },
+                "whenToRead": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "file": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "id",
+                "whenToRead",
+                "file"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "session": {
+            "type": "boolean",
+            "const": true
+          },
+          "methods": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z][A-Za-z0-9]*(?:\\.[a-z][A-Za-z0-9]*)*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "risk": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "read",
+                    "external_read",
+                    "write",
+                    "external_write",
+                    "destructive"
+                  ]
+                },
+                "riskFromArgs": {
+                  "type": "boolean"
+                },
+                "signature": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "parse": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "authorize": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "resource": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "run": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": [
+                "risk",
+                "signature",
+                "parse",
+                "run"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "configuration": {
+            "type": "boolean",
+            "const": true
+          },
+          "availability": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "id",
+          "summary",
+          "types",
+          "methods"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "object"
+                  },
+                  "properties": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": {}
+              },
+              "view": {
+                "type": "object",
+                "properties": {
+                  "header": {
+                    "type": "object",
+                    "properties": {
+                      "argument": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "format": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "path"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "argument"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "meta": {
+                    "maxItems": 3,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "sections": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text",
+                            "markdown",
+                            "links",
+                            "table",
+                            "artifacts"
+                          ]
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "live": {
+                          "type": "string",
+                          "enum": [
+                            "stream",
+                            "transient"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sections"
+                ],
+                "additionalProperties": false
+              },
+              "enabledBy": {
+                "type": "string",
+                "minLength": 1
+              },
+              "requires": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              "availability": {
+                "type": "boolean",
+                "const": true
+              },
+              "method": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "name",
+              "description",
+              "parameters",
+              "method"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "object"
+                  },
+                  "properties": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "required": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": {}
+              },
+              "view": {
+                "type": "object",
+                "properties": {
+                  "header": {
+                    "type": "object",
+                    "properties": {
+                      "argument": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "format": {
+                        "type": "string",
+                        "enum": [
+                          "text",
+                          "path"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "argument"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "meta": {
+                    "maxItems": 3,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "sections": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text",
+                            "markdown",
+                            "links",
+                            "table",
+                            "artifacts"
+                          ]
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "live": {
+                          "type": "string",
+                          "enum": [
+                            "stream",
+                            "transient"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "sections"
+                ],
+                "additionalProperties": false
+              },
+              "enabledBy": {
+                "type": "string",
+                "minLength": 1
+              },
+              "requires": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              },
+              "availability": {
+                "type": "boolean",
+                "const": true
+              },
+              "risk": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "read",
+                  "external_read",
+                  "write",
+                  "external_write",
+                  "destructive"
+                ]
+              },
+              "parse": {
+                "type": "boolean",
+                "const": true
+              },
+              "authorize": {
+                "type": "boolean",
+                "const": true
+              },
+              "run": {
+                "type": "boolean",
+                "const": true
+              },
+              "present": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "name",
+              "description",
+              "parameters",
+              "risk",
+              "parse",
+              "run"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "limits": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "sdkVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "previews": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "match": {
+                "type": "object",
+                "properties": {
+                  "extensions": {
+                    "minItems": 1,
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 32,
+                      "pattern": "^\\.[a-z0-9][a-z0-9_-]*(?:\\.[a-z0-9][a-z0-9_-]*)*$"
+                    }
+                  }
+                },
+                "required": [
+                  "extensions"
+                ],
+                "additionalProperties": false
+              },
+              "edit": {
+                "type": "string",
+                "enum": [
+                  "source",
+                  "custom",
+                  "none"
+                ]
+              },
+              "entry": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "match",
+              "edit",
+              "entry"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "pages": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "icon": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+              },
+              "entry": {
+                "type": "string"
+              },
+              "newMenu": {
+                "default": true,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "icon",
+              "entry"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "panels": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "icon": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+              },
+              "entry": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "icon",
+              "entry"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "themes": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "light",
+                  "dark"
+                ]
+              },
+              "file": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "kind",
+              "file"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "description",
+    "icon",
+    "enabledByDefault",
+    "settings",
+    "namespaces",
+    "version",
+    "sdkVersion"
+  ],
+  "additionalProperties": false
+}
+
+===== theme file schema =====
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "light",
+        "dark"
+      ]
+    },
+    "tokens": {
+      "type": "object",
+      "properties": {
+        "background": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "foreground": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "primary": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "success": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "warning": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "info": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "destructive": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "destructive-solid": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "syntax-variable": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "syntax-punctuation": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "syntax-comment": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "syntax-keyword": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "syntax-string": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "syntax-number": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "syntax-function": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "syntax-type": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "syntax-property": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "background",
+        "foreground",
+        "primary",
+        "success",
+        "warning",
+        "info",
+        "destructive",
+        "destructive-solid",
+        "syntax-variable",
+        "syntax-punctuation",
+        "syntax-comment",
+        "syntax-keyword",
+        "syntax-string",
+        "syntax-number",
+        "syntax-function",
+        "syntax-type",
+        "syntax-property"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "id",
+    "label",
+    "kind",
+    "tokens"
+  ],
+  "additionalProperties": false
+}

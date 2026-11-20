@@ -19,7 +19,6 @@ const { ExtensionError, defineExtension, defineNamespace, method } = globalThis.
 let sessionsOpened = 0;
 globalThis.__nerveExtension = defineExtension({
   id: "probe",
-  apiVersion: 1,
   name: "Probe",
   description: "",
   settings: { version: 1, fields: { greeting: { type: "string", label: "Greeting", default: "hi" } } },
@@ -142,7 +141,6 @@ globalThis.__nerveExtension = defineExtension({
 
 const definition = {
   id: "probe",
-  apiVersion: 1,
   name: "Probe",
   description: "",
   settings: {

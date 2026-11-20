@@ -67,7 +67,6 @@ export function fixtureManifest(options: FixtureOptions): Json {
   const prefix = options.toolPrefix ?? toolPrefixOf(options.id);
   return {
     id: options.id,
-    apiVersion: 1,
     name: `Probe ${options.id}`,
     description: "A probe extension.",
     icon: "blocks",
@@ -214,7 +213,6 @@ export function fixtureBackend(options: FixtureOptions): string {
 const { defineExtension, defineNamespace, defineTool, method, ExtensionError } = globalThis.__nerveExtensionApi;
 globalThis.__nerveExtension = defineExtension({
   id: ${JSON.stringify(options.id)},
-  apiVersion: 1,
   name: ${JSON.stringify(`Probe ${options.id}`)},
   description: "A probe extension.",
   icon: "blocks",

@@ -16,7 +16,6 @@ import {
 /** Jira and Confluence behind one Atlassian account; the `jira` and `confluence` switches enable each namespace. */
 export const atlassianExtension = defineExtension({
   id: "atlassian",
-  apiVersion: 1,
   name: "Atlassian",
   description: "Jira and Confluence through one Atlassian account.",
   icon: "icon.svg",

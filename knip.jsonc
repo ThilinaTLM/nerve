@@ -68,14 +68,9 @@
         "assets/vitest.config.mjs",
       ],
       "ignore": ["templates/**"],
-      // zod: imported by the inlined contracts schema in dist/. shadcn-svelte, tw-animate-css, tailwindcss: imported by
+      // shadcn-svelte, tw-animate-css, tailwindcss: imported by
       // ui-kit's app.css, which the generated Vite/Tailwind build resolves from this package.
-      "ignoreDependencies": [
-        "zod",
-        "shadcn-svelte",
-        "tw-animate-css",
-        "tailwindcss",
-      ],
+      "ignoreDependencies": ["shadcn-svelte", "tw-animate-css", "tailwindcss"],
     },
     "packages/extensions": {
       // Bundled into a browser asset by the build, not imported.

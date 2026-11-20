@@ -150,7 +150,6 @@ function extensionSource(id: string, kinds: readonly ExtensionKind[]): string {
     "",
     "export default defineExtension({",
     `  id: "${id}",`,
-    "  apiVersion: 1,",
     `  name: "${name}",`,
     `  description: "${kinds.map((kind) => about[kind].description).join(" ")}",`,
     `  icon: "${about[kinds[0]!].icon}",`,

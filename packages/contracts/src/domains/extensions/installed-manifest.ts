@@ -249,7 +249,6 @@ export const installedExtensionUiSchema = z.strictObject({
 
 export const installedExtensionManifestSchema = z.strictObject({
   id: extensionIdSchema,
-  apiVersion: z.literal(1),
   name: z.string().min(1),
   description: z.string(),
   /** A lucide name, or the path of an `.svg` file in `dist/`. */

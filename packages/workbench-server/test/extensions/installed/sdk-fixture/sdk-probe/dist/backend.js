@@ -94,7 +94,6 @@
   // src/extension.ts
   var extension_default = (0, import_extension_sdk3.defineExtension)({
     id: "sdk-probe",
-    apiVersion: 1,
     name: "Sdk Probe",
     description: "Reads data from a server the user configures.",
     icon: "globe",

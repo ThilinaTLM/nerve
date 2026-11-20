@@ -369,6 +369,30 @@ void test(
 );
 
 void test(
+  "an extension built with a newer SDK and a field this Nerve does not know is incompatible, not invalid",
+  { skip },
+  async () => {
+    const { home, userRoot } = await world();
+    await writeExtension(
+      userRoot,
+      { id: "newer-sdk", sdkVersion: "0.42.0" },
+      (manifest) => {
+        manifest.somethingNew = true;
+      },
+    );
+    const catalog = createTestCatalog({
+      home,
+      trustGate: overrideTrustGate(),
+      nerveVersion: "0.41.1",
+    });
+    const found = entry(await catalog.entries(), "newer-sdk");
+    assert.equal(found.state, "incompatible");
+    assert.equal(found.sdkVersion, "0.42.0");
+    assert.match(text(found), /newer than this Nerve/);
+  },
+);
+
+void test(
   "project extension themes are ignored with a diagnostic; user extension themes are not flagged",
   { skip },
   async () => {

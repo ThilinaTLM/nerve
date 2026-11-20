@@ -25,7 +25,6 @@ const snippet = (text: string) =>
   text.length <= 300 ? text : `${text.slice(0, 299)}…`;
 
 const search = defineExtension({
-  apiVersion: 1,
   id: "finder",
   name: "Finder",
   description: "Test.",

@@ -4,7 +4,6 @@ import { diagramMethods, MAX_SOURCE_BYTES } from "./diagram-methods.js";
 /** Diagrams rendered to PNG artifacts by a Kroki server. */
 export const diagramExtension = defineExtension({
   id: "diagram",
-  apiVersion: 1,
   name: "Diagrams",
   description:
     "Render Mermaid, PlantUML, Graphviz and other PNG-capable diagrams with Kroki.",

@@ -13,7 +13,6 @@ import { createExtensionToolDefinitions } from "./direct-tools.js";
 
 const extension = (tool: ExtensionTool, capabilities?: ["models.vision"]) =>
   defineExtension({
-    apiVersion: 1,
     id: "viewer",
     name: "Viewer",
     description: "Test.",

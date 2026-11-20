@@ -9,7 +9,6 @@ import { createQuickScriptRegistry } from "@nervekit/tools/quick-script";
 import { selectedAccountsTarget } from "./extension-ports.js";
 
 const extension = defineExtension({
-  apiVersion: 1,
   id: "demo",
   name: "Demo",
   description: "Test.",

@@ -7,6 +7,7 @@ import {
   installedExtensionManifestSchema,
   installedNamingDiagnostics,
   sdkCompatibilityProblem,
+  usedExtensionSurfaces,
   themeFileSchema,
   themeRuleProblems,
   type InstalledExtensionManifest,
@@ -50,8 +51,10 @@ export type ReadExtension = {
   icon?: ExtensionIcon;
   /** Errors make the extension `invalid`; an `incompatible` one has a compatibility problem instead. */
   diagnostics: Diagnostic[];
-  /** Why the extension cannot load in this Nerve (SDK range); the manifest is valid. */
+  /** Why the extension cannot load in this Nerve (SDK range). Then `manifest` is absent: it was never parsed. */
   incompatible?: string;
+  /** The SDK version the manifest names, when it is a string (read before the manifest is parsed). */
+  sdkVersion?: string;
 };
 
 const error = (code: string, message: string): Diagnostic => ({
@@ -173,6 +176,21 @@ export async function readFolder(
       `dist/manifest.json is not valid JSON: ${cause instanceof Error ? cause.message : String(cause)}`,
     );
   }
+  // The SDK version decides first: a manifest from a newer or much older SDK may not fit this
+  // Nerve's schema, and the useful message is to upgrade, not a list of unknown fields.
+  const builtWith = (json as { sdkVersion?: unknown } | null)?.sdkVersion;
+  if (typeof builtWith === "string") {
+    result.sdkVersion = builtWith;
+    const incompatible = sdkCompatibilityProblem(
+      builtWith,
+      nerveVersion,
+      usedExtensionSurfaces(json),
+    );
+    if (incompatible) {
+      result.incompatible = incompatible;
+      return result;
+    }
+  }
   const unsupported = unsupportedFields(json);
   if (unsupported.length > 0) {
     for (const message of unsupported)
@@ -234,10 +252,6 @@ export async function readFolder(
   result.readAsset = readAsset;
   result.themes = (manifest.ui?.themes ?? []).map((declared) =>
     readTheme(declared, readAsset),
-  );
-  result.incompatible = sdkCompatibilityProblem(
-    manifest.sdkVersion,
-    nerveVersion,
   );
   return result;
 }

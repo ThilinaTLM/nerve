@@ -439,14 +439,14 @@ export class ExtensionCatalog implements ExtensionUiSource {
       state: "invalid",
       diagnostics: [...read.diagnostics],
     };
-    const manifest = read.manifest;
-    if (!manifest) return { ...base, state: "invalid" };
     if (read.incompatible)
       return {
         ...base,
         state: "incompatible",
         diagnostics: [diagnostic("error", "incompatible", read.incompatible)],
       };
+    const manifest = read.manifest;
+    if (!manifest) return { ...base, state: "invalid" };
     if (source === "project" && (manifest.ui?.themes?.length ?? 0) > 0)
       base.diagnostics.push(
         diagnostic(
@@ -620,15 +620,21 @@ export class ExtensionCatalog implements ExtensionUiSource {
         ...(scanned.consent ? { consent: scanned.consent } : {}),
       };
       outcomes.set(scanned, outcome);
-      if (!manifest) continue;
-      const owner = claimed.get(manifest.id);
+      // An incompatible extension was never parsed; its folder name is its id.
+      const id =
+        manifest?.id ??
+        (scanned.state === "incompatible"
+          ? scanned.read.folderName
+          : undefined);
+      if (!id) continue;
+      const owner = claimed.get(id);
       if (owner === "builtin") {
         outcome.state = "invalid";
         outcome.diagnostics.push(
           diagnostic(
             "error",
             "id-taken",
-            `The id '${manifest.id}' belongs to a built-in extension; an installed extension cannot take it. Choose another id.`,
+            `The id '${id}' belongs to a built-in extension; an installed extension cannot take it. Choose another id.`,
           ),
         );
       } else if (owner) {
@@ -641,7 +647,7 @@ export class ExtensionCatalog implements ExtensionUiSource {
             `Shadowed by the ${owner} extension with the same id.`,
           ),
         );
-      } else claimed.set(manifest.id, scanned.source);
+      } else claimed.set(id, scanned.source);
     }
 
     // Collisions: built-ins hold their names, then user extensions, then the project's, so a
@@ -728,7 +734,9 @@ export class ExtensionCatalog implements ExtensionUiSource {
               sdkVersion: manifest.sdkVersion,
               adds: consentItems(grantSnapshot(manifest), manifest),
             }
-          : {}),
+          : scanned.read.sdkVersion
+            ? { sdkVersion: scanned.read.sdkVersion }
+            : {}),
         ...(outcome.shadowedBy ? { shadowedBy: outcome.shadowedBy } : {}),
         diagnostics: outcome.diagnostics,
         ...(outcome.state === "pending_consent" && outcome.consent

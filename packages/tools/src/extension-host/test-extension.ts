@@ -26,7 +26,6 @@ const text = (value: unknown, name: string): string => {
  */
 export const demoExtension = defineExtension({
   id: "demo",
-  apiVersion: 1,
   name: "Demo",
   description: "Test extension.",
   icon: "blocks",
