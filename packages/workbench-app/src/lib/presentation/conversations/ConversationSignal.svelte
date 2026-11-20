@@ -1,6 +1,6 @@
 <script lang="ts">
 import FolderIcon from "@lucide/svelte/icons/folder";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import StarIcon from "@lucide/svelte/icons/star";
 import type { Snippet } from "svelte";
 import NerveBadge from "../brand/NerveBadge.svelte";
 import ProfileStarterArt from "./ProfileStarterArt.svelte";
@@ -24,7 +24,7 @@ let {
   projectLabel?: string;
   projectPath?: string;
   starters?: readonly ConversationStarter[];
-  /** Profile of the starter marked Default. */
+  /** Profile of the starter marked as the default. */
   defaultStarter?: string;
   startersDisabled?: boolean;
   onSelectStarter?: (starter: ConversationStarter) => void;
@@ -72,31 +72,51 @@ const launchpad = $derived(variant === "launchpad");
         {#each starters as starter (starter.profile)}
           <button
             type="button"
-            class="flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left shadow-sm transition-colors outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
+            class="group flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card bg-linear-to-b from-well to-card text-left shadow-sm transition-colors duration-300 outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >
+            <!-- At rest the art is a soft glow behind the label; hover and focus
+                 lift the label away and bring the illustration into focus. -->
             <span
-              class="starter-art block h-24 shrink-0 border-b border-border-subtle bg-well"
+              class="starter-art relative flex h-16 shrink-0 items-center justify-center"
             >
-              <ProfileStarterArt profile={starter.profile} class="size-full" />
-            </span>
-            <span class="flex min-w-0 flex-1 flex-col gap-1 p-3">
-              <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span class="text-ui font-medium text-foreground"
-                  >{starter.label}</span
-                >
-                {#if starter.profile === defaultStarter}
-                  <Badge variant="brand">Default</Badge>
-                {/if}
-              </span>
-              <span class="text-caption text-muted-foreground"
-                >{starter.tagline}</span
+              <ProfileStarterArt
+                profile={starter.profile}
+                class="absolute inset-0 size-full scale-125 opacity-70 blur-sm transition duration-300 ease-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-none group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-none motion-reduce:transition-none"
+              />
+              <span
+                class="relative text-ui font-medium text-foreground transition duration-300 ease-out group-hover:-translate-y-3 group-hover:opacity-0 group-focus-visible:-translate-y-3 group-focus-visible:opacity-0 motion-reduce:transition-none"
+                >{starter.label}</span
               >
+              {#if starter.profile === defaultStarter}
+                <span class="absolute top-2 right-2" title="Default">
+                  <StarIcon
+                    class="size-3.5 fill-current text-primary"
+                    aria-hidden="true"
+                  />
+                  <span class="sr-only">Default</span>
+                </span>
+              {/if}
             </span>
+            <span
+              class="relative flex-1 px-3 pt-1 pb-3 text-caption text-muted-foreground transition-colors duration-300 group-hover:text-foreground"
+              >{starter.tagline}</span
+            >
           </button>
         {/each}
       </div>
+    {/if}
+
+    {#if projectLabel}
+      <p
+        class={`${starters.length > 0 ? "mt-4" : "mt-5"} flex max-w-full shrink-0 items-center gap-1.5 text-caption text-muted-foreground`}
+        title={projectPath}
+      >
+        <FolderIcon class="size-3.5 shrink-0" aria-hidden="true" />
+        <span class="sr-only">Current project</span>
+        <span class="truncate">{projectLabel}</span>
+      </p>
     {/if}
 
     {#if footer}
@@ -105,16 +125,6 @@ const launchpad = $derived(variant === "launchpad");
       </div>
     {/if}
   </div>
-  {#if projectLabel}
-    <p
-      class="relative mt-6 flex max-w-full shrink-0 items-center gap-1.5 text-caption text-muted-foreground"
-      title={projectPath}
-    >
-      <FolderIcon class="size-3.5 shrink-0" aria-hidden="true" />
-      <span class="sr-only">Current project</span>
-      <span class="truncate">{projectLabel}</span>
-    </p>
-  {/if}
 </div>
 
 <style>
@@ -126,12 +136,16 @@ const launchpad = $derived(variant === "launchpad");
   background-size: 1.375rem 1.375rem;
   mask-image: radial-gradient(circle at center, black, transparent 60%);
 }
-/* Fine dot grid behind each starter card's art. */
-.starter-art {
+/* Fine dot grid behind each starter card's art, fading toward the edges. */
+.starter-art::before {
+  position: absolute;
+  inset: 0;
+  content: "";
   background-image: radial-gradient(
     var(--border-subtle) 1px,
     transparent 1.5px
   );
   background-size: 0.75rem 0.75rem;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
 }
 </style>
