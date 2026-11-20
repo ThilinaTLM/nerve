@@ -1,11 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- method tables hold methods of different session and input types */
 import type {
-  Authorization,
   ExtensionDefinition,
   MethodDefinition,
   NamespaceDefinition,
   OwnToolDefinition,
-  Risk,
 } from "@nervekit/extension-api";
 import type {
   AccountKind,
@@ -13,6 +11,7 @@ import type {
   ExtensionSource,
 } from "@nervekit/contracts/extensions";
 import { ToolExecutionError } from "../../execution/index.js";
+import { toNestedCheck } from "../runtime/sdk-args.js";
 import type { ExtensionManifest, SdkNamespace } from "../manifest-types.js";
 import type {
   NestedCheck,
@@ -22,23 +21,6 @@ import type {
 } from "../runtime/sdk-types.js";
 import type { CodeTarget } from "./code-adapter.js";
 import { toHostError } from "./errors.js";
-
-/** An authorization as the executor's nested check: the operation defaults to `<namespace>.<method>`, the risk to the method's. */
-export function toNestedCheck(
-  authorization: Authorization,
-  operation: string,
-  risk: Risk,
-): NestedCheck {
-  if ("toolName" in authorization) return authorization;
-  return {
-    operation: authorization.operation ?? operation,
-    targets: authorization.targets.map((target) =>
-      typeof target === "string" ? { kind: "resource", value: target } : target,
-    ),
-    risk: authorization.risk ?? risk,
-    summary: authorization.summary,
-  };
-}
 
 /** Operation checks first (they name the call), then host-tool checks such as workspace reads. */
 export function orderedChecks(checks: NestedCheck[]): NestedCheck[] {

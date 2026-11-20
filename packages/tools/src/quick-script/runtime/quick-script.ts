@@ -16,6 +16,7 @@ import { ToolExecutionError } from "../../execution/index.js";
 import { type DisplayPaths, errnoMessage, hostErrorCode } from "./errors.js";
 import { processFooter } from "../../result-projection/index.js";
 import { withImageSizes } from "./files/artifacts.js";
+import { CallLog, callOutcomeLines, truncate } from "./call-log.js";
 import { SLEEP_METHOD } from "./sandbox-globals.js";
 import { assertDeclaredRisk } from "./script-risk.js";
 import { declarationLine } from "./sdk-dts.js";
@@ -80,12 +81,9 @@ export async function executeQuickScript(
     registry,
     signal: stop.signal,
   });
-  // Indexed by call start order (`seq`), so the result lists calls as the script made them.
-  const hostCalls: QuickScriptHostCall[] = [];
-  let nextSeq = 0;
   // Live call rows for the tool card; fire-and-forget so a slow observer never delays a call.
   const emit = (event: QuickScriptLiveCall) => {
-    if (sealed || !context.onUpdate) return;
+    if (!context.onUpdate) return;
     void Promise.resolve(
       context.onUpdate({
         kind: "output",
@@ -104,7 +102,7 @@ export async function executeQuickScript(
   // Calls still running when the script ends are aborted and settled before the
   // result is built, so nothing mutates the report afterwards.
   const pending = new Set<Promise<void>>();
-  let sealed = false;
+  const log = new CallLog(emit);
 
   const outcome = await sandbox
     .runSandboxScript({
@@ -131,30 +129,12 @@ export async function executeQuickScript(
     .finally(() => context.signal?.removeEventListener("abort", abortStop));
 
   async function hostCall(method: string, rawArgs: unknown): Promise<unknown> {
-    const started = performance.now();
-    if (sealed) throw new Error("[BAD_REQUEST] the script has finished");
-    const seq = nextSeq++;
+    if (log.isSealed) throw new Error("[BAD_REQUEST] the script has finished");
+    const entry = log.begin(method);
     const record = (
       fields: Pick<QuickScriptHostCall, "outcome"> &
         Partial<QuickScriptHostCall>,
-    ) => {
-      if (sealed) return;
-      const call: QuickScriptHostCall = {
-        method,
-        ...fields,
-        durationMs: Math.round(performance.now() - started),
-      };
-      hostCalls[seq] = call;
-      emit({
-        phase: "finished",
-        seq,
-        method,
-        ...(call.summary ? { summary: call.summary } : {}),
-        outcome: call.outcome,
-        ...(call.error ? { error: truncate(call.error, 300) } : {}),
-        durationMs: call.durationMs,
-      });
-    };
+    ) => log.finish(entry, fields);
     if (authFailure) {
       record({ outcome: "failed", error: authFailure });
       throw new Error(`[UNAUTHORIZED] ${authFailure}`);
@@ -165,6 +145,7 @@ export async function executeQuickScript(
       record({ outcome: "failed", error: message });
       throw new Error(`[BAD_REQUEST] ${message}`);
     }
+    entry.risk = sdkMethod.risk;
     const callArgs = Array.isArray(rawArgs) ? rawArgs : [];
     let prepared;
     try {
@@ -197,12 +178,8 @@ export async function executeQuickScript(
         200,
       ),
     };
-    emit({
-      phase: "started",
-      seq,
-      method,
-      ...(base.summary ? { summary: base.summary } : {}),
-    });
+    entry.known = base;
+    log.emitStarted(entry);
     try {
       if (checks.length > 0 && !context.authorizeNested) {
         throw new Error(
@@ -232,7 +209,7 @@ export async function executeQuickScript(
         prepared.authorization &&
         isOperationCheck(prepared.authorization) &&
         prepared.authorization.risk === "destructive" &&
-        !sealed
+        !log.isSealed
       )
         env.report.raw.push(prepared.authorization.summary);
       record({ ...base, outcome: "completed" });
@@ -255,6 +232,7 @@ export async function executeQuickScript(
   }
 
   // Stop whatever the script left running, and let it settle (bounded) before reading the report.
+  const unfinished = log.running();
   stop.abort();
   let graceTimer: NodeJS.Timeout | undefined;
   await Promise.race([
@@ -264,7 +242,7 @@ export async function executeQuickScript(
     }),
   ]);
   clearTimeout(graceTimer);
-  sealed = true;
+  const hostCalls = log.seal();
   // The run's extension code (sessions, sandbox runtimes) ends with the run.
   await env.extensions.dispose();
 
@@ -293,8 +271,7 @@ export async function executeQuickScript(
     raw: env.report.raw,
   });
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
-  // Calls that never settled within the grace period leave holes.
-  const calls = hostCalls.flatMap((call) => (call ? [{ ...call }] : []));
+  const calls = hostCalls;
   const footer = quickScriptFooter({
     hostCalls: calls,
     status,
@@ -306,6 +283,7 @@ export async function executeQuickScript(
     outcome.outputTruncated ? "[output truncated]" : undefined,
     error,
     ...reportLines(artifacts, report, env.report.notes),
+    ...callOutcomeLines(unfinished, log.entries, status === "completed"),
     footer,
   ]
     .filter((part): part is string => Boolean(part))
@@ -420,7 +398,11 @@ export function reportLines(
     const more = items.length - MAX_CREATED_LISTED;
     lines.push(`${label}: ${shown}${more > 0 ? `, +${more} more` : ""}`);
   }
-  lines.push(...notes);
+  const counts = new Map<string, number>();
+  for (const note of notes) counts.set(note, (counts.get(note) ?? 0) + 1);
+  for (const [note, count] of counts) {
+    lines.push(count > 1 ? `${note} (×${count})` : note);
+  }
   return lines;
 }
 
@@ -440,17 +422,27 @@ export function quickScriptFooter(input: {
   durationMs: number;
 }): string {
   const parts: string[] = [];
-  const byProduct = new Map<string, Map<string, number>>();
+  const byProduct = new Map<
+    string,
+    { counts: Map<string, number>; failed: number }
+  >();
   for (const call of input.hostCalls) {
     const [product = "sdk", ...rest] = call.method.split(".");
-    const counts = byProduct.get(product) ?? new Map<string, number>();
+    const group = byProduct.get(product) ?? {
+      counts: new Map<string, number>(),
+      failed: 0,
+    };
     const name = rest.join(".") || call.method;
-    counts.set(name, (counts.get(name) ?? 0) + 1);
-    byProduct.set(product, counts);
+    group.counts.set(name, (group.counts.get(name) ?? 0) + 1);
+    if (call.outcome === "failed") group.failed++;
+    byProduct.set(product, group);
   }
-  for (const [product, counts] of byProduct) {
+  for (const [product, { counts, failed }] of byProduct) {
     const total = [...counts.values()].reduce((a, b) => a + b, 0);
-    const breakdown = [...counts].map(([name, n]) => `${name} ${n}`).join(", ");
+    const breakdown = [
+      ...[...counts].map(([name, n]) => `${name} ${n}`),
+      ...(failed > 0 ? [`${failed} failed`] : []),
+    ].join(", ");
     parts.push(
       `${product} ${total} call${total === 1 ? "" : "s"} (${breakdown})`,
     );
@@ -533,8 +525,4 @@ function unauthorizedMessage(error: unknown): string | undefined {
   // The host's own 401 on an authenticated `ctx.http` request: the message names the account and the fix.
   if (error.code === "UNAUTHORIZED") return error.message;
   return undefined;
-}
-
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }

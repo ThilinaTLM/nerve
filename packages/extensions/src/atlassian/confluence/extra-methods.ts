@@ -81,7 +81,7 @@ export const confluenceExtraMethods: PathedMethod<ConfluenceSession>[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "/** Of a page (id = page id). */ list(id: string | { id: string }): Promise<AttachmentInfo[]>",
+      "/** Of a page (id = page id). */ list(options: string | { id: string }): Promise<AttachmentInfo[]>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     authorize: ({ id }) => ({ targets: [confluencePage(id)], summary: id }),
     resource: ({ id }) => `page ${id}`,
@@ -118,7 +118,7 @@ export const confluenceExtraMethods: PathedMethod<ConfluenceSession>[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "/** id from attachments.list. */ delete(id: string | { id: string }): Promise<{ id: string }>",
+      "/** id from attachments.list. */ delete(options: string | { id: string }): Promise<{ id: string }>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     // The direct tool wants a page id: look the attachment's page up, then authorize.
     resource: ({ id }) => `attachment ${id}`,
@@ -344,7 +344,7 @@ export const confluenceExtraMethods: PathedMethod<ConfluenceSession>[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "restore(id: string | { id: string }): Promise<{ id: string; title: string | null; url: string; version: number | null }>",
+      "restore(options: string | { id: string }): Promise<{ id: string; title: string | null; url: string; version: number | null }>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     authorize: ({ id }) => ({
       targets: [confluencePage(id)],

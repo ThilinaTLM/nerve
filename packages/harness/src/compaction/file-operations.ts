@@ -1,4 +1,4 @@
-import type { AgentMessage } from "../agent/contracts/index.js";
+import type { AgentMessage } from "../messages/messages.js";
 
 export interface FileOperations {
   read: Set<string>;
@@ -42,18 +42,4 @@ export function computeFileLists(fileOps: FileOperations): {
     readFiles: [...fileOps.read].filter((file) => !modified.has(file)).sort(),
     modifiedFiles: [...modified].sort(),
   };
-}
-
-export function formatFileOperations(
-  readFiles: string[],
-  modifiedFiles: string[],
-): string {
-  const sections: string[] = [];
-  if (readFiles.length > 0)
-    sections.push(`<read-files>\n${readFiles.join("\n")}\n</read-files>`);
-  if (modifiedFiles.length > 0)
-    sections.push(
-      `<modified-files>\n${modifiedFiles.join("\n")}\n</modified-files>`,
-    );
-  return sections.length === 0 ? "" : `\n\n${sections.join("\n\n")}`;
 }

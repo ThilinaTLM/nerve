@@ -20,6 +20,11 @@ export const RUNTIME_HEAD = String.raw`
     }
   };
 
+  // A call printed or serialized without await says so instead of showing {}.
+  Object.defineProperty(Promise.prototype, "toJSON", {
+    value: () => "[Promise: not awaited; add await to get the value]",
+  });
+
 ${SANDBOX_GLOBALS}
   const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   const b64encode = (bytes) => {
@@ -103,7 +108,10 @@ export const runtimeTail = (guarded: readonly string[]) => String.raw`
         return value && typeof value === "object" ? guard(path + "." + key, value) : value;
       }
       if (key === "then" || key === "toJSON") return undefined;
-      const error = new TypeError(path + "." + key + " does not exist. Available: " + Object.keys(object).join(", ") + ".");
+      // web.search when the method is search.web: namespaces follow availability, so the words can come the other way round.
+      const other = path.includes(".") ? undefined : globalThis[key];
+      const swapped = other !== null && typeof other === "object" && path in other ? " Did you mean " + key + "." + path + "?" : "";
+      const error = new TypeError(path + "." + key + " does not exist." + swapped + " Available: " + Object.keys(object).join(", ") + ".");
       error.code = "BAD_REQUEST";
       throw error;
     },

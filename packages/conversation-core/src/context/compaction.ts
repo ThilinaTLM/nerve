@@ -4,7 +4,7 @@ import type {
   Usage,
 } from "@nervekit/contracts/core";
 import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
-import type { ThinkingLevel } from "@nervekit/harness/agent";
+import type { ThinkingLevel } from "@nervekit/harness/models";
 import type { MessageEntry } from "@nervekit/harness/conversation";
 import {
   DEFAULT_AUTO_COMPACTION_SETTINGS,

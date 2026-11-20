@@ -56,7 +56,7 @@ export const searchMethods = {
   web: method({
     risk: "external_read",
     signature:
-      "/** Web search; default 5 results (max 20). */ web(query: string | { query: string; limit?: number }): Promise<WebHit[]>",
+      "/** Web search; limit default 5, max 20. */ web(query: string | { query: string; limit?: number }): Promise<WebHit[]>",
     // A bound tool passes `max_results`; a script passes `limit`.
     parse: (args) => {
       const options = parseOptions("search.web", args, {

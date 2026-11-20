@@ -1,5 +1,6 @@
 import { codedError } from "../errors.js";
-import { defineMethod, type SdkMethod } from "../sdk-types.js";
+import { defineMethod } from "../sdk-args.js";
+import type { SdkMethod } from "../sdk-types.js";
 
 function port(env: Parameters<SdkMethod["prepare"]>[1]) {
   const agent = env.context.configurationAgent;

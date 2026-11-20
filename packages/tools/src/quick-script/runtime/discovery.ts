@@ -14,12 +14,8 @@ import {
   parseSignature,
   typePool,
 } from "./sdk-dts.js";
-import { closeMatches } from "./sdk-args.js";
-import {
-  definePositionalMethod,
-  type SdkEnvironment,
-  type SdkMethod,
-} from "./sdk-types.js";
+import { closeMatches, definePositionalMethod } from "./sdk-args.js";
+import type { SdkEnvironment, SdkMethod } from "./sdk-types.js";
 import { join } from "node:path";
 
 /**
@@ -206,6 +202,84 @@ async function describeText(
   return spend(env, [...head, ...body].join("\n"));
 }
 
+/** Words that carry no meaning for a search. */
+const FILLER_WORDS = new Set(
+  "a an and are as at be by for from how i in into is it of on or that the this to up via what which with".split(
+    " ",
+  ),
+);
+/** What a query word found in the path, the doc line or the declaration is worth. */
+const FIELD_WEIGHTS = [10, 3, 1];
+/** A method stays listed when it matches at least this share of the words the best method matches. */
+const MIN_MATCHED_SHARE = 0.6;
+/** Shortest query word that also matches longer words it starts (`attach` finds `attachments`). */
+const PREFIX_MIN_CHARS = 4;
+const NO_MATCH_MAX_CHARS = 700;
+
+/** A word's stem: plural, `-ing`, `-ed` and a trailing `e` removed, so `moves`, `moved` and `move` meet. */
+function stem(word: string): string {
+  let out = word;
+  if (out.length > 4 && out.endsWith("ies")) out = `${out.slice(0, -3)}y`;
+  else if (out.length > 4 && out.endsWith("ing")) out = out.slice(0, -3);
+  else if (out.length > 3 && out.endsWith("ed")) out = out.slice(0, -2);
+  else if (out.length > 3 && out.endsWith("es")) out = out.slice(0, -2);
+  else if (out.length > 2 && out.endsWith("s") && !out.endsWith("ss"))
+    out = out.slice(0, -1);
+  if (out.length > 3 && out.endsWith("e")) out = out.slice(0, -1);
+  return out;
+}
+
+/** Stemmed lowercase words of `text`, camelCase split. */
+function words(text: string): string[] {
+  return text
+    .replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+    .map(stem);
+}
+
+/** The query's stemmed words without filler; a query of only filler keeps them. */
+function queryTerms(query: string): string[] {
+  const all = query
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  const kept = all.filter((word) => !FILLER_WORDS.has(word));
+  return [...new Set((kept.length > 0 ? kept : all).map(stem))];
+}
+
+const termMatches = (term: string, token: string): boolean =>
+  token === term || (term.length >= PREFIX_MIN_CHARS && token.startsWith(term));
+
+/** Nothing matched: the method groups of the searched namespaces and the next call. */
+function noMatchText(
+  query: string,
+  where: string,
+  searched: readonly RegisteredNamespace[],
+): string {
+  const lines: string[] = [];
+  let size = 0;
+  let first = "";
+  for (const namespace of searched) {
+    const groups = [...groupMethods(namespace.methods).keys()].filter(Boolean);
+    if (groups.length === 0) continue;
+    const line = `${namespace.id}: ${groups.join(", ")}`;
+    if (size + line.length > NO_MATCH_MAX_CHARS) {
+      lines.push("…");
+      break;
+    }
+    first ||= `${namespace.id}.${groups[0]}`;
+    lines.push(line);
+    size += line.length + 1;
+  }
+  return [
+    `No methods match "${query}" in ${where}. Method groups:`,
+    ...lines,
+    `Next: sdk.describe("${first || "<namespace>"}") lists a group's methods; or search again with other words.`,
+  ].join("\n");
+}
+
 /** Ranked, paged one-line matches. */
 function searchText(
   namespaces: readonly RegisteredNamespace[],
@@ -224,61 +298,68 @@ function searchText(
     const state = stateOf(searched[0], env);
     if (!available(state)) return unavailableText(searched[0], state!);
   }
-  const terms = query
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}_]+/u)
-    .filter(Boolean);
+  const terms = queryTerms(query);
   if (terms.length === 0)
     throw new Error("sdk.search needs a query with at least one word.");
-  const hits: { line: string; score: number; order: number }[] = [];
+  const hits: {
+    line: string;
+    score: number;
+    matched: number;
+    order: number;
+  }[] = [];
   let order = 0;
   for (const namespace of searched) {
     for (const method of namespace.methods) {
-      const path = `${namespace.id}.${method.path}`.toLowerCase();
       const { doc, declaration } = parseSignature(method);
-      const docText = (doc ?? "").toLowerCase();
-      const params = declaration.toLowerCase();
+      const fields = [
+        words(`${namespace.id}.${method.path}`),
+        words(doc ?? ""),
+        words(declaration),
+      ];
       let score = 0;
+      let matched = 0;
       for (const term of terms) {
-        if (path.includes(term)) score += 10;
-        else if (docText.includes(term)) score += 3;
-        else if (params.includes(term)) score += 1;
-        else {
-          score = -1;
-          break;
-        }
+        const found = fields.findIndex((tokens) =>
+          tokens.some((token) => termMatches(term, token)),
+        );
+        if (found < 0) continue;
+        matched++;
+        score += FIELD_WEIGHTS[found];
       }
-      if (score < 0) continue;
+      if (matched === 0) continue;
       const signature = declarationLine(method);
       hits.push({
         line: `${signature.length > SEARCH_LINE_CHARS ? `${signature.slice(0, SEARCH_LINE_CHARS - 1)}…` : signature}  [${method.risk}]`,
         score,
+        matched,
         order: order++,
       });
     }
   }
   const where = scope ?? "available namespaces";
-  if (hits.length === 0)
-    return spend(
-      env,
-      `No methods match "${query}" in ${where}. Try other words, or sdk.list() / sdk.docs("<namespace>").`,
-    );
-  hits.sort((a, b) => b.score - a.score || a.order - b.order);
-  const page = hits.slice(offset, offset + SEARCH_PAGE_SIZE);
+  const best = Math.max(0, ...hits.map((hit) => hit.matched));
+  const kept = hits.filter(
+    (hit) => hit.matched >= Math.ceil(best * MIN_MATCHED_SHARE),
+  );
+  if (kept.length === 0) return spend(env, noMatchText(query, where, searched));
+  kept.sort(
+    (a, b) => b.matched - a.matched || b.score - a.score || a.order - b.order,
+  );
+  const page = kept.slice(offset, offset + SEARCH_PAGE_SIZE);
   if (page.length === 0)
     return spend(
       env,
-      `No more matches: "${query}" has ${hits.length} in ${where}; offset ${offset} is past the end.`,
+      `No more matches: "${query}" has ${kept.length} in ${where}; offset ${offset} is past the end.`,
     );
   const end = offset + page.length;
   const next =
-    end < hits.length
+    end < kept.length
       ? `next: sdk.search(${JSON.stringify(query)}, { ${scope ? `in: ${JSON.stringify(scope)}, ` : ""}offset: ${end} })`
       : "";
   return spend(
     env,
     [
-      `${hits.length} matches for "${query}" in ${where} (showing ${offset + 1}-${end}); sdk.describe("<path>") for types:`,
+      `${kept.length} matches for "${query}" in ${where} (showing ${offset + 1}-${end}); sdk.describe("<path>") for types:`,
       ...page.map((hit) => hit.line),
       next,
     ]
@@ -404,7 +485,7 @@ export function createSdkNamespace(registry: Registry): SdkNamespace {
       risk: "none",
       maxArgs: 2,
       signature:
-        "/** Methods whose path, doc line or parameters match all words, best first, 20 per page; `in` limits it to one namespace. */ search(query: string, options?: { in?: string; offset?: number }): Promise<string>",
+        "/** Methods matching the most of the query's words (filler and word endings ignored; path matches count most, then doc line, then parameters), best first, 20 per page; `in` limits it to one namespace. */ search(query: string, options?: { in?: string; offset?: number }): Promise<string>",
       parse: (args) => {
         const options = (args[1] ?? {}) as Record<string, unknown>;
         if (typeof options !== "object" || Array.isArray(options))

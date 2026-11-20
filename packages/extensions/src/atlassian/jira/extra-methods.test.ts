@@ -170,3 +170,83 @@ void test("every Jira create path reports what it created", async () => {
     "attachment 9 on APP-1",
   ]);
 });
+
+const issueRow = (n: number) => ({
+  id: String(n),
+  key: `APP-${n}`,
+  fields: { summary: `S${n}` },
+});
+
+function searchSetup(more: boolean) {
+  return setup((s) => {
+    if (s.path === "/search/jql") {
+      return Response.json({
+        issues: [issueRow(1), issueRow(2)],
+        ...(more ? { nextPageToken: "t2" } : {}),
+      });
+    }
+  });
+}
+
+void test("issues.search notes a cut-off result, identically on repeats", async () => {
+  const { sent, run } = searchSetup(true);
+  const cut = await run(
+    `await jira.issues.search({ jql: "project = APP", limit: 2 });
+     return (await jira.issues.search({ jql: "project = APP", limit: 2 })).length;`,
+  );
+  const notes = (cut.content ?? "")
+    .split("\n")
+    .filter((line) => line.startsWith("jira.issues.search stopped"));
+  const text =
+    "jira.issues.search stopped at limit 2; more issues match. Raise limit (max 1000) or narrow the JQL.";
+  assert.deepEqual(notes, [text, text]);
+  assert.equal(sent.filter((s) => s.path === "/search/jql").length, 2);
+});
+
+void test("issues.search adds no note when the result fits", async () => {
+  const { run } = searchSetup(false);
+  const fits = await run(
+    `return (await jira.issues.search({ jql: "project = APP", limit: 2 })).length;`,
+  );
+  assert.doesNotMatch(fits.content ?? "", /stopped at limit/);
+});
+
+function sprintSetup(total: number) {
+  return setup((s) => {
+    if (s.path.endsWith("/sprint/5/issue")) {
+      return Response.json({ issues: [issueRow(1), issueRow(2)], total });
+    }
+    if (s.method === "GET" && s.path.endsWith("/sprint/5")) {
+      return Response.json({
+        id: 5,
+        name: "S5",
+        state: "future",
+        endDate: "2030-01-01T00:00:00.000Z",
+      });
+    }
+    if (s.method === "PUT" && s.path.endsWith("/sprint/5")) {
+      return Response.json({ id: 5, name: "S5", state: "active" });
+    }
+  });
+}
+
+void test("sprints.issues notes a cut-off result and stays silent when it fits", async () => {
+  const cut = await sprintSetup(5).run(
+    `return (await jira.sprints.issues({ id: 5, limit: 2 })).length;`,
+  );
+  assert.match(
+    cut.content ?? "",
+    /jira\.sprints\.issues stopped at limit 2; more issues match\. Raise limit \(max 1000\) or narrow the JQL\./,
+  );
+  const fits = await sprintSetup(2).run(
+    `return (await jira.sprints.issues({ id: 5, limit: 2 })).length;`,
+  );
+  assert.doesNotMatch(fits.content ?? "", /stopped at limit/);
+});
+
+void test("sprints.start takes the sprint id alone", async () => {
+  const started = await sprintSetup(0).run(
+    `return (await jira.sprints.start(5)).state;`,
+  );
+  assert.match(started.content ?? "", /^active\n/);
+});

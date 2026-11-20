@@ -24,7 +24,7 @@ void test("without extensions the description lists the runtime only", () => {
     text,
     /\nLibraries: XLSX, Papa, docx, mammoth, PptxGenJS, pptxText, JSZip\.\n/,
   );
-  assert.match(text, /sdk\.describe\("<namespace>"\)/);
+  assert.match(text, /sdk\.describe\("<namespace>\.<group>"\)/);
   assert.doesNotMatch(text, /\{\{/);
 });
 

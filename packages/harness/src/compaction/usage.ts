@@ -1,7 +1,7 @@
 import type { Usage } from "@earendil-works/pi-ai";
 import { convertToLlm } from "../messages/messages.js";
 import type { ContextUsage } from "@nervekit/contracts/models";
-import type { AgentMessage } from "../agent/contracts/index.js";
+import type { AgentMessage } from "../messages/messages.js";
 import type {
   CompactionEntry,
   ConversationTreeEntry,

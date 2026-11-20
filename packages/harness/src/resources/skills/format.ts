@@ -1,4 +1,4 @@
-import type { Skill } from "../../harness/configuration/options.js";
+import type { Skill } from "./skill.js";
 import { dirnameEnvPath } from "../../paths.js";
 
 /** Format a skill invocation prompt, optionally appending additional user instructions. */

@@ -277,7 +277,7 @@ export const jiraWriteMethods: PathedMethod<JiraSession>[] = [
     risk: "external_write",
     options: ["key", "to", "fields", "comment"],
     signature:
-      "/** `to` is a status name. Required transition fields (e.g. Resolution) go in `fields`; errors list the valid choices. */ transition(options: { key: string; to: string; fields?: Fields; comment?: string }): Promise<{ key: string; status: string; url: string }>",
+      "/** Moves an issue to status `to` (e.g. Done). `to` is a status name. Required transition fields (e.g. Resolution) go in `fields`; errors list the valid choices. */ transition(options: { key: string; to: string; fields?: Fields; comment?: string }): Promise<{ key: string; status: string; url: string }>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       to: nonEmptyString(options.to, "to"),
@@ -553,7 +553,7 @@ export const jiraWriteMethods: PathedMethod<JiraSession>[] = [
     risk: "external_write",
     options: ["key", "file", "filename"],
     signature:
-      "/** Max 100 MB. A repeated filename adds a duplicate (unlike Confluence). */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<JiraAttachment>",
+      "/** Attaches a file to an issue. Max 100 MB. A repeated filename adds a duplicate (unlike Confluence). */ upload(options: { key: string; file: FileHandle; filename?: string }): Promise<JiraAttachment>",
     parse: (options) => ({
       key: nonEmptyString(options.key, "key"),
       spec: parseAttachmentSpec({
@@ -577,7 +577,7 @@ export const jiraWriteMethods: PathedMethod<JiraSession>[] = [
     risk: "external_write",
     options: ["keys", "sprint"],
     signature:
-      '/** Max 50 issues into a sprint (id: projects.get include "sprints") or "backlog". */ move(options: { keys: string[]; sprint: number | "backlog" }): Promise<{ moved: number }>',
+      '/** Max 50 issues into a sprint (id: projects.get include "sprints") or "backlog". */ move(options: { keys: string[]; sprint: number | "backlog" }): Promise<{ moved: string[] }>',
     parse: (options) => {
       const keys = options.keys;
       if (
@@ -614,7 +614,7 @@ export const jiraWriteMethods: PathedMethod<JiraSession>[] = [
           sprint === "backlog" ? "/backlog/issue" : `/sprint/${sprint}/issue`,
         body: { issues: keys },
       });
-      return { moved: keys.length };
+      return { moved: keys };
     },
   }),
 ];

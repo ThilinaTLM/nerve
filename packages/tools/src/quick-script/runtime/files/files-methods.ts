@@ -15,7 +15,8 @@ import {
   reportArtifact,
   writeArtifact,
 } from "./artifacts.js";
-import { definePositionalMethod, type SdkMethod } from "../sdk-types.js";
+import { definePositionalMethod } from "../sdk-args.js";
+import type { SdkMethod } from "../sdk-types.js";
 
 /** `files.*` follows Node's positional style; it and `request()` are the documented exceptions to "one argument". */
 export const filesMethods: SdkMethod[] = [

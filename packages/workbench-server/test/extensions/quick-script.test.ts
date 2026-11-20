@@ -295,3 +295,103 @@ void test("the artifacts footer names the folder once so Read/Edit can open them
     ],
   );
 });
+
+const hangingFetch: typeof fetch = (_input, init) =>
+  new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+  });
+
+void test("the footer counts failed calls per method group and stays unchanged when all succeed", async () => {
+  globalThis.fetch = async (input) =>
+    String(input).includes("NER-2")
+      ? Response.json({ errorMessages: ["gone"] }, { status: 404 })
+      : Response.json(rawIssue(1));
+  const result = await executeQuickScript(
+    {
+      code: `
+        for (const key of ["NER-1", "NER-2", "NER-3"]) {
+          try { await jira.issues.get(key); } catch {}
+        }
+      `,
+    },
+    makeContext({ events: [] }),
+  );
+  const lines = (result.content ?? "").split("\n");
+  assert.match(
+    lines.at(-1)!,
+    /^jira 3 calls \(issues\.get 3, 1 failed\) · exit 0/,
+  );
+  // A failed read is only counted, not listed.
+  assert.doesNotMatch(result.content ?? "", /Failed:/);
+
+  globalThis.fetch = async () => Response.json(rawIssue(1));
+  const ok = await executeQuickScript(
+    { code: `await jira.issues.get("NER-1");` },
+    makeContext({ events: [] }),
+  );
+  assert.match(
+    (ok.content ?? "").split("\n").at(-1)!,
+    /^jira 1 call \(issues\.get 1\) · exit 0/,
+  );
+  assert.doesNotMatch(ok.content ?? "", /Still running|Failed:/);
+});
+
+void test("a failed write the script caught is named with its error", async () => {
+  globalThis.fetch = async () =>
+    Response.json({ errorMessages: ["Issue does not exist"] }, { status: 404 });
+  const result = await executeQuickScript(
+    {
+      code: `try { await jira.issues.update({ key: "NER-404", fields: { summary: "x" } }); } catch {}`,
+    },
+    makeContext({ events: [] }),
+  );
+  const lines = (result.content ?? "").split("\n");
+  const failed = lines.find((line) => line.startsWith("Failed: "));
+  assert.match(failed ?? "", /^Failed: jira\.issues\.update \(NER-404\): /);
+  assert.equal(lines.at(-1)!.startsWith("jira"), true);
+  assert.ok(lines.indexOf(failed!) < lines.length - 1);
+});
+
+void test("a write that is not awaited is reported as still running with unknown outcome, and recorded as aborted", async () => {
+  globalThis.fetch = hangingFetch;
+  const result = await executeQuickScript(
+    {
+      code: `jira.issues.update({ key: "NER-5", fields: { summary: "x" } }).catch(() => {}); jira.issues.get("NER-6").catch(() => {});`,
+    },
+    makeContext({ events: [] }),
+  );
+  const content = result.content ?? "";
+  assert.match(
+    content,
+    /^Still running when the script ended, aborted: jira\.issues\.update \(NER-5\), outcome unknown; jira\.issues\.get \(NER-6\)\. Await every call\.$/m,
+  );
+  const details = quickScriptResultDetailsSchema.parse(result.details);
+  assert.equal(details.hostCalls.length, 2);
+  assert.ok(details.hostCalls.every((call) => call.outcome === "failed"));
+  assert.match(details.hostCalls[0].error ?? "", /aborted/);
+});
+
+void test("a call still running at timeout is listed without the await hint", async () => {
+  globalThis.fetch = hangingFetch;
+  const result = await executeQuickScript(
+    {
+      code: `await jira.issues.update({ key: "NER-5", fields: { summary: "x" } });`,
+      timeout: 1,
+    },
+    makeContext({ events: [] }),
+  );
+  assert.equal(result.exitCode, 124);
+  assert.match(
+    result.content ?? "",
+    /^Still running when the script ended, aborted: jira\.issues\.update \(NER-5\), outcome unknown\.$/m,
+  );
+  const details = quickScriptResultDetailsSchema.parse(result.details);
+  assert.equal(details.hostCalls.length, 1);
+});
+
+void test("identical notes collapse into one line with a count", () => {
+  assert.deepEqual(
+    reportLines([], changes({}), ["note a", "note b", "note a", "note a"]),
+    ["note a (×3)", "note b"],
+  );
+});

@@ -14,7 +14,8 @@ import {
   writeArtifact,
 } from "../files/artifacts.js";
 import { codedError } from "../errors.js";
-import { defineMethod, type SdkMethod } from "../sdk-types.js";
+import { defineMethod } from "../sdk-args.js";
+import type { SdkMethod } from "../sdk-types.js";
 
 const FETCH_AS = ["markdown", "text", "json", "file"] as const;
 type FetchAs = (typeof FETCH_AS)[number];

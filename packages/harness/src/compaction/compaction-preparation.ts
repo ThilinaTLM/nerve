@@ -1,5 +1,5 @@
 import type { CompactionPlan } from "./cut-points.js";
-import type { AgentMessage } from "../agent/contracts/index.js";
+import type { AgentMessage } from "../messages/messages.js";
 import type { FileOperations } from "./file-operations.js";
 import type { CompactionSettings } from "./compaction-policy.js";
 

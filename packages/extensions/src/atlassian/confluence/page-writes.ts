@@ -581,9 +581,10 @@ export const confluencePageWriteMethods: PathedMethod<ConfluenceSession>[] = [
     product: "confluence",
     path: "pages.download",
     risk: "external_read",
+    bare: "id",
     options: ["id", "attachments"],
     signature:
-      "/** Saves storage XHTML as artifact:page-<id>.xhtml; edit it, then pages.update({ id, version, bodyFile: file }). attachments: true also saves attachments. */ download(options: { id: string; attachments?: boolean }): Promise<{ file: FileHandle; version: number; title: string; attachments?: { filename: string; file: FileHandle }[]; skipped?: string[] }>",
+      "/** Saves storage XHTML as artifact:page-<id>.xhtml; edit it, then pages.update({ id, version, bodyFile: file }). attachments: true also saves attachments. */ download(options: string | { id: string; attachments?: boolean }): Promise<{ file: FileHandle; version: number; title: string; attachments?: { filename: string; file: FileHandle }[]; skipped?: string[] }>",
     parse: (options) => ({
       id: nonEmptyString(options.id, "id"),
       attachments: options.attachments === true,

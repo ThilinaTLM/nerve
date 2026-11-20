@@ -29,12 +29,15 @@ const namespaces: QuickScriptAvailability = {
   diagram: { configured: true, available: true },
 };
 
-function session(conversationDir?: string) {
+function session(
+  conversationDir?: string,
+  available: QuickScriptAvailability = namespaces,
+) {
   const env = createSdkEnvironment({
     registry,
     cwd: process.cwd(),
     conversationDir,
-    namespaces,
+    namespaces: available,
   });
   return async (method: string, ...args: unknown[]) =>
     String(
@@ -94,15 +97,65 @@ void test("search ranks path before doc matches and pages", async () => {
   assert.match(lines[1], /^jira\.sprints?\./);
   assert.match(text, /\[(?:external_read|external_write)\]/);
   assert.doesNotMatch(text, /confluence\./);
-  const paged = await call("sdk.search", "a", { in: "jira" });
-  assert.match(paged, /next: sdk\.search\("a", \{ in: "jira", offset: 20 \}\)/);
-  const second = await call("sdk.search", "a", { in: "jira", offset: 20 });
+  const paged = await call("sdk.search", "options", { in: "jira" });
+  assert.match(
+    paged,
+    /next: sdk\.search\("options", \{ in: "jira", offset: 20 \}\)/,
+  );
+  const second = await call("sdk.search", "options", {
+    in: "jira",
+    offset: 20,
+  });
   assert.match(second, /showing 21-/);
-  assert.match(await call("sdk.search", "zzzz"), /^No methods match/);
   await assert.rejects(
     call("sdk.search", "x", { limit: 1 }),
     /no option 'limit'/,
   );
+});
+
+const allAvailable: QuickScriptAvailability = {
+  ...namespaces,
+  confluence: { configured: true, available: true },
+};
+
+/** Index of the first result line that starts with `path(`; -1 when absent. */
+function rank(text: string, path: string): number {
+  return text
+    .split("\n")
+    .slice(1)
+    .findIndex((line) => line.startsWith(`${path}(`));
+}
+
+void test("search finds methods from everyday phrasing", async () => {
+  const call = session(undefined, allAvailable);
+  const cases: [string, string][] = [
+    ["list sprints", "jira.projects.get"],
+    ["attach file to issue", "jira.attachments.upload"],
+    ["search pages by title", "confluence.pages.search"],
+    ["move issue to done", "jira.issues.transition"],
+  ];
+  for (const [query, path] of cases) {
+    const text = await call("sdk.search", query);
+    const at = rank(text, path);
+    assert.ok(at >= 0 && at < 3, `${query}: ${path} at ${at}\n${text}`);
+  }
+});
+
+void test("search drops weak matches when better ones exist", async () => {
+  const text = await session()("sdk.search", "attach file to issue");
+  const lines = text
+    .split("\n")
+    .slice(1)
+    .filter((line) => /\[/.test(line));
+  assert.ok(lines.length < 10, text);
+});
+
+void test("search without a match lists the method groups", async () => {
+  const text = await session()("sdk.search", "zzzz", { in: "jira" });
+  assert.match(text, /^No methods match "zzzz" in jira\./);
+  assert.match(text, /^jira: issues, .*sprints/m);
+  assert.match(text, /sdk\.describe\("jira\.issues"\)/);
+  assert.ok(text.length < 900);
 });
 
 void test("docs: index with whenToRead, one topic, unknown topic", async () => {

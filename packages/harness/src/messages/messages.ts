@@ -4,7 +4,6 @@ import type {
   LaunchReadiness,
   LaunchStatus,
 } from "@nervekit/contracts/launches";
-import type { AgentMessage } from "../agent/contracts/index.js";
 
 export function renderCheckpointAnchors(anchors: CheckpointAnchor[]): string {
   if (!anchors.length) return "";
@@ -103,15 +102,19 @@ export interface CompactionSummaryMessage {
   timestamp: number;
 }
 
-declare module "../agent/contracts/agent-messages.js" {
-  interface CustomAgentMessages {
-    bashExecution: BashExecutionMessage;
-    custom: CustomMessage;
-    harness: HarnessMessage;
-    branchSummary: BranchSummaryMessage;
-    compactionSummary: CompactionSummaryMessage;
-  }
+/** App-specific message types that can appear in a conversation next to LLM messages. */
+export interface CustomAgentMessages {
+  bashExecution: BashExecutionMessage;
+  custom: CustomMessage;
+  harness: HarnessMessage;
+  branchSummary: BranchSummaryMessage;
+  compactionSummary: CompactionSummaryMessage;
 }
+
+/** Union of LLM messages and the custom conversation messages. */
+export type AgentMessage =
+  | Message
+  | CustomAgentMessages[keyof CustomAgentMessages];
 
 export function bashExecutionToText(msg: BashExecutionMessage): string {
   let text = `Ran \`${msg.command}\`\n`;

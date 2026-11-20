@@ -30,9 +30,10 @@ export const ATLASSIAN_SAMPLES: Record<string, unknown[][]> = {
   "jira.attachments.delete": [["9"]],
   "jira.sprints.create": [[{ name: "S" }], [{ board: 3, name: "S" }]],
   "jira.sprints.update": [[{ id: 5, name: "S" }]],
-  "jira.sprints.start": [[{ id: 5, duration: "2w" }]],
+  "jira.sprints.start": [[{ id: 5, duration: "2w" }], [5]],
   "jira.sprints.close": [
     [{ id: 5 }],
+    [5],
     [{ id: 5, moveOpenTo: "backlog" }],
     [{ id: 5, moveOpenTo: 6 }],
   ],
@@ -40,6 +41,7 @@ export const ATLASSIAN_SAMPLES: Record<string, unknown[][]> = {
   "jira.sprints.delete": [[5]],
   "confluence.pages.download": [
     [{ id: "1" }],
+    ["1"],
     [{ id: "1", attachments: true }],
   ],
   "jira.issues.update": [[{ key: "A-1", fields: { Summary: "s" } }]],
@@ -89,6 +91,7 @@ export const ATLASSIAN_SAMPLES: Record<string, unknown[][]> = {
   "confluence.attachments.upload": [[{ id: "1", file: "a.png" }]],
   "confluence.attachments.download": [
     [{ id: "att1" }],
+    ["att1"],
     [{ page: "1", filename: "a.png" }],
   ],
   "confluence.labels.add": [[{ id: "1", labels: ["a"] }]],
@@ -99,7 +102,7 @@ export const ATLASSIAN_SAMPLES: Record<string, unknown[][]> = {
   "confluence.comments.update": [[{ id: "1", body: "x" }]],
   "confluence.comments.delete": [["1"]],
   "confluence.comments.reply": [[{ id: "1", body: "x" }]],
-  "confluence.comments.resolve": [[{ id: "1" }]],
+  "confluence.comments.resolve": [[{ id: "1" }], ["1"]],
   "confluence.pages.move": [[{ id: "1", parent: "2" }]],
   "confluence.pages.delete": [["1"], [{ id: "1", purge: true }]],
   "confluence.pages.restore": [["1"]],

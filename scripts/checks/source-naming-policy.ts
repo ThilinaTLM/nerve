@@ -20,8 +20,6 @@ export const GENERIC_SOURCE_NAME_EXCEPTIONS = new Set([
   "packages/contracts/src/domains/tools/operations.ts",
   "packages/contracts/src/domains/usage/operations.ts",
   "packages/desktop-shell/src/daemon/composition.ts",
-  "packages/harness/src/harness/maintenance/operations.ts",
-  "packages/harness/src/harness/queue/operations.ts",
   "packages/extension-api/src/types.ts",
   "packages/tools/src/git/read/types.ts",
   "packages/tools/src/policy/types.ts",
