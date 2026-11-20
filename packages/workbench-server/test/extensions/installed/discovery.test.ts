@@ -6,7 +6,7 @@ import { after, before, test } from "node:test";
 import {
   readFolder,
   readInstalledExtensions,
-} from "../../../src/core-host/extension-catalog/read-installed.js";
+} from "../../../src/core-host/extensions/extension-catalog/read-installed.js";
 import { fixtureManifest, writeExtension } from "./fixtures.js";
 
 const NERVE = "0.41.1";

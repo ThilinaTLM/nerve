@@ -45,7 +45,9 @@ Pure moves, no behavior change, done first so later steps touch settled paths.
    | `core-host/permissions/`   | `permission.adapter`, `permission-configuration`, `permission-overlays`, `permission-rule-sets`, `project-permission-migrations`, `scoped-permission-source`, `execution-admission/` |
    | `core-host/configuration/` | `configuration-agent-port`, `configuration-reload`, `scoped-agent-configuration`, `scoped-conversation-creation`, `cached-agent-summary`, and the new registry                       |
    | `core-host/extensions/`    | `extension-catalog/`, `extension-store/`, `extension-ui/`, `extension-availability`, `extension-ports`, `extension-views`, `conversation-extensions`                                 |
-   | `core-host/resources/`     | `resource-loader`, `agent-browser-skills`, `scoped-turn-resources`, `turn-resources.adapter`, `nerve-system-prompt`                                                                  |
+   | `core-host/resources/`     | `resource-loader`, `scoped-turn-resources`, `turn-resources.adapter`, `nerve-system-prompt`                                                                                          |
+
+   `agent-browser-skills` stays at the top level: released migration `0002-agent-profiles` imports it by path and released migrations are locked by content.
 
 3. **`scoped-configuration-runtime.md` and `scoped-configuration-ui-api.md`** sit among sources in `core-host`. Fold what is still true into [scoped configuration](../../architecture/configuration.md) and delete them.
 

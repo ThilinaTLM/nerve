@@ -16,7 +16,7 @@ export const EXTENSION_NAMING_EXCEPTIONS: ReadonlyMap<string, string> = new Map(
   [
     ["packages/extensions/src/index.ts", "the built-in registry list"],
     [
-      "packages/workbench-server/src/core-host/project-permission-migrations.ts",
+      "packages/workbench-server/src/core-host/permissions/project-permission-migrations.ts",
       "migrates project permission files that name the retired direct tools (an old migration; its notice names the tools it converted)",
     ],
     [

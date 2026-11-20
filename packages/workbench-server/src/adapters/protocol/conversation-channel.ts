@@ -2,13 +2,13 @@ import { MissingAssetError } from "@nervekit/conversation-core";
 import {
   createConfigurationReload,
   resolveWithConfigurationRetry,
-} from "../../core-host/configuration-reload.js";
+} from "../../core-host/configuration/configuration-reload.js";
 import { subscribeConfigurationNotifications } from "./configuration-notifications.js";
 import {
   cachedConversationSummary,
   cachedConversationSnapshot,
   cachedAgentFields,
-} from "../../core-host/cached-agent-summary.js";
+} from "../../core-host/configuration/cached-agent-summary.js";
 import { createId } from "@nervekit/contracts";
 import {
   previewSystemPromptParamsSchema,
@@ -46,8 +46,8 @@ import {
 import { ZodError } from "zod";
 import type WebSocket from "ws";
 import type { ServerAdapterContexts } from "../contexts.js";
-import { listAvailableSkills } from "../../core-host/resource-loader.js";
-import { listPermissionRuleSets } from "../../core-host/permission-rule-sets.js";
+import { listAvailableSkills } from "../../core-host/resources/resource-loader.js";
+import { listPermissionRuleSets } from "../../core-host/permissions/permission-rule-sets.js";
 import { orchestratorSource } from "./messages.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import type { LocalProtocolSession } from "./protocol-websocket.js";

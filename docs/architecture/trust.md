@@ -61,10 +61,10 @@ The `extension` grant snapshot lists what the user approved: network origins, ca
 
 ## Where it lives
 
-| Concern               | Owner                                                                                                                                                                                  |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Table and repository  | [`schema.ts`](../../packages/conversation-core/src/storage/schema.ts), [`trusted-resource.repository.ts`](../../packages/conversation-core/src/storage/trusted-resource.repository.ts) |
-| Decisions and lookups | [`TrustedResourceService`](../../packages/conversation-core/src/conversations/trusted-resource.service.ts)                                                                             |
-| Project file kinds    | [`project-migration/descriptors.ts`](../../packages/workbench-server/src/infrastructure/configuration/project-migration/descriptors.ts)                                                |
-| Prompt suggestions    | [`prompt-suggestion-trust.repository.ts`](../../packages/workbench-server/src/domains/prompt-suggestions/prompt-suggestion-trust.repository.ts)                                        |
-| Extensions            | [`extension-consent.ts`](../../packages/workbench-server/src/core-host/extension-catalog/extension-consent.ts) (the gate over the service; the catalog in the same folder consults it) |
+| Concern               | Owner                                                                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Table and repository  | [`schema.ts`](../../packages/conversation-core/src/storage/schema.ts), [`trusted-resource.repository.ts`](../../packages/conversation-core/src/storage/trusted-resource.repository.ts)            |
+| Decisions and lookups | [`TrustedResourceService`](../../packages/conversation-core/src/conversations/trusted-resource.service.ts)                                                                                        |
+| Project file kinds    | [`project-migration/descriptors.ts`](../../packages/workbench-server/src/infrastructure/configuration/project-migration/descriptors.ts)                                                           |
+| Prompt suggestions    | [`prompt-suggestion-trust.repository.ts`](../../packages/workbench-server/src/domains/prompt-suggestions/prompt-suggestion-trust.repository.ts)                                                   |
+| Extensions            | [`extension-consent.ts`](../../packages/workbench-server/src/core-host/extensions/extension-catalog/extension-consent.ts) (the gate over the service; the catalog in the same folder consults it) |

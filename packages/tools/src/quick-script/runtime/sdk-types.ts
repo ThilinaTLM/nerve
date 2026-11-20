@@ -1,8 +1,8 @@
-import type { ExtensionAgentPort } from "../extension-host/agent-port.js";
+import type { ExtensionAgentPort } from "../../extension-host/agent-port.js";
 import type { ConfigurationAgentPort } from "./configuration/configuration-port.js";
-import type { ExtensionHostPorts } from "../extension-host/ports.js";
-import type { ExtensionCodeAdapter } from "../extension-host/code-adapter.js";
-import type { ExtensionRuntime } from "../extension-host/runtime.js";
+import type { ExtensionHostPorts } from "../../extension-host/ports.js";
+import type { ExtensionCodeAdapter } from "../../extension-host/code-adapter.js";
+import type { ExtensionRuntime } from "../../extension-host/runtime.js";
 import type { QuickScriptRegistry } from "../registry.js";
 import type {
   IntegrationExecutionContext,

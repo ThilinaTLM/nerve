@@ -12,7 +12,7 @@ import {
   ExtensionErrorLog,
   maxErrorsPerExtension,
   maxTrackedExtensions,
-} from "../../../src/core-host/extension-catalog/extension-errors.js";
+} from "../../../src/core-host/extensions/extension-catalog/extension-errors.js";
 import { writeExtension, createTestCatalog } from "./fixtures.js";
 
 const skip = !sandbox.isPersistentAvailable();

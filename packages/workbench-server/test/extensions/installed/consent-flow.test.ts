@@ -26,7 +26,7 @@ import {
   createHostExtensionCatalog,
   hostRegistry,
 } from "../../../src/core-host/host-tools.js";
-import { agentTextLimits } from "../../../src/core-host/extension-catalog/agent-text-limits.js";
+import { agentTextLimits } from "../../../src/core-host/extensions/extension-catalog/agent-text-limits.js";
 import { extensionMethodHandlers } from "../../../src/adapters/protocol/handlers/extension-method-handlers.js";
 import {
   fixtureBackend,
@@ -268,7 +268,7 @@ void test(
   { skip },
   async () => {
     const { limitInstalledErrors } =
-      await import("../../../src/core-host/extension-catalog/agent-text-limits.js");
+      await import("../../../src/core-host/extensions/extension-catalog/agent-text-limits.js");
     const long = "e".repeat(agentTextLimits.errorMessage * 2);
     const base = {
       open: () => ({

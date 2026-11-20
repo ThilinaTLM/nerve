@@ -89,6 +89,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./result-projection",
       "./git",
       "./execution",
+      "./extension-host",
       "./quick-script",
       "./quick-script/testing",
     ],

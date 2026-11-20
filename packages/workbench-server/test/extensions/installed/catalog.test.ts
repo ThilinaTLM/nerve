@@ -10,7 +10,7 @@ import {
   overrideTrustGate,
   pendingConsentGate,
   type InstalledExtensionCandidate,
-} from "../../../src/core-host/extension-catalog/trust-gate.js";
+} from "../../../src/core-host/extensions/extension-catalog/trust-gate.js";
 import {
   fixtureBackend,
   writeExtension,

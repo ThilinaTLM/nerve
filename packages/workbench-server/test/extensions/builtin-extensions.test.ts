@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { QuickScriptNestedRequest } from "@nervekit/tools/execution";
-import type { ExtensionHostPorts } from "@nervekit/tools/quick-script";
+import type { ExtensionHostPorts } from "@nervekit/tools/extension-host";
 
 /*
  * The Diagram and Web Search extensions and the built-in `web.fetch` through the

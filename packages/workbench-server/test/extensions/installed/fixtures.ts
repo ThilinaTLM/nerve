@@ -5,7 +5,7 @@ import {
   migrate,
   openCoreDatabase,
 } from "@nervekit/conversation-core";
-import type { ExtensionConsentSources } from "../../../src/core-host/extension-catalog/extension-consent.js";
+import type { ExtensionConsentSources } from "../../../src/core-host/extensions/extension-catalog/extension-consent.js";
 import { createHostExtensionCatalog } from "../../../src/core-host/host-tools.js";
 import { join } from "node:path";
 

@@ -20,7 +20,7 @@ import type { ProjectEditorService } from "../domains/projects/project-editor.se
 import type { ProjectTerminalService } from "../domains/projects/project-terminal.service.js";
 import type { ProjectIconService } from "../domains/projects/project-icon.service.js";
 import type { CoreScratchNoteService } from "../core-host/scratch-note.service.js";
-import type { ScopedPermissionPolicySource } from "../core-host/scoped-permission-source.js";
+import type { ScopedPermissionPolicySource } from "../core-host/permissions/scoped-permission-source.js";
 import type { ProjectMigrationService } from "../infrastructure/configuration/project-migration/project-migration.js";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import type { agentConfigurationOperations } from "../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
@@ -48,13 +48,13 @@ import type {
   ExtensionManagement,
   ExtensionRegistryProvider,
   ExtensionUiSource,
-} from "../core-host/extension-catalog/extension-catalog.js";
-import type { ExtensionErrorLog } from "../core-host/extension-catalog/extension-errors.js";
-import type { ExtensionStore } from "../core-host/extension-store/extension-store.js";
-import { ExtensionUiService } from "../core-host/extension-ui/extension-ui-service.js";
-import { createExtensionViews } from "../core-host/extension-views.js";
+} from "../core-host/extensions/extension-catalog/extension-catalog.js";
+import type { ExtensionErrorLog } from "../core-host/extensions/extension-catalog/extension-errors.js";
+import type { ExtensionStore } from "../core-host/extensions/extension-store/extension-store.js";
+import { ExtensionUiService } from "../core-host/extensions/extension-ui/extension-ui-service.js";
+import { createExtensionViews } from "../core-host/extensions/extension-views.js";
 import type { ExtensionSettingsService } from "../infrastructure/configuration/extensions/extension-settings-service.js";
-import { createPermissionConfigurationService } from "../core-host/permission-configuration.js";
+import { createPermissionConfigurationService } from "../core-host/permissions/permission-configuration.js";
 
 export interface AdapterInfrastructure {
   daemonId: string;

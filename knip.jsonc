@@ -30,7 +30,7 @@
       "entry": [
         "{test,src}/**/*.test.ts",
         "src/git/read/git-isolated-reader-helper.ts",
-        "src/quick-script/extension-host/sandbox-runtime/extension-runtime.ts",
+        "src/extension-host/sandbox-runtime/extension-runtime.ts",
       ],
       // Types for shell-quote are consumed implicitly by tsc, not by an import.
       // Sandbox libraries are copied as assets by scripts/build/copy-quick-script-assets.ts, not imported.

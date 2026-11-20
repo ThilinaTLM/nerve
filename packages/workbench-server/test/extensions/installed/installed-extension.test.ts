@@ -8,17 +8,19 @@ import { resolveExtensions } from "@nervekit/contracts/extensions";
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import {
   accountKindIsTestable,
-  classifyQuickScriptScript,
   configuredNamespaces,
+  testExtensionAccount,
+} from "@nervekit/tools/extension-host";
+import {
+  classifyQuickScriptScript,
   executeQuickScript,
   quickScriptDescription,
-  testExtensionAccount,
 } from "@nervekit/tools/quick-script";
 import type { AccountsReader } from "../../../src/domains/accounts/accounts.service.js";
 import { hostRegistry } from "../../../src/core-host/host-tools.js";
-import { overrideTrustGate } from "../../../src/core-host/extension-catalog/trust-gate.js";
-import { extensionAvailability } from "../../../src/core-host/extension-availability.js";
-import { createExtensionPorts } from "../../../src/core-host/extension-ports.js";
+import { overrideTrustGate } from "../../../src/core-host/extensions/extension-catalog/trust-gate.js";
+import { extensionAvailability } from "../../../src/core-host/extensions/extension-availability.js";
+import { createExtensionPorts } from "../../../src/core-host/extensions/extension-ports.js";
 import { writeExtension, createTestCatalog } from "./fixtures.js";
 
 /*

@@ -5,8 +5,8 @@ import {
   type ExtensionDefinition,
   type ToolDefinition as ExtensionToolDefinition,
 } from "@nervekit/extension-api";
-import { resolveExtensionIcon } from "./extension-host/icon.js";
-import { fromDefinition } from "./extension-host/from-definition.js";
+import { resolveExtensionIcon } from "../extension-host/icon.js";
+import { fromDefinition } from "../extension-host/from-definition.js";
 import { createSdkNamespace } from "./runtime/discovery.js";
 import { runtimeNamespaces } from "./runtime/runtime-namespaces.js";
 import type { SdkMethod } from "./runtime/sdk-types.js";
@@ -15,7 +15,7 @@ import type {
   RegisteredNamespace,
 } from "./manifest-types.js";
 import { readRuntimeDoc } from "./docs-source.js";
-import type { ExtensionCodeAdapter } from "./extension-host/code-adapter.js";
+import type { ExtensionCodeAdapter } from "../extension-host/code-adapter.js";
 
 /**
  * Every `quick_script` namespace: the built-in capabilities, `sdk`, then the extensions'.

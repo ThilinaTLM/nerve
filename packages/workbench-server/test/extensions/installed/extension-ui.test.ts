@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { chmod, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { ExtensionUiError } from "../../../src/core-host/extension-ui/extension-ui-error.js";
+import { ExtensionUiError } from "../../../src/core-host/extensions/extension-ui/extension-ui-error.js";
 import { writeExtension } from "./fixtures.js";
 import {
   call,

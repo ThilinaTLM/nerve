@@ -1,7 +1,5 @@
-import {
-  testExtensionAccount,
-  type QuickScriptRegistry,
-} from "@nervekit/tools/quick-script";
+import { testExtensionAccount } from "@nervekit/tools/extension-host";
+import { type QuickScriptRegistry } from "@nervekit/tools/quick-script";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { ApplicationError } from "../../core/application-error.js";
 import type { AccountsReader } from "../accounts/accounts.service.js";

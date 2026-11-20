@@ -7,9 +7,11 @@ import {
   sandboxedBuiltinExtensions,
 } from "@nervekit/extensions";
 import {
-  createQuickScriptRegistry,
   routedExtensionCode,
   sandboxExtensionCode,
+} from "@nervekit/tools/extension-host";
+import {
+  createQuickScriptRegistry,
   executeQuickScript as runQuickScript,
 } from "@nervekit/tools/quick-script";
 

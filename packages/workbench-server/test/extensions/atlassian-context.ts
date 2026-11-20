@@ -1,5 +1,5 @@
 import type { AccountInfo } from "@nervekit/extension-api";
-import type { ExtensionHostPorts } from "@nervekit/tools/quick-script";
+import type { ExtensionHostPorts } from "@nervekit/tools/extension-host";
 
 export const SITE = "https://example.atlassian.net";
 

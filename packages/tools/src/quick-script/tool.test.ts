@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { createQuickScriptRegistry } from "./registry.js";
 import { createQuickScriptToolDefinition } from "./tool.js";
-import { demoExtension } from "./extension-host/test-extension.js";
+import { demoExtension } from "../extension-host/test-extension.js";
 
 void test("the tool runs against the registry of the run, not the one it was created with", async () => {
   // The host creates the tool once with the built-ins and gives each run its project's registry.
@@ -34,7 +34,7 @@ void test("the risk of an installed extension's direct tool is read from its pro
   const { setScopedToolDefinitions } = await import("../catalog/tool-scope.js");
   const { quickScriptToolRisk } = await import("./runtime/script-risk.js");
   const { createExtensionToolDefinitions } =
-    await import("./extension-host/direct-tools.js");
+    await import("../extension-host/direct-tools.js");
   const registry = createQuickScriptRegistry([demoExtension]);
   setScopedToolDefinitions(
     "/tmp/risk-scope",

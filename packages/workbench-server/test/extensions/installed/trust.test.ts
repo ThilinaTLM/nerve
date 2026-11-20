@@ -5,19 +5,19 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { InstalledExtensionManifest } from "@nervekit/contracts/extensions";
 import { version } from "../../../src/app/version.js";
-import { hashExtensionContent } from "../../../src/core-host/extension-catalog/content-hash.js";
+import { hashExtensionContent } from "../../../src/core-host/extensions/extension-catalog/content-hash.js";
 import {
   buildConsent,
   grantSnapshot,
   isEmptyGrant,
   newGrants,
-} from "../../../src/core-host/extension-catalog/consent-summary.js";
-import { ExtensionConsentRepository } from "../../../src/core-host/extension-catalog/extension-consent.js";
+} from "../../../src/core-host/extensions/extension-catalog/consent-summary.js";
+import { ExtensionConsentRepository } from "../../../src/core-host/extensions/extension-catalog/extension-consent.js";
 import type {
   ExtensionTrustVerdict,
   InstalledExtensionCandidate,
-} from "../../../src/core-host/extension-catalog/trust-gate.js";
-import { readFolder } from "../../../src/core-host/extension-catalog/read-installed.js";
+} from "../../../src/core-host/extensions/extension-catalog/trust-gate.js";
+import { readFolder } from "../../../src/core-host/extensions/extension-catalog/read-installed.js";
 import { testConsent, writeExtension } from "./fixtures.js";
 
 let root = "";

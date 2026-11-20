@@ -17,7 +17,7 @@ VS Code and Zed keep old extensions working by carrying compatibility in the hos
 ## Current state
 
 - `oldestCompatibleSdkVersion` is one literal covering the backend API, the UI bridge, the manifest format, `ui-kit` components and theme token names. `apiVersion: 1` is in every manifest and takes no part in the check.
-- [`read-installed.ts`](../../../packages/workbench-server/src/core-host/extension-catalog/read-installed.ts) parses the manifest with a strict schema before it checks the SDK version, so an extension built with a newer SDK reports `invalid` instead of `incompatible` (read from the order of the two checks, not run).
+- [`read-installed.ts`](../../../packages/workbench-server/src/core-host/extensions/extension-catalog/read-installed.ts) parses the manifest with a strict schema before it checks the SDK version, so an extension built with a newer SDK reports `invalid` instead of `incompatible` (read from the order of the two checks, not run).
 - `extension-api` exports everything with `export *`, including helpers (`parseOptions`, `nonEmptyString`), a type documented as host-internal (`ImageBackendRequest`) and a provider name (`ImageBackend = "openai-codex"`).
 - The SDK re-exports the whole API, and the build accepts both package names as import specifiers.
 - Namespace ids, tool names and account kinds are unique across all extensions. A tool-name prefix is a convention.

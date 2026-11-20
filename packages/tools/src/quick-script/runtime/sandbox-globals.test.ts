@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createQuickScriptRegistry } from "../registry.js";
-import { demoExtension } from "../extension-host/test-extension.js";
+import { demoExtension } from "../../extension-host/test-extension.js";
 import { executeQuickScript } from "./quick-script.js";
 
 const plain = createQuickScriptRegistry([]);

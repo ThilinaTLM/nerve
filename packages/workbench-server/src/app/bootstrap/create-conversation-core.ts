@@ -1,20 +1,20 @@
-import { consentSourcesOf } from "../../core-host/extension-catalog/extension-consent.js";
+import { consentSourcesOf } from "../../core-host/extensions/extension-catalog/extension-consent.js";
 import { toTrustedDigest } from "@nervekit/contracts/core";
 import { ConversationTitleService } from "../../domains/conversation-titles/title.service.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import {
   assertExtensionToolOffered,
   extensionAvailability,
-} from "../../core-host/extension-availability.js";
+} from "../../core-host/extensions/extension-availability.js";
 import {
   createExtensionPorts,
   extensionStates,
   selectedAccountsTarget,
-} from "../../core-host/extension-ports.js";
+} from "../../core-host/extensions/extension-ports.js";
 import { createHostExtensionCatalog } from "../../core-host/host-tools.js";
-import type { ExtensionCatalog } from "../../core-host/extension-catalog/extension-catalog.js";
+import type { ExtensionCatalog } from "../../core-host/extensions/extension-catalog/extension-catalog.js";
 import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
-import { conversationExtensions } from "../../core-host/conversation-extensions.js";
+import { conversationExtensions } from "../../core-host/extensions/conversation-extensions.js";
 import { ExtensionSettingsService } from "../../infrastructure/configuration/extensions/extension-settings-service.js";
 import { type QuickScriptContext } from "@nervekit/tools/quick-script";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
@@ -29,15 +29,15 @@ import { agentConfigurationOperations } from "../../infrastructure/configuration
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { conversationAgentBlocked } from "./conversation-agent-blocked.js";
-import { createConfigurationAgentPort } from "../../core-host/configuration-agent-port.js";
-import { createScopedPermissionSource } from "../../core-host/scoped-permission-source.js";
+import { createConfigurationAgentPort } from "../../core-host/configuration/configuration-agent-port.js";
+import { createScopedPermissionSource } from "../../core-host/permissions/scoped-permission-source.js";
 import { resolveAgentModel } from "@nervekit/harness/models";
-import { scopedConversationCreation } from "../../core-host/scoped-conversation-creation.js";
+import { scopedConversationCreation } from "../../core-host/configuration/scoped-conversation-creation.js";
 import { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import { bundledAgentProfiles } from "../../infrastructure/configuration/agent-configuration/builtins/index.js";
-import { createScopedAgentConfiguration } from "../../core-host/scoped-agent-configuration.js";
-import type { ExtensionStore } from "../../core-host/extension-store/extension-store.js";
-import { scopedTurnResources } from "../../core-host/scoped-turn-resources.js";
+import { createScopedAgentConfiguration } from "../../core-host/configuration/scoped-agent-configuration.js";
+import type { ExtensionStore } from "../../core-host/extensions/extension-store/extension-store.js";
+import { scopedTurnResources } from "../../core-host/resources/scoped-turn-resources.js";
 import { clampAgentThinkingLevel } from "@nervekit/harness/models";
 import { mkdirSync } from "node:fs";
 import { createId } from "@nervekit/contracts";
@@ -64,15 +64,15 @@ import {
   classifyQuickScriptArguments,
   quickScriptToolRisk,
 } from "@nervekit/tools/quick-script";
-import { listAvailableSkills } from "../../core-host/resource-loader.js";
+import { listAvailableSkills } from "../../core-host/resources/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
 import { createVisionHost } from "../../core-host/vision-models.js";
-import { createPermissionPort } from "../../core-host/permission.adapter.js";
+import { createPermissionPort } from "../../core-host/permissions/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
 import { createToolHostPort } from "../../core-host/tool-host.adapter.js";
 import { createQuickScriptAuthorizer } from "../../core-host/quick-script-broker.js";
 import { isToolEnabled } from "../../core-host/tool-enablement.js";
-import { createExecutionAdmission } from "../../core-host/execution-admission/admission.js";
+import { createExecutionAdmission } from "../../core-host/permissions/execution-admission/admission.js";
 import type { RuntimeDeps } from "./create-runtime-services.js";
 import { ImageGenerationService } from "../../domains/image-generation/image-generation.service.js";
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
