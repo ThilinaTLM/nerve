@@ -7,8 +7,6 @@
 -->
 <script lang="ts">
 import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
-import ArrowUpRight from "@lucide/svelte/icons/arrow-up-right";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { SelectRow } from "@nervekit/ui-kit/components/composites/select-row";
 import type {
@@ -20,7 +18,7 @@ type Props = {
   groups: SettingsNavGroup[];
   activeId: string;
   ariaLabel?: string;
-  /** Identity above the nav: "User settings", or a project name. */
+  /** The scopes above the nav: your settings and the open project. */
   header?: SettingsScopeHeader;
   onSelect: (id: string) => void;
 };
@@ -36,26 +34,30 @@ let {
 
 {#if header}
   <div
-    class="grid flex-none gap-0.5 border-b px-2 pb-2 @max-[46rem]/settings-page:border-b-0 @max-[46rem]/settings-page:pb-1"
+    class="grid flex-none gap-0.5 border-b px-1 pb-2 @max-[46rem]/settings-page:border-b-0 @max-[46rem]/settings-page:pb-1"
+    role="group"
+    aria-label="Settings scope"
   >
-    <p class="text-ui font-medium text-foreground">{header.title}</p>
-    {#if header.subtitle}
-      <p class="truncate text-caption text-muted-foreground">
-        {header.subtitle}
-      </p>
-    {/if}
-    {#if header.action}
-      <Button
-        variant="link"
-        size="sm"
-        class="-mx-1.5 justify-start"
-        title={header.action.title}
-        onclick={header.action.onSelect}
-      >
-        {header.action.label}
-        <ArrowUpRight class="size-3.5" aria-hidden="true" />
-      </Button>
-    {/if}
+    {#each header.scopes as scope (scope.id)}
+      {@const Icon = scope.icon}
+      {#snippet icon()}<Icon
+          class="size-4 flex-none"
+          aria-hidden="true"
+        />{/snippet}
+      {#snippet badge()}{#if scope.badge}<Badge variant={scope.badge.tone}
+            >{scope.badge.text}</Badge
+          >{/if}{/snippet}
+      <SelectRow
+        label={scope.label}
+        {icon}
+        trailing={scope.badge ? badge : undefined}
+        selected={scope.selected}
+        current={scope.selected}
+        title={scope.title}
+        class="px-2"
+        onclick={scope.onSelect}
+      />
+    {/each}
   </div>
 {/if}
 

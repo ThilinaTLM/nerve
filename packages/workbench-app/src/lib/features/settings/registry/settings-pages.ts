@@ -20,6 +20,8 @@ import Users from "@lucide/svelte/icons/users";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Smartphone from "@lucide/svelte/icons/smartphone";
 import Boxes from "@lucide/svelte/icons/boxes";
+import FolderGit2 from "@lucide/svelte/icons/folder-git-2";
+import User from "@lucide/svelte/icons/user";
 import type {
   SettingsNavBadge,
   SettingsNavGroup,
@@ -101,14 +103,48 @@ export function settingsNavFor(
   }));
 }
 
+/**
+ * The scopes above the nav: your settings and, with a project, that project.
+ * The project row carries the count of its items that need the user.
+ */
 export function settingsScopeHeader(
   target: SettingsScopeTarget,
-  project?: { name: string },
+  scopes: {
+    project?: { name: string; path?: string; pending: number };
+    onOpenUser: () => void;
+    onOpenProject: () => void;
+  },
 ): SettingsScopeHeader {
-  return target.kind === "user"
-    ? { title: "User settings" }
-    : {
-        title: "Project settings",
-        subtitle: project?.name ?? "Project",
-      };
+  const { project } = scopes;
+  return {
+    scopes: [
+      {
+        id: "user",
+        label: "Your settings",
+        icon: User,
+        selected: target.kind === "user",
+        onSelect: scopes.onOpenUser,
+      },
+      ...(project
+        ? [
+            {
+              id: "project" as const,
+              label: project.name,
+              icon: FolderGit2,
+              selected: target.kind === "project",
+              ...(project.path ? { title: project.path } : {}),
+              ...(project.pending > 0
+                ? {
+                    badge: {
+                      text: String(project.pending),
+                      tone: "warning" as const,
+                    },
+                  }
+                : {}),
+              onSelect: scopes.onOpenProject,
+            },
+          ]
+        : []),
+    ],
+  };
 }

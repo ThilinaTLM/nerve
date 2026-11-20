@@ -1,6 +1,7 @@
 <script lang="ts">
 import TitlesSettingsPage from "$lib/features/settings/views/pages/titles/TitlesSettingsPage.svelte";
 import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
+import SkillReviewPage from "$lib/features/settings/views/pages/skills/SkillReviewPage.svelte";
 import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
 import ProfilesSettingsPage from "$lib/features/settings/views/pages/agent-profiles/ProfilesSettingsPage.svelte";
 import { profileKindForPage } from "$lib/features/settings/views/pages/agent-profiles/profile-kind";
@@ -17,6 +18,8 @@ import type {
 } from "$lib/api";
 import { projectView } from "$lib/features/conversations/adapters/core-context.adapter";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
+import ProjectGuideSection from "./ProjectGuideSection.svelte";
+import type { ProjectGuide } from "$lib/application/configuration-attention/project-guides";
 import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
 import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
@@ -74,6 +77,8 @@ let {
   onRestartDaemon,
   theme,
   onThemeChange,
+  guide,
+  onOpenGuide,
 }: {
   page: SettingsPageDef;
   /** Fixed for the lifetime of the view; every save goes to this target. */
@@ -110,6 +115,9 @@ let {
   theme: ColorTheme;
   onThemeChange?: (theme: ColorTheme) => void;
   onSkillsRetry?: () => void;
+  /** "In this project" row at the end of a user page, and where it opens. */
+  guide?: ProjectGuide;
+  onOpenGuide?: () => void;
 } = $props();
 
 const scope = $derived(target.kind);
@@ -214,6 +222,15 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
     <ProvidersSettingsPage {models} {authProviders} />
   {:else if page.id === "tools"}
     <ToolsSettingsPage {scope} {projectId} {models} {status} />
+  {:else if page.id === "skills" && projectId && itemId}
+    <SkillReviewPage
+      {projectId}
+      name={itemId}
+      onBack={() => onCloseItem?.()}
+      onOpenFile={project
+        ? (path) => void openFilePane({ projectId: project.id, path })
+        : undefined}
+    />
   {:else if page.id === "skills"}
     <SkillsSettingsPage
       {scope}
@@ -221,6 +238,7 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {skills}
       loading={skillsLoading}
       error={skillsError}
+      onOpenItem={(name) => onOpenItem?.(name)}
     />
   {:else if page.id === "storage"}
     <StorageSettingsPage controller={controllers.storageController} />
@@ -242,6 +260,9 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       title={page.label}
       description="This page is being rebuilt."
     />
+  {/if}
+  {#if guide && onOpenGuide && !itemId}
+    <ProjectGuideSection {guide} onOpen={onOpenGuide} />
   {/if}
 {:else}
   <div class="grid gap-1 py-12 text-center">

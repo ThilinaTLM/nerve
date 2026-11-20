@@ -324,7 +324,7 @@ function reportConversationCreationError(error: unknown): void {
 async function createConversationForProject(
   project: Project,
   initialProfile?: ConversationConfig["agentProfile"],
-): Promise<void> {
+): Promise<string> {
   workspaceState.error = undefined;
   workspaceState.projectPickerOpen = false;
   await selectProject(project.id, { deferTabActivation: true });
@@ -351,6 +351,33 @@ async function createConversationForProject(
   pendingConversations.set(id, pending);
   addCenterTab({ kind: "pending-conversation", id });
   await selectCenterTab({ kind: "pending-conversation", id });
+  return id;
+}
+
+/**
+ * A new conversation in `profile` with `prompt` in its composer, not sent: the
+ * user reads it and decides. There is no way to start one with a first
+ * message, so the draft is the hand-over.
+ */
+export async function newConversationWithPrompt(
+  projectId: string,
+  profile: ConversationConfig["agentProfile"],
+  prompt: string,
+): Promise<void> {
+  const project = workspaceState.projects.find(({ id }) => id === projectId);
+  if (!project) return;
+  try {
+    const id = await createConversationForProject(project, profile);
+    const target = { kind: "pending-conversation", id, projectId } as const;
+    const drafts = conversationDraftStore();
+    const current = drafts.getPrompt(target);
+    drafts.setPrompt(
+      target,
+      current.trim() ? `${current}\n\n${prompt}` : prompt,
+    );
+  } catch (error) {
+    reportConversationCreationError(error);
+  }
 }
 
 export async function createConversationForDirectory(

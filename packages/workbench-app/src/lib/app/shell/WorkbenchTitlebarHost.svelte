@@ -10,6 +10,10 @@ import {
 } from "$lib/features/storage-upgrade";
 import SettingsHealthItem from "$lib/presentation/activity/SettingsHealthItem.svelte";
 import ProjectConfigurationHealthItem from "$lib/presentation/activity/ProjectConfigurationHealthItem.svelte";
+import ConfigurationAttentionItem from "$lib/presentation/activity/ConfigurationAttentionItem.svelte";
+import { askAgentPrompt } from "$lib/application/configuration-attention/configuration-attention";
+import { configurationAttention } from "$lib/application/configuration-attention/configuration-attention-state.svelte";
+import { attentionRows } from "$lib/app/shell/configuration-attention-rows";
 import { projectConfigurationHealth } from "$lib/application/project-configuration/project-configuration-health-state.svelte";
 import { settingsHealth } from "$lib/application/settings/settings-health-state.svelte";
 import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
@@ -58,7 +62,10 @@ import {
   workspaceSelectors,
   workspaceState,
 } from "$lib/application/workspace";
-import { openConversation } from "$lib/application/workspace/workspace-actions.svelte";
+import {
+  newConversationWithPrompt,
+  openConversation,
+} from "$lib/application/workspace/workspace-actions.svelte";
 import {
   sidebarConversations,
   pruneProjectConversationsAndRefresh,
@@ -116,6 +123,38 @@ function clearFinished(): void {
 }
 const projectIssues = $derived(
   Object.values(projectConfigurationHealth.byProject).flat(),
+);
+const attentionEntries = $derived(configurationAttention.entries);
+const attentionProjectId = $derived(configurationAttention.projectId);
+const attentionRowItems = $derived(
+  attentionRows(attentionEntries, {
+    projectId: attentionProjectId,
+    onOpenTarget: (target) => {
+      activityInbox.setOpen(false);
+      const options = target.item ? { item: target.item } : {};
+      if (target.scope === "project" && attentionProjectId)
+        void openProjectSettingsPane(
+          attentionProjectId,
+          target.pageId,
+          options,
+        );
+      else void openSettingsPane(target.pageId, options);
+    },
+    // The agent works from the item's diagnostics; the conversation grants nothing.
+    onAskAgent: (entry) => {
+      activityInbox.setOpen(false);
+      if (attentionProjectId)
+        void newConversationWithPrompt(
+          attentionProjectId,
+          "forge",
+          askAgentPrompt(entry),
+        );
+    },
+    onOpenFile: (path) => {
+      activityInbox.setOpen(false);
+      void configurationAttention.openFile(path);
+    },
+  }),
 );
 const newConversationShortcut = getShortcutLabel("conversation.new");
 
@@ -259,6 +298,9 @@ $effect(() => {
   {#if settingsHealth.notice.health.invalid.length || settingsHealth.notice.error}
     {@render settingsHealthItem()}
   {/if}
+  {#if attentionRowItems.length}
+    <ConfigurationAttentionItem rows={attentionRowItems} />
+  {/if}
   {#if projectIssues.length}
     <ProjectConfigurationHealthItem
       issues={projectIssues}
@@ -318,6 +360,7 @@ $effect(() => {
       attention={settingsHealth.notice.health.invalid.length ||
       settingsHealth.notice.error ||
       projectIssues.length ||
+      attentionRowItems.length ||
       hasUpgradeReports()
         ? attentionItems
         : undefined}

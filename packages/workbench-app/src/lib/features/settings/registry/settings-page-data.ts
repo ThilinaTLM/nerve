@@ -171,7 +171,8 @@ const projectPages: Record<string, PageData> = {
       "Overrides for this project. Anything left unset follows your user settings.",
   },
   tools,
-  skills,
+  // A project skill opens its review page; user skills have none.
+  skills: { ...skills, detail: { param: "skill" } },
   extensions: {
     ...extensions,
     description:

@@ -14,7 +14,13 @@ Row titles are `text-ui` regular foreground and all supporting text is `text-cap
 
 ## Navigation
 
-`SettingsNav` takes `SettingsNavGroup[]` (optional `GroupLabel` caption: `text-caption text-muted-foreground`, no hover or icon; items `text-ui` with a lucide icon, muted until active) and a `SettingsScopeHeader` (User settings, or project name and path) separated by a rule. The active item is `bg-selected`, a persistent state that should not depend on the quiet fills. Never reuse a group title as an item name.
+`SettingsNav` takes `SettingsNavGroup[]` (optional `GroupLabel` caption: `text-caption text-muted-foreground`, no hover or icon; items `text-ui` with a lucide icon, muted until active) and a `SettingsScopeHeader`, separated by a rule. Never reuse a group title as an item name. The active item is `bg-selected`, a persistent state that should not depend on the quiet fills.
+
+### Scopes and what needs you
+
+The scope header lists "Your settings" and, with an open project, the project as two `SelectRow`s; the selected one is the scope of the open tab. The project row carries a warning `Badge` with the count of project items that need the user (waiting for review, or not working), read from `configuration.attention`; warnings never count. A nav row shows the same kind of count for its page (`SettingsNavBadge`, `warning`); it takes the place of the project-differs count (`info`) on that row. The gear keeps opening user settings.
+
+A user page whose project counterpart has content ends with an "In this project" section (`SettingsSection` + one `SettingsItem`) that opens the project page of the same id: Skills and Extensions show what the project has; Agents, Sub-Agents, Permission rules and Suggestions appear when the project has items there that need the user. The section is absent without an open project or when the project has nothing there. The bell's "Review" opens the item in the scope that holds it.
 
 ## Sections are surfaces
 
@@ -39,6 +45,10 @@ Row actions are `IconAction`s, which require a label and supply the tooltip and 
 ### List → inner page
 
 Anything with more to show than a row (an extension, a permission rule set, a prompt suggestion) opens an **inner page**, never an in-place expansion: the row is a plain `SettingsItem` with a chevron and its summary on the status line. A page opts in by declaring `detail` in the registry (`settings-page-data.ts`); the shell then tracks the open item, restores the list's scroll on back, and Escape returns to the list. The page renders its own `SettingsPageHeader` with `parent` set, so the title becomes a breadcrumb (`Permission rules › Name`) in the same box as the list header, with the item's description and its page actions (an enable switch) in the actions slot; nothing moves vertically and the heading takes focus on open. The detail's body is ordinary `SettingsSection`s. A list that has nothing more to show (storage categories) opens nothing. Compact lists without identity (shortcuts, devices, activity) use `SettingsItem` without an icon.
+
+### Project skill review
+
+Project settings › Skills lists the project's skills with their approval: a skill that waits shows "Waiting for your review" or "Changed since you approved it" as its problem line with a Review action, and no switch. Every project skill opens an inner page (`SkillReviewPage`, `detail` item `skill`) built from `SettingsSection`, `SettingsList` and `Callout`: what the agent is told (name and description), then the files the approval covers with scripts marked, each opening in a file tab; `SKILL.md` is not inlined. The header action is Approve (Approve changes after a change) or, for an approved skill, Withdraw approval; both are `trust.decide` decisions on the digest the page showed, and if the files changed while the page was open it reloads and says so instead of approving. User-scope and built-in skills have no approval UI. Rules: [trust](../architecture/trust.md).
 
 ## Entity cards
 

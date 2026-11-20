@@ -17,6 +17,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import { skillApprovalProblem } from "$lib/application/skills/skill-review";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
   SettingsChangeIndicator,
@@ -41,12 +42,15 @@ let {
   projectId,
   skills = [],
   error: catalogError,
+  onOpenItem,
 }: {
   scope: "user" | "project";
   projectId?: string;
   skills?: AvailableSkill[];
   loading?: boolean;
   error?: string;
+  /** Opens a project skill's review page. */
+  onOpenItem?: (name: string) => void;
 } = $props();
 const editor = new ScopedAgentState();
 $effect(() => {
@@ -145,6 +149,9 @@ function clearAllOrphans() {
 function copyPath(path: string) {
   void writeClipboardText(path);
 }
+/** A project skill opens its review page; user and built-in skills have none. */
+const reviewable = (entry: SkillEntry) =>
+  scope === "project" && entry.source === "project" && !!onOpenItem;
 function onRetry() {
   return editor.reload();
 }
@@ -234,7 +241,18 @@ function onRetry() {
             icon={skillSourceIcons[entry.source]}
             summary={entry.skill.description || entry.skill.filePath}
             mono={!entry.skill.description}
-            checked={entry.enabled}
+            problem={skillApprovalProblem(entry.skill.approval)}
+            problemAction={entry.skill.approval
+              ? {
+                  label: "Review",
+                  onclick: () => onOpenItem?.(entry.skill.name),
+                }
+              : undefined}
+            onOpen={reviewable(entry)
+              ? () => onOpenItem?.(entry.skill.name)
+              : undefined}
+            openLabel={`Review ${entry.skill.name}`}
+            checked={entry.skill.approval ? undefined : entry.enabled}
             disabled={locked}
             switchLabel={scope === "user"
               ? `Enable ${entry.skill.name} skill`
