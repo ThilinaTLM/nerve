@@ -1,5 +1,5 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import type { AgentMessage } from "../agent/contracts/index.js";
+import type { AgentMessage } from "../messages/messages.js";
 import { ConversationError } from "../errors.js";
 import type { ConversationContext } from "./context.js";
 import type {

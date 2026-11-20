@@ -1,8 +1,17 @@
 import type { ExecutionEnv } from "../environment/contracts.js";
-import type { PromptTemplate } from "../harness/configuration/options.js";
 import { basenameEnvPath } from "../paths.js";
 import { resolveKind } from "./resolve-kind.js";
 import { parseFrontmatter } from "./skills/parser.js";
+
+/** Prompt template that can be formatted into a prompt for explicit invocation. */
+export interface PromptTemplate {
+  /** Stable template name used for lookup or application command routing. */
+  name: string;
+  /** Optional description for command lists or autocomplete. */
+  description?: string;
+  /** Template content. Argument placeholders are formatted by `formatPromptTemplateInvocation`. */
+  content: string;
+}
 
 export type PromptTemplateDiagnosticCode =
   | "file_info_failed"

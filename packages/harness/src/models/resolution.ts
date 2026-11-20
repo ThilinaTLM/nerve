@@ -4,7 +4,7 @@ import {
   fauxAssistantMessage,
   getSupportedThinkingLevels,
 } from "@earendil-works/pi-ai";
-import type { ThinkingLevel } from "../agent/contracts/index.js";
+import type { ThinkingLevel } from "./model-contracts.js";
 import {
   ensureProviderForModel,
   getBuiltinProviderIds,

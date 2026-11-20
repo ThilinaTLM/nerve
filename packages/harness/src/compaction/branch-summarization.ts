@@ -1,10 +1,10 @@
 import { completeSimpleWithModel } from "../models/model-streaming.js";
-import type { AgentMessage, AnyModel } from "../agent/contracts/index.js";
+import type { AnyModel } from "../models/model-contracts.js";
 import type { Conversation } from "../conversation/conversation.js";
 import type { ConversationTreeEntry } from "../conversation/entries.js";
 import { BranchSummaryError, ConversationError } from "../errors.js";
-import type { BranchSummaryResult } from "../harness/lifecycle/events.js";
 import {
+  type AgentMessage,
   convertToLlm,
   createBranchSummaryMessage,
   createCompactionSummaryMessage,
@@ -50,6 +50,12 @@ export interface CollectEntriesResult {
 }
 
 /** Options for generating a branch summary. */
+export interface BranchSummaryResult {
+  summary: string;
+  readFiles: string[];
+  modifiedFiles: string[];
+}
+
 export interface GenerateBranchSummaryOptions {
   /** Model used for summarization. */
   model: AnyModel;

@@ -1,4 +1,4 @@
-import type { AgentMessage } from "../agent/contracts/index.js";
+import type { AgentMessage } from "../messages/messages.js";
 
 export interface FileOperations {
   read: Set<string>;

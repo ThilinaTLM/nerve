@@ -9,7 +9,7 @@ import {
 } from "../../src/compaction/compaction.js";
 import { buildConversationContext } from "../../src/conversation/conversation.js";
 import type { ConversationTreeEntry } from "../../src/conversation/entries.js";
-import type { AgentMessage } from "../../src/agent/contracts/index.js";
+import type { AgentMessage } from "../../src/messages/messages.js";
 
 const contextWindow = 200_000;
 const timestamp = "2026-01-01T00:00:00.000Z";

@@ -2,7 +2,7 @@
   "name": "@nervekit/harness",
   "version": "0.41.1",
   "private": true,
-  "description": "Reusable model, harness, and agent loop runtime.",
+  "description": "Reusable model, message, compaction, conversation tree and resource library.",
   "author": "ThilinaTLM",
   "license": "Apache-2.0",
   "type": "module",
@@ -25,10 +25,6 @@
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
-    },
-    "./agent": {
-      "types": "./dist/agent/index.d.ts",
-      "import": "./dist/agent/index.js"
     },
     "./models": {
       "types": "./dist/models/index.d.ts",

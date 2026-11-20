@@ -1,5 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { AgentMessage } from "../../src/agent/contracts/index.js";
+import type { AgentMessage } from "../../src/messages/messages.js";
 import type { ConversationTreeEntry } from "../../src/conversation/entries.js";
 
 export const timestamp = "2026-01-01T00:00:00.000Z";

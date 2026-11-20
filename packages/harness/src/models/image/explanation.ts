@@ -1,5 +1,5 @@
 import type { Api, ImageContent, Model } from "@earendil-works/pi-ai";
-import type { ThinkingLevel } from "../../agent/contracts/index.js";
+import type { ThinkingLevel } from "../model-contracts.js";
 import { normalizeImagesForModel } from "./normalization.js";
 import { streamSimpleWithModel } from "../model-streaming.js";
 

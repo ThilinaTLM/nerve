@@ -1,11 +1,7 @@
 import type { AnchorOverflow } from "@nervekit/contracts/core";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { streamSimpleWithModel } from "../models/model-streaming.js";
-import type {
-  AgentMessage,
-  AnyModel,
-  ThinkingLevel,
-} from "../agent/contracts/index.js";
+import type { AnyModel, ThinkingLevel } from "../models/model-contracts.js";
 import { buildConversationContext } from "../conversation/conversation.js";
 import type {
   CompactionEntry,
@@ -13,6 +9,7 @@ import type {
 } from "../conversation/entries.js";
 import { CompactionError } from "../errors.js";
 import {
+  type AgentMessage,
   convertToLlm,
   createBranchSummaryMessage,
   createCompactionSummaryMessage,

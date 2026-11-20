@@ -57,7 +57,6 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
     "@nervekit/harness": [
       ".",
       "./node",
-      "./agent",
       "./models",
       "./conversation",
       "./compaction",

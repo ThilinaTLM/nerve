@@ -1,6 +1,6 @@
 import ignore from "ignore";
 import type { ExecutionEnv } from "../../environment/contracts.js";
-import type { Skill } from "../../harness/configuration/options.js";
+import type { Skill } from "./skill.js";
 import {
   basenameEnvPath,
   dirnameEnvPath,

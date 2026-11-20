@@ -1,4 +1,21 @@
-import type { ThinkingLevel } from "../agent/contracts/index.js";
+import type { Api, Model } from "@earendil-works/pi-ai";
+
+/** Provider-agnostic model supported by the runtime. */
+export type AnyModel = Model<Api>;
+
+/**
+ * Thinking/reasoning level for models that support it.
+ * Note: "xhigh" and "max" are only supported by selected model families. Use model
+ * thinking-level metadata from @earendil-works/pi-ai to detect support for a concrete model.
+ */
+export type ThinkingLevel =
+  | "off"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
 
 export interface AgentModelSelection {
   provider: string;

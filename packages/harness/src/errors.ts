@@ -106,25 +106,3 @@ export class ConversationError extends Error {
     this.code = code;
   }
 }
-
-export type AgentHarnessErrorCode =
-  | "busy"
-  | "invalid_state"
-  | "invalid_argument"
-  | "conversation"
-  | "hook"
-  | "auth"
-  | "compaction"
-  | "branch_summary"
-  | "unknown";
-
-/** Public AgentHarness failure with a stable top-level classification. */
-export class AgentHarnessError extends Error {
-  public code: AgentHarnessErrorCode;
-
-  constructor(code: AgentHarnessErrorCode, message: string, cause?: Error) {
-    super(message, cause === undefined ? undefined : { cause });
-    this.name = "AgentHarnessError";
-    this.code = code;
-  }
-}

@@ -1,5 +1,5 @@
 import type { CheckpointDetails } from "@nervekit/contracts/core";
-import type { AgentMessage } from "../agent/contracts/index.js";
+import type { AgentMessage } from "../messages/messages.js";
 import {
   createBranchSummaryMessage,
   createCompactionSummaryMessage,
