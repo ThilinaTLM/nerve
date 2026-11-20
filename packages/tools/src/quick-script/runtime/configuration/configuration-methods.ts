@@ -1,6 +1,7 @@
 import { codedError } from "../errors.js";
 import { defineMethod } from "../sdk-args.js";
 import type { SdkMethod } from "../sdk-types.js";
+import type { ConfigurationListFilter } from "./configuration-port.js";
 
 function port(env: Parameters<SdkMethod["prepare"]>[1]) {
   const agent = env.context.configurationAgent;
@@ -30,11 +31,69 @@ const COVERS =
 export const configurationMethods: SdkMethod[] = [
   defineMethod({
     product: "configuration",
+    path: "describe",
+    risk: "none",
+    options: [],
+    signature:
+      "/** This conversation's context: project directory, Nerve home, the selected rule set and what selected it, the model, the applied profile with the settings it locks, and the models a setting may name. Call it before changing permissions or profiles. */ describe(): Promise<ConfigurationDescription>",
+    parse: () => undefined,
+    resource: () => "configuration",
+    run: async (_input, env) => await port(env).describe(),
+  }),
+  defineMethod({
+    product: "configuration",
+    path: "list",
+    risk: "none",
+    options: ["kind", "scope", "state"],
+    signature:
+      '/** Everything configured, after precedence: profiles, rule sets, overlays, launch catalog, skills, prompt suggestions, extensions; built-in, user and this project. Filter with any of kind, scope, state, e.g. `{ kind: "rule-set" }` for the ids a profile may select, `{ state: "needs_approval" }` for what waits for the user, `{ kind: "extension", state: "incompatible" }` after an update. Reads loaded state; `check` reads the disk. */ list(filter?: { kind?: ConfigurationResource["kind"]; scope?: ConfigurationResource["scope"]; state?: ConfigurationResource["state"] }): Promise<ConfigurationResult>',
+    parse: (options): ConfigurationListFilter => {
+      for (const key of ["kind", "scope", "state"] as const)
+        if (options[key] !== undefined && typeof options[key] !== "string")
+          throw new Error(`${key} must be a string.`);
+      return options;
+    },
+    resource: () => "configuration",
+    run: async (filter, env) => await port(env).list(filter),
+  }),
+  defineMethod({
+    product: "configuration",
+    path: "tools.list",
+    risk: "none",
+    options: [],
+    signature:
+      "/** Every tool as permission rules match it: exact name, kind, groups, base risk, primary arguments and the extension that contributes it. Take names for `toolNames` and `toolGroups` from here, never from memory: they are case-sensitive. */ list(): Promise<{ tools: ConfigurationTool[] }>",
+    parse: () => undefined,
+    resource: () => "configuration",
+    run: async (_input, env) => await port(env).tools(),
+  }),
+  defineMethod({
+    product: "configuration",
+    path: "explain",
+    risk: "none",
+    options: ["tool", "args"],
+    signature:
+      '/** What the active policy decides for one call in this conversation, and which rule decides it. Never runs the call. Use it to answer "why was that prompted?" and to verify a rule after `reload`, e.g. `{ tool: "bash", args: { command: "pnpm test" } }`. For a script, pass `{ tool: "quick_script", args: { code } }`. */ explain(call: { tool: string; args?: Record<string, unknown> }): Promise<ConfigurationExplanation>',
+    parse: (options) => {
+      const { tool, args = {} } = options;
+      if (typeof tool !== "string" || tool.length === 0)
+        throw new Error(
+          "tool must be a tool name; see configuration.tools.list().",
+        );
+      if (typeof args !== "object" || args === null || Array.isArray(args))
+        throw new Error("args must be an object.");
+      return { tool, args: args as Record<string, unknown> };
+    },
+    resource: (call) => call.tool,
+    run: async (call, env) => await port(env).explain(call),
+  }),
+  defineMethod({
+    product: "configuration",
     path: "check",
     risk: "none",
     bare: "scope",
     options: ["scope"],
-    signature: `/** Validate the scope's configuration files as they are on disk ("project" is this conversation's project): ${COVERS}. Changes nothing, so call it after every edit and before \`reload\`. Returns the resources that have a diagnostic; empty means every file is valid. */ check(scope: ${SCOPE}): Promise<ConfigurationResult>`,
+    signature: `/** Validate the scope's configuration files as they are on disk ("project" is this conversation's project): ${COVERS}. Changes nothing, so call it after every edit and before \`reload\`. Returns only the resources that have a diagnostic; empty means every file is valid. */ check(scope: ${SCOPE}): Promise<ConfigurationResult>`,
     parse: (options) => parseScope(options),
     resource: (scope) => `${scope} configuration`,
     run: async (scope, env) => await port(env).check(scope),

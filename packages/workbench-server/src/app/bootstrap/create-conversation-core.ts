@@ -313,12 +313,13 @@ export function createConversationCore(
             ? {
                 configurationAgent: createConfigurationAgentPort({
                   registry: configurationResources,
-                  projectId: resources.projectId,
-                  projectDirectory:
-                    agentConfiguration.paths.locations.projectDirectory(
-                      resources.projectId,
-                    ),
+                  agentConfiguration,
+                  policy: admissionPolicy,
+                  home: deps.storage.paths.home,
                   conversationId: input.conversationId,
+                  projectDirectory: input.projectDir ?? input.cwd,
+                  cwd: input.cwd,
+                  availableModels: () => deps.providerCatalog.resolvedModels(),
                 }),
                 launchesAgent: createLaunchesAgentPort({
                   definitions: launchServices.definitions,

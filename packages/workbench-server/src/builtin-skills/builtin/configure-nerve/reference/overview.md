@@ -39,6 +39,17 @@ Some project files can run code or widen what agents may do, so Nerve uses them 
 
 Any edit to such a file, including yours, withdraws the approval until the user approves the new content. Until then the file is ignored (overlays) or unavailable (profiles). User-scope files need no trust. Skills and launch definitions need no trust.
 
+## See what is in effect
+
+Ask Nerve instead of inferring from files. In `quick_script`:
+
+| Call                                            | Gives                                                                                                                                                                                                      |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `configuration.describe()`                      | Project directory, `<home>`, the selected rule set and what selected it, the model, the applied profile and the settings it locks, the models a setting may name.                                          |
+| `configuration.list({ kind?, scope?, state? })` | Everything configured after precedence: profiles, rule sets, overlays, the launch catalog, skills, prompt suggestions, extensions, with `state`. `{ state: "needs_approval" }` is what waits for the user. |
+| `configuration.tools.list()`                    | Every tool as rules match it: exact name, groups, base risk, primary arguments. Take `toolNames` and `toolGroups` from here; they are case-sensitive.                                                      |
+| `configuration.explain({ tool, args })`         | The decision the active policy gives that call and the rule that decides. Runs nothing.                                                                                                                    |
+
 ## Apply changes
 
 Nerve does not watch files. After you edit configuration by hand:

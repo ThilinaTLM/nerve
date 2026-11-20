@@ -38,6 +38,9 @@ export {
 } from "./tool.js";
 export type {
   ConfigurationAgentPort,
+  ConfigurationDescription,
+  ConfigurationExplanation,
+  ConfigurationTool,
   ConfigurationAgentResult,
   ConfigurationAgentScope,
 } from "./runtime/configuration/configuration-port.js";

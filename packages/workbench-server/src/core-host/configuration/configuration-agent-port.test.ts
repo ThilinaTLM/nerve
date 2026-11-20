@@ -57,9 +57,13 @@ async function setup(t: test.TestContext) {
   });
   const port = createConfigurationAgentPort({
     registry,
-    projectId: "p",
-    projectDirectory: project,
+    agentConfiguration: service,
+    policy,
+    home,
     conversationId: "c",
+    projectDirectory: project,
+    cwd: project,
+    availableModels: () => [{ provider: "openai", modelId: "gpt" }],
   });
   return {
     home,

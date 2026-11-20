@@ -26,6 +26,10 @@ export const SAMPLES: Record<string, unknown[][]> = {
   "extensions.status": [["csv-viewer"]],
   "configuration.reload": [["project"], [{ scope: "user" }]],
   "configuration.check": [["user"]],
+  "configuration.describe": [[]],
+  "configuration.list": [[], [{ kind: "rule-set" }]],
+  "configuration.tools.list": [[]],
+  "configuration.explain": [[{ tool: "bash", args: { command: "ls" } }]],
   "launches.list": [[]],
   "launches.create": [
     [{ command: "pnpm dev" }],

@@ -6,6 +6,10 @@ import type {
   ConfigurationResourceRegistry,
   ResourceContext,
 } from "./resource-registry.js";
+import {
+  createConversationView,
+  type ConversationViewOptions,
+} from "./conversation-view.js";
 
 /**
  * The `configuration.*` quick_script namespace for one conversation: validates the files an agent
@@ -13,22 +17,45 @@ import type {
  * never grants trust. Each owner validates its own resources through its provider; this port adds
  * no validation of its own.
  */
-export function createConfigurationAgentPort(options: {
-  registry: ConfigurationResourceRegistry;
-  /** The conversation's project, which the scope `"project"` names. */
-  projectId: string;
-  projectDirectory: string | undefined;
-  conversationId: string;
-}): ConfigurationAgentPort {
+export function createConfigurationAgentPort(
+  options: ConversationViewOptions & {
+    registry: ConfigurationResourceRegistry;
+  },
+): ConfigurationAgentPort {
+  const projectId =
+    options.agentConfiguration.paths.locations.conversationOwner(
+      options.conversationId,
+    ).projectId;
   const context = (scope: ConfigurationAgentScope): ResourceContext => ({
     scope,
-    projectId: options.projectId,
-    ...(options.projectDirectory
-      ? { projectDirectory: options.projectDirectory }
-      : {}),
+    projectId,
+    projectDirectory: options.projectDirectory,
     conversationId: options.conversationId,
   });
   return {
+    // `describe`, `tools` and `explain` read this conversation rather than files.
+    ...createConversationView(options),
+    async list(filter) {
+      const scopes: ConfigurationAgentScope[] =
+        filter.scope === "project"
+          ? ["project"]
+          : filter.scope === undefined
+            ? ["user", "project"]
+            : ["user"];
+      const found = (
+        await Promise.all(
+          scopes.map((scope) => options.registry.list(context(scope))),
+        )
+      ).flat();
+      return {
+        resources: found.filter(
+          (resource) =>
+            (filter.kind === undefined || resource.kind === filter.kind) &&
+            (filter.scope === undefined || resource.scope === filter.scope) &&
+            (filter.state === undefined || resource.state === filter.state),
+        ),
+      };
+    },
     check: async (scope) => ({
       resources: await options.registry.check(context(scope)),
     }),

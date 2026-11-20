@@ -25,6 +25,48 @@ interface ConfigurationResource {
   diagnostics: ConfigurationDiagnostic[];
 }
 interface ConfigurationResult {
-  /** Only resources with a diagnostic. Empty means every file of the scope is valid. */
   resources: ConfigurationResource[];
+}
+interface ConfigurationOrigin {
+  /** "builtin", "user", "project", "conversation", or a profile's "recommendation" / "requirement". */
+  source: string;
+  profile?: string;
+}
+interface ConfigurationDescription {
+  conversationId: string;
+  role: "lead" | "child";
+  projectDirectory: string;
+  /** The Nerve home: <home> in the configure-nerve skill. */
+  home: string;
+  /** The rule set deciding this conversation's tool calls. Overlays apply only to it. */
+  ruleSet?: { id: string; selectedBy?: ConfigurationOrigin };
+  model?: { provider: string; modelId: string; selectedBy?: ConfigurationOrigin };
+  /** The applied profile. Its requirements win over every file. */
+  profile?: { name: string; source: string; requirements: unknown };
+  /** Values valid for a \`model\` setting. */
+  availableModels: { provider: string; modelId: string }[];
+  problem?: string;
+}
+interface ConfigurationTool {
+  /** Exact, case-sensitive name for a rule's toolNames. */
+  name: string;
+  kind: string;
+  /** For toolGroups. */
+  groups: string[];
+  /** For baseRisks. "unknown": the risk depends on the arguments. */
+  baseRisk: string;
+  /** What primaryArgument matches: the first of these arguments that is present. */
+  primaryArguments: string[];
+  targetKinds: string[];
+  extension?: string;
+}
+interface ConfigurationExplanation {
+  /** "blocked": the policy cannot be evaluated; see reason. */
+  decision: "allow" | "prompt" | "deny" | "blocked";
+  reason?: string;
+  effectiveRisk?: string;
+  /** The rule that decided, with where it comes from. */
+  rule?: unknown;
+  ruleSetId?: string;
+  operations?: unknown;
 }`;

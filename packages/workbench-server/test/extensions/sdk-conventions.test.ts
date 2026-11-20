@@ -28,6 +28,8 @@ const OTHER_NAMES: Record<string, string> = {
   "atlassian.defaults": "the configured sites, project and space",
   "configuration.reload": "re-reads files; changes nothing",
   "configuration.check": "validates files; changes nothing",
+  "configuration.explain": "evaluates the policy; runs nothing",
+  "configuration.describe": "the conversation's own context, not a resource",
   "confluence.comments.reply": "Confluence's word for a child comment",
   "confluence.comments.resolve": "Confluence's action on an inline comment",
   "confluence.pages.move": "Confluence's action",
