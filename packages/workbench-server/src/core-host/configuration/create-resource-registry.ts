@@ -9,6 +9,7 @@ import { extensionProvider } from "./providers/extension-provider.js";
 import { launchProvider } from "./providers/launch-provider.js";
 import { permissionProvider } from "./providers/permission-provider.js";
 import { skillProvider } from "./providers/skill-provider.js";
+import { createProjectSkillTrust } from "../resources/project-skill-trust.js";
 import { ConfigurationResourceRegistry } from "./resource-registry.js";
 
 /**
@@ -44,6 +45,7 @@ export function createResourceRegistry(options: {
     skillProvider({
       storageHome: options.home,
       builtin: options.builtinSkills,
+      trust: createProjectSkillTrust(options.trustedResources),
     }),
   );
   registry.register(extensionProvider({ catalog: options.extensionCatalog }));

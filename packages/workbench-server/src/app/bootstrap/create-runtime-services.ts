@@ -1,3 +1,4 @@
+import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import { promptSuggestionProvider } from "../../core-host/configuration/providers/prompt-suggestion-provider.js";
 import { consentSourcesOf } from "../../core-host/extensions/extension-catalog/extension-consent.js";
@@ -421,6 +422,10 @@ export function createRuntimeServices(deps: RuntimeDeps) {
               storageHome: storage.paths.home,
               nerveSkills: deps.nerveSkills.skills,
               agentBrowserSkills: deps.agentBrowserSkills.skills,
+              projectSkills: {
+                trust: createProjectSkillTrust(conversationCore.trust),
+                projectId: scope.projectId,
+              },
             })
           ).skills,
         launches: () => launches.list(),
@@ -452,6 +457,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,
+    configurationResources,
     coreStorage,
     launches,
     launchDefinitions,

@@ -9,6 +9,7 @@ import type {
 } from "@nervekit/contracts/skills";
 import { loadSkills, type Skill } from "@nervekit/harness/resources";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
+import type { ProjectSkillTrust } from "./project-skill-trust.js";
 import { resolveDataDir } from "../../infrastructure/storage-bootstrap/paths.js";
 
 const NERVE_DIR_NAME = ".nerve";
@@ -31,6 +32,24 @@ export interface LoadHarnessResourcesOptions {
   nerveSkills?: readonly Skill[];
   enabledAgentBrowserSkillNames?: readonly string[];
   agentBrowserSkills?: readonly Skill[];
+  /**
+   * Approval of project skills. With it, a project skill the user has not approved (or whose
+   * files changed since) is not loaded. Every host caller passes it; only standalone use omits it.
+   */
+  projectSkills?: ProjectSkillGate;
+}
+
+export type ProjectSkillGate = { trust: ProjectSkillTrust; projectId: string };
+
+async function approvedOnly(
+  skills: readonly Skill[],
+  gate: ProjectSkillGate | undefined,
+): Promise<Skill[]> {
+  if (!gate) return [...skills];
+  const statuses = await Promise.all(
+    skills.map((skill) => gate.trust.status(gate.projectId, skill)),
+  );
+  return skills.filter((_, index) => statuses[index] === "approved");
 }
 
 interface DiscoveredSkillGroups {
@@ -52,7 +71,16 @@ export async function loadHarnessResources(
     discoverSkillGroups(env, projectDir, agentDir),
     loadAppendSystemPrompt(projectDir),
   ]);
-  const skills = effectiveSkills(skillGroups, options);
+  const skills = effectiveSkills(
+    {
+      ...skillGroups,
+      projectSkills: await approvedOnly(
+        skillGroups.projectSkills,
+        options.projectSkills,
+      ),
+    },
+    options,
+  );
 
   return { contextFiles, skills, appendSystemPrompt };
 }
@@ -96,7 +124,7 @@ export async function listAvailableSkills(
   cwd: string | undefined,
   options: Pick<
     LoadHarnessResourcesOptions,
-    "storageHome" | "nerveSkills" | "agentBrowserSkills"
+    "storageHome" | "nerveSkills" | "agentBrowserSkills" | "projectSkills"
   > = {},
 ): Promise<AvailableSkillsResponse> {
   const agentDir = join(resolveDataDir(options.storageHome), "agent");
@@ -111,9 +139,21 @@ export async function listAvailableSkills(
       filePath,
       source,
     });
+  const gate = options.projectSkills;
+  const projectSkills = await Promise.all(
+    groups.projectSkills.map(async (skill): Promise<AvailableSkill> => {
+      const status = gate
+        ? await gate.trust.status(gate.projectId, skill)
+        : "approved";
+      return {
+        ...toMetadata("project")(skill),
+        ...(status === "approved" ? {} : { approval: status }),
+      };
+    }),
+  );
   return {
     skills: [
-      ...groups.projectSkills.map(toMetadata("project")),
+      ...projectSkills,
       ...groups.userSkills.map(toMetadata("user")),
       ...(options.nerveSkills ?? []).map(toMetadata("nerve")),
       ...(options.agentBrowserSkills ?? []).map(toMetadata("agentBrowser")),

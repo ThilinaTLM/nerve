@@ -1,5 +1,6 @@
 import { consentSourcesOf } from "../../core-host/extensions/extension-catalog/extension-consent.js";
 import { toTrustedDigest } from "@nervekit/contracts/core";
+import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
 import { createConversationTitles } from "./create-conversation-titles.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
 import {
@@ -623,6 +624,7 @@ export function createConversationCore(
       tools: tools.definitions,
       nerveSkills: () => deps.nerveSkills.skills,
       agentBrowserSkills: () => deps.agentBrowserSkills.skills,
+      projectSkillTrust: createProjectSkillTrust(storage.trustedResources),
       hasChildren: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
       registry: (projectDir) => extensionCatalog.registryFor(projectDir),

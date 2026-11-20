@@ -24,23 +24,25 @@ Some resources run code or widen authority when Nerve loads them: project permis
 
 ## Kinds
 
-| Kind                   | Resource                                                    | Digest covers                                   | `grants`               | Decided in                      |
-| ---------------------- | ----------------------------------------------------------- | ----------------------------------------------- | ---------------------- | ------------------------------- |
-| `project_permissions`  | `.nerve/config/permissions.json`                            | Exact file bytes                                | —                      | Settings → This project → Trust |
-| `project_capabilities` | `.nerve/config/agent.json`, capabilities, `extensions.json` | Exact file bytes                                | —                      | Settings → This project → Trust |
-| `agent_profile`        | `.nerve/agent-profiles/*`                                   | Exact file bytes                                | —                      | Settings → This project → Trust |
-| `prompt_suggestion`    | A suggestion's `enable-js` predicate (user or project)      | The predicate source                            | —                      | Settings → Suggestions          |
-| `extension`            | An installed extension folder (user or project)             | Every file in `dist/`, by relative path, sorted | Grant snapshot (below) | Settings → Extensions           |
+| Kind                   | Resource                                                                                                  | Digest covers                                                                                   | `grants`               | Decided in                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------- |
+| `project_permissions`  | `.nerve/config/permissions.json`                                                                          | Exact file bytes                                                                                | —                      | Settings → This project → Trust |
+| `project_capabilities` | `.nerve/config/agent.json`, capabilities, `extensions.json`                                               | Exact file bytes                                                                                | —                      | Settings → This project → Trust |
+| `agent_profile`        | `.nerve/agent-profiles/*`                                                                                 | Exact file bytes                                                                                | —                      | Settings → This project → Trust |
+| `prompt_suggestion`    | A suggestion's `enable-js` predicate (user or project)                                                    | The predicate source                                                                            | —                      | Settings → Suggestions          |
+| `project_skill`        | A project skill folder (`.nerve/skills/<name>`, `.agents/skills/<name>` in the project and its ancestors) | Every file of the folder the skill loader does not ignore, by relative path, in code-unit order | —                      | Project settings → Skills       |
+| `extension`            | An installed extension folder (user or project)                                                           | Every file in `dist/`, by relative path, sorted                                                 | Grant snapshot (below) | Settings → Extensions           |
 
 Extension consent is the one decision the generic `trust.decide` operation cannot grant: it only withdraws it (`rejected`), because consent must name the content hash the user reviewed (`extensions.grantConsent`). A rejected extension is treated as pending review, never silently allowed again, and its row stays so Settings → This project → Trust can list it. Removing a row (`trust.delete`) only returns a resource to unknown.
 
-Skills are not trusted resources: they are instructions, not code or authority, and the [resources reference](../../packages/website/src/content/docs/reference/resources.md) tells users to review repository-controlled ones.
+**Project skills.** A skill is instructions, but its folder can hold scripts the skill tells the agent to run, and a repository is an untrusted source. So a project skill is advertised to the agent and can be applied only while the exact content of its folder is approved ([`project-skill-trust.ts`](../../packages/workbench-server/src/core-host/resources/project-skill-trust.ts), enforced in the [resource loader](../../packages/workbench-server/src/core-host/resources/resource-loader.ts) on every turn). The review (`skill.review`) lists every file with scripts marked; the decision is an ordinary `trust.decide`. User and built-in skills need no approval: the user put them there. A skill the agent writes at project scope waits for the user like any other project file.
 
 ## When an approval stops applying
 
 | Resource                             | Needs approval again when                                                                    |
 | ------------------------------------ | -------------------------------------------------------------------------------------------- |
 | Project files and project extensions | Any content change. A repository is an untrusted source.                                     |
+| Project skills                       | Any change of any file in the skill folder.                                                  |
 | Prompt-suggestion predicates         | The predicate changes.                                                                       |
 | User extensions                      | The update adds a grant. A code-only change keeps the approval and updates `content_digest`. |
 

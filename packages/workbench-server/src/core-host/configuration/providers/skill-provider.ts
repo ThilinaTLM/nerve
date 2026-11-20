@@ -5,10 +5,18 @@ import type {
 } from "@nervekit/contracts/configuration";
 import type { Skill } from "@nervekit/harness/resources";
 import { discoverSkillFiles } from "../../resources/resource-loader.js";
-import type {
-  ConfigurationResourceProvider,
-  ResourceContext,
+import type { ProjectSkillTrust } from "../../resources/project-skill-trust.js";
+import {
+  approvalDiagnostic,
+  projectOf,
+  type ConfigurationResourceProvider,
+  type ResourceContext,
 } from "../resource-registry.js";
+
+const APPROVAL = {
+  kind: "trust",
+  where: "Project settings → Skills",
+} as const;
 
 const shadowed = (by: string): Diagnostic => ({
   level: "warning",
@@ -24,6 +32,8 @@ export function skillProvider(options: {
   storageHome: string;
   /** Skills that ship with Nerve (its own and the agent-browser ones). */
   builtin(): readonly Skill[];
+  /** Project skills wait for the user's approval of their exact content. */
+  trust: ProjectSkillTrust;
 }): ConfigurationResourceProvider {
   async function all(
     context: ResourceContext,
@@ -63,7 +73,31 @@ export function skillProvider(options: {
         diagnostics: by && scope !== "builtin" ? [shadowed(by)] : [],
       };
     };
-    const found = group.skills.map((skill) => resource(skill, context.scope));
+    const found = await Promise.all(
+      group.skills.map(async (skill) => {
+        const entry = resource(skill, context.scope);
+        if (context.scope !== "project" || entry.state !== "active")
+          return entry;
+        const status = await options.trust.status(projectOf(context), skill);
+        return status === "approved"
+          ? entry
+          : {
+              ...entry,
+              state: "needs_approval" as const,
+              approval: APPROVAL,
+              diagnostics: [
+                {
+                  ...approvalDiagnostic(APPROVAL),
+                  ...(status === "changed"
+                    ? {
+                        message: `Its files changed since the user approved it, so it is not used until they approve it again in ${APPROVAL.where}. You cannot approve it; tell the user.`,
+                      }
+                    : {}),
+                },
+              ],
+            };
+      }),
+    );
     // Loader diagnostics name a file; the folder is the skill.
     const byPath = new Map(found.map((entry) => [entry.path, entry]));
     for (const { path, ...diagnostic } of group.diagnostics) {

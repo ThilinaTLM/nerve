@@ -96,7 +96,7 @@ export function permissionProvider(options: {
       if (report.scope !== "project" || !report.contentDigest) return undefined;
       const row = options.trustedResources.find(
         "project_permissions",
-        context.projectId,
+        context.projectId ?? null,
         report.path,
       );
       return row?.status === "trusted" &&

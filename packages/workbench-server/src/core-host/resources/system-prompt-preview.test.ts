@@ -24,6 +24,7 @@ void test("turns use captured instructions without consulting their source templ
   try {
     await writeFile(join(project, "AGENTS.md"), "Initial project context");
     const prepare = scopedTurnResources({
+      projectSkillTrust: { status: async () => "approved" } as never,
       home: project,
       tools: async () => [requireToolDefinition("read")],
       nerveSkills: () => [],
@@ -75,6 +76,7 @@ void test("prompt preparation reads initialized and subsequently replaced skill 
     let nerveSkills: Skill[] = [];
     let browserSkills: Skill[] = [];
     const prepare = scopedTurnResources({
+      projectSkillTrust: { status: async () => "approved" } as never,
       home: project,
       tools: async () => [requireToolDefinition("read")],
       nerveSkills: () => nerveSkills,

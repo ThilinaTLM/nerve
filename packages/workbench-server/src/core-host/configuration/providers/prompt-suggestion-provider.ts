@@ -20,6 +20,8 @@ export function promptSuggestionProvider(options: {
   async function all(
     context: ResourceContext,
   ): Promise<ConfigurationResource[]> {
+    // Suggestions are listed for a project; with none open there is nothing to report.
+    if (!context.projectId) return [];
     const listing = await options.suggestions.listForProject(context.projectId);
     const found = listing.statuses
       .filter(

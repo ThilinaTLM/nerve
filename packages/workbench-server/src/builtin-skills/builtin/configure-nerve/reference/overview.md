@@ -37,7 +37,7 @@ Some project files can run code or widen what agents may do, so Nerve uses them 
 - project agent profiles (`.nerve/agent-profiles/*.json`);
 - project extensions, which also need consent in **Settings → Extensions**.
 
-Any edit to such a file, including yours, withdraws the approval until the user approves the new content. Until then the file is ignored (overlays) or unavailable (profiles). User-scope files need no trust. Skills and launch definitions need no trust.
+Any edit to such a file, including yours, withdraws the approval until the user approves the new content. Until then the file is ignored (overlays) or unavailable (profiles). User-scope files need no trust. Launch definitions need no trust. A project skill needs the user's approval of its folder (`reference/skills.md`).
 
 ## See what is in effect
 

@@ -6,8 +6,8 @@ import type {
 /** Whose resources are asked for: the user's, or those of one project. */
 export type ResourceContext = {
   scope: "user" | "project";
-  /** The project of the asking conversation; the project scope names it. */
-  projectId: string;
+  /** The open project; the project scope names it. Absent: user scope with no project open. */
+  projectId?: string;
   projectDirectory?: string;
   conversationId?: string;
 };
@@ -26,6 +26,12 @@ export interface ConfigurationResourceProvider {
   reload(context: ResourceContext): Promise<ConfigurationResource[]>;
 }
 
+/** The project a project-scope request names. The registry never asks a provider without one. */
+export function projectOf(context: ResourceContext): string {
+  if (!context.projectId) throw new Error("No project is open.");
+  return context.projectId;
+}
+
 export class ConfigurationResourceRegistry {
   readonly #providers: ConfigurationResourceProvider[] = [];
 
@@ -35,24 +41,26 @@ export class ConfigurationResourceRegistry {
   }
 
   list(context: ResourceContext): Promise<ConfigurationResource[]> {
-    return this.#each((provider) => provider.list(context));
+    return this.#each(context, (provider) => provider.list(context));
   }
 
   check(context: ResourceContext): Promise<ConfigurationResource[]> {
-    return this.#each((provider) => provider.check(context));
+    return this.#each(context, (provider) => provider.check(context));
   }
 
   reload(context: ResourceContext): Promise<ConfigurationResource[]> {
-    return this.#each((provider) => provider.reload(context));
+    return this.#each(context, (provider) => provider.reload(context));
   }
 
   /** One provider's failure is reported as its own resource; the others still answer. */
   async #each(
+    context: ResourceContext,
     run: (
       provider: ConfigurationResourceProvider,
     ) => Promise<ConfigurationResource[]>,
   ): Promise<ConfigurationResource[]> {
     const found: ConfigurationResource[] = [];
+    if (context.scope === "project" && !context.projectId) return found;
     for (const provider of this.#providers)
       try {
         found.push(...(await run(provider)));
@@ -73,6 +81,16 @@ export class ConfigurationResourceRegistry {
       }
     return found;
   }
+}
+
+/** Whether the user should be told: the resource is broken or waits for their decision. */
+export function needsAttention(resource: ConfigurationResource): boolean {
+  return (
+    resource.state === "invalid" ||
+    resource.state === "incompatible" ||
+    resource.state === "needs_approval" ||
+    resource.diagnostics.some((diagnostic) => diagnostic.level === "error")
+  );
 }
 
 /** One problem of one file, before the problems of a file are gathered into its resource. */

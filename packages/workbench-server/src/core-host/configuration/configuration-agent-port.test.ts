@@ -372,6 +372,6 @@ void test("list shows every resource after precedence, with built-ins in the use
   const inProject = await registry.list({ scope: "project", ...context });
   assert.deepEqual(
     inProject.map(({ kind, id, state }) => ({ kind, id, state })),
-    [{ kind: "skill", id: "review", state: "active" }],
+    [{ kind: "skill", id: "review", state: "needs_approval" }],
   );
 });

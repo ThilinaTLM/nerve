@@ -10,6 +10,7 @@ import {
   reloadScopeKeepingLoaded,
 } from "../../../infrastructure/configuration/agent-configuration/hand-edits.js";
 import {
+  projectOf,
   resourcesFromFindings,
   type ConfigurationResourceProvider,
   type ResourceContext,
@@ -90,7 +91,7 @@ export function agentConfigurationProvider(options: {
   const target = (context: ResourceContext): PreferenceScope =>
     context.scope === "user"
       ? { scope: "user" }
-      : { scope: "project", projectId: context.projectId };
+      : { scope: "project", projectId: projectOf(context) };
   /** Only the scope's own files; a project scope also loads the user's. */
   const own = (context: ResourceContext) => (issue: ConfigurationDiagnostic) =>
     issue.scope === context.scope &&
@@ -175,12 +176,14 @@ export function agentConfigurationProvider(options: {
           ...stray,
         ];
       // A project copy hides the user's or the built-in profile of the same name.
+      const projectId = context.projectId;
       const inProject = new Set(
-        (
-          await service.profiles.listForEditing({
-            scope: "project",
-            projectId: context.projectId,
-          })
+        (projectId
+          ? await service.profiles.listForEditing({
+              scope: "project",
+              projectId,
+            })
+          : { profiles: [] }
         ).profiles
           .filter((entry) => entry.source === "project")
           .map((entry) => entry.name),

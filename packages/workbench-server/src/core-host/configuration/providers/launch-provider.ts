@@ -2,9 +2,10 @@ import { join } from "node:path";
 import { access } from "node:fs/promises";
 import type { ConfigurationResource } from "@nervekit/contracts/configuration";
 import type { LaunchDefinitionService } from "../../../domains/launch-definitions/launch-definition.service.js";
-import type {
-  ConfigurationResourceProvider,
-  ResourceContext,
+import {
+  projectOf,
+  type ConfigurationResourceProvider,
+  type ResourceContext,
 } from "../resource-registry.js";
 
 /** The project's launch catalog. It is read fresh on every use, so reload equals check. */
@@ -15,7 +16,7 @@ export function launchProvider(options: {
     context: ResourceContext,
   ): Promise<ConfigurationResource[]> {
     if (context.scope !== "project") return [];
-    const found = await options.launchDefinitions.problem(context.projectId);
+    const found = await options.launchDefinitions.problem(projectOf(context));
     if (!found) return [];
     return [
       {

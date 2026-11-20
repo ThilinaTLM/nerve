@@ -19,7 +19,12 @@ import {
   permissionRuleSetIdSchema,
   permissionRuleSetSchema,
 } from "../permissions/permission-rule-sets.js";
-import { availableSkillsResponseSchema } from "../skills/skill.js";
+import { configurationResourceSchema } from "../configuration/resource.js";
+import {
+  availableSkillsResponseSchema,
+  skillReviewRequestSchema,
+  skillReviewSchema,
+} from "../skills/skill.js";
 import { toolDescriptorSchema } from "../tools/records.js";
 import { completionItemSchema } from "../completions/completion.js";
 import { coreOperationSchemas } from "./core-operations.js";
@@ -540,6 +545,24 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.skill.list",
+  ),
+  defineOperation(
+    "configuration.attention",
+    z.strictObject({ projectId: z.string().optional() }),
+    z.strictObject({ resources: z.array(configurationResourceSchema) }),
+    "read",
+    "none",
+    host,
+    "operation.configuration.attention",
+  ),
+  defineOperation(
+    "skill.review",
+    skillReviewRequestSchema,
+    skillReviewSchema,
+    "read",
+    "none",
+    host,
+    "operation.skill.review",
   ),
   defineOperation(
     "tool.list",

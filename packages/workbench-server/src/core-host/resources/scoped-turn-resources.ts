@@ -1,3 +1,4 @@
+import type { ProjectSkillTrust } from "./project-skill-trust.js";
 import { join } from "node:path";
 import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { subagentBlockedToolNames } from "@nervekit/contracts/subagents";
@@ -38,6 +39,8 @@ export function scopedTurnResources(options: {
   ): Promise<ToolDefinition[]>;
   nerveSkills(): readonly Skill[];
   agentBrowserSkills(): readonly Skill[];
+  /** Project skills reach the agent only after the user approved them. */
+  projectSkillTrust: ProjectSkillTrust;
   hasChildren(id: string): boolean;
   /** The extensions the host serves: one registry, or the registry of the conversation's project. */
   registry:
@@ -158,6 +161,10 @@ export function scopedTurnResources(options: {
       {
         projectDir: input.projectDir,
         storageHome: options.home,
+        projectSkills: {
+          trust: options.projectSkillTrust,
+          projectId: input.conversation.projectId,
+        },
         nerveSkills: options.nerveSkills(),
         agentBrowserSkills: options.agentBrowserSkills(),
         enabledFileSkillNames: enabled("file"),

@@ -1,3 +1,4 @@
+import type { ConfigurationResourceRegistry } from "../core-host/configuration/resource-registry.js";
 import type {
   CoreStorage,
   ConversationCore,
@@ -99,6 +100,7 @@ export interface AdapterServices {
   vision: VisionHost;
   configurationOperations: ReturnType<typeof agentConfigurationOperations>;
   admissionPolicy: ScopedPermissionPolicySource;
+  configurationResources: ConfigurationResourceRegistry;
   coreStorage: CoreStorage;
   projectMigration: ProjectMigrationService;
   launches: LaunchService;
@@ -214,6 +216,7 @@ export function createServerAdapterContexts(
       agentConfiguration: services.agentConfiguration,
       configurationOperations: services.configurationOperations,
       admissionPolicy: services.admissionPolicy,
+      configurationResources: services.configurationResources,
       permissionConfiguration: createPermissionConfigurationService({
         projectMigration: services.projectMigration,
         home: infrastructure.storage.paths.home,
