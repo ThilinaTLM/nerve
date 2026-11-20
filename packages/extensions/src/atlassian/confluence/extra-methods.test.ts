@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createHarness, type HarnessOptions } from "../test-support.js";
 import { normalizeLabels } from "./extra-methods.js";
+import { splitOrderBy } from "./methods.js";
 import { confluenceStorageToMarkdown } from "./storage-markdown.js";
 
 type Seen = {
@@ -260,4 +261,64 @@ void test("decision lists read with their state", async () => {
     `<ac:adf-extension><ac:adf-node type="decision-list">${item("DECIDED", "Ship")}${item("UNDECIDED", "Wait")}</ac:adf-node></ac:adf-extension>`,
   );
   assert.match(markdown, /- \[decided\] Ship\n- \[undecided\] Wait/);
+});
+
+function searchSetup(next: boolean) {
+  const row = (id: string) => ({
+    id,
+    title: `T${id}`,
+    space: { key: "DOC" },
+    version: { when: "2026-01-01T00:00:00.000Z" },
+    _links: { webui: `/spaces/DOC/pages/${id}` },
+  });
+  return setup((s) => {
+    if (s.path === "v1/content/search") {
+      return Response.json({
+        results: [row("1"), row("2")],
+        _links: next ? { next: "/rest/api/content/search?start=2" } : {},
+      });
+    }
+    if (s.path === "/pages/1") {
+      return Response.json({
+        id: "1",
+        title: "T1",
+        version: { number: 2, createdAt: "2026-02-02T00:00:00.000Z" },
+        body: { storage: { value: "<p>x</p>" } },
+        _links: { webui: "/spaces/DOC/pages/1" },
+      });
+    }
+  }).context;
+}
+
+void test("pages.search notes a cut-off result and stays silent when it fits", async () => {
+  const code = `return (await confluence.pages.search({ space: "DOC", limit: 2 })).length;`;
+  const cut = await searchSetup(true).run(code);
+  assert.match(
+    cut.content ?? "",
+    /confluence\.pages\.search stopped at limit 2; more pages match\. Raise limit \(max 250\) or narrow the search\./,
+  );
+  const fits = await searchSetup(false).run(code);
+  assert.doesNotMatch(fits.content ?? "", /stopped at limit/);
+});
+
+void test("pages.get returns updated; pages.download takes the id alone", async () => {
+  const got = await searchSetup(false).run(
+    `const p = await confluence.pages.get({ id: "1", body: false }); const d = await confluence.pages.download("1"); return [p.updated, d.version];`,
+  );
+  assert.match(got.content ?? "", /2026-02-02T00:00:00\.000Z/);
+});
+
+void test("splitOrderBy keeps a trailing ORDER BY outside the parenthesized filter", () => {
+  assert.deepEqual(splitOrderBy("space = SD order by lastmodified desc"), {
+    filter: "space = SD",
+    orderBy: "order by lastmodified desc",
+  });
+  assert.deepEqual(splitOrderBy("ORDER BY created"), {
+    filter: "",
+    orderBy: "ORDER BY created",
+  });
+  assert.deepEqual(splitOrderBy('title ~ "order by date"'), {
+    filter: 'title ~ "order by date"',
+    orderBy: undefined,
+  });
 });

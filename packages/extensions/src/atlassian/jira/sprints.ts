@@ -8,6 +8,7 @@ import {
   resolveFieldSelection,
 } from "./issue.js";
 import { noteChange } from "./report.js";
+import { collectPages, limitNote } from "../shared/paging.js";
 import { clampInt, nonEmptyString, optionalText } from "../shared/args.js";
 import { jiraBoard, jiraProject, jiraSprint } from "../shared/targets.js";
 import { defineMethod, type PathedMethod } from "../shared/define-method.js";
@@ -140,25 +141,26 @@ async function sprintIssues(
   id: number,
   query: { jql?: string; fields: string[]; limit: number },
 ) {
-  const out: unknown[] = [];
-  while (out.length < query.limit) {
-    const page = await jiraRequest(session.connection, {
-      api: "agile",
-      parse: jsonObject,
-      path: `/sprint/${id}/issue`,
-      query: {
-        jql: query.jql,
-        fields: query.fields,
-        startAt: out.length,
-        maxResults: Math.min(PAGE, query.limit - out.length),
-      },
-    });
-    const batch = list(page.issues);
-    out.push(...batch);
-    const total = typeof page.total === "number" ? page.total : out.length;
-    if (batch.length === 0 || out.length >= total) break;
-  }
-  return out;
+  return await collectPages<unknown>({
+    limit: query.limit,
+    pageSize: PAGE,
+    fetchPage: async ({ count, collected }) => {
+      const page = await jiraRequest(session.connection, {
+        api: "agile",
+        parse: jsonObject,
+        path: `/sprint/${id}/issue`,
+        query: {
+          jql: query.jql,
+          fields: query.fields,
+          startAt: collected,
+          maxResults: count,
+        },
+      });
+      const items = list(page.issues);
+      const total = typeof page.total === "number" ? page.total : 0;
+      return { items, more: collected + items.length < total };
+    },
+  });
 }
 
 async function moveIssues(
@@ -264,8 +266,9 @@ export const jiraSprintMethods: PathedMethod<JiraSession>[] = [
     product: "jira",
     path: "sprints.start",
     risk: "external_write",
+    bare: "id",
     options: ["id", "endDate", "duration"],
-    signature: `/** Starts a future sprint now. Needs \`endDate\` or \`duration\` ("2w", "10d") unless the sprint already has an end date. */ start(options: { id: number; endDate?: string; duration?: string }): Promise<${SPRINT}>`,
+    signature: `/** Starts a future sprint now. Needs \`endDate\` or \`duration\` ("2w", "10d") unless the sprint already has an end date. */ start(options: number | { id: number; endDate?: string; duration?: string }): Promise<${SPRINT}>`,
     parse: (options) => {
       if (options.endDate !== undefined && options.duration !== undefined) {
         throw new Error("Pass endDate or duration, not both.");
@@ -312,8 +315,9 @@ export const jiraSprintMethods: PathedMethod<JiraSession>[] = [
     product: "jira",
     path: "sprints.close",
     risk: "external_write",
+    bare: "id",
     options: ["id", "moveOpenTo"],
-    signature: `/** Closes an active sprint. Open (not Done) issues stay in the closed sprint unless \`moveOpenTo\` names a sprint id or "backlog". */ close(options: { id: number; moveOpenTo?: number | "backlog" }): Promise<${SPRINT} & { moved: string[] }>`,
+    signature: `/** Closes an active sprint. Open (not Done) issues stay in the closed sprint unless \`moveOpenTo\` names a sprint id or "backlog". */ close(options: number | { id: number; moveOpenTo?: number | "backlog" }): Promise<${SPRINT} & { moved: string[] }>`,
     parse: (options) => {
       const target = options.moveOpenTo;
       const moveOpenTo: number | "backlog" | undefined =
@@ -341,16 +345,22 @@ export const jiraSprintMethods: PathedMethod<JiraSession>[] = [
       if (moveOpenTo === id) {
         throw new Error('moveOpenTo must be a different sprint or "backlog".');
       }
-      const open =
+      const openIssues =
         moveOpenTo === undefined
-          ? []
-          : (
-              await sprintIssues(session, id, {
-                jql: "statusCategory != Done",
-                fields: ["summary"],
-                limit: MAX_ISSUES,
-              })
-            ).map((raw) => String((raw as { key?: unknown }).key ?? ""));
+          ? undefined
+          : await sprintIssues(session, id, {
+              jql: "statusCategory != Done",
+              fields: ["summary"],
+              limit: MAX_ISSUES,
+            });
+      if (openIssues?.more) {
+        throw new Error(
+          `Sprint ${id} has more than ${MAX_ISSUES} open issues; sprints.close moves at most ${MAX_ISSUES}. Nothing was changed. Move some with issues.move, then close again.`,
+        );
+      }
+      const open = (openIssues?.items ?? []).map((raw) =>
+        String((raw as { key?: unknown }).key ?? ""),
+      );
       const closed = await putSprint(session, current, { state: "closed" });
       if (moveOpenTo !== undefined && open.length > 0) {
         await moveIssues(session, open, moveOpenTo);
@@ -388,16 +398,27 @@ export const jiraSprintMethods: PathedMethod<JiraSession>[] = [
       summary: `sprint ${id}`,
     }),
     resource: ({ id }) => `sprint ${id}`,
-    async run({ id, fields, jql, limit }, session) {
+    async run({ id, fields, jql, limit }, session, ctx) {
       const selection = fields
         ? await resolveFieldSelection(fields, () => session.fields())
         : defaultSelection(DEFAULT_SEARCH_FIELDS);
       const { siteUrl } = session.connection;
-      const raw = await sprintIssues(session, id, {
+      const { items: raw, more } = await sprintIssues(session, id, {
         jql,
         fields: selection.map((field) => field.id),
         limit,
       });
+      if (more) {
+        ctx.report.note(
+          limitNote(
+            "jira.sprints.issues",
+            limit,
+            MAX_ISSUES,
+            "issues",
+            "the JQL",
+          ),
+        );
+      }
       return raw.map((issue) => flattenIssue(issue, siteUrl, selection));
     },
   }),

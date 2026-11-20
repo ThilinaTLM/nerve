@@ -4,7 +4,7 @@ import { createExtensionToolDefinitions } from "./extension-host/direct-tools.js
 import type { QuickScriptRegistry } from "./registry.js";
 import type { QuickScriptContext } from "./runtime/sdk-types.js";
 import { executeQuickScript } from "./runtime/quick-script.js";
-import { classifyQuickScriptArguments } from "./runtime/script-risk.js";
+import { classifyQuickScriptArguments } from "./runtime/script-classifier.js";
 
 const parameters = Type.Object(
   {

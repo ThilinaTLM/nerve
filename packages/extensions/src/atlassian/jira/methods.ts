@@ -33,6 +33,7 @@ import { jiraExtraMethods, rawBinaryNaming } from "./extra-methods.js";
 import { jiraEditMethods } from "./edit-methods.js";
 import { jiraSprintMethods } from "./sprints.js";
 import { jiraWriteMethods } from "./write-methods.js";
+import { collectPages, limitNote } from "../shared/paging.js";
 import { clampInt, nonEmptyString, optionalText } from "../shared/args.js";
 import {
   defineMethod,
@@ -116,33 +117,49 @@ const readMethods: PathedMethod<JiraSession>[] = [
     }),
     authorize: ({ jql }) => ({ targets: [], summary: jql }),
     resource: () => "this Jira search",
-    async run({ jql, limit, fields }, session) {
+    async run({ jql, limit, fields }, session, ctx) {
       const selection = await selectFields(
         fields,
         DEFAULT_SEARCH_FIELDS,
         session,
       );
       const connection = session.connection;
-      const issues: Record<string, unknown>[] = [];
       let nextPageToken: string | undefined;
-      do {
-        const page = await jiraRequest(connection, {
-          parse: parseSearchPage,
-          method: "POST",
-          path: "/search/jql",
-          body: {
-            jql,
-            fields: selection.map((field) => field.id),
-            maxResults: Math.min(SEARCH_PAGE_SIZE, limit - issues.length),
-            ...(nextPageToken ? { nextPageToken } : {}),
-          },
-        });
-        for (const raw of page.issues ?? []) {
-          if (issues.length >= limit) break;
-          issues.push(flattenIssue(raw, connection.siteUrl, selection));
-        }
-        nextPageToken = page.nextPageToken;
-      } while (nextPageToken && issues.length < limit);
+      const { items: issues, more } = await collectPages({
+        limit,
+        pageSize: SEARCH_PAGE_SIZE,
+        fetchPage: async ({ count }) => {
+          const page = await jiraRequest(connection, {
+            parse: parseSearchPage,
+            method: "POST",
+            path: "/search/jql",
+            body: {
+              jql,
+              fields: selection.map((field) => field.id),
+              maxResults: count,
+              ...(nextPageToken ? { nextPageToken } : {}),
+            },
+          });
+          nextPageToken = page.nextPageToken;
+          return {
+            items: (page.issues ?? []).map((raw) =>
+              flattenIssue(raw, connection.siteUrl, selection),
+            ),
+            more: Boolean(page.nextPageToken),
+          };
+        },
+      });
+      if (more) {
+        ctx.report.note(
+          limitNote(
+            "jira.issues.search",
+            limit,
+            MAX_SEARCH_LIMIT,
+            "issues",
+            "the JQL",
+          ),
+        );
+      }
       if (issues.length === 0) await rejectInvalidJql(connection, jql);
       return issues;
     },
@@ -187,7 +204,7 @@ const readMethods: PathedMethod<JiraSession>[] = [
     bare: "key",
     options: ["key", "include", "issueType"],
     signature:
-      '/** `include` adds: "fields" (create fields per issue type with required/allowed; `issueType` limits), "statuses", "releases", "boards", "sprints" (active/future; "closedSprints" adds 10 latest per board), "epics" (open). */ get(options: string | { key: string; include?: ("fields" | "statuses" | "releases" | "boards" | "sprints" | "closedSprints" | "epics")[]; issueType?: string }): Promise<JiraProject>',
+      '/** Lists a project\'s sprints, boards, epics, statuses, releases. `include` adds: "fields" (create fields per issue type with required/allowed; `issueType` limits), "statuses", "releases", "boards", "sprints" (active/future; "closedSprints" adds 10 latest per board), "epics" (open). */ get(options: string | { key: string; include?: ("fields" | "statuses" | "releases" | "boards" | "sprints" | "closedSprints" | "epics")[]; issueType?: string }): Promise<JiraProject>',
     parse: (options) => {
       const include = options.include ?? [];
       if (

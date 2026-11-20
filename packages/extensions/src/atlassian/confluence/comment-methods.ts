@@ -366,7 +366,7 @@ export const confluenceCommentMethods: PathedMethod<ConfluenceSession>[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "/** Also deletes replies. */ delete(id: string | { id: string }): Promise<{ id: string }>",
+      "/** Also deletes replies. */ delete(options: string | { id: string }): Promise<{ id: string }>",
     parse: (options) => ({ id: nonEmptyString(options.id, "id") }),
     resource: ({ id }) => `comment ${id}`,
     async run({ id }, session, ctx) {
@@ -420,9 +420,10 @@ export const confluenceCommentMethods: PathedMethod<ConfluenceSession>[] = [
     product: "confluence",
     path: "comments.resolve",
     risk: "external_write",
+    bare: "id",
     options: ["id", "resolved"],
     signature:
-      "/** Resolves (default) or reopens an inline comment. */ resolve(options: { id: string; resolved?: boolean }): Promise<{ id: string; resolved: boolean }>",
+      "/** Resolves (default) or reopens an inline comment. */ resolve(options: string | { id: string; resolved?: boolean }): Promise<{ id: string; resolved: boolean }>",
     parse: (options) => {
       if (
         options.resolved !== undefined &&

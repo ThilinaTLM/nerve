@@ -7,7 +7,8 @@ import {
   readFileRef,
   writeArtifact,
 } from "./artifacts.js";
-import { defineMethod, type SdkMethod } from "../sdk-types.js";
+import { defineMethod } from "../sdk-args.js";
+import type { SdkMethod } from "../sdk-types.js";
 
 type Ops = Parameters<typeof image.transformImage>[1];
 

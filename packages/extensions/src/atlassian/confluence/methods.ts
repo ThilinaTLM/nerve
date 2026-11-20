@@ -20,6 +20,7 @@ import {
   uploadAttachment,
 } from "./page-writes.js";
 import { codedError, orWhenUnsupported } from "../shared/errors.js";
+import { collectPages, limitNote } from "../shared/paging.js";
 import { clampInt, nonEmptyString, optionalText } from "../shared/args.js";
 import {
   defineMethod,
@@ -33,7 +34,7 @@ import {
 } from "../shared/targets.js";
 import type { ConfluenceSession } from "./session.js";
 
-const DEFAULT_PAGE_LIMIT = 25;
+const DEFAULT_PAGE_LIMIT = 50;
 const MAX_PAGE_LIMIT = 250;
 
 function escapeCql(value: string): string {
@@ -45,6 +46,34 @@ function labelNames(value: unknown): string[] {
     const name = (item as { name?: unknown } | null)?.name;
     return typeof name === "string" ? [name] : [];
   });
+}
+
+/**
+ * Splits a trailing `ORDER BY ...` off a CQL query, so the filter can be put in
+ * parentheses and ANDed with `space` and `title` while the ordering stays last.
+ * Text inside quotes is not a clause.
+ */
+export function splitOrderBy(cql: string): {
+  filter: string;
+  orderBy: string | undefined;
+} {
+  let quote = "";
+  let at = -1;
+  for (let i = 0; i < cql.length; i += 1) {
+    const char = cql[i];
+    if (quote) {
+      if (char === "\\") i += 1;
+      else if (char === quote) quote = "";
+    } else if (char === '"' || char === "'") quote = char;
+    else if (
+      /^order\s+by\b/i.test(cql.slice(i)) &&
+      !/\w/.test(cql[i - 1] ?? "")
+    )
+      at = i;
+  }
+  return at < 0
+    ? { filter: cql.trim(), orderBy: undefined }
+    : { filter: cql.slice(0, at).trim(), orderBy: cql.slice(at).trim() };
 }
 
 export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
@@ -75,11 +104,13 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
     bare: "cql",
     options: ["cql", "space", "title", "limit"],
     signature:
-      "/** Needs cql, space or title (contains); ANDed. limit default 25, max 250. */ search(options: string | { cql?: string; space?: string; title?: string; limit?: number }): Promise<PageSummary[]>",
+      "/** Needs cql, space or title (contains); ANDed. cql may end with ORDER BY. limit default 50, max 250. */ search(options: string | { cql?: string; space?: string; title?: string; limit?: number }): Promise<PageSummary[]>",
     parse: (options) => {
       const space = optionalText(options.space);
       const title = optionalText(options.title);
-      const explicitCql = optionalText(options.cql);
+      const { filter: explicitCql, orderBy } = splitOrderBy(
+        optionalText(options.cql) ?? "",
+      );
       const parts = explicitCql ? [`(${explicitCql})`] : ["type = page"];
       if (space) parts.push(`space = "${escapeCql(space)}"`);
       if (title) parts.push(`title ~ "${escapeCql(title)}"`);
@@ -87,7 +118,7 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
         throw new Error("Provide at least one of cql, space or title.");
       }
       return {
-        cql: parts.join(" AND "),
+        cql: parts.join(" AND ") + (orderBy ? ` ${orderBy}` : ""),
         limit: clampInt(options.limit, DEFAULT_PAGE_LIMIT, 1, MAX_PAGE_LIMIT),
         space,
         title,
@@ -98,43 +129,64 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
       summary: cql,
     }),
     resource: () => "this Confluence search",
-    async run({ cql, limit }, session) {
+    async run({ cql, limit }, session, ctx) {
       const connection = session.connection;
-      const pages: Array<Record<string, unknown>> = [];
       let start = 0;
-      while (pages.length < limit) {
-        const batch = Math.min(100, limit - pages.length);
-        const response = await confluenceRequest(connection, {
-          api: "v1",
-          parse: jsonObject,
-          path: "/content/search",
-          query: {
-            cql,
-            limit: batch,
-            start,
-            expand: "space,version,ancestors",
-          },
-        });
-        const results = valuesFromConfluenceList(response) as Array<
-          Record<string, unknown>
-        >;
-        for (const page of results) {
-          const ancestors = Array.isArray(page.ancestors) ? page.ancestors : [];
-          pages.push({
-            id: String(page.id ?? ""),
-            title: page.title ?? null,
-            space: (page.space as { key?: unknown } | undefined)?.key ?? null,
-            url: pageUrl(connection, page),
-            updated:
-              (page.version as { when?: unknown } | undefined)?.when ?? null,
-            parentId:
-              (ancestors.at(-1) as { id?: unknown } | undefined)?.id ?? null,
+      const { items, more } = await collectPages({
+        limit,
+        pageSize: 100,
+        fetchPage: async ({ count }) => {
+          const response = await confluenceRequest(connection, {
+            api: "v1",
+            parse: jsonObject,
+            path: "/content/search",
+            query: {
+              cql,
+              limit: count,
+              start,
+              expand: "space,version,ancestors",
+            },
           });
-        }
-        start += results.length;
-        if (results.length < batch) break;
+          const results = valuesFromConfluenceList(response) as Array<
+            Record<string, unknown>
+          >;
+          start += results.length;
+          const links = response._links as { next?: unknown } | undefined;
+          return {
+            items: results.map((page) => {
+              const ancestors = Array.isArray(page.ancestors)
+                ? page.ancestors
+                : [];
+              return {
+                id: String(page.id ?? ""),
+                title: page.title ?? null,
+                space:
+                  (page.space as { key?: unknown } | undefined)?.key ?? null,
+                url: pageUrl(connection, page),
+                updated:
+                  (page.version as { when?: unknown } | undefined)?.when ??
+                  null,
+                parentId:
+                  (ancestors.at(-1) as { id?: unknown } | undefined)?.id ??
+                  null,
+              };
+            }),
+            more: Boolean(links?.next),
+          };
+        },
+      });
+      if (more) {
+        ctx.report.note(
+          limitNote(
+            "confluence.pages.search",
+            limit,
+            MAX_PAGE_LIMIT,
+            "pages",
+            "the search",
+          ),
+        );
       }
-      return pages;
+      return items;
     },
   }),
   defineMethod({
@@ -214,6 +266,9 @@ export const confluenceMethods: PathedMethod<ConfluenceSession>[] = [
       const result: Record<string, unknown> = {
         ...compactPage(connection, page),
         space: (spaceId && keys.get(spaceId)) ?? spaceId ?? null,
+        updated:
+          (page.version as { createdAt?: unknown } | undefined)?.createdAt ??
+          null,
         parentId: page.parentId ?? null,
         labels: labelNames(page.labels),
       };

@@ -134,6 +134,8 @@ interface Page {
   space: string | null;
   url: string;
   version: number | null;
+  /** ISO timestamp of the current version. */
+  updated: string | null;
   parentId: string | null;
   labels: string[];
   /** Markdown (read-only view), or storage XHTML with body: "storage" (trusted: splice into a RichText array). */

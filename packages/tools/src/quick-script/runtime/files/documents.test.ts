@@ -3,7 +3,7 @@ import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { classifyQuickScriptScript } from "../script-risk.js";
+import { classifyQuickScriptScript } from "../script-classifier.js";
 import { preludesFor } from "../sdk.js";
 import { executeQuickScript } from "../quick-script.js";
 import type { QuickScriptNestedRequest } from "../../../execution/index.js";

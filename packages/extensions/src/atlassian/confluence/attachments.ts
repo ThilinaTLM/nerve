@@ -19,9 +19,10 @@ export const confluenceAttachmentMethods: PathedMethod<ConfluenceSession>[] = [
     product: "confluence",
     path: "attachments.download",
     risk: "external_read",
+    bare: "id",
     options: ["id", "page", "filename"],
     signature:
-      "/** By attachment id, or by page id and exact filename. Max 100 MB. */ download(options: { id: string } | { page: string; filename: string }): Promise<FileHandle>",
+      "/** By attachment id, or by page id and exact filename. Max 100 MB. */ download(options: string | { id: string } | { page: string; filename: string }): Promise<FileHandle>",
     parse: (options): Target => {
       if (options.id !== undefined) {
         return { id: nonEmptyString(options.id, "id") };

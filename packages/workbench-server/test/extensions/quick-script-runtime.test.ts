@@ -198,7 +198,7 @@ void test("a 403 is a catchable HostError with code FORBIDDEN naming the resourc
   );
   assert.equal(
     result.content,
-    "HostError FORBIDDEN no access to project APP\ncontinued\njira 1 call (projects.get 1) · exit 0",
+    "HostError FORBIDDEN no access to project APP\ncontinued\njira 1 call (projects.get 1, 1 failed) · exit 0",
   );
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.hostCalls[0].error, "no access to project APP");
@@ -411,6 +411,20 @@ void test("a misspelled SDK method lists the valid names with a BAD_REQUEST code
   assert.match(
     message,
     /^confluence\.pages\.list does not exist\. Available: .*search.*get.*/,
+  );
+  const swapped = await run(
+    `try { await web.search("x"); } catch (e) { return e.message; }`,
+  );
+  assert.match(
+    swapped.content!,
+    /^web\.search does not exist\. Did you mean search\.web\? Available: fetch\./,
+  );
+  const unawaited = await run(
+    `console.log(sdk.list()); console.log(JSON.stringify(sdk.list()));`,
+  );
+  assert.equal(
+    unawaited.content!.match(/Promise: not awaited; add await/g)?.length,
+    2,
   );
   const ok = await run(
     `return [typeof jira.issues.get, JSON.stringify({ a: 1 }), String(files)];`,
