@@ -69,13 +69,22 @@ The desktop shell owns Electron windows and daemon supervision. The server owns 
 
 ## Where it lives
 
-| Concern                                      | Owner                                                                                                                                                       |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Package graph and enforcement                | [`ALLOWED_INTERNAL_DEPENDENCIES`](../../scripts/checks/package-architecture.rules.ts); [boundary checker](../../scripts/checks/check-package-boundaries.ts) |
-| Portable core facade and host interfaces     | [`ConversationCore`](../../packages/conversation-core/src/core.ts); [ports](../../packages/conversation-core/src/ports.ts)                                  |
-| Server construction and host implementations | [bootstrap](../../packages/workbench-server/src/app/bootstrap/); [core-host](../../packages/workbench-server/src/core-host/)                                |
-| Access control                               | [access and authentication](access.md)                                                                                                                      |
-| Desktop lifetime                             | [`DesktopRuntime`](../../packages/desktop-shell/src/app/desktop-runtime.ts)                                                                                 |
+| Concern                                                                | Owner                                                                                                                                                                  |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Package graph and enforcement                                          | [`ALLOWED_INTERNAL_DEPENDENCIES`](../../scripts/checks/package-architecture.rules.ts); [boundary checker](../../scripts/checks/check-package-boundaries.ts)            |
+| Portable core facade and host interfaces                               | [`ConversationCore`](../../packages/conversation-core/src/core.ts); [ports](../../packages/conversation-core/src/ports.ts)                                             |
+| Server construction and host implementations                           | [bootstrap](../../packages/workbench-server/src/app/bootstrap/); [core-host](../../packages/workbench-server/src/core-host/) (layout below)                            |
+| Extension host (sandbox, direct tools, UI calls, account tests, icons) | [`tools/src/extension-host`](../../packages/tools/src/extension-host), exported as `@nervekit/tools/extension-host`; `quick-script` imports it like any other consumer |
+| Access control                                                         | [access and authentication](access.md)                                                                                                                                 |
+| Desktop lifetime                                                       | [`DesktopRuntime`](../../packages/desktop-shell/src/app/desktop-runtime.ts)                                                                                            |
+
+### Server host layout
+
+[`core-host`](../../packages/workbench-server/src/core-host/) is grouped by concern: `permissions/` (policy source, overlays, rule sets, validation, execution admission), `configuration/` (agent port, reload, scoped agent configuration, the [resource registry](configuration.md#resource-registry) and its providers), `extensions/` (catalog, store, UI serving, availability) and `resources/` (resource loader, turn resources, system prompt, project skill trust). `agent-browser-skills.ts` stays at the top level because the released migration `0002-agent-profiles` imports it by path and released migrations are locked by content. Each `quick_script` namespace's agent port type sits beside the namespace's methods (`quick-script/runtime/configuration`, `launches`, and `extension-host/agent-port.ts`); the server implements them.
+
+### Vocabulary
+
+A **tool** is what the model calls by name (a core tool or an extension's `defineTool`), a **method** is a function of a `quick_script` namespace, and an **operation** is the permission identity of a method call (`jira.issues.create`). Rule files and stored approvals contain operation names, so those strings are persisted contract.
 
 ## Tooling and tests
 
