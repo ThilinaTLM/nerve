@@ -37,7 +37,6 @@ export {
   quickScriptHostTools,
 } from "./tool.js";
 export type {
-  ConfigurationAgentDiagnostic,
   ConfigurationAgentPort,
   ConfigurationAgentResult,
   ConfigurationAgentScope,

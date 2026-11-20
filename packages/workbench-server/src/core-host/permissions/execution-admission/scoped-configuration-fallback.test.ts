@@ -159,7 +159,7 @@ void test(
       .health("proj_admission")
       .issues.find((issue) => issue.type === "permission-overlay");
     assert.ok(issue);
-    assert.match(issue.message, /Tool execution is blocked/);
+    assert.match(issue.message, /tool execution is blocked/);
     assert.match(issue.resetDescription, /blocking tool execution/);
     assert.match(issue.resetDescription, /Model-only replies remain available/);
     await f.runtime.core.createConversation({

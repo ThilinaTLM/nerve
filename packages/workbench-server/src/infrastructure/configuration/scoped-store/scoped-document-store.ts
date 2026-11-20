@@ -56,6 +56,27 @@ export type ScopeHealth<S, D> =
       readonly retained?: ScopeGeneration<S, D>;
     };
 
+/** The file on disk, read and validated but not activated. */
+type Candidate<D> =
+  | {
+      ok: true;
+      document: D;
+      digest: SourceDigest;
+      status: "ready" | "missing-optional";
+    }
+  | {
+      ok: false;
+      issues: readonly DocumentIssue[];
+      schemaVersion?: number;
+      digest?: SourceDigest;
+    };
+
+/** Outcome of a reload that keeps a valid loaded generation over an invalid file. */
+export type KeptReload<S, D> = ScopeHealth<S, D> & {
+  /** Issues of the file on disk; set when it was invalid and the loaded generation stays in force. */
+  readonly rejected?: readonly DocumentIssue[];
+};
+
 export interface ScopedDocumentOptions<S, D extends SchemaDocument> {
   /** Must return a stable identity/path for each document, including its domain. */
   resolvePath(scope: S): string;
@@ -142,6 +163,28 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
   /** Explicit recovery only. Ordinary resolution never rereads an already loaded scope. */
   reload(scope: S): Promise<ScopeHealth<S, D>> {
     return this.serialize(scope, () => this.load(scope));
+  }
+
+  /**
+   * Validate, then activate: like `reload`, but a file that is invalid on disk never
+   * replaces a valid loaded generation. Its issues come back as `rejected`.
+   */
+  reloadKeepingLoaded(scope: S): Promise<KeptReload<S, D>> {
+    return this.serialize(scope, async () => {
+      const candidate = await this.candidate(scope);
+      const loaded = this.peek(scope);
+      if (!candidate.ok && loaded && loaded.status !== "unavailable")
+        return { ...loaded, rejected: candidate.issues };
+      return this.apply(scope, candidate);
+    });
+  }
+
+  /** Issues of the file on disk; empty when it is valid. Activates nothing. */
+  inspect(scope: S): Promise<readonly DocumentIssue[]> {
+    return this.serialize(scope, async () => {
+      const candidate = await this.candidate(scope);
+      return candidate.ok ? [] : candidate.issues;
+    });
   }
 
   /** Register only loaded dependents, selecting preference/security dependencies at the owning layer. */
@@ -346,75 +389,101 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
   }
 
   private async load(scope: S): Promise<ScopeHealth<S, D>> {
-    const preparationIssues = await this.options.beforeLoad?.(scope);
-    if (preparationIssues?.length)
-      return this.unavailable(scope, preparationIssues);
-    let bytes: Buffer;
-    try {
-      bytes = await readFile(this.key(scope));
-    } catch (error) {
-      if (errorCode(error) !== "ENOENT")
-        return this.unavailable(scope, [{ code: "io-error", pointer: "" }]);
-      if (this.options.required(scope))
-        return this.unavailable(scope, [
-          { code: "missing-required", pointer: "" },
-        ]);
-      try {
-        const empty = this.parse(this.options.empty(scope), scope);
-        if (empty.revision !== 0)
-          throw new Error("Missing document must have revision zero", {
-            cause: error,
-          });
-        this.activate(scope, empty, "missing", "missing-optional");
-      } catch {
-        return this.unavailable(scope, [
-          { code: "publication-failed", pointer: "" },
-        ]);
-      }
-      return this.states.get(this.key(scope))!;
-    }
-    let input: unknown;
-    try {
-      input = JSON.parse(bytes.toString("utf8"));
-    } catch {
+    return this.apply(scope, await this.candidate(scope));
+  }
+
+  private apply(scope: S, candidate: Candidate<D>): ScopeHealth<S, D> {
+    if (!candidate.ok)
       return this.unavailable(
         scope,
-        [{ code: "malformed-json", pointer: "" }],
-        undefined,
-        digestBytes(bytes),
+        candidate.issues,
+        candidate.schemaVersion,
+        candidate.digest,
       );
-    }
-    let document: D;
     try {
-      document = this.parse(
-        this.options.fromDisk ? this.options.fromDisk(input, scope) : input,
+      this.activate(
         scope,
+        candidate.document,
+        candidate.digest,
+        candidate.status,
       );
-    } catch (error) {
-      const version =
-        typeof input === "object" &&
-        input !== null &&
-        "schemaVersion" in input &&
-        typeof input.schemaVersion === "number"
-          ? input.schemaVersion
-          : undefined;
-      return this.unavailable(
-        scope,
-        error instanceof FutureVersionError
-          ? [{ code: "future-version", pointer: "/schemaVersion" }]
-          : this.options.issues(error),
-        version,
-        digestBytes(bytes),
-      );
-    }
-    try {
-      this.activate(scope, document, digestBytes(bytes), "ready");
     } catch {
       return this.unavailable(scope, [
         { code: "publication-failed", pointer: "" },
       ]);
     }
     return this.states.get(this.key(scope))!;
+  }
+
+  private async candidate(scope: S): Promise<Candidate<D>> {
+    const preparationIssues = await this.options.beforeLoad?.(scope);
+    if (preparationIssues?.length)
+      return { ok: false, issues: preparationIssues };
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(this.key(scope));
+    } catch (error) {
+      if (errorCode(error) !== "ENOENT")
+        return { ok: false, issues: [{ code: "io-error", pointer: "" }] };
+      if (this.options.required(scope))
+        return {
+          ok: false,
+          issues: [{ code: "missing-required", pointer: "" }],
+        };
+      try {
+        const empty = this.parse(this.options.empty(scope), scope);
+        if (empty.revision !== 0)
+          throw new Error("Missing document must have revision zero", {
+            cause: error,
+          });
+        return {
+          ok: true,
+          document: empty,
+          digest: "missing",
+          status: "missing-optional",
+        };
+      } catch {
+        return {
+          ok: false,
+          issues: [{ code: "publication-failed", pointer: "" }],
+        };
+      }
+    }
+    const digest = digestBytes(bytes);
+    let input: unknown;
+    try {
+      input = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      return {
+        ok: false,
+        issues: [{ code: "malformed-json", pointer: "" }],
+        digest,
+      };
+    }
+    try {
+      const document = this.parse(
+        this.options.fromDisk ? this.options.fromDisk(input, scope) : input,
+        scope,
+      );
+      return { ok: true, document, digest, status: "ready" };
+    } catch (error) {
+      const schemaVersion =
+        typeof input === "object" &&
+        input !== null &&
+        "schemaVersion" in input &&
+        typeof input.schemaVersion === "number"
+          ? input.schemaVersion
+          : undefined;
+      return {
+        ok: false,
+        issues:
+          error instanceof FutureVersionError
+            ? [{ code: "future-version", pointer: "/schemaVersion" }]
+            : this.options.issues(error),
+        ...(schemaVersion === undefined ? {} : { schemaVersion }),
+        digest,
+      };
+    }
   }
 
   private next(scope: S): number {

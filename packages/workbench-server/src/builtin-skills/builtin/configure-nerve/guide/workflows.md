@@ -27,7 +27,7 @@ Reference: `reference/launches.md`.
 
 1. Find the right command from the project (`package.json` scripts, `Makefile`, docs) instead of guessing; ask when there are several candidates.
 2. Read the catalog file; create it if missing. Add or change the entry, keep ids unique, renumber sibling `order` values.
-3. Run `configuration.reload("project")` and fix any `launches` diagnostic: an invalid catalog reads as empty. Then start the entry with the `launch` tool, read its logs, and stop it unless the user wants it running.
+3. Run `configuration.check("project")` and fix a `launch-catalog` resource if it reports one: an invalid catalog reads as empty. Then start the entry with the `launch` tool, read its logs, and stop it unless the user wants it running.
 
 ## Create or change an agent profile
 
@@ -36,7 +36,7 @@ Reference: `reference/agent-profiles.md`.
 1. Settle the role (lead, sub-agent or both), the job, and what it may do. For sub-agents, agree on `whenToUse` with the user; it decides when the lead uses it.
 2. Choose settings: permission rule set first (what may it do without asking), then model and thinking if the user has a preference, then tools and skills. Recommend by default; require only what the purpose depends on.
 3. If it needs a permission behavior no existing rule set provides, create the rule set first (next workflow).
-4. Write the file, reload (`reference/overview.md`, "Apply changes") and fix every diagnostic.
+4. Write the file, then check and reload (`reference/overview.md`, "Apply changes") until nothing is reported.
 5. Tell the user how to use it: a lead profile from the composer's profile picker or `/profile <name>`; a sub-agent profile becomes available to the lead when delegation is on. For project profiles, first approve them in Settings → This project → Trust. For an edited profile already in use, **Apply updated profile**.
 
 ## Change what runs without asking
@@ -47,7 +47,7 @@ Reference: `reference/permissions.md`.
 2. Identify the rule set they work with (see "Explaining a decision"). Overlay rules apply only under that rule set; ask whether the rule should also apply under others.
 3. Pick the mechanism from "Choosing the mechanism" and the scope: project overlay for a team rule, user overlay for a personal one.
 4. Write the narrowest rule that covers the calls. State in one sentence what will happen afterwards unless the user dictated the rule.
-5. Reload and fix every diagnostic; an invalid permission file blocks tool calls. For a project overlay, tell the user to approve it in Settings → This project → Trust; until then it is ignored.
+5. Check and reload until no `error` remains. For a project overlay the result is `needs_approval`: tell the user to approve it in Settings → This project → Trust; until then it is ignored.
 
 ## Create a rule set
 
@@ -55,7 +55,7 @@ Reference: `reference/permissions.md`, "Rule set file".
 
 1. Agree on the behavior per category: reads, edits, shell, web, integrations, delegation. Decide what is allowed, asked and refused.
 2. Start from the closest built-in rule set's rules, then adjust. End with a catch-all rule.
-3. Write `<home>/config/rule-sets/<id>.json`, reload with user scope and fix every diagnostic.
+3. Write `<home>/config/rule-sets/<id>.json`, then check and reload with user scope until nothing is reported.
 4. Tell the user how to select it: the permission picker in the composer, or set it as `permissionRuleSetId` in a profile.
 
 ## Explain a permission decision

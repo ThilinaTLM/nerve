@@ -77,7 +77,7 @@ export const runtimeNamespaces: SdkNamespace[] = [
   {
     id: "configuration",
     summary:
-      'reload(scope), status(scope) with scope "user" or "project": re-read hand-edited agent.json, profiles, permission files and rule sets and get their problems; see the configure-nerve skill',
+      'check(scope), reload(scope) with scope "user" or "project": validate hand-edited agent.json, profiles, permission files, rule sets and launch definitions, then activate them; see the configure-nerve skill',
     methods: configurationMethods,
     types: CONFIGURATION_DTS_TYPES,
     docs: [],

@@ -57,7 +57,7 @@ export interface ExtensionExecutionContext {
   extensionPorts?: ExtensionHostPorts;
   /** Reload and status of the project's installed extensions (`extensions.*`); absent: the namespace fails with FORBIDDEN. */
   extensionAgent?: ExtensionAgentPort;
-  /** Reload and status of the configuration files (`configuration.*`); absent: the namespace fails with FORBIDDEN. */
+  /** Check and reload of the configuration files (`configuration.*`); absent: the namespace fails with FORBIDDEN. */
   configurationAgent?: ConfigurationAgentPort;
   /** How the host reaches extension code; absent: in the host process. */
   extensionCodeAdapter?: ExtensionCodeAdapter;

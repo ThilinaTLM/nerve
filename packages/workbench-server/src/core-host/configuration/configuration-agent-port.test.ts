@@ -48,7 +48,6 @@ async function setup(t: test.TestContext) {
         return source.reload(paths);
       },
     },
-    home,
     conversationId: "c",
     trustedResources: { find: () => null },
     launchDefinitions: { problem: async () => launchProblem },
@@ -65,18 +64,32 @@ async function setup(t: test.TestContext) {
   };
 }
 
-void test("reload makes a newly written invalid profile visible; status keeps the last load", async (t) => {
+const VALID_PROFILE = (name: string, usableBy = "lead") =>
+  JSON.stringify({
+    schemaVersion: 1,
+    name,
+    whenToUse: "Review a finished change.",
+    usableBy,
+    instructions: "",
+  });
+
+void test("check reads the disk and activates nothing; reload makes a new invalid profile visible", async (t) => {
   const { home, port } = await setup(t);
-  assert.deepEqual(await port.reload("user"), { diagnostics: [] });
+  assert.deepEqual(await port.reload("user"), { resources: [] });
   const file = join(home, "agent", "agent-profiles", "reviewer.json");
   await writeFile(file, "{ not json");
-  assert.deepEqual(await port.status("user"), { diagnostics: [] });
-  const { diagnostics } = await port.reload("user");
-  assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].scope, "user");
-  assert.equal(diagnostics[0].document, "profile:reviewer");
-  assert.equal(diagnostics[0].path, file);
-  assert.deepEqual(await port.status("user"), { diagnostics });
+  const checked = await port.check("user");
+  assert.deepEqual(
+    checked.resources.map(({ kind, id, path, state }) => ({
+      kind,
+      id,
+      path,
+      state,
+    })),
+    [{ kind: "agent-profile", id: "reviewer", path: file, state: "invalid" }],
+  );
+  assert.equal(checked.resources[0].diagnostics[0].code, "malformed-json");
+  assert.deepEqual(await port.reload("user"), checked);
 });
 
 void test("reload reports invalid permission files and rule sets, and reloads the policy source", async (t) => {
@@ -87,45 +100,74 @@ void test("reload reports invalid permission files and rule sets, and reloads th
   );
   await mkdir(join(home, "config", "rule-sets"), { recursive: true });
   await writeFile(join(home, "config", "rule-sets", "mine.json"), "{}");
-  const { diagnostics } = await port.reload("user");
+  const { resources } = await port.reload("user");
   assert.deepEqual(
-    [...new Set(diagnostics.map((entry) => entry.document))].sort(),
-    ["permissions.json", "rule-set:mine"],
+    resources.map(({ kind, id, state }) => ({ kind, id, state })),
+    [
+      { kind: "permission-overlay", id: "permissions.json", state: "invalid" },
+      { kind: "rule-set", id: "mine", state: "invalid" },
+    ],
   );
-  assert.equal(
-    diagnostics.find((entry) => entry.document === "permissions.json")!.pointer,
-    "/overlays",
-  );
+  assert.equal(resources[0].diagnostics[0].pointer, "/overlays");
   assert.deepEqual(reloaded, [undefined]);
 });
 
-void test("an invalid edit of a loaded permission file keeps the previous version and says so", async (t) => {
-  const { home, port } = await setup(t);
-  const file = join(home, "config", "permissions.json");
-  await writeFile(file, JSON.stringify({ schemaVersion: 2, overlays: [] }));
-  assert.deepEqual(await port.reload("user"), { diagnostics: [] });
-  await writeFile(file, "{ not json");
-  // `status` checks the disk and activates nothing.
-  const checked = await port.status("user");
-  assert.equal(checked.diagnostics[0].code, "malformed-json");
-  assert.doesNotMatch(checked.diagnostics[0].message, /stays in use/);
-  const { diagnostics } = await port.reload("user");
-  assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].level, "error");
-  assert.match(diagnostics[0].message, /stays in use/);
+void test("an invalid edit of a loaded file keeps the previous version and says so", async (t) => {
+  const { home, port, service } = await setup(t);
+  const overlay = join(home, "config", "permissions.json");
+  const profile = join(home, "agent", "agent-profiles", "reviewer.json");
+  await writeFile(overlay, JSON.stringify({ schemaVersion: 2, overlays: [] }));
+  await writeFile(profile, VALID_PROFILE("reviewer"));
+  assert.deepEqual(await port.reload("user"), { resources: [] });
+  await writeFile(overlay, "{ not json");
+  await writeFile(profile, "{ not json");
+  await writeFile(join(home, "config", "agent.json"), "{ not json");
+  const { resources } = await port.reload("user");
+  assert.deepEqual(
+    resources
+      .map(({ kind, state, previousVersionActive }) => ({
+        kind,
+        state,
+        previousVersionActive,
+      }))
+      .sort((a, b) => a.kind.localeCompare(b.kind)),
+    ["agent-preferences", "agent-profile", "permission-overlay"].map(
+      (kind) => ({ kind, state: "active", previousVersionActive: true }),
+    ),
+  );
+  assert.ok(
+    resources.every((resource) => resource.diagnostics[0].level === "error"),
+  );
+  // What was loaded stays loaded: tool calls keep working.
+  assert.notEqual(
+    (await service.ensureLoaded({ scope: "user" })).status,
+    "unavailable",
+  );
 });
 
-void test("project reload flags an unapproved overlay as untrusted and never trusts it", async (t) => {
+void test("project reload flags an unapproved overlay as needing approval and never trusts it", async (t) => {
   const { project, port, reloaded } = await setup(t);
   const file = join(project, ".nerve", "config", "permissions.json");
   await writeFile(
     file,
     JSON.stringify({ version: 3, schemaVersion: 2, overlays: [] }),
   );
-  const { diagnostics } = await port.reload("project");
+  const { resources } = await port.reload("project");
   assert.deepEqual(
-    diagnostics.map(({ document, level, code }) => ({ document, level, code })),
-    [{ document: "permissions.json", level: "warning", code: "untrusted" }],
+    resources.map(({ kind, state, approval, diagnostics }) => ({
+      kind,
+      state,
+      approval: approval?.kind,
+      codes: diagnostics.map(({ level, code }) => `${level}:${code}`),
+    })),
+    [
+      {
+        kind: "permission-overlay",
+        state: "needs_approval",
+        approval: "trust",
+        codes: ["warning:untrusted"],
+      },
+    ],
   );
   assert.deepEqual(reloaded, [[file]]);
 });
@@ -135,40 +177,42 @@ void test("valid lead and sub-agent profiles report nothing; an invalid field is
   const profile = (name: string, usableBy: string) =>
     writeFile(
       join(home, "agent", "agent-profiles", `${name}.json`),
-      JSON.stringify({
-        schemaVersion: 1,
-        name,
-        whenToUse: "Review a finished change.",
-        usableBy,
-        instructions: "",
-      }),
+      VALID_PROFILE(name, usableBy),
     );
-  await profile("reviewer", "subagent");
-  await profile("writer", "lead");
-  assert.deepEqual(await port.reload("user"), { diagnostics: [] });
+  await profile("lead-only", "lead");
+  await profile("helper", "subagent");
+  assert.deepEqual(await port.reload("user"), { resources: [] });
   await profile("reviewer", "teammate");
-  const { diagnostics } = await port.reload("user");
-  assert.equal(diagnostics.length, 1);
-  assert.equal(diagnostics[0].level, "error");
-  assert.equal(diagnostics[0].pointer, "/usableBy");
+  const { resources } = await port.reload("user");
+  assert.equal(resources.length, 1);
+  const [diagnostic] = resources[0].diagnostics;
+  assert.equal(diagnostic.level, "error");
+  assert.equal(diagnostic.pointer, "/usableBy");
   assert.match(
-    diagnostics[0].message,
+    diagnostic.message,
     /^Invalid value\. .* Detail: Invalid option/,
   );
 });
 
-void test("project status reports an unreadable launch catalog", async (t) => {
+void test("the project scope reports an unreadable launch catalog", async (t) => {
   const { port, setLaunchProblem } = await setup(t);
   setLaunchProblem({
     path: "/p/.nerve/launches/definitions.json",
     reason: "x",
   });
   assert.deepEqual(
-    (await port.status("project")).diagnostics.map(({ document, path }) => ({
-      document,
+    (await port.check("project")).resources.map(({ kind, path, state }) => ({
+      kind,
       path,
+      state,
     })),
-    [{ document: "launches", path: "/p/.nerve/launches/definitions.json" }],
+    [
+      {
+        kind: "launch-catalog",
+        path: "/p/.nerve/launches/definitions.json",
+        state: "invalid",
+      },
+    ],
   );
-  assert.deepEqual(await port.status("user"), { diagnostics: [] });
+  assert.deepEqual(await port.check("user"), { resources: [] });
 });

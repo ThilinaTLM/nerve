@@ -23,11 +23,11 @@ Then follow the workflow for the task in `guide/workflows.md` (or `guide/extensi
 
 ## Edit safely and check the result
 
-An invalid permission file blocks every tool call, and files under `<home>` are usually not in git. So:
+Files under `<home>` are usually not in git, and a permission file that is invalid when Nerve first loads it blocks every tool call. So:
 
 1. Before changing an existing file, read it in full; that is your copy to restore if the change goes wrong. Keep content you did not mean to change.
 2. After writing, check with the method for that kind of file and fix what it reports until it is clean:
-   - Agent profiles, permission files, `agent.json`, launch definitions: `configuration.reload(scope)` in quick_script (`reference/overview.md`, "Apply changes").
+   - Agent profiles, permission files, `agent.json`, launch definitions: `configuration.check(scope)` in quick_script, then `configuration.reload(scope)` once it is clean (`reference/overview.md`, "Apply changes").
    - Launch definitions, additionally: start the entry with the `launch` tool and read its logs.
    - Skills: read `SKILL.md` back; the skill is loaded from the next agent run.
    - Extensions: `nerve-ext check` (`guide/extensions.md`).

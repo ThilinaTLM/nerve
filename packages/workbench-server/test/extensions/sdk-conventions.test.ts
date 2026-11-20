@@ -27,7 +27,7 @@ const VERBS = new Set([
 const OTHER_NAMES: Record<string, string> = {
   "atlassian.defaults": "the configured sites, project and space",
   "configuration.reload": "re-reads files; changes nothing",
-  "configuration.status": "state of the last load",
+  "configuration.check": "validates files; changes nothing",
   "confluence.comments.reply": "Confluence's word for a child comment",
   "confluence.comments.resolve": "Confluence's action on an inline comment",
   "confluence.pages.move": "Confluence's action",

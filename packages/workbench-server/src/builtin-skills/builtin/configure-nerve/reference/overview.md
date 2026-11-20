@@ -44,21 +44,29 @@ Any edit to such a file, including yours, withdraws the approval until the user 
 Nerve does not watch files. After you edit configuration by hand:
 
 - Skills: read again from the next agent run. Launch definitions: read again on next use.
-- Agent profiles, permission files and agent preferences: cached until reloaded. Reload and read the result; it also reports an invalid launch catalog:
+- Agent profiles, permission files and agent preferences: cached until reloaded. Check the files on disk, fix what is reported, then reload:
 
 ```ts
-return await configuration.reload("project"); // or "user"
+const checked = await configuration.check("project"); // or "user"; changes nothing
+if (checked.resources.length > 0) return checked;
+return await configuration.reload("project");
 ```
 
-`configuration.status(scope)` returns the same result without reloading; use it to inspect the current state before a change.
+Both return `{ resources }`: only the files that have a diagnostic, so an empty list means every file of that scope is valid. Each resource has `kind`, `id`, `scope`, `path`, `state` and `diagnostics` (`level`, `code`, `message`, `pointer`); the message says what is wrong and what to do.
 
-The result is `{ diagnostics }`; an empty list means every file of that scope loads. Each diagnostic has `scope`, `document` (`agent.json`, `conversation-defaults`, `profile:<name>`, `permissions.json`, `rule-set:<id>`, `launches`), `path`, `level`, `code` and a `message` that says what is wrong and what to do. `level: "error"` means the file is not in use. Project files waiting for the user's approval have `code: "untrusted"` at `level: "warning"`; only the user can clear those. Rule sets are checked with user scope, the launch catalog with project scope. Skills are not covered.
+| `state`                                     | Meaning                                                                           | You                                                         |
+| ------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `invalid`                                   | The file is not in use.                                                           | Fix it, check again.                                        |
+| `active` with `previousVersionActive: true` | The file on disk is invalid, so the version loaded before your edit stays in use. | Fix it and reload; nothing is broken yet.                   |
+| `needs_approval`                            | The file is valid and ignored until the user approves its exact content.          | Tell the user where (`approval.where`). You cannot approve. |
 
-An invalid permission file blocks tool calls (model replies still work), so fix every `error` diagnostic before ending your turn, and reload again. Reloading never approves trust.
+Rule sets are covered by user scope, the launch catalog by project scope. Skills are not covered.
+
+Leave no `error` diagnostic behind when you end your turn: after a restart there is no loaded version to fall back to, and an invalid permission file then blocks tool calls (model replies still work). Reloading never approves trust.
 
 ## Failure behavior to keep in mind
 
 - Invalid JSON or a schema violation makes the whole file invalid; unknown keys are rejected everywhere.
-- Invalid permission overlay (user or project) or an invalid selected rule set: tool calls are blocked until it is fixed.
+- Invalid permission overlay (user or project) or an invalid selected rule set: the version loaded before the edit stays in use. With none loaded (after a restart), tool calls are blocked until it is fixed.
 - Invalid launch catalog: the catalog reads as empty and cannot be edited in the app until fixed.
 - Invalid profile: that profile is unavailable; a broken project profile does not fall back to the user or built-in one with the same name.

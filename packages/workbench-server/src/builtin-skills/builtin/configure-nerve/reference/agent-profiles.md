@@ -47,7 +47,7 @@ Project files carry an extra top-level `"version": 3`; user files have no `versi
 
 ## Fields
 
-Exact shape with every constraint: `reference/schemas/agent-profile.user.schema.json` and `reference/schemas/agent-profile.project.schema.json`. After writing, `configuration.reload` reports any field that does not match.
+Exact shape with every constraint: `reference/schemas/agent-profile.user.schema.json` and `reference/schemas/agent-profile.project.schema.json`. After writing, `configuration.check` reports any field that does not match.
 
 | Field             | Required | Value                                                                                                                                                                                                                                           |
 | ----------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

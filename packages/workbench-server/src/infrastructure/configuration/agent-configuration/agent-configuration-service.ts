@@ -54,7 +54,6 @@ import {
   ScopedDocumentStore,
   ScopeUnavailableError,
   freezeJson,
-  type ScopedDocumentOptions,
   type ScopeGeneration,
   type ScopeHealth,
 } from "../scoped-store/scoped-document-store.js";
@@ -69,7 +68,6 @@ import {
   type AgentDocument,
   type CreationPreferences,
   type ConfigurationDiagnostic,
-  type ConfigurationLocations,
 } from "./document-adapters.js";
 import { AgentProfileCatalog } from "./profile-catalog.js";
 
@@ -78,30 +76,8 @@ import {
   type ResourceSnapshot,
 } from "./profile-resources.js";
 export type { ResourceSnapshot } from "./profile-resources.js";
-export interface AgentConfigurationServiceOptions extends ConfigurationLocations {
-  builtins: Readonly<Record<string, string>>;
-  projectMigration?: ProjectMigrationService;
-  prepareUser?(): Promise<void>;
-  retryUserMigration?(): void;
-  prepareProject?(projectId: string): Promise<void>;
-  retryProjectMigration?(projectId: string): void;
-  isProjectAgentTrusted?(
-    projectId: string,
-    path: string,
-    digest: string,
-  ): boolean;
-  isProfileTrusted(projectId: string, path: string, digest: string): boolean;
-  prepareResources?(projectId: string): Promise<void>;
-  captureResources(projectId?: string): ResourceSnapshot;
-  publish?(
-    domain: "agent" | "conversation-defaults" | "profile",
-    scope: AgentScope,
-  ): void;
-  io?: Pick<
-    ScopedDocumentOptions<AgentScope, AgentDocument>,
-    "write" | "syncDirectory"
-  >;
-}
+import type { AgentConfigurationServiceOptions } from "./agent-configuration-options.js";
+export type { AgentConfigurationServiceOptions } from "./agent-configuration-options.js";
 export type { EffectiveAgentView } from "./agent-configuration-views.js";
 import type {
   EffectiveAgentView,
@@ -251,14 +227,24 @@ export class AgentConfigurationService {
     this.track(scope);
     return this.agents.ensureLoaded(scope);
   }
-  async reload(scope: AgentScope) {
+  /** With `keepLoaded`, an invalid file never replaces a valid loaded document (`rejected` has its issues). */
+  async reload(scope: AgentScope, keepLoaded = false) {
     this.retryScope(scope);
     const blocked = await this.prepareScope(this.paths.preferenceScope(scope));
     if (blocked) return blocked;
     this.track(scope);
-    const result = await this.agents.reload(scope);
+    const result = keepLoaded
+      ? await this.agents.reloadKeepingLoaded(scope)
+      : await this.agents.reload(scope);
     this.healthSignals.publish(scope);
     return result;
+  }
+  /** Issues of the agent preferences file as it is on disk; activates nothing. */
+  inspectAgent(scope: AgentScope) {
+    return this.agents.inspect(scope);
+  }
+  inspectCreation(scope: PreferenceScope) {
+    return this.creation.inspect(scope);
   }
   private track(scope: AgentScope): void {
     const key = this.paths.agent(scope);
@@ -706,7 +692,7 @@ export class AgentConfigurationService {
       ? this.creation.reload(scope)
       : this.creation.ensureLoaded(scope);
   }
-  async reloadCreation(scope: PreferenceScope) {
+  async reloadCreation(scope: PreferenceScope, keepLoaded = false) {
     this.retryScope(scope);
     const blocked = await this.prepareScope(scope);
     if (blocked?.status === "unavailable")
@@ -716,7 +702,9 @@ export class AgentConfigurationService {
         issues: blocked.issues,
       });
     this.creationScopes.set(this.paths.creation(scope), structuredClone(scope));
-    const result = await this.creation.reload(scope);
+    const result = keepLoaded
+      ? await this.creation.reloadKeepingLoaded(scope)
+      : await this.creation.reload(scope);
     this.creationSignals.publish(scope);
     return result;
   }

@@ -321,7 +321,6 @@ export function createConversationCore(
                 configurationAgent: createConfigurationAgentPort({
                   service: agentConfiguration,
                   policy: admissionPolicy,
-                  home: deps.storage.paths.home,
                   conversationId: input.conversationId,
                   trustedResources: storage.trustedResources,
                   launchDefinitions: launchServices.definitions,

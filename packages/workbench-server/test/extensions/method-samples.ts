@@ -25,7 +25,7 @@ export const SAMPLES: Record<string, unknown[][]> = {
   "extensions.reload": [["csv-viewer"], [{ id: "csv-viewer" }]],
   "extensions.status": [["csv-viewer"]],
   "configuration.reload": [["project"], [{ scope: "user" }]],
-  "configuration.status": [["user"]],
+  "configuration.check": [["user"]],
   "sdk.list": [[]],
   "sdk.describe": [["jira.issues"]],
   "sdk.search": [["sprint"], ["sprint", { in: "jira", offset: 0 }]],

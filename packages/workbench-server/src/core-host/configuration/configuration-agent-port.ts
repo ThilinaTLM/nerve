@@ -1,7 +1,11 @@
 import { join } from "node:path";
 import type {
-  ConfigurationAgentDiagnostic,
+  ConfigurationResource,
+  Diagnostic,
+} from "@nervekit/contracts/configuration";
+import type {
   ConfigurationAgentPort,
+  ConfigurationAgentResult,
   ConfigurationAgentScope,
 } from "@nervekit/tools/quick-script";
 import type { CoreStorage } from "@nervekit/conversation-core";
@@ -11,13 +15,15 @@ import type {
   ConfigurationDiagnostic,
   PreferenceScope,
 } from "../../infrastructure/configuration/agent-configuration/document-adapters.js";
+import {
+  inspectScope,
+  reloadScopeKeepingLoaded,
+} from "../../infrastructure/configuration/agent-configuration/hand-edits.js";
 import type { PermissionFileReport } from "../permissions/permission-files.js";
 import type { ScopedPermissionPolicySource } from "../permissions/scoped-permission-source.js";
 
-const PREVIOUS_ACTIVE =
-  "The version loaded before this edit stays in use until the file is fixed and reloaded.";
-const UNTRUSTED =
-  "Ignored until the user approves its exact content in Settings → This project → Trust.";
+const TRUST_PAGE = "Settings → This project → Trust";
+const UNTRUSTED = `Valid, but ignored until the user approves its exact content in ${TRUST_PAGE}. You cannot approve it; tell the user.`;
 
 /** What a diagnostic code means and what to do next; `issue.message` adds the parser's detail. */
 const EXPLANATIONS: Record<string, string> = {
@@ -35,67 +41,203 @@ const EXPLANATIONS: Record<string, string> = {
     "Uses an older format that could not be converted automatically. Leave the file as it is; the user can repair it in Settings.",
 };
 
-function explain(issue: ConfigurationDiagnostic): string {
-  const meaning = EXPLANATIONS[issue.code];
-  if (!meaning) return issue.message ?? issue.code;
-  return `${meaning}${issue.message ? ` Detail: ${issue.message}` : ""}`;
+function explain(code: string, detail: string | undefined): string {
+  const meaning = EXPLANATIONS[code];
+  if (!meaning) return detail ?? code;
+  return detail && !meaning.includes(detail)
+    ? `${meaning} Detail: ${detail}`
+    : meaning;
+}
+
+/** One file's problems before they are grouped into a resource. */
+type Finding = Pick<ConfigurationResource, "kind" | "id" | "path"> & {
+  diagnostic?: Diagnostic;
+  untrusted?: true;
+  previousVersionActive?: true;
+};
+
+/** `agent`, `conversation-defaults`, `profile:<name>`, `permissions.json`, `rule-set:<id>`, `rule-sets`. */
+function identify(
+  document: string,
+): Pick<ConfigurationResource, "kind" | "id"> {
+  if (document.startsWith("profile:"))
+    return { kind: "agent-profile", id: document.slice("profile:".length) };
+  if (document.startsWith("rule-set:"))
+    return { kind: "rule-set", id: document.slice("rule-set:".length) };
+  if (document === "rule-sets") return { kind: "rule-set", id: "(folder)" };
+  if (document === "agent")
+    return { kind: "agent-preferences", id: "agent.json" };
+  if (document === "conversation-defaults")
+    return { kind: "agent-preferences", id: "conversation-defaults.json" };
+  return { kind: "permission-overlay", id: document };
 }
 
 /**
- * The `configuration.*` quick_script namespace for one project: re-reads the files an agent edited
- * by hand and reports what is still wrong. It writes no file and never grants trust.
+ * The `configuration.*` quick_script namespace for one project: validates the files an agent edited
+ * by hand, activates the valid ones and reports what is still wrong. It writes no file and never
+ * grants trust. Each owner validates its own files; this port only gathers and words the results.
  */
 export function createConfigurationAgentPort(options: {
   service: AgentConfigurationService;
   policy: Pick<ScopedPermissionPolicySource, "reload" | "check">;
-  home: string;
   /** The conversation whose project the scope `"project"` names. */
   conversationId: string;
   trustedResources: Pick<CoreStorage["trustedResources"], "find">;
   launchDefinitions: Pick<LaunchDefinitionService, "problem">;
 }): ConfigurationAgentPort {
-  const { service, policy, home } = options;
+  const { service, policy } = options;
   const projectId = service.paths.locations.conversationOwner(
     options.conversationId,
   ).projectId;
   const preference = (scope: ConfigurationAgentScope): PreferenceScope =>
     scope === "user" ? { scope } : { scope, projectId };
-  const overlayPath = (scope: ConfigurationAgentScope) =>
+  const permissionPaths = (scope: ConfigurationAgentScope) =>
     scope === "user"
-      ? join(home, "config", "permissions.json")
-      : join(
-          service.paths.locations.projectDirectory(projectId) ?? "",
-          ".nerve",
-          "config",
-          "permissions.json",
-        );
+      ? undefined
+      : [
+          join(
+            service.paths.locations.projectDirectory(projectId) ?? "",
+            ".nerve",
+            "config",
+            "permissions.json",
+          ),
+        ];
 
-  function convert(
+  /** Only this scope's own files; a project scope also loads the user's. */
+  const own =
+    (scope: ConfigurationAgentScope) => (issue: ConfigurationDiagnostic) =>
+      issue.scope === scope &&
+      (scope === "user" || issue.scopeId === projectId);
+
+  function fromAgentConfiguration(
     issue: ConfigurationDiagnostic,
-  ): ConfigurationAgentDiagnostic {
-    const untrusted = issue.code === "untrusted";
+    previousVersionActive: boolean,
+  ): Finding {
+    const at = { ...identify(issue.document), path: issue.path };
+    if (issue.code === "untrusted") return { ...at, untrusted: true };
     return {
-      scope: issue.scope as ConfigurationAgentScope,
-      document: issue.document === "agent" ? "agent.json" : issue.document,
-      path: issue.path,
-      level: untrusted ? "warning" : "error",
-      code: issue.code,
-      message: untrusted ? UNTRUSTED : explain(issue),
-      ...(issue.pointer ? { pointer: issue.pointer } : {}),
+      ...at,
+      ...(previousVersionActive ? { previousVersionActive: true } : {}),
+      diagnostic: {
+        level: "error",
+        code: issue.code,
+        message: explain(issue.code, issue.message),
+        ...(issue.pointer ? { pointer: issue.pointer } : {}),
+      },
     };
   }
 
-  async function agentDiagnostics(
+  function fromPermissions(
+    scope: ConfigurationAgentScope,
+    reports: readonly PermissionFileReport[],
+  ): Finding[] {
+    return reports
+      .filter((report) => report.scope === scope)
+      .flatMap((report) => {
+        const at = { ...identify(report.document), path: report.path };
+        const found = report.diagnostics.map(
+          (diagnostic): Finding => ({
+            ...at,
+            ...(report.previousVersionActive
+              ? { previousVersionActive: true }
+              : {}),
+            diagnostic: {
+              ...diagnostic,
+              message: explain(diagnostic.code, diagnostic.message),
+            },
+          }),
+        );
+        if (scope !== "project" || !report.contentDigest) return found;
+        const row = options.trustedResources.find(
+          "project_permissions",
+          projectId,
+          report.path,
+        );
+        return row?.status === "trusted" &&
+          row.contentDigest === report.contentDigest
+          ? found
+          : [...found, { ...at, untrusted: true as const }];
+      });
+  }
+
+  async function fromLaunches(
+    scope: ConfigurationAgentScope,
+  ): Promise<Finding[]> {
+    if (scope !== "project") return [];
+    const problem = await options.launchDefinitions.problem(projectId);
+    if (!problem) return [];
+    return [
+      {
+        kind: "launch-catalog",
+        id: "definitions.json",
+        path: problem.path,
+        diagnostic: {
+          level: "error",
+          code: "invalid-value",
+          message: `Invalid (${problem.reason}). Until it is fixed, the project has no launch definitions.`,
+        },
+      },
+    ];
+  }
+
+  /** One resource per file, with a state the agent can act on. */
+  function resources(
+    scope: ConfigurationAgentScope,
+    findings: readonly Finding[],
+  ): ConfigurationAgentResult {
+    const byFile = new Map<string, ConfigurationResource>();
+    const seen = new Set<string>();
+    for (const finding of findings) {
+      const key = `${finding.kind}\0${finding.id}\0${finding.path ?? ""}`;
+      const resource =
+        byFile.get(key) ??
+        ({
+          kind: finding.kind,
+          id: finding.id,
+          scope,
+          ...(finding.path ? { path: finding.path } : {}),
+          state: "active",
+          diagnostics: [],
+        } satisfies ConfigurationResource);
+      byFile.set(key, resource);
+      if (finding.previousVersionActive) resource.previousVersionActive = true;
+      if (finding.untrusted) {
+        resource.approval = { kind: "trust", where: TRUST_PAGE };
+        resource.diagnostics.push({
+          level: "warning",
+          code: "untrusted",
+          message: UNTRUSTED,
+        });
+      }
+      const diagnostic = finding.diagnostic;
+      if (!diagnostic) continue;
+      const identity = `${key}\0${diagnostic.code}\0${diagnostic.pointer ?? ""}\0${diagnostic.message}`;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      resource.diagnostics.push(diagnostic);
+    }
+    for (const resource of byFile.values()) {
+      const broken = resource.diagnostics.some(
+        (diagnostic) => diagnostic.level === "error",
+      );
+      // A kept previous version is what is in effect, so the resource stays active.
+      if (broken && !resource.previousVersionActive) resource.state = "invalid";
+      else if (!broken && resource.approval) resource.state = "needs_approval";
+    }
+    return { resources: [...byFile.values()] };
+  }
+
+  /** What is loaded now: every profile file of the scope enters `health()` through the listing. */
+  async function loaded(
     scope: ConfigurationAgentScope,
   ): Promise<ConfigurationDiagnostic[]> {
     const target = preference(scope);
     const state = await service.ensureLoaded(target);
     await service.loadCreation(target);
-    // Listing loads every profile file of the scope, so its problems enter `health()`. The editing
-    // listing reports file and trust problems only: whether a profile suits a lead or a sub-agent
-    // depends on where it is used, not on the file.
+    // The editing listing reports file and trust problems only: whether a profile suits a lead
+    // or a sub-agent depends on where it is used, not on the file.
     const listing = await service.profiles.listForEditing(target);
-    const issues = [
+    return [
       ...service.health(),
       ...listing.diagnostics,
       ...listing.profiles.flatMap((entry) => entry.diagnostics),
@@ -113,116 +255,44 @@ export function createConfigurationAgentPort(options: {
             } satisfies ConfigurationDiagnostic,
           ]
         : []),
-    ];
-    const seen = new Set<string>();
-    return issues.filter((issue) => {
-      const key = JSON.stringify([
-        issue.document,
-        issue.path,
-        issue.code,
-        issue.pointer,
-      ]);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return (
-        issue.scope === scope &&
-        (scope === "user" || issue.scopeId === projectId)
-      );
-    });
-  }
-
-  /** Reports of the permission source, which owns the validation of these files. */
-  function permissionDiagnostics(
-    scope: ConfigurationAgentScope,
-    reports: readonly PermissionFileReport[],
-  ): ConfigurationAgentDiagnostic[] {
-    return reports
-      .filter((report) => report.scope === scope)
-      .flatMap((report) => {
-        const at = {
-          scope,
-          document: report.document,
-          path: report.path,
-        };
-        const found = report.diagnostics.map(
-          (diagnostic): ConfigurationAgentDiagnostic => ({
-            ...at,
-            ...diagnostic,
-            message: report.previousVersionActive
-              ? `${diagnostic.message} ${PREVIOUS_ACTIVE}`
-              : diagnostic.message,
-          }),
-        );
-        const row =
-          scope === "project" && report.contentDigest
-            ? options.trustedResources.find(
-                "project_permissions",
-                projectId,
-                report.path,
-              )
-            : undefined;
-        if (
-          scope === "project" &&
-          report.contentDigest &&
-          !(
-            row?.status === "trusted" &&
-            row.contentDigest === report.contentDigest
-          )
-        )
-          found.push({
-            ...at,
-            level: "warning",
-            code: "untrusted",
-            message: UNTRUSTED,
-          });
-        return found;
-      });
-  }
-
-  async function launchDiagnostics(
-    scope: ConfigurationAgentScope,
-  ): Promise<ConfigurationAgentDiagnostic[]> {
-    if (scope !== "project") return [];
-    const problem = await options.launchDefinitions.problem(projectId);
-    if (!problem) return [];
-    return [
-      {
-        scope,
-        document: "launches",
-        path: problem.path,
-        level: "error",
-        code: "invalid-value",
-        message: `Invalid (${problem.reason}). Until it is fixed, the project has no launch definitions.`,
-      },
-    ];
-  }
-
-  const permissionPaths = (scope: ConfigurationAgentScope) =>
-    scope === "user" ? undefined : [overlayPath(scope)];
-
-  async function result(
-    scope: ConfigurationAgentScope,
-    reports: readonly PermissionFileReport[],
-  ) {
-    return {
-      diagnostics: [
-        ...(await agentDiagnostics(scope)).map(convert),
-        ...permissionDiagnostics(scope, reports),
-        ...(await launchDiagnostics(scope)),
-      ],
-    };
+    ].filter(own(scope));
   }
 
   return {
-    async reload(scope) {
+    async check(scope) {
       const target = preference(scope);
-      await service.reload(target);
-      await service.reloadCreation(target);
-      await service.profiles.reloadCatalog(target);
-      // The user scope also covers every rule set and every file loaded so far.
-      return await result(scope, await policy.reload(permissionPaths(scope)));
+      const state = await service.ensureLoaded(target);
+      return resources(scope, [
+        ...(await inspectScope(service, target))
+          .filter(own(scope))
+          .map((issue) => fromAgentConfiguration(issue, false)),
+        ...(service.untrustedProject(state)
+          ? [
+              {
+                ...identify("agent"),
+                path: service.paths.agent(target),
+                untrusted: true as const,
+              },
+            ]
+          : []),
+        ...fromPermissions(scope, await policy.check(permissionPaths(scope))),
+        ...(await fromLaunches(scope)),
+      ]);
     },
-    status: async (scope) =>
-      await result(scope, await policy.check(permissionPaths(scope))),
+    async reload(scope) {
+      const kept = await reloadScopeKeepingLoaded(service, preference(scope));
+      // The user scope also covers every rule set and every permission file loaded so far.
+      const reports = await policy.reload(permissionPaths(scope));
+      return resources(scope, [
+        ...kept
+          .filter(own(scope))
+          .map((issue) => fromAgentConfiguration(issue, true)),
+        ...(await loaded(scope)).map((issue) =>
+          fromAgentConfiguration(issue, false),
+        ),
+        ...fromPermissions(scope, reports),
+        ...(await fromLaunches(scope)),
+      ]);
+    },
   };
 }

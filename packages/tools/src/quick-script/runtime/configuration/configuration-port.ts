@@ -1,30 +1,23 @@
-/**
- * What a script may do to Nerve's configuration files: make the host re-read them and report
- * problems. It never writes a file and never grants trust; only the user's Settings page does.
- */
+import type { ConfigurationResource } from "@nervekit/contracts/configuration";
 
-import type { Diagnostic } from "@nervekit/contracts/configuration";
+/**
+ * What a script may do to Nerve's configuration files: validate them and make the host re-read
+ * them. It never writes a file and never grants trust; only the user's Settings page does.
+ */
 
 export type ConfigurationAgentScope = "user" | "project";
 
-/**
- * The shared diagnostic plus the file it is about. Code `untrusted` (a warning): the project
- * file is ignored until the user approves its exact content.
- */
-export type ConfigurationAgentDiagnostic = Diagnostic & {
-  scope: "user" | "project";
-  /** `agent.json`, `conversation-defaults`, `profile:<name>`, `permissions.json`, `rule-set:<id>` or `launches`. */
-  document: string;
-  path: string;
-};
-
 export type ConfigurationAgentResult = {
-  diagnostics: ConfigurationAgentDiagnostic[];
+  /** Every resource of the scope that has a diagnostic; empty when all is well. */
+  resources: ConfigurationResource[];
 };
 
 export interface ConfigurationAgentPort {
-  /** Re-reads the scope's configuration from disk and returns its diagnostics; never grants trust. */
+  /** Validates the scope's files as they are on disk. Activates nothing. */
+  check(scope: ConfigurationAgentScope): Promise<ConfigurationAgentResult>;
+  /**
+   * Activates the scope's valid files. A file that is invalid on disk never replaces a valid
+   * loaded version (`previousVersionActive`). Never grants trust.
+   */
   reload(scope: ConfigurationAgentScope): Promise<ConfigurationAgentResult>;
-  /** Diagnostics of the scope without re-reading files from disk first. */
-  status(scope: ConfigurationAgentScope): Promise<ConfigurationAgentResult>;
 }
