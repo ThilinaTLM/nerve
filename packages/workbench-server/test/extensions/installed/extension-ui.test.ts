@@ -177,7 +177,6 @@ void test(
     await writeExtension(projectRoot, {
       id: "only-p2",
       namespace: "probetwo",
-      toolPrefix: "two",
       ui: { pages: ["board"] },
     });
     w.setEnabled(true);

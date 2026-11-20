@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ExtensionDefinitionData } from "@nervekit/extension-api";
+import type { ExtensionDefinitionData } from "@nervekit/extension-api/host";
 import {
   accountKindSchema,
   extensionIdSchema,

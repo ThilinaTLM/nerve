@@ -5,6 +5,7 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   extensionIdSchema,
   installedExtensionManifestSchema,
+  installedNamingDiagnostics,
   sdkCompatibilityProblem,
   themeFileSchema,
   themeRuleProblems,
@@ -195,6 +196,11 @@ export async function readFolder(
       "folder-id-mismatch",
       `The folder name '${folderName}' must equal the extension id '${manifest.id}'.`,
     );
+  const naming = installedNamingDiagnostics(manifest);
+  if (naming.length > 0) {
+    result.diagnostics.push(...naming);
+    return result;
+  }
   const readAsset = distReader(dist);
   // The icon and doc topics are plain files: they are checked now, before any consent.
   try {

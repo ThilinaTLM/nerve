@@ -173,6 +173,57 @@ void test("the backend cannot import test helpers or Node built-ins", async () =
   });
 });
 
+void test("a direct @nervekit/extension-api import is refused and names the SDK", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "direct-api",
+      kind: "theme",
+      cwd: root,
+    });
+    const file = join(folder, "src", "extension.ts");
+    await writeFile(
+      file,
+      (await readFile(file, "utf8")).replace(
+        "@nervekit/extension-sdk",
+        "@nervekit/extension-api",
+      ),
+    );
+    const problems = await problemsOf(() =>
+      buildExtension({ projectDir: folder }),
+    );
+    assert.match(
+      problems[0]!.what,
+      /import only from '@nervekit\/extension-sdk'/,
+    );
+    assert.match(problems[0]!.fix, /'@nervekit\/extension-sdk'/);
+  });
+});
+
+void test("tool names and account kinds must start with the extension id", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "my-service",
+      kind: "integration",
+      cwd: root,
+    });
+    const file = join(folder, "src", "extension.ts");
+    await writeFile(
+      file,
+      (await readFile(file, "utf8")).replace(
+        'name: "my_service_get"',
+        'name: "fetch_thing"',
+      ),
+    );
+    const problems = await problemsOf(() =>
+      buildExtension({ projectDir: folder }),
+    );
+    assert.match(
+      problems[0]!.what,
+      /'fetch_thing' must start with 'my_service_'/,
+    );
+  });
+});
+
 void test("a folder named differently from the id is refused", async () => {
   await withTemp(async (root) => {
     const folder = await initExtension({

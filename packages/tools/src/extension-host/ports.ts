@@ -1,10 +1,12 @@
 import type {
   AccountInfo,
-  ImageGenerateRequest,
-  ImageGenerateResponse,
   VisionExplainRequest,
   VisionResult,
 } from "@nervekit/extension-api";
+import type {
+  ImageGenerateRequest,
+  ImageGenerateResponse,
+} from "@nervekit/extension-api/host";
 
 /**
  * What the embedding host (the server) provides so the runtime can build an

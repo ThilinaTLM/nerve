@@ -145,13 +145,10 @@ export type HttpResponse = {
 /** The label of an entity in the run footer (`ctx.report`): a name or key such as `PROJ-12`. */
 export type ReportEntry = string;
 
-/** Image generation backends the host can run; a member of the Image generation extension's `backend` setting. */
-export type ImageBackend = "openai-codex";
-
 /** Image generation the host provides when the manifest declares `models.image`: every option is final (call overrides applied). */
 export type ImageOptions = {
-  /** Backend that runs the request. */
-  backend: ImageBackend;
+  /** Backend that runs the request; the host validates the name. */
+  backend: string;
   /** Model id on that backend. */
   model: string;
   /** Quality level; the values the backend accepts, `auto` lets it choose. */
@@ -161,9 +158,6 @@ export type ImageOptions = {
   /** `auto`, `opaque` or `transparent`, as the backend supports. */
   background: string;
 };
-
-/** What the host's backend adapter executes. Host-internal; extensions use `ImageRequest`. */
-export type ImageBackendRequest = ImageOptions;
 
 /** One `ctx.models.image.generate` call. */
 export type ImageRequest = {
@@ -194,15 +188,6 @@ export type ImageResult = {
     revisedPrompt?: string;
   }[];
 };
-
-/** `ImageRequest` as the host's backend adapters receive it (the run's abort signal added). Host-internal. */
-export type ImageGenerateRequest = ImageRequest & {
-  /** Cancellation of the run. */
-  signal?: AbortSignal;
-};
-
-/** `ImageResult` as the host's backend adapters return it. Host-internal. */
-export type ImageGenerateResponse = ImageResult;
 
 /**
  * An image explained by the vision model the extension's settings select

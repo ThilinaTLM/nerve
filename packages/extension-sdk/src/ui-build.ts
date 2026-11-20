@@ -229,6 +229,11 @@ const frameForbidden: {
   fix: string;
 }[] = [
   {
+    pattern: /^@nervekit\/extension-api(\/|$)/,
+    name: "direct API import",
+    fix: "Extensions import only from '@nervekit/extension-sdk'. Change the import to '@nervekit/extension-sdk' (types and helpers) or '@nervekit/extension-sdk/ui' (frame code).",
+  },
+  {
     pattern:
       /^@nervekit\/ui-kit\/components\/(ui\/(alert-dialog|dialog)|composites\/(confirm-dialog|dialog-shell|form-dialog))(\/|$)/,
     name: "dialog",

@@ -1,4 +1,4 @@
-import { parseOptions } from "@nervekit/extension-api";
+import { parseOptions } from "@nervekit/extension-api/host";
 import type {
   MethodAuthorization,
   MethodRisk,

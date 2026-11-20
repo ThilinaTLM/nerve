@@ -1,5 +1,4 @@
 import {
-  EXTENSION_ERROR_CODES,
   ExtensionError,
   type AccountInfo,
   type AccountTestResult,
@@ -8,6 +7,7 @@ import {
   type ExtensionContext,
   type ExtensionDefinition,
 } from "@nervekit/extension-api";
+import { EXTENSION_ERROR_CODES } from "@nervekit/extension-api/host";
 import { sandbox } from "@nervekit/native";
 import { ToolExecutionError } from "../execution/index.js";
 import { readSandboxLibrarySource } from "../quick-script/sandbox-library-sources.js";

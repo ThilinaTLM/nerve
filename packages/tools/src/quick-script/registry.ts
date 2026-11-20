@@ -1,10 +1,10 @@
 import { assertUniqueAccountKinds } from "@nervekit/contracts/settings";
 import type { ExtensionSource } from "@nervekit/contracts/extensions";
 import {
-  VIEW_SECTION_ID,
   type ExtensionDefinition,
   type ToolDefinition as ExtensionToolDefinition,
 } from "@nervekit/extension-api";
+import { VIEW_SECTION_ID } from "@nervekit/extension-api/host";
 import { resolveExtensionIcon } from "../extension-host/icon.js";
 import { fromDefinition } from "../extension-host/from-definition.js";
 import { createSdkNamespace } from "./runtime/discovery.js";

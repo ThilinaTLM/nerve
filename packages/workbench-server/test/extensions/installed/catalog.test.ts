@@ -90,12 +90,10 @@ void test(
     await writeExtension(userRoot, {
       id: "user-ext",
       namespace: "userns",
-      toolPrefix: "userext",
     });
     await writeExtension(projectRoot, {
       id: "proj-ext",
       namespace: "projns",
-      toolPrefix: "projext",
     });
     const catalog = createTestCatalog({
       home,
@@ -114,7 +112,7 @@ void test(
     assert.equal(sources["proj-ext"], "project");
     assert.equal(sources.diagram, "builtin");
     assert.ok(
-      inProject.tools.some((tool) => tool.definition.name === "projext_echo"),
+      inProject.tools.some((tool) => tool.definition.name === "proj_ext_echo"),
     );
     // Another project does not see it.
     const other = await catalog.registryFor(join(project, "..", "elsewhere"));
@@ -136,7 +134,6 @@ void test(
     await writeExtension(parentRoot, {
       id: "parent-ext",
       namespace: "parentns",
-      toolPrefix: "parentext",
     });
     const catalog = createTestCatalog({
       home,
@@ -155,12 +152,10 @@ void test(
     await writeExtension(userRoot, {
       id: "same-id",
       namespace: "userver",
-      toolPrefix: "userver",
     });
     await writeExtension(projectRoot, {
       id: "same-id",
       namespace: "projver",
-      toolPrefix: "projver",
     });
     const catalog = createTestCatalog({
       home,
@@ -189,7 +184,6 @@ void test(
     await writeExtension(userRoot, {
       id: "atlassian",
       namespace: "fakeatlassian",
-      toolPrefix: "fakeatl",
     });
     const catalog = createTestCatalog({
       home,
@@ -208,53 +202,48 @@ void test(
 );
 
 void test(
-  "account kinds, namespaces and tool names are unique across scopes; the later one fails",
+  "account kinds and namespaces are unique across scopes; names outside the extension's prefix are refused",
   { skip },
   async () => {
     const { home, userRoot, project, projectRoot } = await world();
-    const builtinKind = builtinExtensions.flatMap((d) =>
-      Object.keys(d.accounts ?? {}),
-    )[0]!;
+    const builtinIds = new Set(builtinExtensions.map((d) => d.id));
+    // A built-in kind that is not itself a built-in id, so an installed extension can be named after it.
+    const builtinKind = builtinExtensions
+      .flatMap((d) => Object.keys(d.accounts ?? {}))
+      .find((kind) => !builtinIds.has(kind))!;
     await writeExtension(userRoot, {
       id: "kind-owner",
       namespace: "kindowner",
-      toolPrefix: "kindowner",
-      accountKind: "owned-kind",
+      accountKind: "kind-owner",
     });
     await writeExtension(userRoot, {
-      id: "kind-builtin",
+      id: builtinKind,
       namespace: "kindbuiltin",
-      toolPrefix: "kindbuiltin",
       accountKind: builtinKind,
     });
     await writeExtension(projectRoot, {
-      id: "kind-thief",
+      id: "kind",
       namespace: "kindthief",
-      toolPrefix: "kindthief",
-      accountKind: "owned-kind",
+      accountKind: "kind-owner",
     });
     await writeExtension(projectRoot, {
       id: "ns-thief",
       namespace: "kindowner",
-      toolPrefix: "nsthief",
     });
     await writeExtension(projectRoot, {
       id: "reserved-ns",
       namespace: "files",
-      toolPrefix: "reservedns",
     });
-    await writeExtension(
-      projectRoot,
-      { id: "core-tool", namespace: "coretool", toolPrefix: "bash" },
-      (manifest) => {
-        (manifest.tools as { name: string }[])[0]!.name = "bash";
-      },
-      fixtureBackend({
-        id: "core-tool",
-        namespace: "coretool",
-        toolPrefix: "bash",
-      }).replace('name: "bash_echo"', 'name: "bash"'),
-    );
+    await writeExtension(projectRoot, {
+      id: "core-tool",
+      namespace: "coretool",
+      toolPrefix: "bash",
+    });
+    await writeExtension(projectRoot, {
+      id: "kind-prefix",
+      namespace: "kindprefix",
+      accountKind: "other-kind",
+    });
     const catalog = createTestCatalog({
       home,
       trustGate: overrideTrustGate(),
@@ -263,28 +252,36 @@ void test(
     const entries = await catalog.entries(project);
     assert.equal(entry(entries, "kind-owner").state, "enabled");
     assert.match(
-      text(entry(entries, "kind-builtin")),
+      text(entry(entries, builtinKind)),
       /account kind '.*' is already defined/,
     );
     assert.match(
-      text(entry(entries, "kind-thief")),
-      /account kind 'owned-kind' is already defined/,
+      text(entry(entries, "kind")),
+      /account kind 'kind-owner' is already defined/,
     );
     assert.match(
       text(entry(entries, "ns-thief")),
       /namespace 'kindowner' is already defined/,
     );
     assert.match(text(entry(entries, "reserved-ns")), /'files' is reserved/);
+    const prefixed = entry(entries, "core-tool").diagnostics.find(
+      (diagnostic) => diagnostic.code === "tool-name-prefix",
+    );
     assert.match(
-      text(entry(entries, "core-tool")),
-      /tool name 'bash' is already used/,
+      prefixed?.message ?? "",
+      /'bash_echo' must start with 'core_tool_'/,
+    );
+    assert.match(
+      text(entry(entries, "kind-prefix")),
+      /account kind 'other-kind' must start with the extension id 'kind-prefix'/,
     );
     for (const id of [
-      "kind-builtin",
-      "kind-thief",
+      builtinKind,
+      "kind",
       "ns-thief",
       "reserved-ns",
       "core-tool",
+      "kind-prefix",
     ])
       assert.equal(entry(entries, id).state, "invalid", id);
     assert.deepEqual(
@@ -304,7 +301,7 @@ void test(
     // The manifest understates the code: the code's tool description differs and it adds a risk.
     await writeExtension(
       userRoot,
-      { id: "liar", namespace: "liar", toolPrefix: "liar" },
+      { id: "liar", namespace: "liar" },
       (manifest) => {
         (
           manifest.namespaces as { methods: { echo: { risk: string } } }[]
@@ -313,13 +310,13 @@ void test(
     );
     await writeExtension(
       userRoot,
-      { id: "crash", namespace: "crash", toolPrefix: "crash" },
+      { id: "crash", namespace: "crash" },
       undefined,
       "throw new Error('boom at load');",
     );
     await writeExtension(
       userRoot,
-      { id: "silent", namespace: "silent", toolPrefix: "silent" },
+      { id: "silent", namespace: "silent" },
       undefined,
       "// registers nothing",
     );
@@ -355,7 +352,6 @@ void test(
     await writeExtension(userRoot, {
       id: "old-sdk",
       namespace: "oldsdk",
-      toolPrefix: "oldsdk",
       sdkVersion: "0.38.0",
     });
     const catalog = createTestCatalog({
@@ -380,13 +376,11 @@ void test(
     await writeExtension(userRoot, {
       id: "user-themed",
       namespace: "userthemed",
-      toolPrefix: "userthemed",
       themes: ["dark.json"],
     });
     await writeExtension(projectRoot, {
       id: "proj-themed",
       namespace: "projthemed",
-      toolPrefix: "projthemed",
       themes: ["dark.json"],
     });
     const catalog = createTestCatalog({
@@ -411,16 +405,14 @@ void test(
     await writeExtension(userRoot, {
       id: "gate-on",
       namespace: "gateon",
-      toolPrefix: "gateon",
     });
     await writeExtension(userRoot, {
       id: "gate-off",
       namespace: "gateoff",
-      toolPrefix: "gateoff",
     });
     await writeExtension(
       userRoot,
-      { id: "gate-wait", namespace: "gatewait", toolPrefix: "gatewait" },
+      { id: "gate-wait", namespace: "gatewait" },
       undefined,
       "throw new Error('opened')",
     );
@@ -450,12 +442,10 @@ void test(
     await writeExtension(userRoot, {
       id: "stable",
       namespace: "stable",
-      toolPrefix: "stable",
     });
     await writeExtension(userRoot, {
       id: "changing",
       namespace: "changing",
-      toolPrefix: "changing",
     });
     let decisions = 0;
     let trustChanging = true;
@@ -477,7 +467,7 @@ void test(
     // Edit one extension on disk: nothing changes before the reload.
     await writeExtension(
       userRoot,
-      { id: "changing", namespace: "changing", toolPrefix: "changing" },
+      { id: "changing", namespace: "changing" },
       (manifest) => {
         (manifest.tools as { description: string }[])[0]!.description =
           "Changed description.";
@@ -485,7 +475,6 @@ void test(
       fixtureBackend({
         id: "changing",
         namespace: "changing",
-        toolPrefix: "changing",
       }).replace(
         "Echo text through the probe namespace.",
         "Changed description.",
@@ -528,13 +517,11 @@ void test(
     await writeExtension(userRoot, {
       id: "with-kind",
       namespace: "withkind",
-      toolPrefix: "withkind",
-      accountKind: "probe-kind",
+      accountKind: "with-kind",
     });
     await writeExtension(projectRoot, {
       id: "proj-settings",
       namespace: "projsettings",
-      toolPrefix: "projsettings",
     });
     const catalog = createTestCatalog({
       home,
@@ -545,7 +532,7 @@ void test(
     assert.ok(
       catalog
         .accountKinds()
-        .some((kind) => kind.kind === "probe-kind" && kind.test === true),
+        .some((kind) => kind.kind === "with-kind" && kind.test === true),
     );
     const ids = (projectDir?: string) =>
       catalog.settingsDefinitions(projectDir).map((d) => d.id);

@@ -13,7 +13,7 @@ export type FixtureOptions = {
   id: string;
   /** Global name of the namespace (default `probe`). */
   namespace?: string;
-  /** Prefix of the two direct tools: `<prefix>_echo` (bound to the method) and `<prefix>_ping` (own implementation). */
+  /** Prefix of the two direct tools: `<prefix>_echo` (bound to the method) and `<prefix>_ping` (own implementation). Default: the id with underscores, which the host requires. */
   toolPrefix?: string;
   /** An account kind with a `test` hook. */
   accountKind?: string;
@@ -57,12 +57,14 @@ export const nerveDarkTokens = {
   "syntax-property": "oklch(0.82 0.11 85)",
 };
 
+const toolPrefixOf = (id: string) => id.replaceAll("-", "_");
+
 type Json = Record<string, unknown>;
 
 /** `dist/manifest.json` of the probe extension, written by hand: the plain data of the definition in `backend`, hooks as `true`. */
 export function fixtureManifest(options: FixtureOptions): Json {
   const namespace = options.namespace ?? "probe";
-  const prefix = options.toolPrefix ?? "probe";
+  const prefix = options.toolPrefix ?? toolPrefixOf(options.id);
   return {
     id: options.id,
     apiVersion: 1,
@@ -207,7 +209,7 @@ export function fixtureManifest(options: FixtureOptions): Json {
 /** `dist/backend.js`: the same definition with its hooks, as an IIFE-style classic script over the runtime's API. */
 export function fixtureBackend(options: FixtureOptions): string {
   const namespace = options.namespace ?? "probe";
-  const prefix = options.toolPrefix ?? "probe";
+  const prefix = options.toolPrefix ?? toolPrefixOf(options.id);
   return String.raw`
 const { defineExtension, defineNamespace, defineTool, method, ExtensionError } = globalThis.__nerveExtensionApi;
 globalThis.__nerveExtension = defineExtension({

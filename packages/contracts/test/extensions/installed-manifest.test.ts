@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { extensionDefinitionData } from "@nervekit/extension-api";
+import { extensionDefinitionData } from "@nervekit/extension-api/host";
 import {
   compareVersions,
   defaultPreviewEdit,

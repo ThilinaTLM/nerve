@@ -33,12 +33,50 @@ export const themeSyntaxTokens = [
   "syntax-property",
 ] as const;
 
-/** Every token a theme file must set, and the only ones it may set. */
-export const themeTokenNames = [
+/** Tokens every theme file sets. A theme written for an older Nerve has all of them. */
+export const requiredThemeTokens = [
   ...themeCoreTokens,
   ...themeSyntaxTokens,
 ] as const;
+export type RequiredThemeTokenName = (typeof requiredThemeTokens)[number];
+
+/**
+ * Tokens added after a theme could have been written. A theme may omit them: the host fills a
+ * missing one from `themeTokenDefaults`, so a new token never invalidates existing themes. Add a
+ * token here and give it a default derived from the required tokens; none exist yet.
+ */
+export const optionalThemeTokens = [] as const;
+export type OptionalThemeTokenName = (typeof optionalThemeTokens)[number];
+
+/** Every token a theme can set, and the only ones it may set. */
+export const themeTokenNames = [
+  ...requiredThemeTokens,
+  ...optionalThemeTokens,
+] as const;
 export type ThemeTokenName = (typeof themeTokenNames)[number];
+
+type ThemeTokenDefaults = Record<
+  OptionalThemeTokenName,
+  (tokens: Record<RequiredThemeTokenName, string>) => string
+>;
+
+/** How a missing optional token is derived from the required ones. */
+export const themeTokenDefaults: ThemeTokenDefaults = {};
+
+/** The theme's tokens with every missing optional token filled in. */
+export function completeThemeTokens(
+  tokens: Record<RequiredThemeTokenName, string> &
+    Partial<Record<OptionalThemeTokenName, string>>,
+  defaults: Record<
+    string,
+    (tokens: Record<RequiredThemeTokenName, string>) => string
+  > = themeTokenDefaults,
+): Record<ThemeTokenName, string> {
+  const filled: Record<string, string> = { ...tokens };
+  for (const [name, derive] of Object.entries(defaults))
+    filled[name] ??= derive(tokens);
+  return filled;
+}
 
 /**
  * Per-theme tokens in `theme.css` that are not colours: lightness steps and foreground mixes
@@ -82,11 +120,19 @@ export const themeFileSchema = z.strictObject({
   id: uiContributionIdSchema,
   label: z.string().trim().min(1).max(64),
   kind: z.enum(["light", "dark"]),
-  tokens: z.strictObject(
-    Object.fromEntries(
-      themeTokenNames.map((name) => [name, themeColorSchema]),
-    ) as Record<ThemeTokenName, typeof themeColorSchema>,
-  ),
+  tokens: z
+    .strictObject({
+      ...(Object.fromEntries(
+        requiredThemeTokens.map((name) => [name, themeColorSchema]),
+      ) as Record<RequiredThemeTokenName, typeof themeColorSchema>),
+      ...(Object.fromEntries(
+        optionalThemeTokens.map((name) => [name, themeColorSchema.optional()]),
+      ) as Record<
+        OptionalThemeTokenName,
+        z.ZodOptional<typeof themeColorSchema>
+      >),
+    })
+    .transform((tokens) => completeThemeTokens(tokens)),
 });
 export type ThemeFile = z.infer<typeof themeFileSchema>;
 

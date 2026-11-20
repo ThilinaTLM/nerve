@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- method tables hold methods of different session and input types */
 import {
-  isMethodTool,
   type AccountInfo,
   type AccountTestResult,
   type Authorization,
@@ -13,6 +12,7 @@ import {
   type OwnToolDefinition,
   type Risk,
 } from "@nervekit/extension-api";
+import { isMethodTool } from "@nervekit/extension-api/host";
 
 /**
  * How the host talks to an extension's code. Every operation is asynchronous

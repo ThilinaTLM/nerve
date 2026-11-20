@@ -1,9 +1,6 @@
 import { Type, type TObject } from "typebox";
-import {
-  DEFAULT_TOOL_VIEW,
-  isMethodTool,
-  type ToolView,
-} from "@nervekit/extension-api";
+import { type ToolView } from "@nervekit/extension-api";
+import { DEFAULT_TOOL_VIEW, isMethodTool } from "@nervekit/extension-api/host";
 import type { ToolName } from "@nervekit/contracts/tools";
 import type { ToolDefinition } from "../catalog/contracts.js";
 import { policy } from "../result-projection/policies/define-policy.js";

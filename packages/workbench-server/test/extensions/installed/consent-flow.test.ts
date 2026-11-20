@@ -70,7 +70,7 @@ void test(
       (await catalog.entries()).find((entry) => entry.id === "flow")!;
     const pending = await entryOf();
     assert.equal(pending.state, "pending_consent");
-    assert.ok(pending.consent?.text.includes("Adds agent tools: probe_echo"));
+    assert.ok(pending.consent?.text.includes("Adds agent tools: flow_echo"));
     assert.ok(
       !(await catalog.registryFor()).extensions.some((e) => e.id === "flow"),
     );
@@ -108,7 +108,7 @@ void test(
     ] as const)
       await writeExtension(
         p.root,
-        { id: "same-ext", namespace: "samens", toolPrefix: "same" },
+        { id: "same-ext", namespace: "samens" },
         (manifest) => {
           (manifest.tools as { description: string }[])[1]!.description =
             description;
@@ -116,7 +116,6 @@ void test(
         fixtureBackend({
           id: "same-ext",
           namespace: "samens",
-          toolPrefix: "same",
         }).replace("Ping the probe.", description),
       );
     const catalog = createTestCatalog({
@@ -127,33 +126,33 @@ void test(
     await catalog.registryFor(a.dir);
     await catalog.registryFor(b.dir);
     assert.equal(
-      toolDefinitionByName("same_ping", a.dir)?.description,
+      toolDefinitionByName("same_ext_ping", a.dir)?.description,
       "Tool of project A.",
     );
     assert.equal(
-      toolDefinitionByName("same_ping", b.dir)?.description,
+      toolDefinitionByName("same_ext_ping", b.dir)?.description,
       "Tool of project B.",
     );
     assert.equal(
-      toolDefinitionByName("same_ping", `${a.dir}/`)?.description,
+      toolDefinitionByName("same_ext_ping", `${a.dir}/`)?.description,
       "Tool of project A.",
     );
     // Without a project (or in another one) the tool does not exist, and the global catalog has none.
-    assert.equal(toolDefinitionByName("same_ping"), undefined);
+    assert.equal(toolDefinitionByName("same_ext_ping"), undefined);
     assert.equal(
-      toolDefinitionByName("same_ping", join(a.dir, "other")),
+      toolDefinitionByName("same_ext_ping", join(a.dir, "other")),
       undefined,
     );
-    assert.ok(!toolManifest.some((tool) => tool.name === "same_ping"));
+    assert.ok(!toolManifest.some((tool) => tool.name === "same_ext_ping"));
     assert.deepEqual(
       scopedToolDefinitions(a.dir)
         .map((tool) => tool.name)
         .sort(),
-      ["same_echo", "same_ping"],
+      ["same_ext_echo", "same_ext_ping"],
     );
     // A reload withdraws what a revoked or changed extension published.
     await catalog.reload();
-    assert.equal(toolDefinitionByName("same_ping", a.dir), undefined);
+    assert.equal(toolDefinitionByName("same_ext_ping", a.dir), undefined);
   },
 );
 
@@ -258,7 +257,7 @@ void test(
       /summary is 201 characters; the limit for installed extensions is 200/,
     );
     assert.match(text, /rule 1/);
-    assert.match(text, /Tool 'probe_echo': description/);
+    assert.match(text, /Tool 'wordy_echo': description/);
     assert.equal(entries.find((e) => e.id === "terse")!.state, "enabled");
   },
 );

@@ -1,10 +1,9 @@
+import { ExtensionError, method } from "@nervekit/extension-api";
 import {
-  ExtensionError,
   isArtifactName,
-  method,
   nonEmptyString,
   parseOptions,
-} from "@nervekit/extension-api";
+} from "@nervekit/extension-api/host";
 import { fetchKrokiDiagram, KROKI_DIAGRAM_TYPE } from "./kroki-export.js";
 
 export const MAX_SOURCE_BYTES = 128 * 1024;

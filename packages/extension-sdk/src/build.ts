@@ -5,15 +5,18 @@ import { createContext, runInContext } from "node:vm";
 import { build as esbuild, type Message, type Plugin } from "esbuild";
 import * as api from "@nervekit/extension-api";
 import {
-  extensionDefinitionData,
   type ExtensionUi,
   type ExtensionDefinition,
-  type ExtensionDefinitionData,
 } from "@nervekit/extension-api";
+import {
+  extensionDefinitionData,
+  type ExtensionDefinitionData,
+} from "@nervekit/extension-api/host";
 import {
   extensionLucideIconSchema,
   extensionUiLimits,
   installedExtensionManifestSchema,
+  installedNamingDiagnostics,
   type InstalledExtensionManifest,
 } from "@nervekit/contracts/extensions";
 import { ExtensionProjectError, type Problem } from "./problems.js";
@@ -57,17 +60,29 @@ export async function sdkVersion(): Promise<string> {
 
 const runtimeApiModule = "nerve-extension-api-runtime";
 
-/** `@nervekit/extension-api` (and the SDK's re-export of it) is the runtime's global, not part of the bundle. */
+/** What the build says about a direct `@nervekit/extension-api` import. */
+export function apiImportMessage(specifier: string): string {
+  const target = specifier.replace("extension-api", "extension-sdk");
+  return `Extensions import only from '@nervekit/extension-sdk', not '${specifier}'. Change the import to '${target}'.`;
+}
+
+/** `@nervekit/extension-sdk` is the runtime's global (its API re-export), not part of the bundle. */
 function runtimeApiPlugin(): Plugin {
   return {
     name: "extension-api-from-runtime",
     setup(builder) {
-      builder.onResolve({ filter: /^@nervekit\/extension-(api|sdk)$/ }, () => ({
+      builder.onResolve(
+        { filter: /^@nervekit\/extension-api(\/|$)/ },
+        (args) => ({
+          errors: [{ text: apiImportMessage(args.path) }],
+        }),
+      );
+      builder.onResolve({ filter: /^@nervekit\/extension-sdk$/ }, () => ({
         path: "extension-api",
         namespace: runtimeApiModule,
       }));
       builder.onResolve(
-        { filter: /^@nervekit\/extension-(api|sdk)\/testing$/ },
+        { filter: /^@nervekit\/extension-sdk\/testing$/ },
         (args) => ({
           errors: [
             {
@@ -105,9 +120,11 @@ function esbuildProblems(messages: Message[], projectDir: string): Problem[] {
     return {
       what: text,
       where,
-      fix: unresolved
-        ? `The backend runs in a sandbox with no Node.js built-ins and only what is bundled. Install '${unresolved[1]}' as a dependency if it is a browser-safe package, or remove the import.`
-        : "Fix the code at that location; the backend must be plain TypeScript that runs in a sandbox without Node.js APIs.",
+      fix: text.startsWith("Extensions import only from")
+        ? "Change the import to '@nervekit/extension-sdk', which re-exports the whole extension API."
+        : unresolved
+          ? `The backend runs in a sandbox with no Node.js built-ins and only what is bundled. Install '${unresolved[1]}' as a dependency if it is a browser-safe package, or remove the import.`
+          : "Fix the code at that location; the backend must be plain TypeScript that runs in a sandbox without Node.js APIs.",
     };
   });
 }
@@ -364,6 +381,13 @@ export async function buildExtension(
   const problems: Problem[] = parsed.success
     ? []
     : manifestProblems(parsed.error.issues as never);
+  if (parsed.success)
+    for (const diagnostic of installedNamingDiagnostics(parsed.data))
+      problems.push({
+        what: diagnostic.message,
+        where: `src/extension.ts${diagnostic.pointer ? `, ${diagnostic.pointer}` : ""}`,
+        fix: "Installed extensions must prefix tool names and account kinds with their id, so extensions cannot collide.",
+      });
   if (typeof manifest.id === "string" && manifest.id !== project.id)
     problems.push({
       what: `The folder name '${project.id}' must equal the extension id '${manifest.id}'.`,

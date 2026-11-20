@@ -7,6 +7,7 @@ export * from "./extension-operations.js";
 export * from "./events.js";
 export * from "./tool-display.js";
 export * from "./installed-manifest.js";
+export * from "./installed-naming.js";
 export * from "./catalog.js";
 export * from "./compatibility.js";
 export * from "./theme-file.js";

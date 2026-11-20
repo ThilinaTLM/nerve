@@ -180,7 +180,13 @@ export async function writeSkillReferenceAssets(
       `${api} has no declarations; build @nervekit/extension-api first.`,
     );
   const target = join(reference, "extensions", "api");
-  await copyDeclarations(api, join(target, "extension-api"), apiFiles);
+  // `host` and what only it exports are for the host, not for authors.
+  const hostOnly = ["host.d.ts", "data.d.ts", "options.d.ts"];
+  await copyDeclarations(
+    api,
+    join(target, "extension-api"),
+    apiFiles.filter((file) => !hostOnly.includes(file)),
+  );
 
   const sdk = emitSdkDeclarations(join(repoRoot, "packages", "extension-sdk"));
   const missing = [...sdkEntries, "ui/components.ts"]

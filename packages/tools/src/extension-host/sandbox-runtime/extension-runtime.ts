@@ -14,6 +14,7 @@
  * `{ name, code?, message, fix?, kind? }`.
  */
 import * as api from "@nervekit/extension-api";
+import * as apiHost from "@nervekit/extension-api/host";
 import type {
   AccountInfo,
   Authorization,
@@ -229,7 +230,9 @@ function encodeError(error: unknown): WireError {
 function decodeError(wire: WireError): Error {
   if (
     wire.kind !== "tool" &&
-    (api.EXTENSION_ERROR_CODES as readonly string[]).includes(wire.code ?? "")
+    (apiHost.EXTENSION_ERROR_CODES as readonly string[]).includes(
+      wire.code ?? "",
+    )
   )
     return new api.ExtensionError(
       wire.code as api.ExtensionErrorCode,
@@ -378,7 +381,7 @@ function methodOf(target: Target & { kind: "method" }) {
 
 function toolOf(name: string): any {
   const found = definitionOf().tools?.find((entry) => entry.name === name);
-  if (!found || api.isMethodTool(found))
+  if (!found || apiHost.isMethodTool(found))
     throw new Error(`${definitionOf().id}: unknown tool ${name}.`);
   return found;
 }
@@ -414,7 +417,7 @@ async function perform(
   switch (payload.op) {
     case "describe":
       // The data part of the registered definition, for the host's comparison with `manifest.json`.
-      return api.extensionDefinitionData(definitionOf());
+      return apiHost.extensionDefinitionData(definitionOf());
     case "parse":
       return target.kind === "method"
         ? methodOf(target).parse(payload.args as unknown[])

@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import {
+  completeThemeTokens,
+  requiredThemeTokens,
   themeColorSchema,
   themeFileSchema,
   themeTokenNames,
@@ -94,4 +96,29 @@ test("theme colours allow plain colour forms only", () => {
     "oklch(0.7 0.15 40" + " ".repeat(100) + ")",
   ])
     assert.equal(themeColorSchema.safeParse(bad).success, false, bad);
+});
+
+test("a token added later is filled from the required tokens; an unknown token stays an error", () => {
+  const required = Object.fromEntries(
+    requiredThemeTokens.map((name) => [name, "#112233"]),
+  ) as Record<(typeof requiredThemeTokens)[number], string>;
+  const defaults = { "new-token": (all: typeof required) => all.primary };
+  assert.equal(
+    completeThemeTokens(required, defaults)["new-token" as never],
+    "#112233",
+  );
+  assert.equal(
+    completeThemeTokens(
+      { ...required, "new-token": "#445566" } as never,
+      defaults,
+    )["new-token" as never],
+    "#445566",
+  );
+  assert.equal(
+    themeFileSchema.safeParse({
+      ...theme,
+      tokens: { ...tokens, "not-a-token": "#112233" },
+    }).success,
+    false,
+  );
 });
