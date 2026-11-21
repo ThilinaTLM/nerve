@@ -16,6 +16,7 @@ void test("job times read relative to now", () => {
   assert.equal(formatJobTime("2026-01-01T12:04:00Z", now), "in 4 min");
   assert.equal(formatJobTime("2026-01-01T09:59:00Z", now), "2 h ago");
   assert.equal(formatJobTime("2026-01-01T12:00:10Z", now), "in under a minute");
+  assert.equal(formatJobTime("2026-01-01T12:00:10Z", now, true), "just now");
 });
 
 void test("the run line shows the last summary and the next run", () => {

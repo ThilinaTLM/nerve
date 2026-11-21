@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import {
+  openCredential,
+  sealCredential,
+} from "../../../../packages/workbench-server/src/domains/accounts/credential-blob.js";
 import {
   NO_REFRESH_TOKEN,
   oauthSessions,
-  planAccounts,
+  readSourceAccounts,
   renameCopied,
+  resealAccount,
   selectCopyable,
+  type AccountRecord,
 } from "./copy-secrets.ts";
 
 const session = JSON.stringify({
@@ -19,6 +29,7 @@ const session = JSON.stringify({
 test("selectCopyable keeps api keys and strips refresh tokens from oauth", () => {
   const copy = selectCopyable({
     "provider:tavily:x:apiKey": "k",
+    "provider:account:tavily:t:apiKey": "acct",
     "provider:anthropic:oauth": session,
     "provider:broken:oauth": "not json",
     "installation:deviceId": "id",
@@ -42,71 +53,103 @@ test("oauthSessions reports provider and expiry only", () => {
   );
 });
 
-const legacy = {
-  profiles: {
-    atlassian: [
-      { id: "a1", name: "Prod", credential: "atlassian:a1", site: "x" },
-    ],
-    tavily: [{ id: "t1", name: "Search", credential: "tavily:t1" }],
-  },
-};
+const sourceKey = randomBytes(32);
+const slotKey = randomBytes(32);
+const row = (credential: Buffer | null): AccountRecord => ({
+  id: "acc-1",
+  kind: "tavily",
+  projectId: null,
+  name: "Search",
+  fields: "{}",
+  credential,
+  status: "ready",
+  expiresAt: null,
+  lastUsedAt: null,
+  createdAt: "t",
+  updatedAt: "t",
+});
 
-test("planAccounts keeps old format for an unmigrated slot", () => {
-  const plan = planAccounts(legacy, {
-    profiles: { atlassian: [{ id: "own", name: "Test" }] },
-  });
-  assert.equal(plan.format, "legacy");
-  assert.deepEqual(plan.renames, []);
-  const profiles = plan.document.profiles as Record<string, { id: string }[]>;
+test("resealAccount moves typed-in secrets to the slot key", () => {
+  const sealed = Buffer.from(
+    sealCredential(sourceKey, "acc-1", { v: 1, secrets: { secret: "k" } }),
+  );
+  const next = resealAccount(row(sealed), sourceKey, slotKey);
+  assert.equal(next.status, "ready");
+  assert.equal(next.droppedState, false);
   assert.deepEqual(
-    profiles.atlassian?.map((p) => p.id),
-    ["a1", "own"],
+    openCredential(slotKey, "acc-1", next.credential ?? Buffer.alloc(0))
+      .secrets,
+    { secret: "k" },
   );
 });
 
-test("planAccounts converts old production accounts for a v2 slot with the migration's mapping", () => {
-  const plan = planAccounts(legacy, {
-    version: 2,
-    accounts: {
-      atlassian: [{ id: "a1", name: "Stale", fields: {} }],
-      other: [{ id: "o", name: "O", fields: {} }],
-    },
-  });
-  assert.equal(plan.format, "v2");
-  assert.equal(plan.document.version, 2);
-  assert.ok(!("profiles" in plan.document));
-  const accounts = plan.document.accounts as Record<
-    string,
-    { id: string; name: string; fields: unknown }[]
-  >;
-  assert.equal(accounts.atlassian?.[0]?.name, "Prod");
-  assert.deepEqual(accounts.atlassian?.[0]?.fields, { site: "x" });
-  assert.equal(accounts.other?.length, 1);
-  assert.deepEqual(plan.renames, [
-    {
-      from: "provider:atlassian:a1:apiKey",
-      to: "provider:account:atlassian:a1:apiKey",
-    },
-    {
-      from: "provider:tavily:t1:apiKey",
-      to: "provider:account:tavily:t1:apiKey",
-    },
-  ]);
-  const secrets = renameCopied(
-    { "provider:atlassian:a1:apiKey": "k", "provider:openai:apiKey": "o" },
-    plan.renames,
+test("resealAccount drops provider state so no refresh token reaches the slot", () => {
+  const sealed = Buffer.from(
+    sealCredential(sourceKey, "acc-1", {
+      v: 1,
+      secrets: {},
+      state: { refreshToken: "r" },
+    }),
   );
-  assert.deepEqual(Object.keys(secrets).sort(), [
-    "provider:account:atlassian:a1:apiKey",
-    "provider:openai:apiKey",
-  ]);
+  const next = resealAccount(
+    { ...row(sealed), expiresAt: "soon" },
+    sourceKey,
+    slotKey,
+  );
+  assert.equal(next.status, "needs_sign_in");
+  assert.equal(next.expiresAt, null);
+  assert.equal(next.droppedState, true);
+  const blob = openCredential(
+    slotKey,
+    "acc-1",
+    next.credential ?? Buffer.alloc(0),
+  );
+  assert.equal(blob.state, undefined);
 });
 
-test("planAccounts copies v2 production as is and refuses v2 into an unmigrated slot", () => {
-  const v2 = {
-    version: 2,
-    accounts: { tavily: [{ id: "t", name: "T", fields: {} }] },
-  };
-  assert.deepEqual(planAccounts(v2, undefined).document, v2);
-  assert.throws(() => planAccounts(v2, legacy), /migration 0005/);
+test("resealAccount marks an unreadable credential as needing sign-in", () => {
+  const sealed = Buffer.from(
+    sealCredential(randomBytes(32), "acc-1", { v: 1, secrets: {} }),
+  );
+  const next = resealAccount(row(sealed), sourceKey, slotKey);
+  assert.equal(next.credential, null);
+  assert.equal(next.status, "needs_sign_in");
+});
+
+test("readSourceAccounts converts a pre-0006 home with the migrations' mapping", () => {
+  const home = mkdtempSync(join(tmpdir(), "copy-secrets-"));
+  try {
+    mkdirSync(join(home, "config"));
+    writeFileSync(
+      join(home, "config", "accounts.json"),
+      JSON.stringify({
+        profiles: {
+          tavily: [{ id: "t1", name: "Search", credential: "tavily:t1" }],
+        },
+      }),
+    );
+    const [account, ...rest] = readSourceAccounts(home, sourceKey, {
+      "provider:tavily:t1:apiKey": "k",
+    });
+    assert.equal(rest.length, 0);
+    assert.equal(account?.id, "t1");
+    assert.equal(account?.status, "ready");
+    assert.deepEqual(
+      openCredential(sourceKey, "t1", account?.credential ?? Buffer.alloc(0))
+        .secrets,
+      { secret: "k" },
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("renameCopied applies renames and an existing new id wins", () => {
+  assert.deepEqual(
+    renameCopied({ a: "1", b: "2", c: "3" }, [
+      { from: "a", to: "x" },
+      { from: "b", to: "c" },
+    ]),
+    { c: "3", x: "1" },
+  );
 });
