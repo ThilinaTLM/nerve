@@ -39,14 +39,14 @@ The page distinguishes active and saved values. Network, diagnostics enablement,
 
 [Extensions](/integrations/extensions/) keep their configuration apart from agent preferences:
 
-| File                                      | Holds                                                                 |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| `<NERVE_HOME>/config/extensions.json`     | Your extension switches and settings                                  |
-| `<project>/.nerve/config/extensions.json` | Project overrides; ignored until you trust the file's exact content   |
-| `<NERVE_HOME>/config/accounts.json`       | Accounts by kind (Atlassian, Tavily) without secrets; user scope only |
-| `<NERVE_HOME>/secrets`                    | Encrypted API tokens and keys, one per account                        |
+| File                                      | Holds                                                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `<NERVE_HOME>/config/extensions.json`     | Your extension switches and settings                                                                            |
+| `<project>/.nerve/config/extensions.json` | Project overrides; ignored until you trust the file's exact content                                             |
+| `<NERVE_HOME>/data/` (SQLite)             | Accounts (Atlassian, Tavily, and others): fields, state, and the credential encrypted with `secrets/master.key` |
+| `<NERVE_HOME>/secrets`                    | The master key and provider credentials                                                                         |
 
-Settings choose an account by ID, and each field resolves from the extension's default, then your settings, then the project's, then an applied [profile](/reference/agent-profiles/). Edits in **Settings → Extensions** are trusted automatically; a project file edited elsewhere needs **Trust file** again. Upgrading to 0.41 moves integration accounts and tool options out of `agent.json` into these files and rewrites permission rules that named the removed Jira, Confluence, diagram, and image-generation tools to Quick script operation rules.
+Accounts are stored in the Nerve home's database, not in a configuration file, at user level or project level (never in the repository). Settings choose an account by ID, and each field resolves from the extension's default, then your settings, then the project's, then an applied [profile](/reference/agent-profiles/). Edits in **Settings → Extensions** are trusted automatically; a project file edited elsewhere needs **Trust file** again. Upgrading to 0.41 moves integration accounts and tool options out of `agent.json` into these files and rewrites permission rules that named the removed Jira, Confluence, diagram, and image-generation tools to Quick script operation rules.
 
 ## Edit configuration by chat
 

@@ -10,14 +10,14 @@ The API is built to be isolated: an extension's code can run in its own sandbox 
 2. **Every `ctx` call is async and exchanges plain data** (JSON values, `Uint8Array`, handles); no class instances or callbacks cross. Where a callback would decide something, an option states it: `http.request` takes `response: "artifact"` with `artifact: { name?, baseName?, extension?, inlineText? }` (the host names the file and derives the extension from the content type), and `models.vision.explain` reports deltas only through its named `progress` sections. `ctx.signal` stays for in-process code; sandboxed code cannot hold a signal, and the host cancels its invocation natively, so new code must not depend on it. _Why:_ a later `__hostCall` transport must work without an API change.
 3. **The extension declares; the host decides.** Permissions, approvals, network policy and limits are host code. The manifest is plain data except its hooks (`test`, `availability`, `parse`, `authorize`, `run`); contracts validate the data part, typed against the API.
 4. **`parse` and `authorize` are synchronous and pure**, so authorization happens before any I/O. `authorize` returns one check, several (all must pass) or none. Extension authors write them as plain synchronous functions; the _host_ calls them through the asynchronous `ExtensionCode` interface ([`code-adapter.ts`](../../packages/tools/src/extension-host/code-adapter.ts)): `parse`, `authorize`, `resource`, `run`, `present`, `configuration`, `availability`, `testAccount` and `dispose`, all returning promises and exchanging plain data. `SdkMethod.prepare` is therefore asynchronous too, but it still completes (parse, authorize, resource) before any I/O of the call and before approval. The in-process adapter runs definitions in the host; the [sandbox adapter](#sandbox-adapter) implements the same interface over a persistent runtime. The runtime opens an extension's code on the first call into it during a run and disposes it when the run ends (`ExtensionRuntime.dispose`).
-5. **Account kinds are unique across extensions**; the registry rejects duplicates. Their fields cannot be `account` or `model` (the account dialog has no control for them), so such a kind fails registration.
+5. **Account kinds are unique across extensions** (built-ins and user extensions share one namespace; a project extension's kinds are unique within its project); the registry rejects duplicates. Their fields cannot be `account` or `model` (the account dialog has no control for them), so such a kind fails registration. A kind is an _account definition_; several definitions may share a **platform** name ([Platforms and uses](#platforms-and-uses)).
 
 ## Context security
 
 `ctx` is the only way out of extension code ([`ExtensionContext`](../../packages/extension-api/src/types.ts), host side in [`extension-host/`](../../packages/tools/src/extension-host)).
 
-- **Secrets never reach extension code.** `ctx.accounts.selected` returns non-secret fields only. `ctx.http` injects the credential on the host side, in the shape the account kind declares (`basic`, `bearer` or a named header). Breaking this makes every extension a credential-exfiltration risk, so a new `ctx` service must never return or echo a secret.
-- **Credential origins are checked per hop.** A credential is sent only to the account kind's own `origins` (templated from account fields). Each redirect hop is re-resolved: the credential header is removed from every hop and added back only if that hop's origin is allowed. A 401/403 from a redirect target that got no credential (a signed media URL) is a normal response; only the credentialed origin's 401/403 becomes the host error (`UNAUTHORIZED` ends the run, `FORBIDDEN` names the account and the fix). _Why:_ the extension must not need to know about, or be able to leak, auth headers.
+- **Secrets never reach extension code.** `ctx.accounts.selected` returns non-secret fields, the account's `level` and the identity its provider reported (short plain strings), never a credential. `ctx.http` asks the [credential vault](#credential-vault) what the account's credential adds to each hop (a header, or a query parameter) and applies it on the host side; the response comes back, the request headers the host added do not. The backend, the UI frames, the agent, logs and error messages never receive a credential: a provider's errors reach them only as a fixed message ("The <kind> account needs sign-in"). Breaking this makes every extension a credential-exfiltration risk, so a new `ctx` service must never return or echo a secret.
+- **Credential origins are checked per hop.** A credential is sent only to the account kind's own `origins` (templated from account fields); for a platform use, only to the origins the extension declared that the definition also covers. Each redirect hop is re-resolved: every header and query parameter a credential added is removed from the hop and added back only if that hop's origin is allowed (a failure of a hop whose URL carried a credential parameter is not repeated in the error). A credential provider's `apply` runs before each hop to an allowed origin, so whatever it sees can only travel to the origin the request was already going to. A 401/403 from a redirect target that got no credential (a signed media URL) is a normal response; only the credentialed origin's 401/403 becomes the host error (`UNAUTHORIZED` ends the run, `FORBIDDEN` names the account and the fix). _Why:_ the extension must not need to know about, or be able to leak, auth headers.
 - **The network is an allowlist.** `ctx.http` reaches only origins in the manifest's `permissions.network`. Patterns are URL origins with `*` for one host label, `*` alone for any public http(s) origin (Web fetch; it never carries a credential), or templates over a selected account's field or an extension setting. Templated destinations are user-supplied and may be on a private network; every other origin goes through the SSRF guard on every hop, and redirects are manual and capped.
 - **Uploads stream from the host.** A multipart part with `data: { handle }` is read and streamed by the host from the authorized artifact or workspace file, so large bytes never enter extension code. `ctx.artifacts.read` has a smaller limit than transfers; limits live in code.
 - **Files are authorized, not ambient.** A method reaches a workspace file only through a handle its `authorize` declared as a host-tool check (such as `read`); an undeclared read fails with `DENIED`. Extension code has no file-system access, and its docs are declared as paths the host reads.
@@ -28,10 +28,154 @@ The API is built to be isolated: an extension's code can run in its own sandbox 
 
 ## Availability and accounts
 
-- Availability is **derived** from the manifest: the extension's switch and the namespace's `enabledBy` (one setting or any of a list), then `requires` (the selected account exists and has a saved secret), then the optional `availability(ctx)` hook. Reasons and fixes are generated with the extension's name, so there are no per-extension texts. Details in [code mode](code-mode.md#configuration).
+- Availability is **derived** from the manifest: the extension's switch and the namespace's `enabledBy` (one setting or any of a list), then `requires` (the selected account exists and is `ready`), then the optional `availability(ctx)` hook. Reasons and fixes are generated with the extension's name, so there are no per-extension texts. Details in [code mode](code-mode.md#configuration).
 - The Extensions page reads the manifest's `contributes` from the extension metadata: each namespace with its optional `label` (the id when absent), and each direct tool as `{ name, label, description }` (`label` defaults to the name).
-- **Accounts are generic**: stored by kind, user-only, secrets under `account:<kind>:<id>` ([configuration](configuration.md)). Account ids are local to a home, so a project file naming an account this user lacks leaves the extension unavailable with a fix naming the extension page; it never falls back to another account. Default project and space keys stay on the Atlassian account, because a key is meaningful only on its site.
-- The Settings account list, dialog and "Test" button are generated from the manifest; no app code names a product.
+- **Accounts are generic** and described in [Accounts](#accounts): stored in the `account` table ([storage](storage.md#accounts)), user- or project-level, credentials in the vault. `requires` is met by a selected account whose state is `ready`; one that needs sign-in makes the extension unavailable with a fix that says so (`needs_sign_in`, `failed` and `unavailable` each have their own reason and fix). Availability never refreshes: an account with a refresh token is `ready` even when its access token has expired. Account ids are local to a home, so a project file naming an account this user lacks leaves the extension unavailable with a fix naming the extension page; it never falls back to another account. Default project and space keys stay on the Atlassian account, because a key is meaningful only on its site.
+- The Settings Accounts page, account dialog and "Test" button are generated from the manifest; no app code names a product.
+
+## Accounts
+
+An **account** is a credential an extension's requests use, and the user adds, signs in to and manages it in Settings ([Accounts page](../ui/settings.md#accounts)). The extension never sees the credential; the host owns storage, refresh, sign-in UI, consent and origin checks for every mechanism. Standard mechanisms are declared as data and run by the host; anything else is the extension's own **credential provider**, code that runs in a separate sandbox.
+
+```mermaid
+flowchart LR
+  subgraph Extension
+    B["Backend sandbox<br/>(no credentials)"]
+    C["Credential sandbox<br/>(sees credentials, no free I/O)"]
+  end
+  subgraph Host
+    H["ctx.http"]
+    V["Credential vault<br/>store · refresh · state"]
+    S["Sign-in service<br/>interactions · redirects"]
+  end
+  B -- "request + account" --> H
+  H -- "apply(request)" --> C
+  C -- "headers / query" --> H
+  H -- "signed hop, allowed origin only" --> N["Service"]
+  N -- "response" --> H --> B
+  S <-- "signIn / refresh" --> C
+  C <--> V
+```
+
+### Account kinds and providers
+
+An account kind (`AccountKindData`, doc comments in [`settings.ts`](../../packages/extension-api/src/settings.ts)) declares non-secret `fields`, typed-in secrets (`secret` for one, `secrets` by name for several), how `ctx.http` sends them (`auth`: one injection or a list of `basic`, `bearer`, `header`, `query`, each naming the secret it uses), the `origins` the credential may be sent to and a **provider**. All providers implement the same host interface ([`credential-provider.ts`](../../packages/workbench-server/src/domains/accounts/credential-provider.ts)), so the vault, sign-in service, consent and `ctx.http` do not care which one runs:
+
+| Operation                        | Called when                                                   | Returns                                         |
+| -------------------------------- | ------------------------------------------------------------- | ----------------------------------------------- |
+| `signIn(account, ui)`            | The user clicks Sign in, or saves the account form            | A credential state (opaque JSON) and its expiry |
+| `refresh(account, state)`        | Before expiry, or once after a 401 from a credentialed origin | A new state, or "needs sign-in"                 |
+| `apply(account, state, request)` | Every `ctx.http` hop to an allowed credential origin          | Headers to set and query parameters to add      |
+| `revoke(account, state)`         | The account is deleted (best effort)                          | Nothing                                         |
+
+None is reachable from the backend, UI or agent. The providers:
+
+- **`static`** (no `provider`): the typed-in secrets with the declared injections. Existing manifests keep their meaning. Secrets are inputs, entered in the account dialog and stored in the credential blob.
+- **`oauth2`** (`provider: { type: "oauth2", … }`): standard OAuth 2.0, run by the host ([`oauth2-provider.ts`](../../packages/workbench-server/src/domains/accounts/oauth2-provider.ts)). Authorization code with PKCE (a loopback redirect, relayed for a remote browser) and device code; endpoints as URLs, `{<field>}` templates over account fields, or OIDC `discovery`; `scopes`; an optional `userinfo` endpoint that maps JSON paths to identity fields; an optional `revocationUrl` (RFC 7009, called on delete). The access token is sent as `Authorization: Bearer`, so no `auth` is declared. The client id is an **account field** the author may give a default (`clientIdField`, default `clientId`); a client secret, when the service needs one, is an account secret (`clientSecret`). Nerve registers and ships no OAuth apps, so a user can always bring their own. New built-ins are added only for open standards many extensions need, never for one vendor.
+- **`extension`** (`provider: "extension"`): the extension's own credential provider, see [Credential sandbox](#credential-sandbox). It lists `signInOrigins`, the origins its own requests may reach.
+
+An account belongs to exactly one definition for its whole life, and its credential is only ever given to that definition's provider.
+
+### Levels
+
+An account has a **level**: a **user-level account** is available in every project, a **project-level account** in one project only. Both live in the Nerve home, never in the repository. A project sees its own accounts and the user accounts. Which levels a kind allows depends on where it is defined:
+
+| Kind defined by                | User-level accounts | Project-level accounts             |
+| ------------------------------ | ------------------- | ---------------------------------- |
+| Built-in or user extension     | Yes                 | Yes                                |
+| Project (repository) extension | No                  | Yes, for the defining project only |
+
+_Why:_ kind names are unique only within one composition (built-ins, user, the current project; [`extension-catalog.ts`](../../packages/workbench-server/src/core-host/extensions/extension-catalog/extension-catalog.ts)), so two repositories can define the same kind with different origins and different credential code; a user-wide account of such a kind would reach whichever repository asks. [`account-levels.ts`](../../packages/workbench-server/src/domains/accounts/account-levels.ts) enforces the rule (`ACCOUNT_LEVEL_NOT_ALLOWED`).
+
+- **Selecting.** An `account` setting saved at user scope selects user-level accounts only; at project or conversation scope it selects user accounts and that project's accounts. Moving an account to a project makes user-scope settings that selected it unresolved, shown with a fix like any missing account.
+- **Moving and duplicating** between levels keep the credential, within the table above. A copy shares the original's sign-in: when the service rotates refresh tokens, the first of the two to refresh invalidates the other's token, and that one becomes `needs_sign_in`. The Accounts page warns when duplicating a signed-in account and offers Clear credentials on any account.
+
+### Platforms and uses
+
+Three names let several extensions describe the same kind of account without taking each other's accounts:
+
+- **Platform:** a shared, non-unique name for what the account is for (`github`, `jira`), `AccountKindData.platform`.
+- **Account definition:** one extension's description of how to hold an account for a platform; its id is the account kind.
+- **Account:** belongs to exactly one definition.
+
+An extension that wants to use accounts rather than define them declares `uses: [{ platform, scopes?, origins? }]`, and its `account` setting names `platform` instead of `kind`. The setting offers every account of that platform whose definition covers the use ([`kindsForUse`](../../packages/contracts/src/domains/extensions/platforms.ts)): the definition's `origins` cover the use's `origins` (absent: the definition's own), and, when the use asks for scopes, the definition has an `oauth2` provider. A use can narrow access, never widen it, and the credential is sent only to the use's origins. Two extensions that both define a GitHub account keep both definitions and their own accounts; the user sees every GitHub account, whichever extension defined it.
+
+- **Scope union.** Scopes requested at sign-in are the union of the definition's and those of every _enabled_ extension that uses its platform, evaluated for the account's level ([`platform-uses.ts`](../../packages/workbench-server/src/domains/accounts/platform-uses.ts)). Granted scopes are stored with the credential. When the union grows (a definition update, a newly enabled user), the affected accounts derive `needs_sign_in` at once, and availability names what is missing.
+- **Definition removed or off:** its accounts stay listed with state `unavailable`, naming the extension, and are not offered until it returns; the user can delete them.
+- **Consent** is per using extension and platform ([trust](trust.md#extension-grants)).
+
+### Credential vault
+
+[`CredentialVault`](../../packages/workbench-server/src/domains/accounts/credential-vault.ts) is the only reader and writer of the `account.credential` column ([storage](storage.md#accounts)) and the only caller of provider operations; `AccountsService` is the host's account API on top of it. State as the app and availability see it:
+
+- **Stored** in `status`: `ready`, `needs_sign_in` (no credential, refresh refused, cleared) and `failed` (with the provider's message for the user).
+- **Derived** when read, never stored: `unavailable` (the definition is gone or off), and `needs_sign_in` because granted scopes are fewer than the union, the access token expired without a refresh token, or the credential was written by credential code that consent no longer covers.
+
+Refresh is the same flow for `oauth2` and extension providers; the vault owns timing, concurrency, persistence and failure handling:
+
+```mermaid
+sequenceDiagram
+  participant B as Backend (ctx.http)
+  participant V as Vault
+  participant P as Provider
+  participant T as Token endpoint
+  participant S as Service
+  B->>V: credential for account
+  alt expires within 60 s
+    V->>P: refresh(state)
+    P->>T: grant_type=refresh_token
+    T-->>P: access (+ new refresh)
+    P-->>V: new state
+    V->>V: write row, then use
+  end
+  V->>P: apply(request)
+  P-->>V: headers
+  V->>S: request
+  S-->>V: 401
+  V->>P: refresh once, apply, retry once
+```
+
+- **Ahead of expiry, in the background.** The account credential refresh [background job](background-jobs.md#account-credential-refresh) refreshes accounts that expire within 10 minutes and were used in the last 30 days. Accounts not used for 30 days are skipped and become `needs_sign_in` when next used.
+- **On use, as the fallback.** For when the daemon was not running or the machine slept: before a credentialed request the vault refreshes when the access token expires within 60 seconds, and once more after a 401 from a credentialed origin, retrying the hop once (streamed bodies are reopened per attempt). A second 401 is the account's error.
+- **Single-flight.** One operation per account at a time, whether started by a request or the background job; others wait. One daemon runs per home, so an in-process lock is enough.
+- **Last use** (`last_used_at`) is set by credentialed requests and account tests, not by the background refresh, or nothing would ever age out.
+- **Rotation.** A new refresh token is written to the row before the new access token is used; a response without one keeps the old.
+- **Failures.** `invalid_grant` and `invalid_client` make the account `needs_sign_in` or `failed`, with a fix naming the Accounts page. Network errors and 5xx are transient: the row is unchanged and the request fails as `unreachable`. Extension providers report the same distinction by returning `{ needsSignIn: true }` or throwing.
+- **Scopes.** If a refresh grants fewer scopes than the union, the account is `needs_sign_in`.
+- **Binding to code.** Credential code that consent no longer covers is not handed the stored credential (the blob records `codeHash`); the account is `needs_sign_in`.
+
+### Sign-in service
+
+[`SignInService`](../../packages/workbench-server/src/domains/auth/sign-in-service.ts) (formerly `OAuthFlowManager`) is the one sign-in flow for model providers and extension accounts. It owns the interaction contract (browser link, device code, choice, text input, progress; `oauthInteractionSchema` in [contracts](../../packages/contracts/src/domains/auth/auth.ts)), the loopback listeners ([`loopback-listener.ts`](../../packages/workbench-server/src/domains/auth/loopback-listener.ts)), the [relay](../../packages/workbench-server/src/domains/auth/oauth-loopback-relay.ts) for a remote browser, timeouts and cancellation; one flow per provider or account at a time. Model providers keep their credentials and provider-specific logic in `pi-ai`'s store and share only the service. Only the app starts, answers or cancels a sign-in; no agent tool, `quick_script` namespace or extension API reaches it ([trust](trust.md)). The app renders it with one shared interaction panel on the Accounts and Providers pages, and the same flow works on the desktop and on a hosted daemon.
+
+### Credential sandbox
+
+An extension provider is built by the SDK from a separate entry (`src/credentials.ts`, `defineCredentialProvider`) into `dist/credentials.js`; the manifest records its SHA-256 and operations (`credentials`). [`credential-sandbox.ts`](../../packages/tools/src/extension-host/credential-sandbox.ts) runs it.
+
+- **Its own sandbox.** A QuickJS runtime separate from the backend's, opened per operation and disposed after it; no memory, session or module state is shared with the backend or between operations, and the backend cannot call the provider. Each operation has its own limits (64 MiB; `signIn` 10 minutes and 500 host calls, `refresh` 60 s, `revoke` 30 s, `apply` 5 s and 50 host calls).
+- **Its `ctx` is small and fixed** ([`credentials.ts`](../../packages/extension-api/src/credentials.ts)): `account` (id, kind, fields), `secrets`, `state`, `crypto`, and per operation:
+  - `crypto` (all operations): `hash`, `hmac`, `randomBytes` and `sign` (RS/PS/ES/EdDSA for JWT assertions), host-implemented because QuickJS has none.
+  - `http` (`signIn`, `refresh`, `revoke`): only to the kind's **sign-in origins**, through the SSRF guard, redirects not followed, 1 MiB responses, 30 s. Responses go back to the provider only.
+  - `ui` (`signIn` only): show a link, show a device code, ask a choice, ask for text, show progress, get a loopback redirect URL and wait for its callback; mapped to the sign-in service's interactions.
+  - `request` (`apply` only) and **no network**: this is what makes body access safe, since whatever `apply` sees can only travel to the origin the request was already going to.
+  - Nothing else: no artifacts, files, settings, extension store, `ctx.authorize`, reports or logs.
+- **Output.** `apply` can only add headers and query parameters; it cannot change the method, URL, path or body, so it cannot redirect a request. `signIn` and `refresh` return opaque `state`, an optional expiry and granted scopes, which go to the vault, and optional **identity** fields, which the backend sees as `AccountInfo.identity` after the host checks they are short plain strings.
+- **Libraries, not host features.** Signing schemes such as SigV4 or OAuth 1.0a are libraries an author bundles into `credentials.js`; the host provides only the primitives. The SDK's `examples/aws-sigv4` and `examples/github-app` show two.
+
+| Channel          | Rule                                                                                                                                                                                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Return values    | `apply` output goes on the wire only for hops to the account's credential origins; the backend sees the response, never the request headers added. `signIn`/`refresh` state goes to the vault. Identity fields are checked (at most 16 entries, 200 characters each) and shown in consent. |
+| Network          | Provider `http` reaches only declared sign-in origins; `apply` output reaches only credential origins. Both lists are grants.                                                                                                                                                              |
+| Errors and logs  | Provider errors are shown to the user in Settings and reach the backend and agent only as a fixed message. The provider has no log channel.                                                                                                                                                |
+| Shared state     | None between the two sandboxes.                                                                                                                                                                                                                                                            |
+| Other projects   | A project-defined kind's accounts and credential state are visible only in that project ([Levels](#levels)).                                                                                                                                                                               |
+| Echoing services | A service that echoes request headers in its response can leak what `apply` added. The same is true of injected headers; origins are consented and user-templated. Accepted residual risk, called out in consent for broad origins.                                                        |
+
+**Body access.** Signing schemes differ in what they need from the body, so `apply` gets the body on demand: `body.digest(algorithm)` (SHA-256, SHA-384, SHA-512, SHA-1 or MD5; any size, computed once per algorithm by the host, including bodies streamed from files) and `body.bytes()` (buffered bodies up to 20 MiB; otherwise a clear error). That covers every scheme for buffered bodies and every hash-based scheme for any body; only raw-body schemes on large streamed uploads fail.
+
+### Public surface of accounts
+
+Additive: `AccountKindData` gains `platform`, `secrets`, `auth` as a list, the `query` scheme, `provider` (`oauth2` data or `"extension"`) and `signInOrigins`; `ExtensionDefinition.uses`; an `account` setting may name a `platform`; `AccountInfo` gains `level` and `identity`; the new `credentials` surface (`defineCredentialProvider` and its `ctx` types) has its own compatibility floor. `ctx.http` is unchanged for the backend. See [`UPGRADING.md`](../../packages/extension-sdk/UPGRADING.md).
 
 ## Direct tools
 
@@ -91,10 +235,10 @@ An installed extension is a folder `<root>/<id>/` whose `dist/` holds `manifest.
 - **Folder name = id.** The id follows the skill naming rule (lowercase letters, digits, single hyphens, at most 64) and starts with a letter. Discovery lists the entries of a root that its `.gitignore`, `.ignore` and `.fdignore` do not ignore (the same reader as skills, `listUnignoredEntries`; dot folders and `node_modules` are skipped).
 - **Roots and precedence.** `<project>/.nerve/extensions/` (the project root only, no ancestor walk), then `<NERVE_HOME>/agent/extensions/`, then the built-ins. The first id wins; a shadowed entry stays in the catalog with state `shadowed`. A user or project extension with a built-in id is `invalid`. Account kinds, namespace ids and direct tool names are unique across all scopes, and namespace ids may not take a runtime namespace or a host global; the later one fails with a diagnostic. "Later" means built-ins, then user, then project, so a repository's extension can never take an account kind (and the credentials stored under it) from one the user already has. Project-extension themes (`ui.themes`) are ignored with a warning.
 - **Load path.** Read `manifest.json` (no code runs), check the folder name, SDK range, icon and doc topics (read through `dist/` with containment checks; icons get the checks of [`icon.ts`](../../packages/tools/src/extension-host/icon.ts)), ask the trust gate, and only if it says `trusted` open `backend.js` in a throwaway sandbox runtime (`readSandboxedDefinitionData`, the runtime library's `describe` operation) and compare the data of the definition it registers with `manifest.json`. Any difference refuses the extension and names the first differing path. Installed extensions always run through the sandbox adapter: the catalog's `sandboxed` check is true for every installed definition.
-- **Compatibility.** `oldestCompatibleSdkVersion` ([contracts](../../packages/contracts/src/domains/extensions/compatibility.ts)) holds one floor per surface: `manifest`, `backend`, `ui` (bridge and `ui-kit`) and `themes`; a floor is raised only by a release that breaks that surface, with an `UPGRADING.md` section. `sdkVersion` stays the one recorded value, and `apiVersion` no longer exists. `readFolder` reads `sdkVersion` leniently **before** the strict manifest schema and checks it against the floors of the surfaces the manifest uses (`usedExtensionSurfaces`: backend with namespaces, tools or accounts; ui with previews, pages or panels; themes with themes). A version below a floor or above the running Nerve gives state `incompatible` with a message naming the surface and the SDK version that changed it (an unparsed manifest from a newer SDK is `incompatible`, never `invalid`); only a compatible version is parsed. The user is told to ask the agent to upgrade it with the configure-nerve skill. [`public-surface.test.ts`](../../packages/extension-sdk/test/public-surface.test.ts) compares the emitted declarations of the API and SDK entries, the bridge method table and the manifest and theme JSON Schemas with a committed snapshot, so a change to any of them is a decision (additive, or raise a floor and add a section).
+- **Compatibility.** `oldestCompatibleSdkVersion` ([contracts](../../packages/contracts/src/domains/extensions/compatibility.ts)) holds one floor per surface: `manifest`, `backend`, `ui` (bridge and `ui-kit`), `credentials` and `themes`; a floor is raised only by a release that breaks that surface, with an `UPGRADING.md` section. `sdkVersion` stays the one recorded value, and `apiVersion` no longer exists. `readFolder` reads `sdkVersion` leniently **before** the strict manifest schema and checks it against the floors of the surfaces the manifest uses (`usedExtensionSurfaces`: backend with namespaces, tools or accounts; ui with previews, pages or panels; themes with themes). A version below a floor or above the running Nerve gives state `incompatible` with a message naming the surface and the SDK version that changed it (an unparsed manifest from a newer SDK is `incompatible`, never `invalid`); only a compatible version is parsed. The user is told to ask the agent to upgrade it with the configure-nerve skill. [`public-surface.test.ts`](../../packages/extension-sdk/test/public-surface.test.ts) compares the emitted declarations of the API and SDK entries, the bridge method table and the manifest and theme JSON Schemas with a committed snapshot, so a change to any of them is a decision (additive, or raise a floor and add a section).
 - **Trust gate.** [`ExtensionTrustGate`](../../packages/workbench-server/src/core-host/extensions/extension-catalog/trust-gate.ts) is consulted before an installed extension enters any registry and before its code is opened: `trusted` or `pending` (with the consent to review). The host's gate is [`ExtensionConsentRepository`](../../packages/workbench-server/src/core-host/extensions/extension-catalog/extension-consent.ts), which keeps one `extension` row per folder in `trusted_resource` ([trust](trust.md)); without a consent store nothing installed runs, and tests pass `overrideTrustGate()` or an in-memory store. Revoking keeps the row as `rejected`, and a rejected extension is pending review again. There is no environment override.
-- **Trust records.** One `trusted_resource` row of kind `extension` per installed extension ([trust](trust.md)): `project_id` for a project extension (`NULL` for a user one), `resource_key` the folder, `name` the id, `content_digest` the `dist/` hash (relative path and bytes of every file, sorted; `manifest.json` is in it) and `grants` the grant snapshot (network origins including account credential origins, capabilities, account kinds, namespaces with their operations, direct tools, UI contributions). Rules: nothing runs before consent; a project extension is pending again on any content change; a user extension keeps consent through a code-only change and is pending again when its grants gain anything (the review lists only what is new); removed grants need no consent, and the stored snapshot narrows so that adding one back asks again; revoking keeps the row as `rejected`. The on/off switch is not part of consent: a consented installed extension uses the same settings `enabled` value as a built-in (user, project and conversation scopes, `config/extensions.json`); consent only decides whether the extension is loaded at all.
-- **Consent summary.** [`consent-summary.ts`](../../packages/workbench-server/src/core-host/extensions/extension-catalog/consent-summary.ts) builds `ExtensionCatalogEntry.consent` from the manifest: structured items (`kind`, `text`, `broad`) plus a text form ("Connects to api.github.com", "Uses your GitHub account (account kind github)", "Adds agent tools: x, y", "Adds SDK namespace z (operations a, b)", "Uses a vision model", `*` network called out as broad access). Its `contentHash` is what a consent must name, so a consent only ever covers the files that were shown.
+- **Trust records.** One `trusted_resource` row of kind `extension` per installed extension ([trust](trust.md)): `project_id` for a project extension (`NULL` for a user one), `resource_key` the folder, `name` the id, `content_digest` the `dist/` hash (relative path and bytes of every file, sorted; `manifest.json` is in it) and `grants` the grant snapshot (network origins including account credential origins, capabilities, account kinds, credential providers with their sign-in origins, scopes and credential code hash, platform uses, namespaces with their operations, direct tools, UI contributions). Rules: nothing runs before consent; a project extension is pending again on any content change; a user extension keeps consent through a code-only change and is pending again when its grants gain anything (the review lists only what is new); removed grants need no consent, and the stored snapshot narrows so that adding one back asks again; revoking keeps the row as `rejected`. The on/off switch is not part of consent: a consented installed extension uses the same settings `enabled` value as a built-in (user, project and conversation scopes, `config/extensions.json`); consent only decides whether the extension is loaded at all.
+- **Consent summary.** [`consent-summary.ts`](../../packages/workbench-server/src/core-host/extensions/extension-catalog/consent-summary.ts) builds `ExtensionCatalogEntry.consent` from the manifest: structured items (`kind`, `text`, `broad`) plus a text form ("Connects to api.github.com", "Uses your GitHub account (account kind github)", "Signs in to your GitHub account with OAuth 2.0 and keeps it signed in", "Runs its own code with your AWS credentials", "Uses your github accounts with scopes repo", "Adds agent tools: x, y", "Adds SDK namespace z (operations a, b)", "Uses a vision model", `*` network called out as broad access). Its `contentHash` is what a consent must name, so a consent only ever covers the files that were shown.
 - **Consent operations.** `extensions.grantConsent`, `extensions.revokeConsent` and `extensions.reload` are workbench protocol methods of the signed-in app connection, implemented by `ExtensionCatalog` (`ExtensionManagement`). No tool, `quick_script` namespace or extension port exposes them (a test pins this). Each ends in `reload(id)`, which publishes `extensions.changed`.
 - **Agent-facing text.** [`agent-text-limits.ts`](../../packages/workbench-server/src/core-host/extensions/extension-catalog/agent-text-limits.ts) holds the limits: namespace summary, each rule, method description, doc topic (`whenToRead` and file) and direct tool description are checked when the folder is read, and an extension over a limit is `invalid` with the limit in its diagnostics; error messages (and their fix) from installed code are cut at run time. Namespaces of installed extensions are attributed (`csv-tools, user extension`) in the `quick_script` description, `sdk.list` and `sdk.docs`; built-ins are unchanged.
 - **Registry per scope.** [`ExtensionCatalog`](../../packages/workbench-server/src/core-host/extensions/extension-catalog/extension-catalog.ts) composes built-ins, the user's extensions (scanned once, shared) and the project's, per project directory. `registryFor(projectDir)` is what the `quick_script` description, the direct tools, `sdk.list`/availability, the permission scan and the account kinds read. There are no file watchers: `reload()` (all) or `reload(id)` re-reads, consults the gate again (a reload never grants consent) and applies to the next request that asks for a registry. Direct tools of installed extensions are published to a per-project tool scope (`setScopedToolDefinitions`, keyed by project directory) when their registry is composed, and withdrawn on reload; tool lookups for execution, argument checks, permission requests and result projection take the project (`toolDefinitionByName(name, projectDir)`), so two projects with the same extension id and different definitions never see each other's. The global tool catalog holds only core and built-in tools.
@@ -146,14 +290,15 @@ The daemon serves frames and answers the bridge requests that need it; the app o
 
 ## Change risk
 
-| Change                                           | Risk                                                                                           |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| New `ctx` service or `http` option               | Security boundary: must keep secrets host-side and stay serializable. Update the fake context. |
-| Credential injection, origin matching, redirects | Credential leak. Test each hop.                                                                |
-| Declared risk, `ctx.authorize`, `riskFromArgs`   | Silent permission widening. The script scan and declared-risk guard depend on them.            |
-| Account kind or secret id format                 | Needs a home migration step (files and secret store).                                          |
-| New view section type                            | Contracts, transcript renderer and projection rule.                                            |
-| Naming an extension outside its folder           | Fails the `extension-naming` rule; derive from the registry instead.                           |
+| Change                                             | Risk                                                                                                       |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| New `ctx` service or `http` option                 | Security boundary: must keep secrets host-side and stay serializable. Update the fake context.             |
+| Credential injection, origin matching, redirects   | Credential leak. Test each hop.                                                                            |
+| Credential sandbox `ctx`, `apply` output, errors   | Credential leak through a new channel. Test per channel (return values, network, errors, logs).            |
+| Declared risk, `ctx.authorize`, `riskFromArgs`     | Silent permission widening. The script scan and declared-risk guard depend on them.                        |
+| Account kind, account id or credential blob format | Needs a home migration step (the `account` table and `credential` column, [storage](storage.md#accounts)). |
+| New view section type                              | Contracts, transcript renderer and projection rule.                                                        |
+| Naming an extension outside its folder             | Fails the `extension-naming` rule; derive from the registry instead.                                       |
 
 ## Not shipped
 

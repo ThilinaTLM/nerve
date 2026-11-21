@@ -29,7 +29,7 @@ Resource containment protects daemon availability; it is not a security sandbox.
 
 ## Credentials and external data
 
-Provider, Tavily, Atlassian, and other secrets, including extension account tokens, use encrypted storage where implemented. Project files select an extension account by ID and never contain its secret. At execution time, the selected service or child process necessarily receives credentials. Logs, artifacts, prompts, imported project instructions, and external tool output can still expose sensitive information.
+Provider, Tavily, Atlassian, and other secrets, including extension account credentials (API tokens, OAuth tokens), use encrypted storage where implemented; accounts are encrypted in the Nerve home's database with the local master key. Project files select an extension account by ID and never contain its secret. At execution time, the selected service or child process necessarily receives credentials. Logs, artifacts, prompts, imported project instructions, and external tool output can still expose sensitive information.
 
 Network-capable paths include model calls, OAuth, Git remotes, web tools, Jira/Confluence, the Kroki diagram server, image generation and explanation, voice transcription, and commands/Python. Local-first is not offline-only.
 

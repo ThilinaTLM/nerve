@@ -39,18 +39,25 @@ Extension consent is the one decision the generic `trust.decide` operation canno
 
 ## When an approval stops applying
 
-| Resource                             | Needs approval again when                                                                    |
-| ------------------------------------ | -------------------------------------------------------------------------------------------- |
-| Project files and project extensions | Any content change. A repository is an untrusted source.                                     |
-| Project skills                       | Any change of any file in the skill folder.                                                  |
-| Prompt-suggestion predicates         | The predicate changes.                                                                       |
-| User extensions                      | The update adds a grant. A code-only change keeps the approval and updates `content_digest`. |
+| Resource                             | Needs approval again when                                                                                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Project files and project extensions | Any content change. A repository is an untrusted source.                                                                                        |
+| Project skills                       | Any change of any file in the skill folder.                                                                                                     |
+| Prompt-suggestion predicates         | The predicate changes.                                                                                                                          |
+| User extensions                      | The update adds a grant. A code-only change keeps the approval and updates `content_digest`, except the credential provider's code (see below). |
 
 Project file upgrades keep an approval only when the exact original bytes were approved, because the output is a deterministic conversion of approved input ([configuration](configuration.md#project-configuration-versions)).
 
 ### Extension grants
 
 The `extension` grant snapshot lists what the user approved: network origins, capabilities, account kinds, namespaces and operations, direct tools, and UI contributions (previews with their file types and edit mode, pages, panels, themes). On an update the host compares the new manifest with the snapshot: removed grants narrow the stored snapshot silently, added grants make the extension pending again, and the review lists only what is new. The schema lives with the extension contracts; consent wording is generated from it ([extension platform](extension-platform.md)).
+
+**Credential grants.** The snapshot's `credentials` list holds, per account kind: the provider (a built-in one, or "own code"), the sign-in origins, the OAuth scopes and whether the provider may share identity details. The origins a credential is _sent to_ are the kind's `origins`, already in the network grants. An extension's own credential provider is worded as broad access: it runs its own code with the user's credentials, also in the background to keep them signed in, and the credentials are sent only to the listed origins.
+
+- **Code hash re-consent.** A credential provider is the one part of an extension where "a code-only change keeps consent" is too weak. The SHA-256 of its built `credentials.js` is a grant (`<kind>|code|<hash>`), so any change to it asks again, and the review says only that the credential code changed. This holds for user and project extensions alike (a project extension asks again on any content change anyway).
+- **Binding to stored credentials.** A credential records the hash of the code that wrote it (`codeHash`). Credential code that consent no longer covers is not handed the stored credential: the account is `needs_sign_in` until the user signs in again with the code now approved.
+- **Per-platform consent.** An extension that `uses` a platform (accounts other extensions define) is consented per extension and platform: "Uses your github accounts with scopes repo, gist". Each platform and each requested scope is a grant (`uses:<platform>`, `uses:<platform>:<scope>`); an update lists only the scopes that are new. The scopes of every enabled user of a platform are added to the sign-in scopes of the platform's accounts, so a new scope makes the affected accounts `needs_sign_in` ([accounts](extension-platform.md#platforms-and-uses)).
+- **Sign-in is user-only.** Starting, answering and cancelling a sign-in, and saving, moving, duplicating and clearing accounts, are `workbench_server` operations of the signed-in app; no agent tool, `quick_script` namespace or extension API reaches them (rule 3).
 
 ## Change risk
 

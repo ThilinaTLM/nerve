@@ -30,6 +30,56 @@ Mechanical steps, if the change cannot be read from the code above (renamed file
 
 <!-- Sections start here. Every released SDK version is compatible with the previous one. -->
 
+## Next release: accounts (surfaces `manifest` and `backend`)
+
+Nothing existing breaks; this section tells an agent what is new. Account kinds gain several secrets, more injections, a built-in OAuth 2.0 provider and platforms; accounts have a level.
+
+- **Several secrets.** `secrets: { keyId: { label }, keySecret: { label, multiline: true } }` instead of the single `secret` (which stays as shorthand; set at most one of the two). An `auth` entry names the secret it sends with `secret: "<name>"`, optional with a single secret.
+- **Several injections and query parameters.** `auth` may be a list, and `{ scheme: "query", name: "api_key" }` sends the secret as a URL query parameter. The credential is added only on hops to the kind's `origins`.
+- **OAuth 2.0 as data.** `provider: { type: "oauth2", ... }` signs the user in (authorization code with PKCE, or device code), refreshes the token before it expires and sends it as a bearer token; declare no `auth` and no `secret`. The client id is an account field (`clientIdField`, default `clientId`; give the field a `default` to ship one); a service that needs a client secret names an account `secrets` entry (`clientSecret`). Endpoints are URLs, `{<field>}` templates or OIDC `discovery`.
+- **Platforms.** `platform: "github"` on a kind names what the account is for; names are shared, not unique. An extension that uses accounts other extensions define declares `uses: [{ platform, scopes?, origins? }]` and gives its `account` setting `platform` instead of `kind`. The setting offers every account of the platform whose definition covers the use's origins (and, with `scopes`, whose provider is `oauth2`). The user consents per extension and platform, and the scopes of all enabled users of a platform are added to its OAuth sign-ins.
+- **Levels.** `AccountInfo.level` is `user` or `project`; `AccountInfo.identity` holds what a provider reported at sign-in. A kind a project extension defines has project-level accounts only. An `account` setting at user scope selects user-level accounts only.
+
+**Before**
+
+```ts
+accounts: {
+  "my-ext-account": {
+    label: "My account",
+    fields: {},
+    secret: { label: "API token" },
+    auth: { scheme: "bearer" },
+    origins: ["https://api.example.com"],
+  },
+},
+settings: { version: 1, fields: { account: { type: "account", kind: "my-ext-account", label: "Account" } } },
+```
+
+**After** (OAuth 2.0, shared platform, and a second extension using it)
+
+```ts
+// extension that defines the accounts
+accounts: {
+  "my-ext-account": {
+    label: "My account",
+    platform: "github",
+    fields: { clientId: { type: "string", label: "Client id", default: "<id>" } },
+    provider: {
+      type: "oauth2",
+      flows: ["device_code"],
+      deviceAuthorizationUrl: "https://github.com/login/device/code",
+      tokenUrl: "https://github.com/login/oauth/access_token",
+      scopes: ["repo"],
+    },
+    origins: ["https://api.github.com"],
+  },
+},
+
+// extension that only uses them
+uses: [{ platform: "github", scopes: ["gist"], origins: ["https://api.github.com"] }],
+settings: { version: 1, fields: { account: { type: "account", platform: "github", label: "Account" } } },
+```
+
 ## Next release: credential providers (new surface `credentials`)
 
 Nothing existing breaks; this section tells an agent what is new and how to use it. Account kinds can now name `provider: "extension"` and ship their own credential code, for credentials the built-in providers (typed-in secrets, `oauth2`) cannot serve: request signing (AWS SigV4, HMAC-signed APIs), key-based token exchanges (GitHub Apps, Google service accounts), login-for-session-token APIs, sign-in flows of their own. The code runs in a separate sandbox and sees the account's secrets; the backend and the UI never see a credential.
