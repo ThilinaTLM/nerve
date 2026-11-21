@@ -10,7 +10,7 @@ import type {
 
 /**
  * What the Accounts page derives from the accounts, the kinds and the extensions that define
- * them: the rows, the filters over them, and the level moves each account allows.
+ * them: the rows, the search over them, and the level moves each account allows.
  */
 
 /** The extension that defines a kind. */
@@ -29,26 +29,6 @@ export type AccountRowModel = {
   extension?: AccountExtension;
 };
 
-/**
- * One filter per facet; add a facet by extending this union and `facets`. An empty value shows
- * everything. `platform` shows the accounts of one platform whichever extension defines them.
- */
-export type AccountFacet =
-  | "platform"
-  | "extension"
-  | "kind"
-  | "level"
-  | "state";
-export type AccountFilters = Record<AccountFacet, string>;
-
-export const noAccountFilters: AccountFilters = {
-  platform: "",
-  extension: "",
-  kind: "",
-  level: "",
-  state: "",
-};
-
 const levelLabels: Record<AccountLevel, string> = {
   user: "User",
   project: "Project",
@@ -62,95 +42,44 @@ const stateLabels: Record<AccountState, string> = {
 export const accountStateLabel = (state: AccountState): string =>
   stateLabels[state];
 
-type Facet = {
-  label: string;
-  /** The row's value for this facet; undefined when it has none. */
-  value: (row: AccountRowModel) => string | undefined;
-  /** Every value the filter offers, with its label. */
-  options: (
-    rows: readonly AccountRowModel[],
-    kinds: readonly AccountKind[],
-  ) => { value: string; label: string }[];
-};
-
-const facets: Record<AccountFacet, Facet> = {
-  platform: {
-    label: "Platform",
-    value: (row) => row.kind?.platform,
-    options: (rows, kinds) =>
-      [
-        ...new Set([
-          ...kinds.flatMap((kind) => (kind.platform ? [kind.platform] : [])),
-          ...rows.flatMap((row) =>
-            row.kind?.platform ? [row.kind.platform] : [],
-          ),
-        ]),
-      ]
-        .sort()
-        .map((value) => ({ value, label: value })),
-  },
-  extension: {
-    label: "Extension",
-    value: (row) => row.extension?.id,
-    options: (rows) =>
-      [
-        ...new Map(
-          rows.flatMap((row) =>
-            row.extension
-              ? [[row.extension.id, row.extension.name] as const]
-              : [],
-          ),
-        ),
-      ].map(([value, label]) => ({ value, label })),
-  },
-  kind: {
-    label: "Kind",
-    value: (row) => row.account.kind,
-    options: (rows, kinds) => {
-      const labels = new Map(kinds.map((kind) => [kind.kind, kind.label]));
-      for (const row of rows)
-        labels.set(row.account.kind, row.kind?.label ?? row.account.kind);
-      return [...labels].map(([value, label]) => ({ value, label }));
-    },
-  },
-  level: {
-    label: "Level",
-    value: (row) => row.account.level,
-    options: () =>
-      Object.entries(levelLabels).map(([value, label]) => ({ value, label })),
-  },
-  state: {
-    label: "State",
-    value: (row) => row.account.state,
-    options: () =>
-      Object.entries(stateLabels).map(([value, label]) => ({ value, label })),
-  },
-};
-
-export const accountFacets = Object.keys(facets) as AccountFacet[];
-export const facetLabel = (facet: AccountFacet): string => facets[facet].label;
-
-export function facetOptions(
-  facet: AccountFacet,
-  rows: readonly AccountRowModel[],
-  kinds: readonly AccountKind[],
-): { value: string; label: string }[] {
-  return facets[facet].options(rows, kinds);
+/** What a search matches for a row; `projectName` names the open project's level. */
+export function accountSearchText(
+  row: AccountRowModel,
+  projectName?: string,
+): string {
+  const { account } = row;
+  return [
+    account.name,
+    row.kind?.label ?? account.kind,
+    account.kind,
+    row.kind?.platform,
+    row.extension?.name,
+    levelLabels[account.level],
+    account.level === "project" ? projectName : undefined,
+    stateLabels[account.state],
+    accountSummary(row),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 }
 
-export function filterAccountRows(
+const words = (query: string): string[] =>
+  query.toLowerCase().split(/\s+/).filter(Boolean);
+
+/** Rows matching every word of the query, case-insensitively; a blank query matches all. */
+export function searchAccountRows(
   rows: readonly AccountRowModel[],
-  filters: AccountFilters,
+  query: string,
+  projectName?: string,
 ): AccountRowModel[] {
-  return rows.filter((row) =>
-    accountFacets.every(
-      (facet) => !filters[facet] || facets[facet].value(row) === filters[facet],
-    ),
-  );
+  const terms = words(query);
+  if (terms.length === 0) return [...rows];
+  return rows.filter((row) => {
+    const text = accountSearchText(row, projectName);
+    return terms.every((term) => text.includes(term));
+  });
 }
-
-export const hasAccountFilters = (filters: AccountFilters): boolean =>
-  accountFacets.some((facet) => filters[facet] !== "");
 
 /**
  * The accounts the page lists: every user-level one and those of the open project. Accounts of
@@ -259,18 +188,28 @@ export type AccountSignIn = {
 };
 
 /**
- * The kinds to offer when adding an account under the current filters: those of the filtered
- * platform (several definitions may describe it), narrowed to the filtered kind when set.
+ * The kinds to offer when adding an account while searching: those whose label, platform or
+ * defining extension match the query; all of them when none does.
  */
 export function kindsToAdd(
   kinds: readonly AccountKind[],
-  filters: Pick<AccountFilters, "platform" | "kind">,
+  query: string,
+  extensionName: (kind: string) => string | undefined,
 ): AccountKind[] {
-  return kinds.filter(
-    (kind) =>
-      (!filters.platform || kind.platform === filters.platform) &&
-      (!filters.kind || kind.kind === filters.kind),
-  );
+  const terms = words(query);
+  const matching = kinds.filter((kind) => {
+    const text = [
+      kind.label,
+      kind.kind,
+      kind.platform,
+      extensionName(kind.kind),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return terms.every((term) => text.includes(term));
+  });
+  return terms.length > 0 && matching.length > 0 ? matching : [...kinds];
 }
 
 /** The platforms an extension's page links to: those its definitions are for and those it uses. */

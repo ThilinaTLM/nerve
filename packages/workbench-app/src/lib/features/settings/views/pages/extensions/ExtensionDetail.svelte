@@ -36,10 +36,7 @@ import {
   SettingsSection,
 } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
-import {
-  showAccountsOf,
-  showAccountsOfPlatform,
-} from "../accounts/accounts-page-state.svelte";
+import { showAccounts } from "../accounts/accounts-page-state.svelte";
 import { platformsOfExtension } from "../accounts/accounts-view";
 import AccountsSection from "./AccountsSection.svelte";
 import ExtensionFieldRow from "./ExtensionFieldRow.svelte";
@@ -124,8 +121,7 @@ let advancedOpen = $state<Record<string, boolean>>({});
 
 /** Opens the Accounts page filtered to this extension, or to a platform it is for or uses. */
 function openAccounts(platform?: string): void {
-  if (platform) showAccountsOfPlatform(platform);
-  else showAccountsOf(id);
+  showAccounts(platform ?? extension.metadata.name);
   void openSettingsPane("accounts");
 }
 function revealSection(section: string): void {

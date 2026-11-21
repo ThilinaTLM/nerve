@@ -1,5 +1,5 @@
 <!--
-  Settings → Accounts: every account in one list, with filters, and the place
+  Settings → Accounts: every account in one list, with a search, and the place
   accounts are added, tested, moved, duplicated, signed in, cleared and
   deleted. Lists user-level accounts and those of the open project. Extension
   pages keep their account selectors and link here.
@@ -15,7 +15,7 @@ import type { AccountLevel } from "@nervekit/contracts/settings";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
-import SelectField from "@nervekit/ui-kit/components/composites/select-field";
+import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button, buttonVariants } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
@@ -44,22 +44,15 @@ import AccountDialog from "../extensions/AccountDialog.svelte";
 import ExtensionMark from "../extensions/ExtensionMark.svelte";
 import { accountCanTest } from "../extensions/account-form";
 import AddAccountDialog from "./AddAccountDialog.svelte";
+import { accountsSearch } from "./accounts-page-state.svelte";
 import {
-  accountsPageFilters as filters,
-  clearAccountFilters,
-} from "./accounts-page-state.svelte";
-import {
-  accountFacets,
   accountProblem,
   accountRows,
   accountStateLabel,
   accountSummary,
   duplicateWarning,
-  facetLabel,
-  facetOptions,
-  filterAccountRows,
-  hasAccountFilters,
   kindsToAdd,
+  searchAccountRows,
   levelChoices,
   visibleAccounts,
   type AccountExtension,
@@ -119,18 +112,20 @@ const rows = $derived(
     (kind) => extensionsByKind[kind],
   ),
 );
-const shown = $derived(filterAccountRows(rows, filters));
+const shown = $derived(
+  searchAccountRows(rows, accountsSearch.query, project?.name),
+);
 const kindsOffered = $derived(
   accountsState.kinds.filter((kind) => kind.kind in extensionsByKind),
 );
-// With a platform filtered, only its definitions are offered; the dialog says which extension defines each.
-const kindsToChoose = $derived.by(() => {
-  const ofPlatform = kindsToAdd(kindsOffered, {
-    platform: filters.platform,
-    kind: "",
-  });
-  return ofPlatform.length > 0 ? ofPlatform : kindsOffered;
-});
+// While searching, the kinds the search names are offered first.
+const kindsToChoose = $derived(
+  kindsToAdd(
+    kindsOffered,
+    accountsSearch.query,
+    (kind) => extensionsByKind[kind]?.name,
+  ),
+);
 
 let error = $state<string | undefined>();
 let checking = $state<Record<string, boolean>>({});
@@ -218,45 +213,34 @@ function levelText(row: AccountRowModel): string {
 </script>
 
 <SettingsSection id="accounts" surface={false}>
-  {#snippet actions()}
-    <Button
-      variant="outline"
-      size="sm"
-      disabled={kindsOffered.length === 0}
-      onclick={startAdd}>Add account</Button
-    >
-  {/snippet}
-
   {#if error}
     <Callout layout="block" tone="destructive" text={error} />
   {/if}
 
-  {#if rows.length > 0}
-    <SettingsToolbar>
-      {#snippet start()}
-        {#each accountFacets as facet (facet)}
-          <div class="w-40 min-w-0">
-            <SelectField
-              items={[
-                { value: "", label: `All ${facetLabel(facet).toLowerCase()}s` },
-                ...facetOptions(facet, rows, accountsState.kinds),
-              ]}
-              value={filters[facet]}
-              ariaLabel={`Filter by ${facetLabel(facet).toLowerCase()}`}
-              onValueChange={(next) => (filters[facet] = next)}
-            />
-          </div>
-        {/each}
-      {/snippet}
-      {#snippet end()}
-        {#if hasAccountFilters(filters)}
-          <Button variant="ghost" size="sm" onclick={clearAccountFilters}
-            >Clear filters</Button
+  <SettingsToolbar>
+    {#snippet start()}
+      <SearchInput
+        bind:value={accountsSearch.query}
+        placeholder="Search accounts"
+        ariaLabel="Search accounts"
+        class="max-w-xs"
+      >
+        {#snippet trailing()}
+          <span class="flex-none text-ui text-muted-foreground"
+            >{shown.length} of {rows.length}</span
           >
-        {/if}
-      {/snippet}
-    </SettingsToolbar>
-  {/if}
+        {/snippet}
+      </SearchInput>
+    {/snippet}
+    {#snippet end()}
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={kindsOffered.length === 0}
+        onclick={startAdd}>Add account</Button
+      >
+    {/snippet}
+  </SettingsToolbar>
 
   {#if rows.length === 0}
     <SettingsEmptyState
@@ -269,7 +253,7 @@ function levelText(row: AccountRowModel): string {
     <SettingsEmptyState
       variant="card"
       title="No matching accounts"
-      description="Change or clear the filters."
+      description="Try a different search term."
     />
   {:else}
     <SettingsList ariaLabel="Accounts">
@@ -393,7 +377,6 @@ function levelText(row: AccountRowModel): string {
   extensionName={(kind) => extensionsByKind[kind]?.name}
   project={projectInfo}
   projectOnly={(kind) => extensionsByKind[kind]?.projectOnly === true}
-  initialKind={filters.kind || undefined}
   onChoose={(kind, chosenProject) => {
     adding = {
       kind,

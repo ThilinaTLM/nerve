@@ -35,7 +35,7 @@ Settings has two scopes. **User** settings apply everywhere. **Project** setting
 
 ### Accounts
 
-**Accounts** lists every account that extensions use, whichever extension defines it, with filters for platform, extension, kind, level, and state (**Ready**, **Needs sign-in**, **Failed**, **Unavailable**). Add an account, sign in (a browser page or a device code, depending on the service), test it, move it between levels, duplicate it, clear its credentials, or delete it.
+**Accounts** lists every account that extensions use, whichever extension defines it, with one search box that matches an account's name, kind, platform, extension, level, and state (**Ready**, **Needs sign-in**, **Failed**, **Unavailable**). Add an account, sign in (a browser page or a device code, depending on the service), test it, move it between levels, duplicate it, clear its credentials, or delete it.
 
 - **Level.** A **user** account is available in every project; a **project** account only in one. An account of an extension that lives in a project's repository always belongs to that project. Both are stored on your computer, never in the repository.
 - **Duplicating** keeps the credentials. If the service rotates sign-in tokens, the first copy to refresh signs the other out, and Nerve says so before you duplicate a signed-in account.

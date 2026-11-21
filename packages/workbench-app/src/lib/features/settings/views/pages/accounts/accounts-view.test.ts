@@ -6,11 +6,9 @@ import {
   accountRows,
   duplicateWarning,
   accountProblem,
-  facetOptions,
-  filterAccountRows,
   kindsToAdd,
   levelChoices,
-  noAccountFilters,
+  searchAccountRows,
   platformsOfExtension,
   visibleAccounts,
   type AccountExtension,
@@ -57,21 +55,27 @@ describe("accounts page", () => {
     );
   });
 
-  it("combines filters and ignores empty ones", () => {
+  it("searches name, kind, extension, level and state, words AND-ed", () => {
     const rows = rowsOf([
-      account({ id: "1" }),
-      account({ id: "2", state: "needs_sign_in" }),
-      account({ id: "3", kind: "jira", level: "project", projectId: "one" }),
+      account({ id: "1", name: "Work" }),
+      account({ id: "2", name: "Home", state: "needs_sign_in" }),
+      account({
+        id: "3",
+        kind: "jira",
+        level: "project",
+        projectId: "one",
+        name: "Team",
+      }),
     ]);
-    const ids = (filters: Partial<typeof noAccountFilters>) =>
-      filterAccountRows(rows, { ...noAccountFilters, ...filters }).map(
-        (row) => row.account.id,
-      );
-    assert.deepEqual(ids({}), ["1", "2", "3"]);
-    assert.deepEqual(ids({ extension: "web" }), ["1", "2"]);
-    assert.deepEqual(ids({ extension: "web", state: "needs_sign_in" }), ["2"]);
-    assert.deepEqual(ids({ level: "project" }), ["3"]);
-    assert.deepEqual(ids({ kind: "jira", state: "failed" }), []);
+    const ids = (query: string) =>
+      searchAccountRows(rows, query, "Acme").map((row) => row.account.id);
+    assert.deepEqual(ids(""), ["1", "2", "3"]);
+    assert.deepEqual(ids("WORK"), ["1"]);
+    assert.deepEqual(ids("web"), ["1", "2"]);
+    assert.deepEqual(ids("web needs sign-in"), ["2"]);
+    assert.deepEqual(ids("project"), ["3"]);
+    assert.deepEqual(ids("acme jira"), ["3"]);
+    assert.deepEqual(ids("user failed"), []);
   });
 
   it("offers the moves a level allows", () => {
@@ -132,25 +136,19 @@ describe("accounts of a platform", () => {
     (k) => owners[k],
   );
 
-  it("shows every account of a platform across the extensions that define it", () => {
-    const ids = filterAccountRows(rows, {
-      ...noAccountFilters,
-      platform: "github",
-    }).map((row) => row.account.id);
+  it("finds every account of a platform across the extensions that define it", () => {
+    const ids = searchAccountRows(rows, "github").map((row) => row.account.id);
     assert.deepEqual(ids, ["1", "2"]);
-    assert.deepEqual(facetOptions("platform", rows, platformKinds), [
-      { value: "github", label: "github" },
-      { value: "jira", label: "jira" },
-    ]);
   });
 
-  it("offers the platform's definitions when adding, narrowed by a kind filter", () => {
-    const names = (platform: string, kindFilter = "") =>
-      kindsToAdd(platformKinds, { platform, kind: kindFilter }).map(
+  it("offers the definitions a search names when adding, else all", () => {
+    const names = (query: string) =>
+      kindsToAdd(platformKinds, query, (k) => owners[k]?.name).map(
         (k) => k.kind,
       );
     assert.deepEqual(names("github"), ["gh-a", "gh-b"]);
-    assert.deepEqual(names("github", "gh-b"), ["gh-b"]);
+    assert.deepEqual(names("github gh-b"), ["gh-b"]);
+    assert.deepEqual(names("nothing"), ["gh-a", "gh-b", "jira"]);
     assert.deepEqual(names(""), ["gh-a", "gh-b", "jira"]);
   });
 

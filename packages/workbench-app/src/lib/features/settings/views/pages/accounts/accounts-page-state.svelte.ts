@@ -1,25 +1,10 @@
-import { noAccountFilters, type AccountFilters } from "./accounts-view";
-
 /**
- * The Accounts page's filters. They outlive the page's visits so that a link from an extension
- * page (`showAccountsOf`) can set them before the page opens.
+ * The Accounts page's search. It outlives the page's visits so that a link from an extension
+ * page (`showAccounts`) can prefill it before the page opens.
  */
-export const accountsPageFilters = $state<AccountFilters>({
-  ...noAccountFilters,
-});
+export const accountsSearch = $state({ query: "" });
 
-export function clearAccountFilters(): void {
-  Object.assign(accountsPageFilters, noAccountFilters);
-}
-
-/** Narrows the page to one extension's accounts. */
-export function showAccountsOf(extensionId: string): void {
-  Object.assign(accountsPageFilters, noAccountFilters, {
-    extension: extensionId,
-  });
-}
-
-/** Narrows the page to the accounts of one platform, whichever extension defines them. */
-export function showAccountsOfPlatform(platform: string): void {
-  Object.assign(accountsPageFilters, noAccountFilters, { platform });
+/** Opens the page narrowed to what the text names: an extension, a platform. */
+export function showAccounts(query: string): void {
+  accountsSearch.query = query;
 }

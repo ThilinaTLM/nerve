@@ -17,8 +17,6 @@ type Props = {
   project?: { id: string; name: string };
   /** Kinds that only exist in the open project. */
   projectOnly: (kind: string) => boolean;
-  /** The kind to start from, e.g. the only one the filters leave. */
-  initialKind?: string;
   onChoose: (kind: AccountKind, projectId: string | undefined) => void;
 };
 let {
@@ -27,7 +25,6 @@ let {
   extensionName,
   project,
   projectOnly,
-  initialKind,
   onChoose,
 }: Props = $props();
 
@@ -37,8 +34,7 @@ let lastOpen = false;
 
 $effect(() => {
   if (open && !lastOpen) {
-    kind =
-      kinds.find((k) => k.kind === initialKind)?.kind ?? kinds[0]?.kind ?? "";
+    kind = kinds[0]?.kind ?? "";
     level = "user";
   }
   lastOpen = open;
