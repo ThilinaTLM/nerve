@@ -7,7 +7,10 @@ import type {
   ExtensionDefinition,
   Risk,
 } from "@nervekit/extension-api";
-import { accountFieldKinds } from "@nervekit/contracts/extensions";
+import {
+  accountEffectiveAuth,
+  accountFieldKinds,
+} from "@nervekit/contracts/extensions";
 import { ExtensionError } from "@nervekit/extension-api";
 import { isolatedHtmlToMarkdown, resolveToolPath } from "../execution/index.js";
 import {
@@ -185,7 +188,11 @@ export class ExtensionRuntime {
       kinds: Object.fromEntries(
         Object.entries(definition.accounts ?? {}).map(([kind, def]) => [
           kind,
-          { label: def.label, auth: def.auth, origins: def.origins },
+          {
+            label: def.label,
+            auth: accountEffectiveAuth(def),
+            origins: def.origins,
+          },
         ]),
       ),
       kindsOfField: (field) => {

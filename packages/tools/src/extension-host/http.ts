@@ -51,7 +51,10 @@ export type HttpHostDeps = {
   /** Resolved settings of the extension, for `{settings.<key>}` templates. */
   settings: Record<string, unknown>;
   /** The credential vault: what an account's credential adds to a hop. Host-only. */
-  credential: Pick<ExtensionHostPorts["accounts"], "state" | "apply">;
+  credential: Pick<
+    ExtensionHostPorts["accounts"],
+    "state" | "apply" | "refreshAfterRejection"
+  >;
   signal: AbortSignal;
   /** Plain fetch for destinations the user configured themselves in tests/host policy; others are SSRF-guarded. */
   allowPrivateNetwork?: boolean;
@@ -327,60 +330,85 @@ export function createHttp(deps: HttpHostDeps) {
         allowPrivateNetwork:
           deps.allowPrivateNetwork === true || match.fromUser,
       });
-      const hopHeaders = new Headers(headers);
       const send =
         credential && credential.origins.some((o) => originMatches(safe, o));
       credentialSent = Boolean(send);
-      let target = safe;
-      let querySecrets: string[] = [];
-      if (credential) {
-        for (const name of credential.headers) hopHeaders.delete(name);
-        if (send) {
-          const applied = await deps.credential.apply(
+      // A 401 may only mean the access token expired: refresh and send the hop once more.
+      for (let attempt = 0; ; attempt += 1) {
+        const hopHeaders = new Headers(headers);
+        const attemptStartedAt = Date.now();
+        let target = safe;
+        let querySecrets: string[] = [];
+        if (credential) {
+          for (const name of credential.headers) hopHeaders.delete(name);
+          if (send) {
+            const applied = await deps.credential.apply(
+              credential.kind,
+              credential.account.id,
+              { method, url: safe },
+            );
+            if (!applied.ok && applied.state === "unreachable")
+              throw new ExtensionError(
+                "SERVER_ERROR",
+                `The credential of the ${credential.label} "${credential.account.name}" could not be refreshed: its sign-in service is unreachable.`,
+                { fix: "Try again later." },
+              );
+            if (!applied.ok)
+              throw new ExtensionError(
+                "BAD_REQUEST",
+                `The ${credential.label} "${credential.account.name}" ${applied.state === "failed" ? "has a credential that does not work" : applied.state === "unavailable" ? "is unavailable" : "needs sign-in"}.`,
+                {
+                  fix: `Ask the user to sign in to the account in ${settingsPage(deps.extensionName)}.`,
+                },
+              );
+            for (const [name, value] of Object.entries(applied.headers))
+              hopHeaders.set(name, value);
+            if (Object.keys(applied.query).length > 0) {
+              target = new URL(safe);
+              for (const [name, value] of Object.entries(applied.query))
+                target.searchParams.set(name, value);
+              querySecrets = Object.values(applied.query);
+            }
+          } else if (hop === 0)
+            throw new ExtensionError(
+              "DENIED",
+              `The credential of the ${credential.label} is not sent to ${safe.origin}; it is only sent to ${credential.origins.join(", ") || "no origin"}.`,
+            );
+        }
+        const fetchImpl =
+          deps.allowPrivateNetwork === true || match.fromUser ? fetch : guarded;
+        try {
+          response = await fetchImpl(target, {
+            method,
+            headers: hopHeaders,
+            body:
+              method === "GET" || method === "HEAD"
+                ? undefined
+                : ((stream?.open() ?? data) as BodyInit | undefined),
+            ...(stream ? { duplex: "half" } : {}),
+            redirect: "manual",
+            signal,
+          });
+        } catch (error) {
+          throw querySecrets.length > 0
+            ? withoutSecrets(error, querySecrets)
+            : error;
+        }
+        if (
+          response.status === 401 &&
+          send &&
+          credential &&
+          attempt === 0 &&
+          (await deps.credential.refreshAfterRejection?.(
             credential.kind,
             credential.account.id,
-            { method, url: safe },
-          );
-          if (!applied.ok)
-            throw new ExtensionError(
-              "BAD_REQUEST",
-              `The ${credential.label} "${credential.account.name}" ${applied.state === "failed" ? "has a credential that does not work" : applied.state === "unavailable" ? "is unavailable" : "needs sign-in"}.`,
-              {
-                fix: `Ask the user to sign in to the account in ${settingsPage(deps.extensionName)}.`,
-              },
-            );
-          for (const [name, value] of Object.entries(applied.headers))
-            hopHeaders.set(name, value);
-          if (Object.keys(applied.query).length > 0) {
-            target = new URL(safe);
-            for (const [name, value] of Object.entries(applied.query))
-              target.searchParams.set(name, value);
-            querySecrets = Object.values(applied.query);
-          }
-        } else if (hop === 0)
-          throw new ExtensionError(
-            "DENIED",
-            `The credential of the ${credential.label} is not sent to ${safe.origin}; it is only sent to ${credential.origins.join(", ") || "no origin"}.`,
-          );
-      }
-      const fetchImpl =
-        deps.allowPrivateNetwork === true || match.fromUser ? fetch : guarded;
-      try {
-        response = await fetchImpl(target, {
-          method,
-          headers: hopHeaders,
-          body:
-            method === "GET" || method === "HEAD"
-              ? undefined
-              : ((stream?.open() ?? data) as BodyInit | undefined),
-          ...(stream ? { duplex: "half" } : {}),
-          redirect: "manual",
-          signal,
-        });
-      } catch (error) {
-        throw querySecrets.length > 0
-          ? withoutSecrets(error, querySecrets)
-          : error;
+            attemptStartedAt,
+          ))
+        ) {
+          await response.body?.cancel().catch(() => undefined);
+          continue;
+        }
+        break;
       }
       if (!REDIRECT_STATUS.includes(response.status)) break;
       const location = response.headers.get("location");

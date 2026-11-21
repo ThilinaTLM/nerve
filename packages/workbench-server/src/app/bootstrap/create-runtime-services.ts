@@ -1,3 +1,4 @@
+import { createPinnedFetch } from "@nervekit/tools/execution";
 import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import { promptSuggestionProvider } from "../../core-host/configuration/providers/prompt-suggestion-provider.js";
@@ -180,6 +181,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     repository: () => coreStorage.accounts,
     key: () => (masterKey ??= loadMasterKey(storage.paths.home)),
     definitions: accountDefinitions,
+    // Sign-in origins are reached through the SSRF guard like any extension request.
+    oauth2: { fetch: createPinnedFetch() },
     projectExists: (projectId) =>
       Boolean(conversationCore.projects.get(projectId)),
   });

@@ -34,6 +34,12 @@ const extensions: PageData = {
   sections: [{ id: "builtin", label: "Built-in" }],
   detail: { param: "extension" },
 };
+const accounts: PageData = {
+  label: "Accounts",
+  description:
+    "Credentials extensions use to reach other services: add, test, sign in, move and duplicate them.",
+  sections: [{ id: "accounts", label: "Accounts" }],
+};
 const general: PageData = {
   label: "General",
   description:
@@ -89,6 +95,7 @@ const suggestions: PageData = {
 const userPages: Record<string, PageData> = {
   providers,
   extensions,
+  accounts,
   general,
   tools,
   skills,
@@ -239,7 +246,7 @@ const userLayout: NavLayout = [
   {
     id: "connections",
     title: "Connections",
-    pages: ["providers", "extensions"],
+    pages: ["providers", "extensions", "accounts"],
   },
   { id: "agent", title: "Agent", pages: ["general", "tools", "skills"] },
   {

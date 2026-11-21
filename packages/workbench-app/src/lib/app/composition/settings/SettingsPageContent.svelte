@@ -31,6 +31,9 @@ import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifi
 import PermissionsSettingsPage from "$lib/features/settings/views/pages/permissions/PermissionsSettingsPage.svelte";
 import ProvidersSettingsPage from "$lib/features/settings/views/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/ShortcutsSettingsPage.svelte";
+import AccountsSettingsPage from "$lib/features/settings/views/pages/accounts/AccountsSettingsPage.svelte";
+import AccountSignInDialog from "$lib/features/settings/views/pages/accounts/AccountSignInDialog.svelte";
+import { AccountSignInFlow } from "$lib/features/settings/views/pages/accounts/account-sign-in.svelte";
 import BackgroundJobsSettingsPage from "$lib/features/settings/views/pages/background-jobs/BackgroundJobsSettingsPage.svelte";
 import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
@@ -44,6 +47,8 @@ import { contributionsOf, openExtensionPage } from "$lib/features/extension-ui";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import type { SettingsPageControllers } from "./settings-page-controllers.svelte";
+
+const accountSignIn = new AccountSignInFlow();
 
 type SettingsChange = (
   patch: UpdateSettingsRequest,
@@ -243,6 +248,9 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
     />
   {:else if page.id === "storage"}
     <StorageSettingsPage controller={controllers.storageController} />
+  {:else if scope === "user" && page.id === "accounts"}
+    <AccountsSettingsPage signIn={accountSignIn.signIn} />
+    <AccountSignInDialog flow={accountSignIn} />
   {:else if scope === "user" && page.id === "background-jobs"}
     <BackgroundJobsSettingsPage />
   {:else if scope === "user" && page.id === "devices"}

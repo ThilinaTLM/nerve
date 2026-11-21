@@ -104,6 +104,18 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       await publishAccountChanged(state, params.kind, params.id);
       return { account: (await state.accounts.view(params.kind, params.id))! };
     },
+    "accounts.signIn": async (state, params) => {
+      const { target, login } = state.accounts.signInFlow(
+        params.kind,
+        params.id,
+      );
+      return {
+        flow: await state.signIn.startAccount(target, login, async () => {
+          state.integrationHealth.forget(target.kind, target.id);
+          await publishAccountChanged(state, target.kind, target.id);
+        }),
+      };
+    },
     "accounts.delete": async (state, params) => {
       const deleted = await state.accounts.delete(params.kind, params.id);
       if (deleted) {

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   compileSettingsValidator,
   extensionsDocumentSchema,
+  accountEffectiveAuth,
   accountKindSchema,
   fieldValue,
   resolveExtensions,
@@ -260,5 +261,79 @@ describe("accountKindSchema", () => {
         new RegExp(`cannot have ${field.type} fields`),
       );
     }
+  });
+
+  describe("oauth2 provider", () => {
+    const oauth = (
+      provider: Record<string, unknown> = {},
+      extra: Record<string, unknown> = {},
+    ) => ({
+      kind: "svc",
+      label: "Service",
+      fields: {
+        clientId: { type: "string", label: "Client id", default: "x" },
+      },
+      provider: {
+        type: "oauth2",
+        authorizationUrl: "https://s.test/authorize",
+        tokenUrl: "https://s.test/token",
+        ...provider,
+      },
+      ...extra,
+    });
+    const issue = (value: unknown) =>
+      accountKindSchema.safeParse(value).error?.issues[0]?.message;
+
+    it("needs no typed-in secret and sends a bearer token itself", () => {
+      assert.ok(accountKindSchema.safeParse(oauth()).success);
+      assert.deepEqual(accountEffectiveAuth(oauth() as never), {
+        scheme: "bearer",
+      });
+      assert.match(
+        issue(oauth({}, { auth: { scheme: "bearer" } })) ?? "",
+        /remove `auth`/,
+      );
+    });
+
+    it("needs its endpoints, by URL or discovery, for each flow", () => {
+      assert.match(issue(oauth({ tokenUrl: undefined })) ?? "", /tokenUrl/);
+      assert.match(
+        issue(oauth({ flows: ["device_code"] })) ?? "",
+        /deviceAuthorizationUrl/,
+      );
+      assert.ok(
+        accountKindSchema.safeParse(
+          oauth({
+            discovery: "https://s.test",
+            tokenUrl: undefined,
+            authorizationUrl: undefined,
+            flows: ["authorization_code", "device_code"],
+          }),
+        ).success,
+      );
+    });
+
+    it("keeps the client id in a string account field and the client secret in a declared secret", () => {
+      assert.match(
+        issue(oauth({ clientIdField: "missing" })) ?? "",
+        /client id needs a string field 'missing'/,
+      );
+      assert.match(
+        issue(oauth({ clientSecret: "nope" })) ?? "",
+        /not one of the kind's secrets/,
+      );
+      assert.ok(
+        accountKindSchema.safeParse(
+          oauth(
+            { clientSecret: "clientSecret" },
+            { secrets: { clientSecret: { label: "Client secret" } } },
+          ),
+        ).success,
+      );
+      assert.match(
+        issue(oauth({}, { secrets: { other: { label: "Other" } } })) ?? "",
+        /only its client secret/,
+      );
+    });
   });
 });

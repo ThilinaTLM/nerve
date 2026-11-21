@@ -13,6 +13,7 @@ export type {
   SettingsSchema,
   ExtensionSettings,
   AccountAuth,
+  AccountOAuth2Provider,
   AccountSecretField,
   AccountInfo,
   AccountTestResult,

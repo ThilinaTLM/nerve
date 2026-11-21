@@ -1,5 +1,6 @@
 import TextCursorInput from "@lucide/svelte/icons/text-cursor-input";
 import type { Component } from "svelte";
+import KeyRound from "@lucide/svelte/icons/key-round";
 import Timer from "@lucide/svelte/icons/timer";
 import Bell from "@lucide/svelte/icons/bell";
 import Bot from "@lucide/svelte/icons/bot";
@@ -44,6 +45,7 @@ export { resolveSettingsPageId, resolveSettingsTarget, settingsPageIds };
 const icons: Record<string, Component> = {
   providers: CloudCog,
   extensions: Blocks,
+  accounts: KeyRound,
   general: SlidersHorizontal,
   tools: Wrench,
   skills: Library,

@@ -17,7 +17,7 @@ const grouped = (kind: "user" | "project") =>
 describe("settings page registry", () => {
   it("groups the user nav as approved", () => {
     assert.deepEqual(grouped("user"), [
-      ["Connections", ["providers", "extensions"]],
+      ["Connections", ["providers", "extensions", "accounts"]],
       ["Agent", ["general", "tools", "skills"]],
       [
         "Catalog",

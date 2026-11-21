@@ -217,6 +217,39 @@ export type AccountTestResult =
     };
 
 /**
+ * Standard OAuth 2.0 sign-in, run by the host: authorization code with PKCE (a loopback redirect)
+ * and device code. The credential (access and refresh tokens) stays with the host, is refreshed
+ * before it expires, and reaches requests as `Authorization: Bearer`; no `auth` is declared.
+ * Endpoints are URLs, `{<field>}` templates filled from the account's fields, or found through
+ * OIDC `discovery`. Nerve registers no OAuth apps: the client id is an account field.
+ */
+export type AccountOAuth2Provider = {
+  type: "oauth2";
+  /** Sign-in flows the kind offers, in order; with several the user chooses. Default `["authorization_code"]`. */
+  flows?: ("authorization_code" | "device_code")[];
+  /** OIDC issuer URL (a `{<field>}` template works): endpoints not given below come from `<issuer>/.well-known/openid-configuration`. */
+  discovery?: string;
+  /** Authorization endpoint (authorization code flow). */
+  authorizationUrl?: string;
+  /** Token endpoint. */
+  tokenUrl?: string;
+  /** Device authorization endpoint (device code flow). */
+  deviceAuthorizationUrl?: string;
+  /** Revocation endpoint (RFC 7009); called when the account is deleted, best effort. */
+  revocationUrl?: string;
+  /** Scopes requested at sign-in. An account whose granted scopes are fewer needs sign-in again. */
+  scopes?: string[];
+  /** Key of the account field holding the client id. Default `clientId`. Give that field a `default` to ship a client id with the extension. */
+  clientIdField?: string;
+  /** Name of the account secret (a key of `secrets`) holding the client secret, when the service needs one. */
+  clientSecret?: string;
+  /** Extra query parameters of the authorization request (`{ access_type: "offline" }`). */
+  authorizationParams?: Record<string, string>;
+  /** Identity of the account, read after sign-in: `identity` maps a name to a dotted path in the JSON the URL returns. */
+  userinfo?: { url: string; identity: Record<string, string> };
+};
+
+/**
  * The plain-data part of an account kind. The user adds accounts of the kind in Settings; the
  * extension never sees the secret, `ctx.http` injects it.
  */
@@ -225,12 +258,14 @@ export type AccountKindData = {
   label: string;
   /** Non-secret fields stored with the account. Types `string`, `number`, `boolean` and `enum` only (not `account` or `model`). */
   fields: Record<string, SettingField>;
-  /** The one secret of an account (token, password), kept encrypted by the host. Shorthand for a single entry of `secrets`; set exactly one of the two. */
+  /** The one secret of an account (token, password), kept encrypted by the host. Shorthand for a single entry of `secrets`; set at most one of the two (a kind with an `oauth2` provider may have neither). */
   secret?: AccountSecretField;
   /** The typed-in secrets of an account by name (`{ keyId: {...}, keySecret: {...} }`), kept encrypted by the host. */
   secrets?: Record<string, AccountSecretField>;
-  /** How `ctx.http` sends the secrets: one injection, or several. Absent: the kind has no injected credential and `HttpRequest.auth` is rejected. */
+  /** How `ctx.http` sends the secrets: one injection, or several. Absent: the kind has no injected credential and `HttpRequest.auth` is rejected (a kind with an `oauth2` provider sends its access token as a bearer token). */
   auth?: AccountAuth | AccountAuth[];
+  /** How the host obtains the credential. Absent: the user types in the `secret`s (the `static` provider). */
+  provider?: AccountOAuth2Provider;
   /**
    * Origins the credential is sent to: URL origins, with `{<field>}`
    * templates filled from the account's fields (`{site}`). A request with

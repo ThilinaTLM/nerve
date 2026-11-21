@@ -35,6 +35,7 @@ import {
   SettingsSection,
 } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
+import { showAccountsOf } from "../accounts/accounts-page-state.svelte";
 import AccountsSection from "./AccountsSection.svelte";
 import ExtensionFieldRow from "./ExtensionFieldRow.svelte";
 import ExtensionInstalledSections from "./ExtensionInstalledSections.svelte";
@@ -115,8 +116,10 @@ function featureSummary(row: FeatureRow): string {
 
 let advancedOpen = $state<Record<string, boolean>>({});
 
-function openUserAccounts(): void {
-  void openSettingsPane("extensions", { item: id, section: "accounts" });
+/** Opens the Accounts page filtered to this extension. */
+function openAccounts(): void {
+  showAccountsOf(id);
+  void openSettingsPane("accounts");
 }
 function revealSection(section: string): void {
   document
@@ -164,8 +167,8 @@ function openPage(page: "tools" | "skills"): void {
       <AccountsSection
         {kind}
         icon={extension.metadata.icon}
-        readonly={scope === "project"}
-        onManage={openUserAccounts}
+        {projectId}
+        onManage={openAccounts}
         choice={{
           title: entry.item.field.label,
           description: entry.item.field.description,
@@ -338,24 +341,18 @@ function openPage(page: "tools" | "skills"): void {
     </SettingsSection>
   {/if}
   {#if listKinds.length > 0}
-    {#if scope === "user"}
-      {#each listKinds as kind (kind.kind)}
-        <AccountsSection {kind} icon={extension.metadata.icon} />
-      {/each}
-    {:else}
-      <SettingsSection id="accounts" title="Accounts" divided>
-        <SettingsRow
-          label="Managed in user settings"
-          description="Accounts and their credentials are shared by every project."
-        >
-          {#snippet control()}
-            <Button size="sm" variant="outline" onclick={openUserAccounts}
-              >Open user settings</Button
-            >
-          {/snippet}
-        </SettingsRow>
-      </SettingsSection>
-    {/if}
+    <SettingsSection id="accounts" title="Accounts" divided>
+      <SettingsRow
+        label={listKinds.map((kind) => `${kind.label}s`).join(", ")}
+        description="Add, sign in, test and move accounts on the Accounts page."
+      >
+        {#snippet control()}
+          <Button size="sm" variant="outline" onclick={openAccounts}
+            >Manage accounts</Button
+          >
+        {/snippet}
+      </SettingsRow>
+    </SettingsSection>
   {/if}
   {#if installed}
     <ExtensionInstalledSections entry={installed} {extensions} />

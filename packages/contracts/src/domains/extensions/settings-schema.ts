@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   AccountAuth,
   AccountKindData,
+  AccountOAuth2Provider,
   AccountSecretField,
   ExtensionPermissions,
   SettingField as ApiSettingField,
@@ -169,6 +170,45 @@ export function accountInjections(kind: {
   );
 }
 
+const endpointSchema = z.string().min(1).max(2048);
+
+/** The `oauth2` provider of an account kind; see `AccountOAuth2Provider`. */
+export const accountOAuth2ProviderSchema = z.strictObject({
+  type: z.literal("oauth2"),
+  flows: z
+    .array(z.enum(["authorization_code", "device_code"]))
+    .min(1)
+    .optional(),
+  discovery: endpointSchema.optional(),
+  authorizationUrl: endpointSchema.optional(),
+  tokenUrl: endpointSchema.optional(),
+  deviceAuthorizationUrl: endpointSchema.optional(),
+  revocationUrl: endpointSchema.optional(),
+  scopes: z.array(z.string().min(1)).optional(),
+  clientIdField: fieldKeySchema.optional(),
+  clientSecret: secretNameSchema.optional(),
+  authorizationParams: z.record(z.string(), z.string()).optional(),
+  userinfo: z
+    .strictObject({
+      url: endpointSchema,
+      identity: z.record(fieldKeySchema, z.string().min(1)),
+    })
+    .optional(),
+}) satisfies z.ZodType<AccountOAuth2Provider>;
+
+/** The injections an account's credential goes out with: its `auth`, or a bearer token for `oauth2`. */
+export function accountEffectiveAuth(kind: {
+  auth?: AccountAuth | readonly AccountAuth[] | undefined;
+  provider?: { type: "oauth2" } | undefined;
+}): AccountAuth | readonly AccountAuth[] | undefined {
+  return kind.auth ?? (kind.provider ? { scheme: "bearer" } : undefined);
+}
+
+/** Key of the account field that holds an `oauth2` kind's client id. */
+export const accountClientIdField = (provider: {
+  clientIdField?: string | undefined;
+}): string => provider.clientIdField ?? "clientId";
+
 const accountKindObjectSchema = z.strictObject({
   kind: z.string().min(1),
   label: z.string().min(1),
@@ -190,10 +230,65 @@ const accountKindObjectSchema = z.strictObject({
   auth: z
     .union([accountAuthSchema, z.array(accountAuthSchema).min(1)])
     .optional(),
+  /** How the host obtains the credential. Absent: the user types in the secrets. */
+  provider: accountOAuth2ProviderSchema.optional(),
   /** Origins the credential is sent to; `{<field>}` is replaced by the account's field. */
   origins: z.array(z.string().min(1)).optional(),
   test: z.literal(true).optional(),
 });
+
+/** An `oauth2` kind sends its access token itself, and its endpoints and client are declared. */
+function checkOAuth2(
+  kind: Pick<z.infer<typeof accountKindObjectSchema>, "auth" | "fields">,
+  provider: z.infer<typeof accountOAuth2ProviderSchema>,
+  secretNames: string[],
+  context: z.RefinementCtx,
+): void {
+  const problem = (path: string, message: string) =>
+    context.addIssue({ code: "custom", path: ["provider", path], message });
+  if (kind.auth !== undefined)
+    context.addIssue({
+      code: "custom",
+      path: ["auth"],
+      message:
+        "A kind with an `oauth2` provider sends its access token as a bearer token; remove `auth`.",
+    });
+  const flows = provider.flows ?? ["authorization_code"];
+  if (!provider.tokenUrl && !provider.discovery)
+    problem("tokenUrl", "Give `tokenUrl` or `discovery`.");
+  if (
+    flows.includes("authorization_code") &&
+    !provider.authorizationUrl &&
+    !provider.discovery
+  )
+    problem("authorizationUrl", "Give `authorizationUrl` or `discovery`.");
+  if (
+    flows.includes("device_code") &&
+    !provider.deviceAuthorizationUrl &&
+    !provider.discovery
+  )
+    problem(
+      "deviceAuthorizationUrl",
+      "Give `deviceAuthorizationUrl` or `discovery`.",
+    );
+  const clientId = accountClientIdField(provider);
+  if (kind.fields[clientId]?.type !== "string")
+    problem(
+      "clientIdField",
+      `The client id needs a string field '${clientId}' (give it a default to ship a client id).`,
+    );
+  if (provider.clientSecret && !secretNames.includes(provider.clientSecret))
+    problem(
+      "clientSecret",
+      `'${provider.clientSecret}' is not one of the kind's secrets.`,
+    );
+  for (const name of secretNames)
+    if (name !== provider.clientSecret)
+      problem(
+        "clientSecret",
+        `The secret '${name}' is not used: an oauth2 kind has only its client secret.`,
+      );
+}
 
 /** Secrets are declared once, and every injection names one of them. */
 const checkAccountSecrets = (
@@ -209,7 +304,9 @@ const checkAccountSecrets = (
       message: "Declare either `secret` or `secrets`, not both.",
     });
   const names = Object.keys(accountSecretFields(kind));
-  if (names.length === 0)
+  const provider = kind.provider;
+  if (provider) checkOAuth2(kind, provider, names, context);
+  else if (names.length === 0)
     context.addIssue({
       code: "custom",
       path: ["secret"],

@@ -32,13 +32,3 @@ export function routeProviderAuth(
   if (provider.supportsOAuth && provider.supportsApiKey) return "method";
   return provider.supportsOAuth ? "oauth" : "api-key";
 }
-
-export function deviceCodeSecondsRemaining(
-  expiresAt: string | undefined,
-  now: number,
-): number | undefined {
-  if (!expiresAt) return undefined;
-  const expiry = Date.parse(expiresAt);
-  if (!Number.isFinite(expiry)) return undefined;
-  return Math.max(0, Math.ceil((expiry - now) / 1_000));
-}

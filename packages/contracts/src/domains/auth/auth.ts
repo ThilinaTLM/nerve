@@ -155,6 +155,11 @@ const oauthFlowIdentitySchema = z
     flowId: z.string().startsWith("authflow_"),
     provider: z.string().min(1),
     providerName: z.string().min(1),
+    /** Set when the flow signs in an extension account (then `provider` is `account:<id>` and `providerName` the account's name). */
+    account: z
+      .object({ kind: z.string().min(1), id: z.string().min(1) })
+      .strict()
+      .optional(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
   })

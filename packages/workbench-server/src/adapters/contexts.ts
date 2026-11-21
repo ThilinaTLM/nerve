@@ -34,7 +34,7 @@ import type { StatusResponse } from "@nervekit/contracts/status";
 import type {
   AuthManager,
   CredentialKeyService,
-  OAuthFlowManager,
+  SignInService,
 } from "../domains/auth/index.js";
 import type { AgentBrowserSkillCatalog } from "../core-host/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../domains/providers/index.js";
@@ -75,7 +75,7 @@ export interface AdapterInfrastructure {
   auth: AuthManager;
   providerCatalog: ProviderCatalogStore;
   credentialKey: CredentialKeyService;
-  oauthFlows: OAuthFlowManager;
+  signIn: SignInService;
   subscriptionUsage: SubscriptionUsageService;
   nerveSkills: NerveSkillCatalog;
   agentBrowserSkills: AgentBrowserSkillCatalog;
@@ -251,7 +251,7 @@ export function createServerAdapterContexts(
         auth: infrastructure.auth,
         credentialKey: infrastructure.credentialKey,
         events: infrastructure.events,
-        oauthFlows: infrastructure.oauthFlows,
+        signIn: infrastructure.signIn,
         providerCatalog: infrastructure.providerCatalog,
       },
       protocol: protocolAdapter,

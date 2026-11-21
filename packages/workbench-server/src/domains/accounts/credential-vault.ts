@@ -5,12 +5,14 @@ import type {
   AccountRow,
   AccountStatus,
 } from "@nervekit/conversation-core";
+import type { SignInInteraction } from "../auth/sign-in-service.js";
 import {
   openCredential,
   sealCredential,
   type CredentialBlob,
 } from "./credential-blob.js";
 import {
+  CredentialTransientError,
   CredentialUnusableError,
   staticProvider,
   type AppliedCredential,
@@ -19,9 +21,19 @@ import {
   type ProviderAccount,
   type ProviderOutcome,
 } from "./credential-provider.js";
+import {
+  createOAuth2Provider,
+  type OAuth2ProviderDeps,
+} from "./oauth2-provider.js";
 
 /** `last_used_at` is written at most this often per account. */
 const TOUCH_INTERVAL_MS = 60_000;
+/** A request refreshes the access token when it expires within this long. */
+const REFRESH_AHEAD_MS = 60_000;
+/** The background sweep refreshes tokens that expire within this long ... */
+const SWEEP_EXPIRES_WITHIN_MS = 10 * 60_000;
+/** ... of accounts used within this long. */
+const SWEEP_USED_WITHIN_MS = 30 * 24 * 60 * 60_000;
 
 export type CredentialVaultDeps = {
   repository: () => AccountRepository;
@@ -29,8 +41,10 @@ export type CredentialVaultDeps = {
   key: () => Promise<Buffer>;
   /** The definition an account uses; undefined when its extension is gone or off. */
   definition: (row: AccountRow) => AccountKind | undefined;
-  /** The provider of a kind; the `static` provider unless the kind names another. */
-  provider?: (kind: AccountKind) => CredentialProvider;
+  /** Replaces the provider of a kind (tests). */
+  provider?: (kind: AccountKind) => CredentialProvider | undefined;
+  /** Settings of the built-in `oauth2` provider (its guarded fetch). */
+  oauth2?: OAuth2ProviderDeps;
   now?: () => Date;
 };
 
@@ -39,7 +53,40 @@ export type VaultState = { state: AccountState; error?: string };
 
 export type ApplyOutcome =
   | ({ ok: true } & AppliedCredential)
-  | { ok: false; state: Exclude<AccountState, "ready">; error?: string };
+  | {
+      ok: false;
+      /** `unreachable`: refreshing failed for network reasons; the credential is unchanged. */
+      state: Exclude<AccountState, "ready"> | "unreachable";
+      error?: string;
+    };
+
+/** An account the refresh sweep could not keep ready. */
+export type RefreshProblem = {
+  id: string;
+  kind: string;
+  name: string;
+  state: "needs_sign_in" | "failed";
+  error?: string;
+};
+
+export type RefreshSweep = {
+  /** Accounts the query found. */
+  checked: number;
+  refreshed: number;
+  /** Found, but with nothing to refresh with (no refresh token). */
+  skipped: number;
+  /** Refresh failed for network reasons; tried again at the next sweep. */
+  unreachable: number;
+  problems: RefreshProblem[];
+};
+
+type RefreshResult =
+  | { ok: true }
+  | {
+      ok: false;
+      state: "needs_sign_in" | "failed" | "unreachable";
+      error?: string;
+    };
 
 /**
  * The only reader and writer of the `account.credential` column and the only caller of provider
@@ -50,15 +97,23 @@ export type ApplyOutcome =
 export class CredentialVault {
   readonly #locks = new Map<string, Promise<unknown>>();
   readonly #touched = new Map<string, number>();
+  /** When each account's credential was last refreshed, to let a 401 retry reuse a newer token. */
+  readonly #refreshedAt = new Map<string, number>();
+  readonly #oauth2: CredentialProvider;
 
-  constructor(private readonly deps: CredentialVaultDeps) {}
+  constructor(private readonly deps: CredentialVaultDeps) {
+    this.#oauth2 = createOAuth2Provider(deps.oauth2);
+  }
 
   #now(): Date {
     return this.deps.now?.() ?? new Date();
   }
 
   #provider(kind: AccountKind): CredentialProvider {
-    return this.deps.provider?.(kind) ?? staticProvider;
+    return (
+      this.deps.provider?.(kind) ??
+      (kind.provider?.type === "oauth2" ? this.#oauth2 : staticProvider)
+    );
   }
 
   #row(id: string): AccountRow {
@@ -68,8 +123,8 @@ export class CredentialVault {
   }
 
   /**
-   * One operation per account at a time, in call order: writes, and later refreshes. Others wait
-   * for it. One daemon runs per home, so an in-process lock is enough.
+   * One operation per account at a time, in call order: writes and refreshes. Others wait for it.
+   * One daemon runs per home, so an in-process lock is enough.
    */
   async withLock<T>(
     accountId: string,
@@ -97,29 +152,56 @@ export class CredentialVault {
     return sealCredential(await this.deps.key(), id, blob);
   }
 
-  /** Stored status, with `unavailable` derived when the kind's definition is gone or off. */
+  #account(row: AccountRow, kind: AccountKind): ProviderAccount {
+    return { id: row.id, kind, fields: row.fields };
+  }
+
+  /** Stored status, with `unavailable` and the credential-derived `needs_sign_in` applied. */
   async state(accountId: string): Promise<VaultState> {
     const row = this.deps.repository().get(accountId);
     return row ? await this.stateOf(row) : { state: "needs_sign_in" };
   }
 
   async stateOf(row: AccountRow): Promise<VaultState> {
-    if (!this.deps.definition(row)) return { state: "unavailable" };
-    if (row.status === "failed") {
-      let error: string | undefined;
-      try {
-        error = (await this.#open(row))?.error;
-      } catch {
-        error = "The stored credential could not be read.";
-      }
-      return { state: "failed", ...(error ? { error } : {}) };
+    const kind = this.deps.definition(row);
+    if (!kind) return { state: "unavailable" };
+    if (row.status === "needs_sign_in") return { state: "needs_sign_in" };
+    const provider = this.#provider(kind);
+    const account = this.#account(row, kind);
+    const required = provider.requiredScopes?.(account) ?? [];
+    const expired =
+      row.expiresAt !== null &&
+      Date.parse(row.expiresAt) <= this.#now().getTime();
+    // Only what the row cannot say needs the credential: the error of a failed account, scopes,
+    // and whether an expired access token can still be refreshed. Availability never refreshes.
+    if (row.status === "ready" && required.length === 0 && !expired)
+      return { state: "ready" };
+    let blob: CredentialBlob | undefined;
+    try {
+      blob = await this.#open(row);
+    } catch {
+      return {
+        state: "failed",
+        error: "The stored credential could not be read.",
+      };
     }
-    return { state: row.status === "ready" ? "ready" : "needs_sign_in" };
+    if (row.status === "failed")
+      return { state: "failed", ...(blob?.error ? { error: blob.error } : {}) };
+    if (!blob) return { state: "needs_sign_in" };
+    if (expired && !provider.canRefresh?.(blob))
+      return { state: "needs_sign_in", error: "The sign-in expired." };
+    const granted = new Set(blob.grantedScopes ?? []);
+    if (required.some((scope) => !granted.has(scope)))
+      return {
+        state: "needs_sign_in",
+        error: "The account needs to be signed in again for more permissions.",
+      };
+    return { state: "ready" };
   }
 
   /**
-   * Saves typed-in secrets (names left out keep their stored value) and lets the provider sign
-   * in with them. The stored status follows the provider's answer.
+   * Saves typed-in secrets (names left out keep their value). A provider that signs in
+   * interactively keeps its tokens and only learns the secrets; the others sign in with them.
    */
   async saveSecrets(
     account: ProviderAccount,
@@ -127,18 +209,56 @@ export class CredentialVault {
   ): Promise<void> {
     await this.withLock(account.id, async () => {
       const row = this.#row(account.id);
-      const current = (await this.#open(row))?.secrets ?? {};
-      const merged = { ...current, ...secrets };
-      await this.#store(row.id, merged, await this.#signIn(account, merged));
+      const blob = await this.#open(row);
+      const merged = { ...blob?.secrets, ...secrets };
+      const provider = this.#provider(account.kind);
+      if (provider.interactive) {
+        const next: CredentialBlob = { v: 1, ...blob, secrets: merged };
+        this.deps.repository().writeCredential(row.id, {
+          credential: await this.#seal(row.id, next),
+          status: row.status,
+          expiresAt: row.expiresAt,
+          updatedAt: this.#now().toISOString(),
+        });
+        return;
+      }
+      await this.#store(
+        row.id,
+        merged,
+        await this.#signIn(provider, account, merged),
+      );
     });
   }
 
+  /**
+   * Signs in with the user present (`interaction`) and stores the result. The lock is taken only
+   * for the write: requests keep using the old credential while the user signs in.
+   */
+  async signIn(
+    account: ProviderAccount,
+    interaction: SignInInteraction,
+  ): Promise<ProviderOutcome> {
+    const row = this.#row(account.id);
+    const secrets = (await this.#open(row))?.secrets ?? {};
+    const provider = this.#provider(account.kind);
+    const outcome = await provider.signIn(account, { secrets, interaction });
+    // A sign-in that ends without credentials (declined, expired) leaves a working account alone.
+    if (outcome.status !== "ready") return outcome;
+    await this.withLock(account.id, async () => {
+      this.#row(account.id);
+      await this.#store(account.id, secrets, outcome);
+    });
+    this.#refreshedAt.set(account.id, this.#now().getTime());
+    return outcome;
+  }
+
   async #signIn(
+    provider: CredentialProvider,
     account: ProviderAccount,
     secrets: Record<string, string>,
-  ): Promise<ProviderOutcome | { status: "failed"; message: string }> {
+  ): Promise<ProviderOutcome> {
     try {
-      return await this.#provider(account.kind).signIn(account, { secrets });
+      return await provider.signIn(account, { secrets });
     } catch (error) {
       return {
         status: "failed",
@@ -150,10 +270,9 @@ export class CredentialVault {
   async #store(
     id: string,
     secrets: Record<string, string>,
-    outcome: ProviderOutcome | { status: "failed"; message: string },
+    outcome: ProviderOutcome,
   ): Promise<void> {
     const blob: CredentialBlob = { v: 1, secrets };
-    const status: AccountStatus = outcome.status;
     let expiresAt: string | null = null;
     if (outcome.status === "ready") {
       if (outcome.state !== undefined) blob.state = outcome.state;
@@ -164,7 +283,7 @@ export class CredentialVault {
     const empty = Object.keys(secrets).length === 0 && !blob.error;
     this.deps.repository().writeCredential(id, {
       credential: empty ? null : await this.#seal(id, blob),
-      status,
+      status: outcome.status,
       expiresAt,
       updatedAt: this.#now().toISOString(),
     });
@@ -216,18 +335,119 @@ export class CredentialVault {
       // Revocation is best effort.
     }
     this.#touched.delete(account.id);
+    this.#refreshedAt.delete(account.id);
   }
 
   /**
-   * The headers and query parameters for one hop to an allowed credential origin. The caller has
-   * checked the origin; the provider cannot change the request, only add to it.
+   * Refreshes the credential of one account. The caller holds the account's lock; the new
+   * credential, status and expiry are written in one statement before anything uses the token.
+   */
+  async #refreshLocked(
+    account: ProviderAccount,
+    row: AccountRow,
+    blob: CredentialBlob,
+    signal?: AbortSignal,
+  ): Promise<RefreshResult> {
+    const provider = this.#provider(account.kind);
+    let outcome: ProviderOutcome;
+    try {
+      outcome = await provider.refresh(account, blob, signal);
+    } catch (error) {
+      // Not knowing is not a verdict: the stored credential stays as it is.
+      return {
+        ok: false,
+        state: "unreachable",
+        error:
+          error instanceof CredentialTransientError
+            ? error.message
+            : "The credential could not be refreshed.",
+      };
+    }
+    const kept: CredentialBlob = { ...blob };
+    delete kept.state;
+    const update = async (
+      next: CredentialBlob,
+      status: AccountStatus,
+      expiresAt: string | null,
+    ) =>
+      this.deps.repository().writeCredential(row.id, {
+        credential: await this.#seal(row.id, next),
+        status,
+        expiresAt,
+        updatedAt: this.#now().toISOString(),
+      });
+    if (outcome.status === "ready") {
+      const next: CredentialBlob = { ...blob, state: outcome.state };
+      delete next.error;
+      if (outcome.identity) next.identity = outcome.identity;
+      if (outcome.grantedScopes) next.grantedScopes = outcome.grantedScopes;
+      const granted = new Set(next.grantedScopes ?? []);
+      const missing = (provider.requiredScopes?.(account) ?? []).some(
+        (scope) => !granted.has(scope),
+      );
+      if (missing) {
+        const message =
+          "The service granted fewer permissions than needed. Sign in again.";
+        await update({ ...kept, error: message }, "needs_sign_in", null);
+        return { ok: false, state: "needs_sign_in", error: message };
+      }
+      await update(next, "ready", outcome.expiresAt ?? null);
+      this.#refreshedAt.set(row.id, this.#now().getTime());
+      return { ok: true };
+    }
+    const status = outcome.status;
+    const message =
+      outcome.message ??
+      (status === "failed"
+        ? "The credential does not work."
+        : "Sign in again.");
+    await update({ ...kept, error: message }, status, null);
+    return { ok: false, state: status, error: message };
+  }
+
+  /** Under the account's lock, refreshes unless another caller just did. */
+  async #refreshIfDue(
+    account: ProviderAccount,
+    aheadMs: number,
+    signal?: AbortSignal,
+  ): Promise<RefreshResult | "skipped"> {
+    return await this.withLock(account.id, async () => {
+      const row = this.deps.repository().get(account.id);
+      if (!row || row.status !== "ready" || row.expiresAt === null)
+        return "skipped";
+      if (Date.parse(row.expiresAt) - this.#now().getTime() >= aheadMs)
+        return "skipped";
+      const blob = await this.#open(row);
+      if (!blob || !this.#provider(account.kind).canRefresh?.(blob))
+        return "skipped";
+      return await this.#refreshLocked(account, row, blob, signal);
+    });
+  }
+
+  /**
+   * The headers and query parameters for one hop to an allowed credential origin. An access token
+   * that expires within a minute is refreshed first. The caller has checked the origin; the
+   * provider cannot change the request, only add to it.
    */
   async apply(
     account: ProviderAccount,
     request: ApplyRequest,
   ): Promise<ApplyOutcome> {
-    const row = this.deps.repository().get(account.id);
+    let row = this.deps.repository().get(account.id);
     if (!row) return { ok: false, state: "needs_sign_in" };
+    if (
+      row.expiresAt !== null &&
+      Date.parse(row.expiresAt) - this.#now().getTime() < REFRESH_AHEAD_MS
+    ) {
+      const refreshed = await this.#refreshIfDue(account, REFRESH_AHEAD_MS);
+      if (refreshed !== "skipped" && !refreshed.ok)
+        return {
+          ok: false,
+          state: refreshed.state,
+          ...(refreshed.error ? { error: refreshed.error } : {}),
+        };
+      row = this.deps.repository().get(account.id) ?? row;
+    }
     const stored = await this.stateOf(row);
     if (stored.state !== "ready")
       return {
@@ -263,6 +483,78 @@ export class CredentialVault {
         error: error instanceof Error ? error.message : String(error),
       };
     }
+  }
+
+  /**
+   * The service answered 401 to a credentialed request that began at `requestStartedAt`: gets a new
+   * access token so the caller can retry once. True when the credential is newer than the request
+   * (refreshed now, or by a request that was faster).
+   */
+  async refreshAfterRejection(
+    account: ProviderAccount,
+    requestStartedAt: number,
+  ): Promise<boolean> {
+    return await this.withLock(account.id, async () => {
+      const refreshedAt = this.#refreshedAt.get(account.id);
+      if (refreshedAt !== undefined && refreshedAt >= requestStartedAt)
+        return true;
+      const row = this.deps.repository().get(account.id);
+      if (!row || row.status !== "ready") return false;
+      const blob = await this.#open(row);
+      if (!blob || !this.#provider(account.kind).canRefresh?.(blob))
+        return false;
+      return (await this.#refreshLocked(account, row, blob)).ok;
+    });
+  }
+
+  /**
+   * The background sweep: refreshes ready accounts whose access token expires within ten
+   * minutes and that were used within thirty days, one by one through the same locked path.
+   * It does not mark the accounts used, or nothing would ever age out.
+   */
+  async refreshDue(
+    options: {
+      signal?: AbortSignal;
+      now?: Date;
+    } = {},
+  ): Promise<RefreshSweep> {
+    const now = (options.now ?? this.#now()).getTime();
+    const candidates = this.deps.repository().refreshCandidates({
+      expiresBefore: new Date(now + SWEEP_EXPIRES_WITHIN_MS).toISOString(),
+      usedAfter: new Date(now - SWEEP_USED_WITHIN_MS).toISOString(),
+    });
+    const sweep: RefreshSweep = {
+      checked: candidates.length,
+      refreshed: 0,
+      skipped: 0,
+      unreachable: 0,
+      problems: [],
+    };
+    for (const candidate of candidates) {
+      if (options.signal?.aborted) break;
+      const kind = this.deps.definition(candidate);
+      if (!kind) {
+        sweep.skipped++;
+        continue;
+      }
+      const result = await this.#refreshIfDue(
+        this.#account(candidate, kind),
+        SWEEP_EXPIRES_WITHIN_MS,
+        options.signal,
+      );
+      if (result === "skipped") sweep.skipped++;
+      else if (result.ok) sweep.refreshed++;
+      else if (result.state === "unreachable") sweep.unreachable++;
+      else
+        sweep.problems.push({
+          id: candidate.id,
+          kind: candidate.kind,
+          name: candidate.name,
+          state: result.state,
+          ...(result.error ? { error: result.error } : {}),
+        });
+    }
+    return sweep;
   }
 
   /** Marks the account used (credentialed request or test), at most once a minute. */

@@ -27,6 +27,7 @@ import {
   type ApplyOutcome,
   type CredentialVaultDeps,
 } from "./credential-vault.js";
+import type { SignInInteraction } from "../auth/sign-in-service.js";
 import type { ApplyRequest, ProviderAccount } from "./credential-provider.js";
 
 /** An account as extension host code sees it; the credential is never part of it. */
@@ -55,6 +56,15 @@ export interface AccountsReader {
   state(kind: string, id: string): Promise<AccountState>;
   /** Host-only: headers and query parameters for one hop to an allowed credential origin. */
   apply(kind: string, id: string, request: ApplyRequest): Promise<ApplyOutcome>;
+  /**
+   * A credentialed request began at `requestStartedAt` and the service answered 401: gets a newer
+   * access token so the request can be retried once. False when there is nothing to refresh with.
+   */
+  refreshAfterRejection(
+    kind: string,
+    id: string,
+    requestStartedAt: number,
+  ): Promise<boolean>;
   /** Marks the account used (an account test). */
   touch(kind: string, id: string): void;
 }
@@ -69,6 +79,8 @@ export type AccountsServiceDeps = {
   /** The master key for the credential vault. */
   key: CredentialVaultDeps["key"];
   provider?: CredentialVaultDeps["provider"];
+  /** The built-in `oauth2` provider's settings (its SSRF-guarded fetch). */
+  oauth2?: CredentialVaultDeps["oauth2"];
   /** The kinds the registered extensions define, user-wide or per project. */
   definitions: () => readonly AccountDefinition[];
   projectExists: (projectId: string) => boolean;
@@ -104,6 +116,7 @@ export class AccountsService implements AccountScopes {
       key: deps.key,
       definition: (row) => definitionOf(deps.definitions(), row)?.kind,
       ...(deps.provider ? { provider: deps.provider } : {}),
+      ...(deps.oauth2 ? { oauth2: deps.oauth2 } : {}),
       ...(deps.now ? { now: deps.now } : {}),
     });
   }
@@ -221,6 +234,16 @@ export class AccountsService implements AccountScopes {
           this.#provider(row, definition.kind),
           request,
         );
+      },
+      refreshAfterRejection: async (kind, id, requestStartedAt) => {
+        const row = find(kind, id);
+        const definition = row && definitionOf(this.deps.definitions(), row);
+        return row && definition
+          ? await this.vault.refreshAfterRejection(
+              this.#provider(row, definition.kind),
+              requestStartedAt,
+            )
+          : false;
       },
       touch: (kind, id) => {
         if (find(kind, id)) this.vault.touch(id);
@@ -377,6 +400,37 @@ export class AccountsService implements AccountScopes {
       expiresAt: null,
       lastUsedAt: null,
     });
+  }
+
+  /**
+   * What the sign-in service needs to sign an account in: who it is and what to run. The login
+   * fails with the provider's message when it ends without a credential; one that is only
+   * cancelled or timed out leaves the account as it was.
+   */
+  signInFlow(
+    kind: string,
+    id: string,
+  ): {
+    target: { kind: string; id: string; name: string };
+    login: (interaction: SignInInteraction) => Promise<void>;
+  } {
+    const row = this.#row(kind, id);
+    const definition = this.#definition(kind, row.projectId);
+    if (!definition.kind.provider)
+      throw new ApplicationError(
+        400,
+        "ACCOUNT_SIGN_IN_UNSUPPORTED",
+        `${definition.kind.label} has no sign-in: add its secrets instead.`,
+      );
+    const account = this.#provider(row, definition.kind);
+    return {
+      target: { kind, id, name: row.name },
+      login: async (interaction) => {
+        const outcome = await this.vault.signIn(account, interaction);
+        if (outcome.status !== "ready")
+          throw new Error(outcome.message ?? "Sign-in did not complete.");
+      },
+    };
   }
 
   /** Forgets the stored credential; the account then needs sign-in. */

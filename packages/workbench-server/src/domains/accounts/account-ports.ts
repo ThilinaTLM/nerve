@@ -29,6 +29,8 @@ export function accountPorts(
     },
     state: (kind, id) => accounts.state(kind, id),
     apply: (kind, id, request) => accounts.apply(kind, id, request),
+    refreshAfterRejection: (kind, id, since) =>
+      accounts.refreshAfterRejection(kind, id, since),
     touch: (kind, id) => accounts.touch(kind, id),
   };
 }

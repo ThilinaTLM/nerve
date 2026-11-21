@@ -1,5 +1,6 @@
 <script lang="ts">
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
+import { visibleAccounts } from "../accounts/accounts-view";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { toolSettingsMutation } from "./tool-settings-mutation";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
@@ -107,7 +108,14 @@ $effect(() => {
 });
 $effect(() => extensions.observe());
 const accounts = $derived(
-  accountOptions(accountsState.accounts, accountsState.kinds),
+  accountOptions(
+    // A user-scope setting offers user-level accounts; a project's also its own.
+    visibleAccounts(
+      accountsState.accounts,
+      scope === "project" ? projectId : undefined,
+    ),
+    accountsState.kinds,
+  ),
 );
 function extensionState(id: ToolId) {
   return toolExtensionState(id, extensions.view?.extensions, accounts);

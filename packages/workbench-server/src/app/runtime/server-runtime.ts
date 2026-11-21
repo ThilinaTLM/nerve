@@ -1,3 +1,7 @@
+import {
+  createCredentialRefreshJob,
+  reconcileCredentialNotice,
+} from "../../domains/accounts/credential-refresh-job.js";
 import { shutdownServerRuntime } from "./shutdown-server-runtime.js";
 export { shutdownServerRuntime } from "./shutdown-server-runtime.js";
 import type { ActivityService } from "../../domains/activity/activity.service.js";
@@ -27,7 +31,7 @@ import {
 import {
   AuthManager,
   CredentialKeyService,
-  OAuthFlowManager,
+  SignInService,
 } from "../../domains/auth/index.js";
 import { PiAiCredentialStore } from "../../domains/auth/pi-ai-credential-store.js";
 import { PiAiModelsStore } from "../../domains/auth/pi-ai-models-store.js";
@@ -88,7 +92,7 @@ export interface ServerRuntime {
   auth: AuthManager;
   providerCatalog: ProviderCatalogStore;
   credentialKey: CredentialKeyService;
-  oauthFlows: OAuthFlowManager;
+  signIn: SignInService;
   subscriptionUsage: SubscriptionUsageService;
   nerveSkills: NerveSkillCatalog;
   agentBrowserSkills: AgentBrowserSkillCatalog;
@@ -163,7 +167,7 @@ export function composeServerRuntime(
   });
   const providerCatalog = new ProviderCatalogStore(storage);
   const credentialKey = new CredentialKeyService();
-  const oauthFlows = new OAuthFlowManager(auth, events);
+  const signIn = new SignInService(auth, events);
   const subscriptionUsage = new SubscriptionUsageService({
     auth,
     events,
@@ -245,6 +249,20 @@ export function composeServerRuntime(
     onOutcome: backgroundJobNotices.jobOutcome,
     log: (message, context) => void logger.warn(message, { context }),
   });
+  backgroundJobs.register(
+    createCredentialRefreshJob({
+      accounts: services.accounts,
+      notices: backgroundJobNotices,
+    }),
+  );
+  events.subscribeNotify((event) => {
+    if (event.type !== "accounts.changed") return;
+    void reconcileCredentialNotice(
+      services.accounts,
+      backgroundJobNotices,
+      event.data as { kind: string; accountId: string },
+    ).catch(() => undefined);
+  });
   const daemonId = options.daemonId ?? createId("daemon");
   const applicationConfiguration =
     options.applicationConfiguration ??
@@ -290,7 +308,7 @@ export function composeServerRuntime(
     auth,
     providerCatalog,
     credentialKey,
-    oauthFlows,
+    signIn,
     subscriptionUsage,
     nerveSkills,
     agentBrowserSkills,
@@ -320,7 +338,7 @@ export function composeServerRuntime(
     auth,
     providerCatalog,
     credentialKey,
-    oauthFlows,
+    signIn,
     nerveSkills,
     agentBrowserSkills,
     subscriptionUsage,

@@ -6,7 +6,7 @@ import type {
   Provider,
 } from "@earendil-works/pi-ai";
 import { describe, it } from "node:test";
-import { OAuthFlowManager } from "../../../src/domains/auth/oauth-flow-manager.js";
+import { SignInService } from "../../../src/domains/auth/sign-in-service.js";
 
 type Login = (interaction: AuthInteraction) => Promise<void>;
 
@@ -20,7 +20,7 @@ function provider(): Provider {
 
 function harness(login: Login) {
   const published: Array<{ type: string; data: unknown }> = [];
-  const manager = new OAuthFlowManager(
+  const manager = new SignInService(
     {
       getProvider: () => provider(),
       loginOAuth: async (_providerId, interaction) => {
@@ -51,7 +51,7 @@ async function waitFor(
   }
 }
 
-describe("OAuthFlowManager", () => {
+describe("SignInService", () => {
   it("maps and validates provider choices before completing", async () => {
     const { manager } = harness(async (interaction) => {
       const selected = await interaction.prompt({
@@ -265,5 +265,155 @@ describe("OAuthFlowManager", () => {
       value: "example.com",
     });
     assert.equal(stale.state, "cancelled");
+  });
+});
+
+describe("SignInService for accounts", () => {
+  const target = { kind: "svc", id: "acct-1", name: "Work" };
+  const idle = () => harness(async () => {}).manager;
+
+  it("runs the account's login with the shared interaction and reports success once", async () => {
+    const manager = idle();
+    const done: string[] = [];
+    const flow = await manager.startAccount(
+      target,
+      async (interaction) => {
+        interaction.notify({
+          type: "device_code",
+          userCode: "ABCD",
+          verificationUri: "https://example.test/device",
+        });
+        await waitFor(() => done.length === 1, "answered");
+      },
+      async (info) => void done.push(info.state),
+    );
+    assert.deepEqual(
+      {
+        account: flow.account,
+        provider: flow.provider,
+        name: flow.providerName,
+      },
+      {
+        account: { kind: "svc", id: "acct-1" },
+        provider: "account:acct-1",
+        name: "Work",
+      },
+    );
+    await waitFor(
+      () =>
+        manager.get(flow.flowId).state === "active" &&
+        (manager.get(flow.flowId) as { interaction: { type: string } })
+          .interaction.type === "device_code",
+      "device code shown",
+    );
+    done.push("answered");
+    await waitFor(
+      () => manager.get(flow.flowId).state === "succeeded",
+      "success",
+    );
+    assert.equal(manager.get(flow.flowId).account?.id, "acct-1");
+    assert.deepEqual(done, ["answered", "succeeded"]);
+  });
+
+  it("allows one sign-in per account at a time, and a failure carries the login's message", async () => {
+    const manager = idle();
+    const first = await manager.startAccount(
+      target,
+      async (interaction) => {
+        await new Promise((_, reject) =>
+          interaction.signal.addEventListener("abort", () =>
+            reject(new Error("stop")),
+          ),
+        );
+      },
+      async () => {},
+    );
+    await assert.rejects(
+      manager.startAccount(
+        target,
+        async () => {},
+        async () => {},
+      ),
+      /already active/,
+    );
+    // Another account is independent.
+    await manager.startAccount(
+      { ...target, id: "acct-2" },
+      async () => {},
+      async () => {},
+    );
+    await manager.cancel(first.flowId);
+    assert.equal(manager.get(first.flowId).state, "cancelled");
+    const failing = await manager.startAccount(
+      target,
+      async () => {
+        throw new Error("The sign-in code expired.");
+      },
+      async () => {},
+    );
+    await waitFor(
+      () => manager.get(failing.flowId).state === "failed",
+      "failure",
+    );
+    const info = manager.get(failing.flowId);
+    assert.equal(
+      info.state === "failed" && info.failure.detail,
+      "The sign-in code expired.",
+    );
+  });
+
+  it("closes its loopback listener when cancelled and ends a flow that outlives its timeout", async () => {
+    const manager = idle();
+    let redirectUri = "";
+    const flow = await manager.startAccount(
+      target,
+      async (interaction) => {
+        const listener = await interaction.listenLoopback({ state: "s" });
+        redirectUri = listener.redirectUri;
+        await listener.code;
+      },
+      async () => {},
+    );
+    await waitFor(() => redirectUri !== "", "listener");
+    assert.equal(
+      (await fetch(`${redirectUri}?state=s&code=x`).catch(() => undefined))
+        ?.status,
+      200,
+    );
+    await waitFor(() => manager.get(flow.flowId).state !== "active", "ended");
+
+    let closedUri = "";
+    const second = await manager.startAccount(
+      { ...target, id: "acct-3" },
+      async (interaction) => {
+        closedUri = (await interaction.listenLoopback({ state: "s" }))
+          .redirectUri;
+        await new Promise(() => {});
+      },
+      async () => {},
+    );
+    await waitFor(() => closedUri !== "", "second listener");
+    await manager.cancel(second.flowId);
+    assert.equal(
+      await fetch(`${closedUri}?state=s&code=x`).then(
+        () => true,
+        () => false,
+      ),
+      false,
+    );
+
+    const slow = await manager.startAccount(
+      { ...target, id: "acct-4" },
+      async (interaction) => {
+        await new Promise((_, reject) =>
+          interaction.signal.addEventListener("abort", () =>
+            reject(new Error("aborted")),
+          ),
+        );
+      },
+      async () => {},
+      { timeoutMs: 20 },
+    );
+    await waitFor(() => manager.get(slow.flowId).state === "failed", "timeout");
   });
 });

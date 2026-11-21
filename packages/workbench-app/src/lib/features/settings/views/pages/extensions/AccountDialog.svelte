@@ -30,9 +30,17 @@ type Props = {
   kind: AccountKind;
   /** The account being edited; absent when adding. */
   account?: AccountView;
+  /** The project a new account is added to; absent for user level. Ignored when editing. */
+  projectId?: string;
   onSaved: (account: AccountView) => void;
 };
-let { open = $bindable(false), kind, account, onSaved }: Props = $props();
+let {
+  open = $bindable(false),
+  kind,
+  account,
+  projectId,
+  onSaved,
+}: Props = $props();
 
 const inputs = $derived(accountFormInputs(kind));
 const secretInputs = $derived(Object.entries(accountSecretFields(kind)));
@@ -64,7 +72,7 @@ async function save(): Promise<void> {
   try {
     const saved = await saveAccount({
       kind: kind.kind,
-      ...(account ? { id: account.id } : {}),
+      ...(account ? { id: account.id } : projectId ? { projectId } : {}),
       name: submission.name,
       fields: submission.fields,
       ...(submission.secrets

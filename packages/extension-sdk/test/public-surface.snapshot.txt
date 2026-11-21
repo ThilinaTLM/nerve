@@ -193,7 +193,7 @@ export declare class ExtensionError extends Error {
 
 ===== declarations extension-api/src/index.d.ts =====
 export type { Risk, OperationTarget, OperationAuthorization, ToolAuthorization, Authorization, AuthorizeResult, } from "./authorization.js";
-export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountSecretField, AccountInfo, AccountTestResult, AccountKindData, AccountKind, } from "./settings.js";
+export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountOAuth2Provider, AccountSecretField, AccountInfo, AccountTestResult, AccountKindData, AccountKind, } from "./settings.js";
 export type { ArtifactRef, ArtifactInfo, FormPart, HttpRequest, HttpArtifactOptions, HttpResponse, ReportEntry, ImageOptions, ImageRequest, ImageResult, VisionRequest, VisionResult, VisionExplainRequest, ExtensionContext, } from "./types.js";
 export { ExtensionError } from "./errors.js";
 export type { ExtensionErrorCode } from "./errors.js";
@@ -294,12 +294,30 @@ export type AccountTestResult = {
     fix?: string;
     reason?: "rejected" | "restricted" | "unavailable" | "unreachable";
 };
+export type AccountOAuth2Provider = {
+    type: "oauth2";
+    flows?: ("authorization_code" | "device_code")[];
+    discovery?: string;
+    authorizationUrl?: string;
+    tokenUrl?: string;
+    deviceAuthorizationUrl?: string;
+    revocationUrl?: string;
+    scopes?: string[];
+    clientIdField?: string;
+    clientSecret?: string;
+    authorizationParams?: Record<string, string>;
+    userinfo?: {
+        url: string;
+        identity: Record<string, string>;
+    };
+};
 export type AccountKindData = {
     label: string;
     fields: Record<string, SettingField>;
     secret?: AccountSecretField;
     secrets?: Record<string, AccountSecretField>;
     auth?: AccountAuth | AccountAuth[];
+    provider?: AccountOAuth2Provider;
     origins?: string[];
 };
 export type AccountKind = AccountKindData & {
@@ -3537,6 +3555,108 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                 }
               }
             ]
+          },
+          "provider": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "oauth2"
+              },
+              "flows": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "authorization_code",
+                    "device_code"
+                  ]
+                }
+              },
+              "discovery": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "authorizationUrl": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "tokenUrl": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "deviceAuthorizationUrl": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "revocationUrl": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "clientIdField": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][A-Za-z0-9]*$"
+              },
+              "clientSecret": {
+                "type": "string",
+                "maxLength": 64,
+                "pattern": "^[a-z][A-Za-z0-9]*$"
+              },
+              "authorizationParams": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "userinfo": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "identity": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "maxLength": 64,
+                      "pattern": "^[a-z][A-Za-z0-9]*$"
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "required": [
+                  "url",
+                  "identity"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
           },
           "origins": {
             "type": "array",

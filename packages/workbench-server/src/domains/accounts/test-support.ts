@@ -29,6 +29,7 @@ export function fakeAccountsReader(
       headers: { authorization: "Bearer fake" },
       query: {},
     }),
+    refreshAfterRejection: async () => false,
     touch: () => {},
   };
 }

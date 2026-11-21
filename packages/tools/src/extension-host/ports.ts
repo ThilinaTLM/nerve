@@ -22,7 +22,8 @@ export type CredentialApplication =
   | { ok: true; headers: Record<string, string>; query: Record<string, string> }
   | {
       ok: false;
-      state: Exclude<AccountCredentialState, "ready">;
+      /** `unreachable`: the credential could not be refreshed for network reasons and is unchanged. */
+      state: Exclude<AccountCredentialState, "ready"> | "unreachable";
       error?: string;
     };
 
@@ -55,6 +56,15 @@ export type ExtensionHostPorts = {
       id: string,
       request: { method: string; url: URL },
     ): Promise<CredentialApplication>;
+    /**
+     * The service answered 401 to a credentialed request that began at `requestStartedAt` (epoch
+     * ms): gets a newer credential so the request can be retried once. False: nothing to refresh.
+     */
+    refreshAfterRejection?(
+      kind: string,
+      id: string,
+      requestStartedAt: number,
+    ): Promise<boolean>;
     /** Marks the account used. */
     touch?(kind: string, id: string): void;
   };

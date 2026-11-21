@@ -349,3 +349,142 @@ void test("an account that needs sign-in fails the request before anything is se
   );
   assert.equal(seen.length, 0);
 });
+
+async function authServer(accept: string) {
+  const attempts: { auth?: string; body: string }[] = [];
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      attempts.push({
+        ...(request.headers.authorization
+          ? { auth: request.headers.authorization }
+          : {}),
+        body: Buffer.concat(chunks).toString("utf8"),
+      });
+      const ok = request.headers.authorization === accept;
+      response.writeHead(ok ? 200 : 401, {
+        "content-type": "application/json",
+      });
+      response.end("{}");
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return { attempts, origin, close: () => server.close() };
+}
+
+function oauthDeps(
+  origin: string,
+  credential: HttpHostDeps["credential"],
+): HttpHostDeps {
+  return deps({
+    network: [origin],
+    kinds: {
+      demo: { label: "Demo", auth: { scheme: "bearer" }, origins: [origin] },
+    },
+    kindsOfField: () => ["demo"],
+    selected: async () => ({
+      id: "a",
+      name: "A",
+      kind: "demo",
+      fields: {},
+      level: "user",
+    }),
+    credential,
+  });
+}
+
+void test("a 401 refreshes the credential and retries the request once, with its body", async () => {
+  const service = await authServer("Bearer fresh");
+  try {
+    let token = "stale";
+    const refreshes: number[] = [];
+    const { request } = createHttp(
+      oauthDeps(service.origin, {
+        state: async () => "ready",
+        apply: async () => ({
+          ok: true,
+          headers: { authorization: `Bearer ${token}` },
+          query: {},
+        }),
+        refreshAfterRejection: async (_kind, _id, startedAt) => {
+          refreshes.push(startedAt);
+          token = "fresh";
+          return true;
+        },
+      }),
+    );
+    const response = await request({
+      url: `${service.origin}/x`,
+      method: "POST",
+      body: { json: { a: 1 } },
+      auth: { account: "account" },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(refreshes.length, 1);
+    assert.deepEqual(
+      service.attempts.map((attempt) => [attempt.auth, attempt.body]),
+      [
+        ["Bearer stale", '{"a":1}'],
+        ["Bearer fresh", '{"a":1}'],
+      ],
+    );
+  } finally {
+    service.close();
+  }
+});
+
+void test("a second 401 is the account's error, and nothing refreshes when it cannot", async () => {
+  const service = await authServer("Bearer never");
+  try {
+    let refreshes = 0;
+    const credential = (refreshed: boolean): HttpHostDeps["credential"] => ({
+      state: async () => "ready",
+      apply: async () => ({
+        ok: true,
+        headers: { authorization: "Bearer stale" },
+        query: {},
+      }),
+      refreshAfterRejection: async () => {
+        refreshes += 1;
+        return refreshed;
+      },
+    });
+    await assert.rejects(
+      createHttp(oauthDeps(service.origin, credential(true))).request({
+        url: `${service.origin}/x`,
+        auth: { account: "account" },
+      }),
+      /rejected the credential/,
+    );
+    assert.equal(refreshes, 1);
+    assert.equal(service.attempts.length, 2);
+    service.attempts.length = 0;
+    await assert.rejects(
+      createHttp(oauthDeps(service.origin, credential(false))).request({
+        url: `${service.origin}/x`,
+        auth: { account: "account" },
+      }),
+      /rejected the credential/,
+    );
+    assert.equal(service.attempts.length, 1);
+  } finally {
+    service.close();
+  }
+});
+
+void test("a credential that cannot be refreshed because the service is unreachable fails the request as a server error", async () => {
+  const { request } = createHttp(
+    oauthDeps(base, {
+      state: async () => "ready",
+      apply: async () => ({ ok: false, state: "unreachable" }),
+    }),
+  );
+  await assert.rejects(
+    request({ url: `${base}/json`, auth: { account: "account" } }),
+    (error: unknown) =>
+      (error as { code?: string }).code === "SERVER_ERROR" &&
+      /unreachable/.test((error as Error).message),
+  );
+});

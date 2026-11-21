@@ -11,6 +11,11 @@ import type {
   RespondOAuthFlowRequest,
 } from "@nervekit/contracts/auth";
 import { ApplicationError } from "../../core/application-error.js";
+import {
+  listenForLoopbackRedirect,
+  type LoopbackExpectation,
+  type LoopbackListener,
+} from "./loopback-listener.js";
 import type { AuthManager } from "./auth-manager.js";
 import {
   deriveOAuthLoopbackRelayTarget,
@@ -33,9 +38,23 @@ type OAuthProvider = Provider & {
   auth: Provider["auth"] & { oauth: NonNullable<Provider["auth"]["oauth"]> };
 };
 
+/** What a flow signs in: a model provider, or an extension account. */
+type FlowSubject = {
+  /** Key of the one flow at a time: the provider id, or `account:<id>`. */
+  id: string;
+  name: string;
+  account?: { kind: string; id: string };
+};
+
 type FlowRecord = {
   info: OAuthFlowInfo;
-  provider: OAuthProvider;
+  subject: FlowSubject;
+  /** Performs the sign-in with the interaction; resolves when credentials are saved. */
+  login: (interaction: SignInInteraction) => Promise<void>;
+  /** Called once after the flow succeeded (events, notices). */
+  succeeded: (info: OAuthFlowInfo) => Promise<void>;
+  listeners: Set<LoopbackListener>;
+  timeout?: NodeJS.Timeout;
   abortController: AbortController;
   pending?: PendingResponse;
   relay?: { interactionId: string; target: OAuthLoopbackRelayTarget };
@@ -44,11 +63,22 @@ type FlowRecord = {
   terminalAt?: number;
 };
 
+type AccountSignInTarget = { kind: string; id: string; name: string };
+
 type OAuthAuthPort = Pick<AuthManager, "getProvider" | "loginOAuth">;
 type OAuthEventPort = {
   publish<T>(type: string, data: T): Promise<unknown>;
 };
 
+/** The interaction an account provider's sign-in gets: the shared prompts and events, plus loopback listeners. */
+export type SignInInteraction = AuthInteraction & {
+  signal: AbortSignal;
+  /** Listens on 127.0.0.1 for the one redirect of an authorization request; the flow closes it. */
+  listenLoopback(expected: LoopbackExpectation): Promise<LoopbackListener>;
+};
+
+/** Account sign-ins end without an answer after this long. */
+const ACCOUNT_SIGN_IN_TIMEOUT_MS = 10 * 60_000;
 const TERMINAL_RETENTION_MS = 15 * 60_000;
 
 function now(): string {
@@ -110,7 +140,7 @@ function callbackTargetKey(target: OAuthLoopbackRelayTarget): string {
   return `${callback.origin}${callback.pathname}`;
 }
 
-export class OAuthFlowManager {
+export class SignInService {
   private readonly flows = new Map<string, FlowRecord>();
   private readonly activeByProvider = new Map<string, string>();
   private readonly activeCallbackTargets = new Map<string, string>();
@@ -133,20 +163,10 @@ export class OAuthFlowManager {
     return flow.info;
   }
 
+  /** Signs in a model provider; its credentials stay in pi-ai's store. */
   async start(providerId: string): Promise<OAuthFlowInfo> {
     this.pruneTerminalFlows();
-    const existing = this.activeByProvider.get(providerId);
-    if (existing) {
-      const flow = this.flows.get(existing);
-      if (flow && !isTerminal(flow.info)) {
-        throw new ApplicationError(
-          409,
-          "OAUTH_FLOW_ACTIVE",
-          `OAuth login for ${providerId} is already active.`,
-        );
-      }
-    }
-
+    this.assertIdle(providerId, `OAuth login for ${providerId}`);
     const provider = this.auth.getProvider(providerId);
     if (!isOAuthProvider(provider)) {
       throw new ApplicationError(
@@ -155,16 +175,80 @@ export class OAuthFlowManager {
         "OAuth provider not found.",
       );
     }
+    return this.begin({
+      subject: { id: provider.id, name: provider.name },
+      login: async (interaction) => {
+        await this.auth.loginOAuth(provider.id, interaction);
+      },
+      succeeded: async (info) => {
+        await this.events.publish("auth.oauth_login_succeeded", {
+          provider: provider.id,
+          flow: info,
+        });
+        await this.events.publish("auth.providers_changed", {
+          provider: provider.id,
+        });
+        await this.events.publish("providers.catalog_changed", {
+          provider: provider.id,
+        });
+      },
+    });
+  }
 
+  /**
+   * Signs in an extension account. `login` runs the account provider with the interaction (a
+   * browser link, a device code, progress, loopback listeners) and stores what it obtains;
+   * `succeeded` runs after it did. The flow ends after `timeoutMs`.
+   */
+  async startAccount(
+    account: AccountSignInTarget,
+    login: (interaction: SignInInteraction) => Promise<void>,
+    succeeded: (info: OAuthFlowInfo) => Promise<void>,
+    options: { timeoutMs?: number } = {},
+  ): Promise<OAuthFlowInfo> {
+    this.pruneTerminalFlows();
+    const id = `account:${account.id}`;
+    this.assertIdle(id, `Sign-in of "${account.name}"`);
+    return this.begin(
+      {
+        subject: {
+          id,
+          name: account.name,
+          account: { kind: account.kind, id: account.id },
+        },
+        login,
+        succeeded,
+      },
+      options.timeoutMs ?? ACCOUNT_SIGN_IN_TIMEOUT_MS,
+    );
+  }
+
+  private assertIdle(subjectId: string, label: string): void {
+    const existing = this.activeByProvider.get(subjectId);
+    const flow = existing ? this.flows.get(existing) : undefined;
+    if (flow && !isTerminal(flow.info))
+      throw new ApplicationError(
+        409,
+        "OAUTH_FLOW_ACTIVE",
+        `${label} is already active.`,
+      );
+  }
+
+  private async begin(
+    input: Pick<FlowRecord, "subject" | "login" | "succeeded">,
+    timeoutMs?: number,
+  ): Promise<OAuthFlowInfo> {
     const timestamp = now();
     const flow: FlowRecord = {
-      provider,
+      ...input,
+      listeners: new Set(),
       abortController: new AbortController(),
       updateTail: Promise.resolve(),
       info: {
         flowId: createId("authflow"),
-        provider: provider.id,
-        providerName: provider.name,
+        provider: input.subject.id,
+        providerName: input.subject.name,
+        ...(input.subject.account ? { account: input.subject.account } : {}),
         state: "active",
         interaction: { type: "starting" },
         createdAt: timestamp,
@@ -173,7 +257,14 @@ export class OAuthFlowManager {
     };
 
     this.flows.set(flow.info.flowId, flow);
-    this.activeByProvider.set(provider.id, flow.info.flowId);
+    this.activeByProvider.set(input.subject.id, flow.info.flowId);
+    if (timeoutMs !== undefined) {
+      flow.timeout = setTimeout(() => {
+        void this.fail(flow, "Sign-in timed out.").catch(() => undefined);
+        flow.abortController.abort();
+      }, timeoutMs);
+      flow.timeout.unref();
+    }
     await this.publish(flow);
     void this.run(flow)
       .catch((error) => this.fail(flow, asError(error).message))
@@ -317,13 +408,14 @@ export class OAuthFlowManager {
   }
 
   private async run(flow: FlowRecord): Promise<void> {
-    const interaction: AuthInteraction = {
+    const interaction: SignInInteraction = {
       signal: flow.abortController.signal,
       prompt: (prompt) => this.handlePrompt(flow, prompt),
       notify: (event) => this.enqueueEvent(flow, event),
+      listenLoopback: (expected) => this.listen(flow, expected),
     };
 
-    await this.auth.loginOAuth(flow.provider.id, interaction);
+    await flow.login(interaction);
     await flow.updateTail;
     if (flow.updateError) throw flow.updateError;
     if (flow.abortController.signal.aborted) throw new Error("Login cancelled");
@@ -331,21 +423,25 @@ export class OAuthFlowManager {
     try {
       await this.setTerminal(flow, {
         state: "succeeded",
-        successMessage: `Connected to ${flow.provider.name}.`,
+        successMessage: `Connected to ${flow.subject.name}.`,
       });
-      await this.events.publish("auth.oauth_login_succeeded", {
-        provider: flow.provider.id,
-        flow: flow.info,
-      });
-      await this.events.publish("auth.providers_changed", {
-        provider: flow.provider.id,
-      });
-      await this.events.publish("providers.catalog_changed", {
-        provider: flow.provider.id,
-      });
+      await flow.succeeded(flow.info);
     } finally {
       this.release(flow);
     }
+  }
+
+  /** A loopback listener the flow owns: closed when the flow ends or is cancelled. */
+  private async listen(
+    flow: FlowRecord,
+    expected: LoopbackExpectation,
+  ): Promise<LoopbackListener> {
+    const listener = await listenForLoopbackRedirect(
+      expected,
+      flow.abortController.signal,
+    );
+    flow.listeners.add(listener);
+    return listener;
   }
 
   private enqueueEvent(flow: FlowRecord, event: AuthEvent): void {
@@ -544,10 +640,11 @@ export class OAuthFlowManager {
           ...(detail ? { detail } : {}),
         },
       });
-      await this.events.publish("auth.oauth_login_failed", {
-        provider: flow.provider.id,
-        flow: flow.info,
-      });
+      if (!flow.subject.account)
+        await this.events.publish("auth.oauth_login_failed", {
+          provider: flow.subject.id,
+          flow: flow.info,
+        });
     } finally {
       this.release(flow);
     }
@@ -577,6 +674,7 @@ export class OAuthFlowManager {
       flowId: flow.info.flowId,
       provider: flow.info.provider,
       providerName: flow.info.providerName,
+      ...(flow.subject.account ? { account: flow.subject.account } : {}),
       createdAt: flow.info.createdAt,
       updatedAt: now(),
     };
@@ -590,9 +688,12 @@ export class OAuthFlowManager {
   }
 
   private release(flow: FlowRecord): void {
-    if (this.activeByProvider.get(flow.provider.id) === flow.info.flowId) {
-      this.activeByProvider.delete(flow.provider.id);
+    if (this.activeByProvider.get(flow.subject.id) === flow.info.flowId) {
+      this.activeByProvider.delete(flow.subject.id);
     }
+    clearTimeout(flow.timeout);
+    for (const listener of flow.listeners) listener.close();
+    flow.listeners.clear();
     if (flow.relay) {
       const key = callbackTargetKey(flow.relay.target);
       if (this.activeCallbackTargets.get(key) === flow.info.flowId) {

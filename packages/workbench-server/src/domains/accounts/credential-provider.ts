@@ -3,6 +3,7 @@ import {
   accountSecretFields,
   type AccountKind,
 } from "@nervekit/contracts/extensions";
+import type { SignInInteraction } from "../auth/sign-in-service.js";
 import type { CredentialBlob } from "./credential-blob.js";
 
 /** The account a provider works for: what the host knows besides the credential. */
@@ -32,6 +33,11 @@ export type ProviderOutcome =
       /** Nothing usable: the user has to sign in or enter the secrets. */
       status: "needs_sign_in";
       message?: string;
+    }
+  | {
+      /** The service refused the account's client or credential for a reason the user must fix. */
+      status: "failed";
+      message: string;
     };
 
 /** One hop of a request to an origin the account's credential may go to. */
@@ -42,6 +48,14 @@ export type AppliedCredential = {
   headers: Record<string, string>;
   query: Record<string, string>;
 };
+
+/** The service could not be reached or failed (network, 5xx): nothing about the credential is known, keep it. */
+export class CredentialTransientError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CredentialTransientError";
+  }
+}
 
 /** `apply` found the credential unusable (not a host failure). */
 export class CredentialUnusableError extends Error {
@@ -57,16 +71,29 @@ export class CredentialUnusableError extends Error {
  * is its only caller, and none of it is reachable from the backend, UI or agent.
  */
 export interface CredentialProvider {
-  /** Typed-in secrets saved, or the user signed in. */
+  /**
+   * Typed-in secrets saved, or the user signed in. `interaction` is present only for a sign-in the
+   * user started; without it a provider that needs one answers `needs_sign_in`.
+   */
   signIn(
     account: ProviderAccount,
-    input: { secrets: Record<string, string> },
+    input: { secrets: Record<string, string>; interaction?: SignInInteraction },
   ): Promise<ProviderOutcome>;
-  /** Before expiry or after a 401. */
+  /** The provider obtains its credential by an interactive sign-in, so saving secrets does not replace it. */
+  readonly interactive?: boolean;
+  /**
+   * Before expiry or after a 401. Returns the complete new state; throws `CredentialTransientError`
+   * when the service could not be reached.
+   */
   refresh(
     account: ProviderAccount,
     credential: ProviderCredential,
+    signal?: AbortSignal,
   ): Promise<ProviderOutcome>;
+  /** Whether `refresh` can obtain a new credential (a refresh token exists). Absent: never. */
+  canRefresh?(credential: ProviderCredential): boolean;
+  /** Scopes the account's kind needs; an account whose granted scopes are fewer needs sign-in. */
+  requiredScopes?(account: ProviderAccount): readonly string[];
   /** Headers and query parameters for one hop to an allowed credential origin. */
   apply(
     account: ProviderAccount,
