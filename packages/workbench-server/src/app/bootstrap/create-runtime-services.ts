@@ -37,6 +37,7 @@ import {
 import { PromptSuggestionEnablementService } from "../../domains/prompt-suggestions/prompt-suggestion-enablement.service.js";
 import type { AuthManager } from "../../domains/auth/index.js";
 import { AccountsService } from "../../domains/accounts/index.js";
+import { enabledPlatformUses } from "../../domains/accounts/platform-uses.js";
 import { extensionAccountTester } from "../../domains/auth/account-testers.js";
 import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
@@ -166,14 +167,18 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     void logger.warn("Installed extensions could not be read", { error });
   });
   // Kinds a project's own extension defines belong to that project.
-  const accountDefinitions = () =>
-    extensionCatalog.accountDefinitions().flatMap(({ kind, projectDir }) => {
-      if (projectDir === undefined) return [{ kind }];
-      const project = listProjects().find(
-        (candidate) => resolveKey(candidate.directory) === projectDir,
-      );
-      return project ? [{ kind, projectId: project.id }] : [];
-    });
+  const accountDefinitions = () => {
+    return extensionCatalog
+      .accountDefinitions()
+      .flatMap(({ kind, projectDir, credentials }) => {
+        const code = credentials ? { credentials } : {};
+        if (projectDir === undefined) return [{ kind, ...code }];
+        const project = listProjects().find(
+          (candidate) => resolveKey(candidate.directory) === projectDir,
+        );
+        return project ? [{ kind, projectId: project.id, ...code }] : [];
+      });
+  };
   const accountKinds = () => accountDefinitions().map(({ kind }) => kind);
   let masterKey: Promise<Buffer> | undefined;
   const accounts = new AccountsService({
@@ -181,8 +186,34 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     repository: () => coreStorage.accounts,
     key: () => (masterKey ??= loadMasterKey(storage.paths.home)),
     definitions: accountDefinitions,
+    extensionOfKind: (kind) => extensionCatalog.extensionNameOfKind(kind),
+    // Sign-in asks for the scopes of the definition and of the extensions using its platform
+    // that are enabled where the account lives (user scope, or the account's project).
+    platformUses: enabledPlatformUses({
+      uses: () => extensionCatalog.platformUses(),
+      levels: () => [
+        ...new Set(
+          coreStorage.accounts.list().flatMap((row) => row.projectId ?? []),
+        ),
+      ],
+      enabled: async (projectId) => {
+        try {
+          const resolution = projectId
+            ? await extensionSettings.resolve(
+                { projectId, role: "lead" },
+                "project",
+              )
+            : await extensionSettings.resolve({ role: "lead" }, "user");
+          return (id) => resolution.extensions[id]?.enabled.value === true;
+        } catch {
+          // Settings that cannot be read enable nothing: accounts keep their own definition's scopes.
+          return () => false;
+        }
+      },
+    }),
     // Sign-in origins are reached through the SSRF guard like any extension request.
     oauth2: { fetch: createPinnedFetch() },
+    extension: { fetch: createPinnedFetch() },
     projectExists: (projectId) =>
       Boolean(conversationCore.projects.get(projectId)),
   });

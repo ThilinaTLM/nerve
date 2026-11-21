@@ -1,6 +1,7 @@
 import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
 import type { AccountKind } from "@nervekit/contracts/extensions";
 import type { AccountView } from "@nervekit/contracts/settings";
+import { platformChoicesKey } from "../extensions/extensions-view";
 export type ToolId = CapabilityToolName;
 
 /** The editable shape shared by every tool: all fields optional. */
@@ -66,7 +67,12 @@ export function toolRow(id: ToolId): ToolRowDef {
   return row;
 }
 
-export type AccountOption = { id: string; name: string; detail?: string };
+export type AccountOption = {
+  id: string;
+  name: string;
+  detail?: string;
+  kind?: string;
+};
 
 /** Every account the user can pick from, by account kind. */
 export type AccountOptions = Record<string, AccountOption[]>;
@@ -100,6 +106,14 @@ export function accountOptions(
       name: account.name,
       ...(detail ? { detail } : {}),
     });
+    const definition = kinds.find(({ kind }) => kind === account.kind);
+    if (definition?.platform)
+      (options[platformChoicesKey(definition.platform)] ??= []).push({
+        id: account.id,
+        name: account.name,
+        kind: account.kind,
+        detail: [definition.label, detail].filter(Boolean).join(" · "),
+      });
   }
   return options;
 }

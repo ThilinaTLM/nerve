@@ -50,8 +50,8 @@ interface JobState {
 
 export interface BackgroundJobServiceOptions {
   clock?: BackgroundJobClock;
-  /** Called after every state change with the full list. */
-  onChanged?: (jobs: BackgroundJob[]) => void;
+  /** Called after every state change of a job with its new state. */
+  onChanged?: (job: BackgroundJob) => void;
   /** Called when a job fails or recovers; `failures` is the consecutive failure count (0 = recovered). */
   onOutcome?: (
     job: BackgroundJobDefinition,
@@ -146,7 +146,7 @@ export class BackgroundJobService {
     state.queued = true;
     if (first) this.#queue.unshift(state);
     else this.#queue.push(state);
-    this.#changed();
+    this.#changed(state);
     this.#pump ??= this.#drain().finally(() => {
       this.#pump = undefined;
     });
@@ -165,7 +165,7 @@ export class BackgroundJobService {
     const controller = new AbortController();
     const startedAt = this.#clock.now();
     state.running = { startedAt, controller };
-    this.#changed();
+    this.#changed(state);
     let cancelTimeout: (() => void) | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
       cancelTimeout = this.#clock.setTimeout(() => {
@@ -204,7 +204,7 @@ export class BackgroundJobService {
         finishedAt + backoffMs(job, state.failures, this.#tickMs);
     }
     this.#log(job.id, outcome);
-    this.#changed();
+    this.#changed(state);
     try {
       this.options.onOutcome?.(
         job,
@@ -239,9 +239,9 @@ export class BackgroundJobService {
     };
   }
 
-  #changed(): void {
+  #changed(state: JobState): void {
     try {
-      this.options.onChanged?.(this.list());
+      this.options.onChanged?.(this.#snapshot(state));
     } catch {
       /* Publishing is best effort. */
     }

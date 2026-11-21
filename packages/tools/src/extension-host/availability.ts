@@ -1,6 +1,8 @@
 import {
   accountFieldKinds,
   accountSecretFields,
+  kindsForUse,
+  type AccountKind,
 } from "@nervekit/contracts/extensions";
 import type { AccountInfo, Requires } from "@nervekit/extension-api";
 import type {
@@ -36,7 +38,10 @@ export type AvailabilityInput = {
       selection?: AccountSelection,
     ): Promise<AccountInfo | undefined>;
     state(kind: string, id: string): Promise<AccountCredentialState>;
+    problem?(kind: string, id: string): Promise<string | undefined>;
   };
+  /** The definitions of a platform available here, whichever extension defines them; absent: the extension's own. */
+  platformKinds?(platform: string): readonly AccountKind[];
   /** Check that a selected account is ready (not needing sign-in). Off for the tool description, which only needs `configured`. */
   checkSecrets: boolean;
   /** Opens the extension's code for its `availability` hooks (outside any run); without it hooks are skipped. `deriveAvailability` disposes what it opens. */
@@ -99,12 +104,29 @@ async function stateOf(
   const field = gate.requires?.account;
   if (field) {
     const declared = extension.settings.fields[field];
+    const use =
+      declared?.type === "account" && declared.platform !== undefined
+        ? extension.uses?.find((u) => u.platform === declared.platform)
+        : undefined;
     const kinds =
-      declared?.type === "account"
-        ? accountFieldKinds(declared).flatMap(
-            (id) => extension.accounts?.find((c) => c.kind === id) ?? [],
-          )
-        : [];
+      declared?.type !== "account"
+        ? []
+        : use
+          ? kindsForUse(
+              [
+                ...(input.platformKinds?.(use.platform) ?? []),
+                ...(extension.accounts ?? []).filter(
+                  (own) =>
+                    !input
+                      .platformKinds?.(use.platform)
+                      .some((known) => known.kind === own.kind),
+                ),
+              ],
+              use,
+            )
+          : accountFieldKinds(declared).flatMap(
+              (id) => extension.accounts?.find((c) => c.kind === id) ?? [],
+            );
     const id = state.settings[field];
     let kind = kinds[0];
     let account: AccountInfo | undefined;
@@ -129,12 +151,16 @@ async function stateOf(
       };
     if (input.checkSecrets) {
       const credential = await input.accounts.state(kind.kind, account.id);
+      const why =
+        credential === "needs_sign_in"
+          ? await input.accounts.problem?.(kind.kind, account.id)
+          : undefined;
       if (credential !== "ready")
         return {
           configured: true,
           available: false,
           reason: {
-            needs_sign_in: `the selected ${kind.label} needs sign-in.`,
+            needs_sign_in: `the selected ${kind.label} needs sign-in${why ? ` (${why.replace(/\.$/, "")})` : ""}.`,
             failed: `the selected ${kind.label} is signed in but its credential does not work.`,
             unavailable: `the extension that defines the selected ${kind.label} is off or gone.`,
           }[credential],

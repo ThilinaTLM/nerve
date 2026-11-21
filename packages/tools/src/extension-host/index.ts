@@ -45,3 +45,19 @@ export {
 } from "./descriptors.js";
 export { accountKindIsTestable, testExtensionAccount } from "./account-test.js";
 export type { AccountTestOutcome } from "./account-test.js";
+export {
+  CREDENTIAL_NEEDS_USER_MESSAGE,
+  describeCredentialBundle,
+  runCredentialOperation,
+} from "./credential-sandbox.js";
+export type {
+  CredentialHostBody,
+  CredentialHostHttpRequest,
+  CredentialHostHttpResponse,
+  CredentialHostServices,
+  CredentialHostUi,
+  CredentialOperation,
+  CredentialRunInput,
+} from "./credential-sandbox.js";
+export { fillTemplate, originMatches } from "./network.js";
+export type { CredentialBody } from "./ports.js";

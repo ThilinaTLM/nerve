@@ -30,13 +30,19 @@ export type AccountRowModel = {
 };
 
 /**
- * One filter per facet; add a facet (platform) by extending this union and `facets`.
- * An empty value shows everything.
+ * One filter per facet; add a facet by extending this union and `facets`. An empty value shows
+ * everything. `platform` shows the accounts of one platform whichever extension defines them.
  */
-export type AccountFacet = "extension" | "kind" | "level" | "state";
+export type AccountFacet =
+  | "platform"
+  | "extension"
+  | "kind"
+  | "level"
+  | "state";
 export type AccountFilters = Record<AccountFacet, string>;
 
 export const noAccountFilters: AccountFilters = {
+  platform: "",
   extension: "",
   kind: "",
   level: "",
@@ -68,6 +74,21 @@ type Facet = {
 };
 
 const facets: Record<AccountFacet, Facet> = {
+  platform: {
+    label: "Platform",
+    value: (row) => row.kind?.platform,
+    options: (rows, kinds) =>
+      [
+        ...new Set([
+          ...kinds.flatMap((kind) => (kind.platform ? [kind.platform] : [])),
+          ...rows.flatMap((row) =>
+            row.kind?.platform ? [row.kind.platform] : [],
+          ),
+        ]),
+      ]
+        .sort()
+        .map((value) => ({ value, label: value })),
+  },
   extension: {
     label: "Extension",
     value: (row) => row.extension?.id,
@@ -208,11 +229,11 @@ export function duplicateWarning(
 export function accountProblem(account: AccountView): string | undefined {
   switch (account.state) {
     case "needs_sign_in":
-      return "Needs credentials";
+      return account.error ?? "Needs credentials";
     case "failed":
       return account.error ?? "The credential does not work";
     case "unavailable":
-      return "Its extension is off or gone";
+      return account.error ?? "Its extension is off or gone";
     case "ready":
       return undefined;
   }
@@ -236,3 +257,33 @@ export type AccountSignIn = {
   supports: (kind: AccountKind) => boolean;
   start: (account: AccountView) => void | Promise<void>;
 };
+
+/**
+ * The kinds to offer when adding an account under the current filters: those of the filtered
+ * platform (several definitions may describe it), narrowed to the filtered kind when set.
+ */
+export function kindsToAdd(
+  kinds: readonly AccountKind[],
+  filters: Pick<AccountFilters, "platform" | "kind">,
+): AccountKind[] {
+  return kinds.filter(
+    (kind) =>
+      (!filters.platform || kind.platform === filters.platform) &&
+      (!filters.kind || kind.kind === filters.kind),
+  );
+}
+
+/** The platforms an extension's page links to: those its definitions are for and those it uses. */
+export function platformsOfExtension(extension: {
+  accountKinds: readonly Pick<AccountKind, "platform">[];
+  uses?: readonly { platform: string }[] | undefined;
+}): string[] {
+  return [
+    ...new Set([
+      ...extension.accountKinds.flatMap((kind) =>
+        kind.platform ? [kind.platform] : [],
+      ),
+      ...(extension.uses ?? []).map((use) => use.platform),
+    ]),
+  ];
+}

@@ -28,6 +28,7 @@ export const backgroundJobSchema = z.object({
 });
 export type BackgroundJob = z.infer<typeof backgroundJobSchema>;
 
+/** One job's new state; the event is scoped by job id so the latest per job wins. */
 export const backgroundJobsChangedEventSchema = z.object({
-  jobs: z.array(backgroundJobSchema),
+  job: backgroundJobSchema,
 });

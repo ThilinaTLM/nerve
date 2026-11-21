@@ -176,6 +176,56 @@ describe("extension summary and availability", () => {
     assert.equal(extensionFix(atlassian(), accounts), undefined);
   });
 
+  it("offers 'Choose account' for a platform field only when an eligible definition has accounts", () => {
+    const base = atlassian({
+      availability: {
+        jira: {
+          configured: true,
+          available: false,
+          reason: "no account is selected for Jira.",
+          fix: "Ask the user",
+        },
+        confluence: { configured: false, available: true },
+      },
+    });
+    const using: ExtensionView = {
+      ...base,
+      accountKinds: [],
+      uses: [{ platform: "github", origins: ["https://api.github.com"] }],
+      settingsSchema: {
+        ...base.settingsSchema,
+        fields: {
+          ...base.settingsSchema.fields,
+          account: { type: "account", label: "Account", platform: "github" },
+        },
+      },
+    };
+    const def = (kind: string, origins: string[]) => ({
+      kind,
+      label: kind,
+      platform: "github",
+      fields: {},
+      origins,
+    });
+    const kinds = [
+      def("covers", ["https://api.github.com"]),
+      def("elsewhere", ["https://ghe.example.com"]),
+    ];
+    const choices = {
+      "platform:github": [{ id: "x", name: "X", kind: "elsewhere" }],
+    };
+    // The only account belongs to a definition that does not cover the extension's origins.
+    assert.equal(extensionFix(using, choices, kinds)?.label, "Add account");
+    assert.equal(
+      extensionFix(
+        using,
+        { "platform:github": [{ id: "y", name: "Y", kind: "covers" }] },
+        kinds,
+      )?.label,
+      "Choose account",
+    );
+  });
+
   it("derives the fix from the failing namespace's account field", () => {
     const base = atlassian();
     const two = atlassian({

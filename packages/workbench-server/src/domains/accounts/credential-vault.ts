@@ -12,6 +12,11 @@ import {
   type CredentialBlob,
 } from "./credential-blob.js";
 import {
+  createExtensionCredentialProvider,
+  type ExtensionCredentialCode,
+  type ExtensionCredentialProviderDeps,
+} from "./extension-credential-provider.js";
+import {
   CredentialTransientError,
   CredentialUnusableError,
   staticProvider,
@@ -41,10 +46,14 @@ export type CredentialVaultDeps = {
   key: () => Promise<Buffer>;
   /** The definition an account uses; undefined when its extension is gone or off. */
   definition: (row: AccountRow) => AccountKind | undefined;
+  /** The credential code of the extension that defines the account's kind, for `provider: "extension"`. */
+  credentialCode?: (row: AccountRow) => ExtensionCredentialCode | undefined;
   /** Replaces the provider of a kind (tests). */
   provider?: (kind: AccountKind) => CredentialProvider | undefined;
   /** Settings of the built-in `oauth2` provider (its guarded fetch). */
   oauth2?: OAuth2ProviderDeps;
+  /** Settings of the provider that runs extensions' credential code (its guarded fetch). */
+  extension?: Omit<ExtensionCredentialProviderDeps, "code">;
   now?: () => Date;
 };
 
@@ -100,9 +109,11 @@ export class CredentialVault {
   /** When each account's credential was last refreshed, to let a 401 retry reuse a newer token. */
   readonly #refreshedAt = new Map<string, number>();
   readonly #oauth2: CredentialProvider;
+  readonly #extension: CredentialProvider;
 
   constructor(private readonly deps: CredentialVaultDeps) {
     this.#oauth2 = createOAuth2Provider(deps.oauth2);
+    this.#extension = createExtensionCredentialProvider(deps.extension ?? {});
   }
 
   #now(): Date {
@@ -110,10 +121,12 @@ export class CredentialVault {
   }
 
   #provider(kind: AccountKind): CredentialProvider {
-    return (
-      this.deps.provider?.(kind) ??
-      (kind.provider?.type === "oauth2" ? this.#oauth2 : staticProvider)
-    );
+    const given = this.deps.provider?.(kind);
+    if (given) return given;
+    if (kind.provider === "extension") return this.#extension;
+    return typeof kind.provider === "object" && kind.provider.type === "oauth2"
+      ? this.#oauth2
+      : staticProvider;
   }
 
   #row(id: string): AccountRow {
@@ -152,8 +165,42 @@ export class CredentialVault {
     return sealCredential(await this.deps.key(), id, blob);
   }
 
+  /**
+   * Whether the code consent covers now wrote the credential. Typed-in secrets (no code) are
+   * always covered; a credential written by other code is not handed to the provider.
+   */
+  #covered(
+    provider: CredentialProvider,
+    account: ProviderAccount,
+    blob: CredentialBlob,
+  ): boolean {
+    const current = provider.codeHash?.(account);
+    return current === undefined || blob.codeHash === current;
+  }
+
   #account(row: AccountRow, kind: AccountKind): ProviderAccount {
-    return { id: row.id, kind, fields: row.fields };
+    const credentials = this.deps.credentialCode?.(row);
+    return {
+      id: row.id,
+      kind,
+      fields: row.fields,
+      ...(credentials ? { credentials } : {}),
+    };
+  }
+
+  /** What the provider reported about the account at sign-in; for the backend's `AccountInfo`. */
+  async identityOf(
+    row: AccountRow,
+  ): Promise<Record<string, string> | undefined> {
+    if (row.status !== "ready" || !row.hasCredential) return undefined;
+    const kind = this.deps.definition(row);
+    // Typed-in secrets report nothing; only a provider's accounts have an identity to read.
+    if (!kind?.provider) return undefined;
+    try {
+      return (await this.#open(row))?.identity;
+    } catch {
+      return undefined;
+    }
   }
 
   /** Stored status, with `unavailable` and the credential-derived `needs_sign_in` applied. */
@@ -174,7 +221,8 @@ export class CredentialVault {
       Date.parse(row.expiresAt) <= this.#now().getTime();
     // Only what the row cannot say needs the credential: the error of a failed account, scopes,
     // and whether an expired access token can still be refreshed. Availability never refreshes.
-    if (row.status === "ready" && required.length === 0 && !expired)
+    const bound = provider.codeHash !== undefined;
+    if (row.status === "ready" && required.length === 0 && !expired && !bound)
       return { state: "ready" };
     let blob: CredentialBlob | undefined;
     try {
@@ -188,13 +236,19 @@ export class CredentialVault {
     if (row.status === "failed")
       return { state: "failed", ...(blob?.error ? { error: blob.error } : {}) };
     if (!blob) return { state: "needs_sign_in" };
-    if (expired && !provider.canRefresh?.(blob))
-      return { state: "needs_sign_in", error: "The sign-in expired." };
-    const granted = new Set(blob.grantedScopes ?? []);
-    if (required.some((scope) => !granted.has(scope)))
+    if (!this.#covered(provider, account, blob))
       return {
         state: "needs_sign_in",
-        error: "The account needs to be signed in again for more permissions.",
+        error: "The extension's credential code changed. Sign in again.",
+      };
+    if (expired && !provider.canRefresh?.(blob, account))
+      return { state: "needs_sign_in", error: "The sign-in expired." };
+    const granted = new Set(blob.grantedScopes ?? []);
+    const missing = required.filter((scope) => !granted.has(scope));
+    if (missing.length > 0)
+      return {
+        state: "needs_sign_in",
+        error: `The account needs to be signed in again for more permissions: ${missing.join(", ")}.`,
       };
     return { state: "ready" };
   }
@@ -278,6 +332,7 @@ export class CredentialVault {
       if (outcome.state !== undefined) blob.state = outcome.state;
       if (outcome.identity) blob.identity = outcome.identity;
       if (outcome.grantedScopes) blob.grantedScopes = outcome.grantedScopes;
+      if (outcome.codeHash) blob.codeHash = outcome.codeHash;
       expiresAt = outcome.expiresAt ?? null;
     } else if (outcome.message) blob.error = outcome.message;
     const empty = Object.keys(secrets).length === 0 && !blob.error;
@@ -381,6 +436,7 @@ export class CredentialVault {
       delete next.error;
       if (outcome.identity) next.identity = outcome.identity;
       if (outcome.grantedScopes) next.grantedScopes = outcome.grantedScopes;
+      if (outcome.codeHash) next.codeHash = outcome.codeHash;
       const granted = new Set(next.grantedScopes ?? []);
       const missing = (provider.requiredScopes?.(account) ?? []).some(
         (scope) => !granted.has(scope),
@@ -418,7 +474,12 @@ export class CredentialVault {
       if (Date.parse(row.expiresAt) - this.#now().getTime() >= aheadMs)
         return "skipped";
       const blob = await this.#open(row);
-      if (!blob || !this.#provider(account.kind).canRefresh?.(blob))
+      const provider = this.#provider(account.kind);
+      if (
+        !blob ||
+        !provider.canRefresh?.(blob, account) ||
+        !this.#covered(provider, account, blob)
+      )
         return "skipped";
       return await this.#refreshLocked(account, row, blob, signal);
     });
@@ -501,7 +562,12 @@ export class CredentialVault {
       const row = this.deps.repository().get(account.id);
       if (!row || row.status !== "ready") return false;
       const blob = await this.#open(row);
-      if (!blob || !this.#provider(account.kind).canRefresh?.(blob))
+      const provider = this.#provider(account.kind);
+      if (
+        !blob ||
+        !provider.canRefresh?.(blob, account) ||
+        !this.#covered(provider, account, blob)
+      )
         return false;
       return (await this.#refreshLocked(account, row, blob)).ok;
     });

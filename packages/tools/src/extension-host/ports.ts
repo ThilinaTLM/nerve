@@ -1,3 +1,4 @@
+import type { AccountKind } from "@nervekit/contracts/extensions";
 import type {
   AccountInfo,
   VisionExplainRequest,
@@ -10,6 +11,17 @@ import type {
 
 /** An `account` setting of an extension, as the selection of an account. */
 export type AccountSelection = { extensionId: string; field: string };
+
+/**
+ * A request body as a credential provider may inspect it: digests the host computes (any size,
+ * file-streamed bodies included) and, for bodies up to 20 MiB, the bytes. The stream never
+ * reaches extension code.
+ */
+export type CredentialBody = {
+  size: number | undefined;
+  digest(algorithm: string): Promise<Uint8Array>;
+  bytes(): Promise<Uint8Array>;
+};
 
 /** `unavailable`: the extension that defines the account's kind is gone or off. */
 export type AccountCredentialState =
@@ -47,6 +59,8 @@ export type ExtensionHostPorts = {
     ): Promise<AccountInfo | undefined>;
     /** Whether the account's credential can be used. */
     state(kind: string, id: string): Promise<AccountCredentialState>;
+    /** Why the account is not ready (for example the scopes it lacks), when known. */
+    problem?(kind: string, id: string): Promise<string | undefined>;
     /**
      * The headers and query parameters the credential adds to one hop to an allowed credential
      * origin. Host-only: they go on the wire, never to extension code.
@@ -54,7 +68,14 @@ export type ExtensionHostPorts = {
     apply(
       kind: string,
       id: string,
-      request: { method: string; url: URL },
+      request: {
+        method: string;
+        url: URL;
+        /** Headers the request carries so far (never the credential's own). */
+        headers?: Record<string, string>;
+        /** The body as the host can describe it; absent for a request without one. */
+        body?: CredentialBody;
+      },
     ): Promise<CredentialApplication>;
     /**
      * The service answered 401 to a credentialed request that began at `requestStartedAt` (epoch
@@ -68,6 +89,12 @@ export type ExtensionHostPorts = {
     /** Marks the account used. */
     touch?(kind: string, id: string): void;
   };
+  /**
+   * The account definitions of a platform available to the call (built-in, user, and the open
+   * project's own), whichever extension defines them. A using extension's selection is limited
+   * to those covering its `uses` entry (`kindsForUse`). Absent: only its own definitions.
+   */
+  platformKinds?(platform: string): readonly AccountKind[];
   /** Extension diagnostics (`ctx.log`); dropped when absent. */
   log?: (
     level: "debug" | "warn",

@@ -1,4 +1,5 @@
 export * from "./settings-schema.js";
+export * from "./platforms.js";
 export * from "./document.js";
 export * from "./validator.js";
 export * from "./versions.js";

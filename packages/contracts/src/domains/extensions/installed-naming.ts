@@ -14,6 +14,10 @@ export function installedNamingDiagnostics(manifest: {
   id: string;
   tools?: readonly { name: string }[];
   accounts?: Readonly<Record<string, unknown>>;
+  uses?: readonly { platform: string }[];
+  settings?: {
+    fields: Readonly<Record<string, { type: string; platform?: string }>>;
+  };
 }): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   const toolPrefix = installedToolPrefix(manifest.id);
@@ -32,6 +36,29 @@ export function installedNamingDiagnostics(manifest: {
         code: "account-kind-prefix",
         message: `The account kind '${kind}' must start with the extension id '${manifest.id}'. Rename it, for example '${manifest.id}-${kind}'.`,
         pointer: `/accounts/${kind}`,
+      });
+  const used = new Set<string>();
+  for (const [index, { platform }] of (manifest.uses ?? []).entries()) {
+    if (used.has(platform))
+      diagnostics.push({
+        level: "error",
+        code: "platform-use-duplicate",
+        message: `The platform '${platform}' is listed twice under \`uses\`. Merge the entries.`,
+        pointer: `/uses/${index}`,
+      });
+    used.add(platform);
+  }
+  for (const [key, field] of Object.entries(manifest.settings?.fields ?? {}))
+    if (
+      field.type === "account" &&
+      field.platform !== undefined &&
+      !used.has(field.platform)
+    )
+      diagnostics.push({
+        level: "error",
+        code: "platform-not-used",
+        message: `The setting '${key}' names the platform '${field.platform}', which the extension does not list under \`uses\`. Add { platform: "${field.platform}" } to \`uses\`.`,
+        pointer: `/settings/fields/${key}/platform`,
       });
   return diagnostics;
 }

@@ -94,6 +94,20 @@ export type SettingField =
       type: "account";
       /** Account kind (a key of `ExtensionDefinition.accounts`, of this or another extension), or a non-empty list of kinds. */
       kind: string | string[];
+      /** Not allowed with `kind`: a field names a kind or a platform. */
+      platform?: never;
+    })
+  | (FieldBase & {
+      /**
+       * Id of an account of a platform, whichever extension defined its kind: every account of
+       * the platform whose definition covers the origins of this extension's `uses` entry for it.
+       * Read and used like a kind-bound `account` field.
+       */
+      type: "account";
+      /** Platform name; the extension lists it in `ExtensionDefinition.uses`. */
+      platform: string;
+      /** Not allowed with `platform`: a field names a kind or a platform. */
+      kind?: never;
     })
   | (FieldBase & {
       /** A model the user picks (the host's model list). Not allowed inside an account kind's `fields`. */
@@ -144,11 +158,13 @@ export type AccountAuth =
       scheme: "basic";
       /** Key of the account field holding the user name (`email`). */
       user: string;
+      /** The secret to use (a key of `secrets`); optional with a single secret. */
       secret?: string;
     }
   | {
       /** `Authorization: Bearer <secret>`. */
       scheme: "bearer";
+      /** The secret to use (a key of `secrets`); optional with a single secret. */
       secret?: string;
     }
   | {
@@ -156,6 +172,7 @@ export type AccountAuth =
       scheme: "header";
       /** Header name: letters, digits and hyphens (`X-Api-Key`). */
       name: string;
+      /** The secret to use (a key of `secrets`); optional with a single secret. */
       secret?: string;
     }
   | {
@@ -163,6 +180,7 @@ export type AccountAuth =
       scheme: "query";
       /** Parameter name (`api_key`). */
       name: string;
+      /** The secret to use (a key of `secrets`); optional with a single secret. */
       secret?: string;
     };
 
@@ -188,6 +206,8 @@ export type AccountInfo = {
   fields: Record<string, unknown>;
   /** Whether the account is available in every project (`user`) or in one project only (`project`). */
   level: "user" | "project";
+  /** Non-secret facts the account's provider reported at sign-in (a login, an account id): short plain strings. Absent for typed-in secrets. */
+  identity?: Record<string, string>;
 };
 
 /**
@@ -224,6 +244,7 @@ export type AccountTestResult =
  * OIDC `discovery`. Nerve registers no OAuth apps: the client id is an account field.
  */
 export type AccountOAuth2Provider = {
+  /** Always `"oauth2"`. */
   type: "oauth2";
   /** Sign-in flows the kind offers, in order; with several the user chooses. Default `["authorization_code"]`. */
   flows?: ("authorization_code" | "device_code")[];
@@ -246,7 +267,12 @@ export type AccountOAuth2Provider = {
   /** Extra query parameters of the authorization request (`{ access_type: "offline" }`). */
   authorizationParams?: Record<string, string>;
   /** Identity of the account, read after sign-in: `identity` maps a name to a dotted path in the JSON the URL returns. */
-  userinfo?: { url: string; identity: Record<string, string> };
+  userinfo?: {
+    /** The userinfo endpoint, called with the access token (`{<field>}` templates work). */
+    url: string;
+    /** Identity name → dotted path in the JSON the endpoint returns (`{ login: "user.login" }`). */
+    identity: Record<string, string>;
+  };
 };
 
 /**
@@ -256,21 +282,48 @@ export type AccountOAuth2Provider = {
 export type AccountKindData = {
   /** Name of the kind in the account dialog (`Jira account`). Non-empty. */
   label: string;
+  /**
+   * The platform the account is for (`github`, `jira`): a shared name, not unique. Any extension
+   * can use a platform's accounts (`ExtensionDefinition.uses`), whichever extension defined them;
+   * an account's credential only ever goes to the definition that created it.
+   */
+  platform?: string;
   /** Non-secret fields stored with the account. Types `string`, `number`, `boolean` and `enum` only (not `account` or `model`). */
   fields: Record<string, SettingField>;
-  /** The one secret of an account (token, password), kept encrypted by the host. Shorthand for a single entry of `secrets`; set at most one of the two (a kind with an `oauth2` provider may have neither). */
+  /** The one secret of an account (token, password), kept encrypted by the host. Shorthand for a single entry of `secrets`; set at most one of the two (a kind with an `oauth2` provider may have neither; with `provider: "extension"` they are inputs to the provider). */
   secret?: AccountSecretField;
   /** The typed-in secrets of an account by name (`{ keyId: {...}, keySecret: {...} }`), kept encrypted by the host. */
   secrets?: Record<string, AccountSecretField>;
   /** How `ctx.http` sends the secrets: one injection, or several. Absent: the kind has no injected credential and `HttpRequest.auth` is rejected (a kind with an `oauth2` provider sends its access token as a bearer token). */
   auth?: AccountAuth | AccountAuth[];
-  /** How the host obtains the credential. Absent: the user types in the `secret`s (the `static` provider). */
-  provider?: AccountOAuth2Provider;
+  /**
+   * How the host obtains the credential. Absent: the user types in the `secret`s (the `static`
+   * provider). `"extension"`: the extension's own credential provider (`src/credentials.ts`,
+   * `defineCredentialProvider`) signs in, refreshes and signs requests; it sees the secrets and
+   * credential state, the backend never does.
+   */
+  provider?: AccountOAuth2Provider | "extension";
+  /** `provider: "extension"`: the origins its `ctx.http` may reach (token endpoints, device authorization, STS-style exchanges). URL origins, with `{<field>}` templates. */
+  signInOrigins?: string[];
   /**
    * Origins the credential is sent to: URL origins, with `{<field>}`
    * templates filled from the account's fields (`{site}`). A request with
    * `auth` to any other origin is denied; redirects are checked per hop.
    */
+  origins?: string[];
+};
+
+/**
+ * An extension using the accounts of a platform that other definitions (or its own) describe. An
+ * `account` setting with `platform` offers every account of the platform whose definition covers
+ * `origins`. It can narrow access, never widen it.
+ */
+export type PlatformUse = {
+  /** Platform name, as in `AccountKindData.platform`. */
+  platform: string;
+  /** OAuth scopes the extension needs. Added to the scopes of every account of the platform that signs in with `oauth2`; the user consents per extension and platform. */
+  scopes?: string[];
+  /** Origins the extension sends the credential to: each must be covered by an origin of the account's definition. Absent: the definition's own. */
   origins?: string[];
 };
 

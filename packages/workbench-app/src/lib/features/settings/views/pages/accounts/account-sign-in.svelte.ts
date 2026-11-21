@@ -29,9 +29,9 @@ export class AccountSignInFlow extends OAuthFlowSession {
     await this.endSession();
   }
 
-  /** The hook the Accounts page takes: kinds with an OAuth provider sign in here. */
+  /** The hook the Accounts page takes: kinds with a provider (OAuth, or the extension's own code) sign in here. */
   readonly signIn: AccountSignIn = {
-    supports: (kind: AccountKind) => kind.provider?.type === "oauth2",
+    supports: (kind: AccountKind) => kind.provider !== undefined,
     start: (account) => this.start(account),
   };
 }

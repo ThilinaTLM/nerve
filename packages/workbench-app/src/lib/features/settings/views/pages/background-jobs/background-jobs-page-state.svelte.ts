@@ -17,8 +17,11 @@ export class BackgroundJobsPageController {
     this.#life.restart((scope) => {
       scope.onDispose(
         onEvent("backgroundJobs.changed", (event) => {
-          const jobs = (event.data as { jobs?: BackgroundJob[] }).jobs;
-          if (jobs) this.jobs = jobs;
+          const job = (event.data as { job?: BackgroundJob }).job;
+          if (!job) return;
+          this.jobs = this.jobs.some((item) => item.id === job.id)
+            ? this.jobs.map((item) => (item.id === job.id ? job : item))
+            : [...this.jobs, job];
         }),
       );
       void this.#load();

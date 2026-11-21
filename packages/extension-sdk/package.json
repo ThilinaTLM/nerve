@@ -20,6 +20,7 @@
     "assets",
     "env.d.ts",
     "templates",
+    "examples",
     "README.md",
     "UPGRADING.md",
     "LICENSE",

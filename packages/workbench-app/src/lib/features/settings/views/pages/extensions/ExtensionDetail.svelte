@@ -22,6 +22,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
 import { tick } from "svelte";
 import type { ModelInfo } from "$lib/api";
+import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import type { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import {
   openProjectSettingsPane,
@@ -35,13 +36,18 @@ import {
   SettingsSection,
 } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
-import { showAccountsOf } from "../accounts/accounts-page-state.svelte";
+import {
+  showAccountsOf,
+  showAccountsOfPlatform,
+} from "../accounts/accounts-page-state.svelte";
+import { platformsOfExtension } from "../accounts/accounts-view";
 import AccountsSection from "./AccountsSection.svelte";
 import ExtensionFieldRow from "./ExtensionFieldRow.svelte";
 import ExtensionInstalledSections from "./ExtensionInstalledSections.svelte";
 import {
   detailLayout,
   entryWithSetting,
+  eligibleKindLabels,
   extensionChanges,
   extensionProblem,
   helperNote,
@@ -96,9 +102,9 @@ const busy = $derived(extensions.saving || extension.readOnly);
 const mergedKinds = $derived(
   new Set(layout.accounts.map((entry) => entry.kind)),
 );
-const kindLabels = $derived(
-  Object.fromEntries(extension.accountKinds.map((k) => [k.kind, k.label])),
-);
+// The kinds the extension's account settings may select: its own and, for platforms it uses, every definition covering what it declared.
+const kindLabels = $derived(eligibleKindLabels(extension, accountsState.kinds));
+const platforms = $derived(platformsOfExtension(extension));
 const listKinds = $derived(
   extension.accountKinds.filter((kind) => !mergedKinds.has(kind.kind)),
 );
@@ -116,9 +122,10 @@ function featureSummary(row: FeatureRow): string {
 
 let advancedOpen = $state<Record<string, boolean>>({});
 
-/** Opens the Accounts page filtered to this extension. */
-function openAccounts(): void {
-  showAccountsOf(id);
+/** Opens the Accounts page filtered to this extension, or to a platform it is for or uses. */
+function openAccounts(platform?: string): void {
+  if (platform) showAccountsOfPlatform(platform);
+  else showAccountsOf(id);
   void openSettingsPane("accounts");
 }
 function revealSection(section: string): void {
@@ -168,7 +175,7 @@ function openPage(page: "tools" | "skills"): void {
         {kind}
         icon={extension.metadata.icon}
         {projectId}
-        onManage={openAccounts}
+        onManage={() => openAccounts()}
         choice={{
           title: entry.item.field.label,
           description: entry.item.field.description,
@@ -340,18 +347,39 @@ function openPage(page: "tools" | "skills"): void {
       </SettingsList>
     </SettingsSection>
   {/if}
-  {#if listKinds.length > 0}
+  {#if listKinds.length > 0 || platforms.length > 0}
     <SettingsSection id="accounts" title="Accounts" divided>
-      <SettingsRow
-        label={listKinds.map((kind) => `${kind.label}s`).join(", ")}
-        description="Add, sign in, test and move accounts on the Accounts page."
-      >
-        {#snippet control()}
-          <Button size="sm" variant="outline" onclick={openAccounts}
-            >Manage accounts</Button
-          >
-        {/snippet}
-      </SettingsRow>
+      {#each platforms as platform (platform)}
+        <SettingsRow
+          label={`${platform} accounts`}
+          description={extension.uses?.some((use) => use.platform === platform)
+            ? "Accounts of every extension that defines this platform; this extension uses them."
+            : "Accounts of every extension that defines this platform."}
+        >
+          {#snippet control()}
+            <Button
+              size="sm"
+              variant="outline"
+              onclick={() => openAccounts(platform)}>Manage accounts</Button
+            >
+          {/snippet}
+        </SettingsRow>
+      {/each}
+      {#if listKinds.some((kind) => !kind.platform)}
+        <SettingsRow
+          label={listKinds
+            .filter((kind) => !kind.platform)
+            .map((kind) => `${kind.label}s`)
+            .join(", ")}
+          description="Add, sign in, test and move accounts on the Accounts page."
+        >
+          {#snippet control()}
+            <Button size="sm" variant="outline" onclick={() => openAccounts()}
+              >Manage accounts</Button
+            >
+          {/snippet}
+        </SettingsRow>
+      {/if}
     </SettingsSection>
   {/if}
   {#if installed}

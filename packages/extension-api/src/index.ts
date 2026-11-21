@@ -19,6 +19,7 @@ export type {
   AccountTestResult,
   AccountKindData,
   AccountKind,
+  PlatformUse,
 } from "./settings.js";
 export type {
   ArtifactRef,
@@ -36,6 +37,32 @@ export type {
   VisionExplainRequest,
   ExtensionContext,
 } from "./types.js";
+export type {
+  CredentialAccount,
+  CredentialApplyContext,
+  CredentialApplyResult,
+  CredentialChoice,
+  CredentialContextBase,
+  CredentialCrypto,
+  CredentialHashAlgorithm,
+  CredentialHttp,
+  CredentialHttpRequest,
+  CredentialHttpResponse,
+  CredentialLoopback,
+  CredentialLoopbackResult,
+  CredentialNeedsSignIn,
+  CredentialProviderDefinition,
+  CredentialRefreshContext,
+  CredentialRefreshResult,
+  CredentialRequest,
+  CredentialRequestBody,
+  CredentialResult,
+  CredentialRevokeContext,
+  CredentialSignAlgorithm,
+  CredentialSignInContext,
+  CredentialUi,
+} from "./credentials.js";
+export { defineCredentialProvider } from "./credentials.js";
 export { ExtensionError } from "./errors.js";
 export type { ExtensionErrorCode } from "./errors.js";
 export type {

@@ -18,3 +18,8 @@ export function showAccountsOf(extensionId: string): void {
     extension: extensionId,
   });
 }
+
+/** Narrows the page to the accounts of one platform, whichever extension defines them. */
+export function showAccountsOfPlatform(platform: string): void {
+  Object.assign(accountsPageFilters, noAccountFilters, { platform });
+}

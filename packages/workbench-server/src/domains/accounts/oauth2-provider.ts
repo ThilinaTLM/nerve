@@ -61,7 +61,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 function configOf(account: ProviderAccount): AccountOAuth2Provider {
   const provider = account.kind.provider;
-  if (!provider) throw new Error("The account kind has no oauth2 provider.");
+  if (typeof provider !== "object")
+    throw new Error("The account kind has no oauth2 provider.");
   return provider;
 }
 

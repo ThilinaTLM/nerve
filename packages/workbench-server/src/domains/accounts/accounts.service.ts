@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   accountSecretFields,
+  withScopeUnion,
   type AccountKind,
 } from "@nervekit/contracts/extensions";
 import {
@@ -27,6 +28,7 @@ import {
   type ApplyOutcome,
   type CredentialVaultDeps,
 } from "./credential-vault.js";
+import type { PlatformUseSource } from "./platform-uses.js";
 import type { SignInInteraction } from "../auth/sign-in-service.js";
 import type { ApplyRequest, ProviderAccount } from "./credential-provider.js";
 
@@ -39,6 +41,8 @@ export type AccountRecord = {
   level: AccountLevel;
   /** The project of a project-level account. */
   projectId?: string;
+  /** What the provider reported about the account at sign-in; short plain strings. */
+  identity?: Record<string, string>;
 };
 
 /**
@@ -53,7 +57,14 @@ export interface AccountsReader {
     options?: { userLevelOnly?: boolean },
   ): Promise<AccountRecord | undefined>;
   list(kind: string): Promise<AccountRecord[]>;
+  /**
+   * The definitions of a platform this scope may use, whichever extension defines them: built-in
+   * and user ones, and the project's own. Absent in readers that only hold accounts (tests).
+   */
+  platformKinds?(platform: string): AccountKind[];
   state(kind: string, id: string): Promise<AccountState>;
+  /** Why the account is not ready, when its state says (the scopes it lacks). */
+  problem?(kind: string, id: string): Promise<string | undefined>;
   /** Host-only: headers and query parameters for one hop to an allowed credential origin. */
   apply(kind: string, id: string, request: ApplyRequest): Promise<ApplyOutcome>;
   /**
@@ -81,9 +92,15 @@ export type AccountsServiceDeps = {
   provider?: CredentialVaultDeps["provider"];
   /** The built-in `oauth2` provider's settings (its SSRF-guarded fetch). */
   oauth2?: CredentialVaultDeps["oauth2"];
+  /** Runs extensions' credential code; its guarded fetch for sign-in origins. */
+  extension?: CredentialVaultDeps["extension"];
   /** The kinds the registered extensions define, user-wide or per project. */
   definitions: () => readonly AccountDefinition[];
   projectExists: (projectId: string) => boolean;
+  /** The name of the extension that defines (or defined) a kind, to say who an unavailable account waits for. */
+  extensionOfKind?: (kind: string) => string | undefined;
+  /** The platform uses that widen sign-in scopes, per account level. Absent: definitions are used as declared. */
+  platformUses?: PlatformUseSource;
   now?: () => Date;
 };
 
@@ -114,9 +131,11 @@ export class AccountsService implements AccountScopes {
     this.vault = new CredentialVault({
       repository: deps.repository,
       key: deps.key,
-      definition: (row) => definitionOf(deps.definitions(), row)?.kind,
+      definition: (row) => this.#definitionOf(row)?.kind,
+      credentialCode: (row) => this.#definitionOf(row)?.credentials,
       ...(deps.provider ? { provider: deps.provider } : {}),
       ...(deps.oauth2 ? { oauth2: deps.oauth2 } : {}),
+      ...(deps.extension ? { extension: deps.extension } : {}),
       ...(deps.now ? { now: deps.now } : {}),
     });
   }
@@ -158,7 +177,25 @@ export class AccountsService implements AccountScopes {
           ? `The ${candidates[0].kind.label} cannot be saved there.`
           : `The ${candidates[0].kind.label} is defined by a project; its accounts belong to that project.`,
       );
-    return found;
+    return { ...found, kind: this.#withUses(found.kind, projectId) };
+  }
+
+  /** The definition as sign-in sees it: its scopes plus those of the extensions enabled for accounts at this level. */
+  #withUses(kind: AccountKind, projectId: string | null): AccountKind {
+    const uses = this.deps.platformUses?.usesFor(projectId);
+    return uses ? withScopeUnion(kind, uses) : kind;
+  }
+
+  #definitionOf(row: AccountRow): AccountDefinition | undefined {
+    const found = definitionOf(this.deps.definitions(), row);
+    return (
+      found && { ...found, kind: this.#withUses(found.kind, row.projectId) }
+    );
+  }
+
+  /** Re-reads which extensions are enabled, before a read that depends on it. */
+  async #fresh(): Promise<void> {
+    await this.deps.platformUses?.refresh();
   }
 
   #checkProject(projectId: string | null): void {
@@ -171,7 +208,13 @@ export class AccountsService implements AccountScopes {
   }
 
   #provider(row: AccountRow, kind: AccountKind): ProviderAccount {
-    return { id: row.id, kind, fields: row.fields };
+    const credentials = this.#definitionOf(row)?.credentials;
+    return {
+      id: row.id,
+      kind,
+      fields: row.fields,
+      ...(credentials ? { credentials } : {}),
+    };
   }
 
   /** The kinds the registered extensions define (one entry per kind name). */
@@ -210,9 +253,22 @@ export class AccountsService implements AccountScopes {
         : undefined;
     };
     return {
+      platformKinds: (platform) =>
+        this.deps
+          .definitions()
+          .filter(
+            (definition) =>
+              definition.kind.platform === platform &&
+              (scope.all ||
+                definition.projectId === undefined ||
+                definition.projectId === scope.projectId),
+          )
+          .map(({ kind }) => kind),
       get: async (kind, id, options) => {
         const row = find(kind, id, options?.userLevelOnly);
-        return row ? record(row) : undefined;
+        if (!row) return undefined;
+        const identity = await this.vault.identityOf(row);
+        return { ...record(row), ...(identity ? { identity } : {}) };
       },
       list: async (kind) =>
         (scope.all
@@ -222,13 +278,20 @@ export class AccountsService implements AccountScopes {
           : this.#repository().listVisible(scope.projectId ?? null, kind)
         ).map(record),
       state: async (kind, id) => {
+        await this.#fresh();
         const row = find(kind, id);
         return row ? (await this.vault.stateOf(row)).state : "needs_sign_in";
       },
+      problem: async (kind, id) => {
+        await this.#fresh();
+        const row = find(kind, id);
+        return row ? (await this.vault.stateOf(row)).error : undefined;
+      },
       apply: async (kind, id, request) => {
+        await this.#fresh();
         const row = find(kind, id);
         if (!row) return { ok: false, state: "needs_sign_in" };
-        const definition = definitionOf(this.deps.definitions(), row);
+        const definition = this.#definitionOf(row);
         if (!definition) return { ok: false, state: "unavailable" };
         return await this.vault.apply(
           this.#provider(row, definition.kind),
@@ -236,8 +299,9 @@ export class AccountsService implements AccountScopes {
         );
       },
       refreshAfterRejection: async (kind, id, requestStartedAt) => {
+        await this.#fresh();
         const row = find(kind, id);
-        const definition = row && definitionOf(this.deps.definitions(), row);
+        const definition = row && this.#definitionOf(row);
         return row && definition
           ? await this.vault.refreshAfterRejection(
               this.#provider(row, definition.kind),
@@ -253,6 +317,7 @@ export class AccountsService implements AccountScopes {
 
   /** Accounts for the app: every account, or those a project sees. */
   async views(projectId?: string): Promise<AccountView[]> {
+    await this.#fresh();
     const rows = projectId
       ? this.#repository().listVisible(projectId)
       : this.#repository().list();
@@ -260,12 +325,21 @@ export class AccountsService implements AccountScopes {
   }
 
   async view(kind: string, id: string): Promise<AccountView | undefined> {
+    await this.#fresh();
     const row = this.#repository().get(id);
     return row && row.kind === kind ? await this.#view(row) : undefined;
   }
 
   async #view(row: AccountRow): Promise<AccountView> {
-    const { state, error } = await this.vault.stateOf(row);
+    const { state, error: reason } = await this.vault.stateOf(row);
+    const extension =
+      state === "unavailable"
+        ? this.deps.extensionOfKind?.(row.kind)
+        : undefined;
+    const error =
+      state === "unavailable"
+        ? `Defined by ${extension ? `the ${extension} extension` : "an extension"} that is off or gone; the account comes back with it.`
+        : reason;
     return {
       kind: row.kind,
       id: row.id,
@@ -422,10 +496,15 @@ export class AccountsService implements AccountScopes {
         "ACCOUNT_SIGN_IN_UNSUPPORTED",
         `${definition.kind.label} has no sign-in: add its secrets instead.`,
       );
-    const account = this.#provider(row, definition.kind);
     return {
       target: { kind, id, name: row.name },
       login: async (interaction) => {
+        // The scopes asked for are the definition's and those of the extensions enabled now.
+        await this.#fresh();
+        const account = this.#provider(
+          row,
+          this.#definition(kind, row.projectId).kind,
+        );
         const outcome = await this.vault.signIn(account, interaction);
         if (outcome.status !== "ready")
           throw new Error(outcome.message ?? "Sign-in did not complete.");
@@ -443,7 +522,7 @@ export class AccountsService implements AccountScopes {
   async delete(kind: string, id: string): Promise<boolean> {
     const row = this.#repository().get(id);
     if (!row || row.kind !== kind) return false;
-    const definition = definitionOf(this.deps.definitions(), row);
+    const definition = this.#definitionOf(row);
     if (definition)
       await this.vault.revoke(this.#provider(row, definition.kind));
     this.#repository().delete(id);

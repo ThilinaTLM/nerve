@@ -9,7 +9,7 @@ export const backgroundJobsEventDefinitions = [
       allowedSourceRoles: ["workbench_server"] as const,
       delivery: "ephemeral",
       coalescing: { strategy: "latest_by_scope" },
-      scope: [],
+      scope: ["job.id"],
     },
   ),
 ];

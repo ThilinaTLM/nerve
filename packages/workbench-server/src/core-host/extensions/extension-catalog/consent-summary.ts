@@ -26,6 +26,44 @@ function uiGrants(manifest: InstalledExtensionManifest): string[] {
   ];
 }
 
+/** The origin of an endpoint URL or template (`https://{tenant}.example.com/token` → `https://{tenant}.example.com`). */
+const originOf = (endpoint: string): string =>
+  /^(https?:\/\/[^/?#]+)/.exec(endpoint)?.[1] ?? endpoint;
+
+/**
+ * Credential grants per account kind (see `extensionGrantSnapshotSchema.credentials`): the provider
+ * (a built-in one, or the extension's own code with the hash of `credentials.js`), the origins it
+ * signs in at, the scopes it asks for, and whether it shares identity details. The origins a
+ * credential is sent to are the kind's `origins`, already part of `network`.
+ */
+function credentialGrants(manifest: InstalledExtensionManifest): string[] {
+  const grants: string[] = [];
+  for (const [kind, data] of Object.entries(manifest.accounts ?? {})) {
+    const provider = data.provider;
+    if (provider === "extension") {
+      grants.push(`${kind}|provider|code`, `${kind}|identity`);
+      if (manifest.credentials)
+        grants.push(`${kind}|code|${manifest.credentials.sha256}`);
+      for (const origin of data.signInOrigins ?? [])
+        grants.push(`${kind}|signin|${origin}`);
+    } else if (provider) {
+      grants.push(`${kind}|provider|oauth2`);
+      for (const endpoint of [
+        provider.tokenUrl,
+        provider.deviceAuthorizationUrl,
+        provider.discovery,
+        provider.revocationUrl,
+        provider.userinfo?.url,
+      ])
+        if (endpoint) grants.push(`${kind}|signin|${originOf(endpoint)}`);
+      for (const scope of provider.scopes ?? [])
+        grants.push(`${kind}|scope|${scope}`);
+      if (provider.userinfo) grants.push(`${kind}|identity`);
+    }
+  }
+  return grants;
+}
+
 const sorted = (values: Iterable<string>) => [...new Set(values)].sort();
 
 export function grantSnapshot(
@@ -42,6 +80,11 @@ export function grantSnapshot(
   }
   for (const tool of manifest.tools ?? [])
     if (tool.requires?.account) accounts.add(tool.requires.account);
+  for (const use of manifest.uses ?? []) {
+    accounts.add(`uses:${use.platform}`);
+    for (const scope of use.scopes ?? [])
+      accounts.add(`uses:${use.platform}:${scope}`);
+  }
   const ui = uiGrants(manifest);
   return {
     network: sorted(network),
@@ -52,6 +95,7 @@ export function grantSnapshot(
     ),
     tools: sorted((manifest.tools ?? []).map((tool) => tool.name)),
     ui: sorted(ui),
+    credentials: sorted(credentialGrants(manifest)),
   };
 }
 
@@ -63,7 +107,8 @@ export function isEmptyGrant(grants: GrantSnapshot): boolean {
     grants.accounts.length === 0 &&
     Object.keys(grants.namespaces).length === 0 &&
     grants.tools.length === 0 &&
-    grants.ui.length === 0
+    grants.ui.length === 0 &&
+    (grants.credentials ?? []).length === 0
   );
 }
 
@@ -92,7 +137,92 @@ export function newGrants(
     namespaces,
     tools: only(previous?.tools, next.tools),
     ui: only(previous?.ui, next.ui),
+    credentials: only(previous?.credentials, next.credentials ?? []),
   };
+}
+
+/**
+ * The review text of credential grants. A first consent describes the provider; an update lists
+ * only what is new: with the same own-code provider, only that its credential code changed.
+ */
+export function credentialItems(
+  credentials: readonly string[],
+  manifest: InstalledExtensionManifest,
+): ExtensionConsentItem[] {
+  const byKind = new Map<string, string[][]>();
+  for (const entry of credentials) {
+    const [kind = "", what = "", ...value] = entry.split("|");
+    byKind.set(kind, [...(byKind.get(kind) ?? []), [what, value.join("|")]]);
+  }
+  const items: ExtensionConsentItem[] = [];
+  for (const [kind, entries] of byKind) {
+    const data = manifest.accounts?.[kind];
+    const label = data?.label ?? kind;
+    const values = (what: string) =>
+      entries.filter(([name]) => name === what).map(([, value]) => value);
+    const origins = (data?.origins ?? []).join(", ") || "no origin";
+    const provider = values("provider")[0];
+    if (provider === "code")
+      items.push({
+        kind: "account",
+        text: `Runs its own code with your ${label} credentials, also in the background to keep you signed in; they are sent only to ${origins}`,
+        broad: true,
+      });
+    else if (provider === "oauth2")
+      items.push({
+        kind: "account",
+        text: `Signs in to your ${label} with OAuth 2.0 and keeps it signed in, also in the background; the access token is sent only to ${origins}`,
+      });
+    else if (values("code").length > 0)
+      items.push({
+        kind: "code",
+        text: `The credential code of the ${label} changed`,
+        broad: true,
+      });
+    for (const origin of values("signin"))
+      items.push({
+        kind: "network",
+        text: `Connects to ${origin} to sign in your ${label} (the credential provider's own requests)`,
+      });
+    const scopes = values("scope");
+    if (scopes.length > 0)
+      items.push({
+        kind: "account",
+        text: `Asks for the scopes ${scopes.join(", ")} on your ${label}`,
+      });
+    if (values("identity").length > 0)
+      items.push({
+        kind: "account",
+        text: `May share identity details of your ${label} (such as a login or account id) with the extension`,
+      });
+  }
+  return items;
+}
+
+const isUse = (entry: string) => entry.startsWith("uses:");
+
+/**
+ * Consent per platform an extension uses: "Uses your github accounts with scopes repo, gist".
+ * The entries are `uses:<platform>` and `uses:<platform>:<scope>` in the grant's accounts. An
+ * update lists only the scopes that are new.
+ */
+export function platformItems(
+  accounts: readonly string[],
+): ExtensionConsentItem[] {
+  const scopes = new Map<string, string[]>();
+  for (const entry of accounts.filter(isUse)) {
+    const [, platform = "", ...rest] = entry.split(":");
+    const list = scopes.get(platform) ?? [];
+    if (rest.length > 0) list.push(rest.join(":"));
+    scopes.set(platform, list);
+  }
+  return [...scopes].map(([platform, granted]) => ({
+    kind: "account" as const,
+    text:
+      granted.length === 0
+        ? `Uses your ${platform} accounts`
+        : `Uses your ${platform} accounts with scopes ${granted.join(", ")}`,
+  }));
 }
 
 const capabilityText: Record<string, string> = {
@@ -124,7 +254,9 @@ export function consentItems(
           }
         : { kind: "network", text: `Connects to ${origin}` },
     );
-  for (const kind of grants.accounts) {
+  items.push(...platformItems(grants.accounts));
+  items.push(...credentialItems(grants.credentials ?? [], manifest));
+  for (const kind of grants.accounts.filter((entry) => !isUse(entry))) {
     const label = manifest.accounts?.[kind]?.label ?? kind;
     items.push({
       kind: "account",

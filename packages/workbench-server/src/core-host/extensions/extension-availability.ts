@@ -34,6 +34,9 @@ export async function extensionAvailability(
   return await deriveAvailability(registry, {
     extension: extensionStates(resolution),
     accounts: resolvedAccounts(resolution, accounts),
+    ...(accounts.platformKinds
+      ? { platformKinds: (platform) => accounts.platformKinds!(platform) }
+      : {}),
     checkSecrets: options.checkSecrets,
     ...(ports
       ? {

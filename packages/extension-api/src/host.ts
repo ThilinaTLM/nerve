@@ -12,6 +12,7 @@ export {
   isMethodTool,
 } from "./definition.js";
 export { nonEmptyString, parseOptions } from "./options.js";
+export { credentialOperations } from "./credentials.js";
 export { extensionDefinitionData } from "./data.js";
 export type { ExtensionData, ExtensionDefinitionData } from "./data.js";
 

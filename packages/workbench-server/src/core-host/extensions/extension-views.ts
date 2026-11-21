@@ -86,6 +86,7 @@ export function createExtensionViews(options: ExtensionViewOptions) {
         metadata: extensionMetadata(manifest),
         settingsSchema: manifest.settings,
         accountKinds: manifest.accounts ?? [],
+        ...(manifest.uses?.length ? { uses: manifest.uses } : {}),
         enabled: resolved.enabled,
         fields: resolved.fields,
         stored:

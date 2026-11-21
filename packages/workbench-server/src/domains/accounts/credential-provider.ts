@@ -3,6 +3,7 @@ import {
   accountSecretFields,
   type AccountKind,
 } from "@nervekit/contracts/extensions";
+import type { ExtensionCredentialCode } from "./extension-credential-provider.js";
 import type { SignInInteraction } from "../auth/sign-in-service.js";
 import type { CredentialBlob } from "./credential-blob.js";
 
@@ -11,6 +12,8 @@ export type ProviderAccount = {
   id: string;
   kind: AccountKind;
   fields: Record<string, unknown>;
+  /** The credential code of the extension that defines the kind (`provider: "extension"`). */
+  credentials?: ExtensionCredentialCode;
 };
 
 /** What the provider sees of the stored credential. */
@@ -28,6 +31,8 @@ export type ProviderOutcome =
       grantedScopes?: string[];
       /** ISO time the access token expires; absent: it does not. */
       expiresAt?: string;
+      /** Hash of the credential code that produced this credential (extension providers). */
+      codeHash?: string;
     }
   | {
       /** Nothing usable: the user has to sign in or enter the secrets. */
@@ -41,7 +46,18 @@ export type ProviderOutcome =
     };
 
 /** One hop of a request to an origin the account's credential may go to. */
-export type ApplyRequest = { method: string; url: URL };
+export type ApplyRequest = {
+  method: string;
+  url: URL;
+  /** Headers of the request so far; the credential's own are not among them. */
+  headers?: Record<string, string>;
+  /** The body as digests and (for buffered bodies) bytes; absent without a body. */
+  body?: {
+    size: number | undefined;
+    digest(algorithm: string): Promise<Uint8Array>;
+    bytes(): Promise<Uint8Array>;
+  };
+};
 
 /** What `apply` adds to the hop; it cannot change the method, URL or body. */
 export type AppliedCredential = {
@@ -91,7 +107,16 @@ export interface CredentialProvider {
     signal?: AbortSignal,
   ): Promise<ProviderOutcome>;
   /** Whether `refresh` can obtain a new credential (a refresh token exists). Absent: never. */
-  canRefresh?(credential: ProviderCredential): boolean;
+  canRefresh?(
+    credential: ProviderCredential,
+    account: ProviderAccount,
+  ): boolean;
+  /**
+   * The hash of the credential code that would handle this account now. A credential written by
+   * other code (`CredentialBlob.codeHash`) is not handed to the provider: consent covers the code
+   * it was shown, so the account needs sign-in again.
+   */
+  codeHash?(account: ProviderAccount): string | undefined;
   /** Scopes the account's kind needs; an account whose granted scopes are fewer needs sign-in. */
   requiredScopes?(account: ProviderAccount): readonly string[];
   /** Headers and query parameters for one hop to an allowed credential origin. */

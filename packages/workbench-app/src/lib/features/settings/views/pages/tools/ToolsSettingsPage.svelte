@@ -118,7 +118,12 @@ const accounts = $derived(
   ),
 );
 function extensionState(id: ToolId) {
-  return toolExtensionState(id, extensions.view?.extensions, accounts);
+  return toolExtensionState(
+    id,
+    extensions.view?.extensions,
+    accounts,
+    accountsState.kinds,
+  );
 }
 type ExtensionToolGroup = {
   extensionId: string;
@@ -311,6 +316,7 @@ const python = $derived(status?.runtime.python);
             group.extensionId,
             extensions.view?.extensions,
             accounts,
+            accountsState.kinds,
           )}
           {#snippet mark()}
             {#if group.icon}<ExtensionMark icon={group.icon} />{/if}

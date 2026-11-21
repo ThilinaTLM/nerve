@@ -9,9 +9,11 @@ import {
   type ExtensionDefinition,
 } from "@nervekit/extension-api";
 import {
+  credentialOperations,
   extensionDefinitionData,
   type ExtensionDefinitionData,
 } from "@nervekit/extension-api/host";
+import { createHash } from "node:crypto";
 import {
   extensionLucideIconSchema,
   extensionUiLimits,
@@ -24,6 +26,8 @@ import { buildFrames, copyThemes, planUi } from "./ui-build.js";
 
 /** What `dist/manifest.json` holds: the definition's plain data plus the two versions. */
 export type BuiltManifest = ExtensionDefinitionData & {
+  /** The credential provider of `dist/credentials.js`: its hash and the operations it implements. */
+  credentials?: InstalledExtensionManifest["credentials"];
   version: string;
   sdkVersion: string;
   /** Built UI contributions (`dist/ui/<id>/`, `dist/themes/<id>.json`). */
@@ -193,6 +197,73 @@ function evaluateDefinition(bundle: string): ExtensionDefinition {
   return definition as ExtensionDefinition;
 }
 
+/** Bundles `src/credentials.ts` the way `src/extension.ts` is, registering the provider on `globalThis.__nerveCredentialProvider`. */
+async function bundleCredentials(projectDir: string): Promise<string> {
+  try {
+    const result = await esbuild({
+      stdin: {
+        contents: `import * as entry from "./src/credentials.ts";\nglobalThis.__nerveCredentialProvider = entry.default;\n`,
+        resolveDir: projectDir,
+        sourcefile: "nerve-credentials-entry.ts",
+        loader: "ts",
+      },
+      bundle: true,
+      write: false,
+      format: "iife",
+      target: "es2020",
+      legalComments: "none",
+      logLevel: "silent",
+      absWorkingDir: projectDir,
+      plugins: [runtimeApiPlugin()],
+    });
+    return result.outputFiles[0]!.text;
+  } catch (cause) {
+    const messages = (cause as { errors?: Message[] }).errors;
+    if (messages?.length)
+      throw new ExtensionProjectError(
+        esbuildProblems(messages, projectDir).map((problem) => ({
+          ...problem,
+          where: problem.where.replace(
+            "src/extension.ts",
+            "src/credentials.ts",
+          ),
+        })),
+      );
+    throw cause;
+  }
+}
+
+/** Evaluates the credentials bundle the way the host's sandbox does and lists the operations it implements. */
+function evaluateCredentialProvider(
+  bundle: string,
+): ReturnType<typeof credentialOperations> {
+  const sandbox = createContext({ console });
+  (sandbox as { __nerveExtensionApi?: unknown }).__nerveExtensionApi = api;
+  try {
+    runInContext(bundle, sandbox, {
+      timeout: 5000,
+      filename: "credentials.js",
+    });
+  } catch (cause) {
+    throw new ExtensionProjectError({
+      what: `src/credentials.ts failed while loading: ${cause instanceof Error ? cause.message : String(cause)}`,
+      where: "src/credentials.ts (top level, evaluated by nerve-ext build)",
+      fix: "Keep the top level free of side effects and of anything that needs Node.js or the network; the provider runs in a sandbox.",
+    });
+  }
+  const provider = (sandbox as { __nerveCredentialProvider?: unknown })
+    .__nerveCredentialProvider;
+  if (provider === null || typeof provider !== "object")
+    throw new ExtensionProjectError({
+      what: "src/credentials.ts has no default export.",
+      where: "src/credentials.ts",
+      fix: 'Export the provider: `export default defineCredentialProvider({ signIn, apply, ... });` with defineCredentialProvider imported from "@nervekit/extension-sdk".',
+    });
+  return credentialOperations(
+    provider as Parameters<typeof credentialOperations>[0],
+  );
+}
+
 /** What to change for a problem in the built `ui` section, by the field the path ends in. */
 function uiFix(path: PropertyKey[], message: string): string {
   const last = String(path[path.length - 1]);
@@ -309,7 +380,7 @@ async function copyAssets(
 }
 
 /**
- * Builds the extension in `projectDir`: bundles `src/extension.ts` into `dist/backend.js` (an
+ * Builds the extension in `projectDir`: bundles `src/extension.ts` into `dist/backend.js` (and `src/credentials.ts`, when it exists, into `dist/credentials.js`) (an
  * IIFE that registers the definition on `globalThis.__nerveExtension`; `@nervekit/extension-api`
  * is the runtime's global, not bundled), evaluates the definition and writes `dist/manifest.json`
  * with the plain data of the definition plus `version` and `sdkVersion`, validated with the
@@ -369,10 +440,27 @@ export async function buildExtension(
     projectDir,
     (definition as { ui?: ExtensionUi }).ui,
   );
+  const credentialsEntry = join(projectDir, "src", "credentials.ts");
+  let credentialsBundle: string | undefined;
+  let credentials: BuiltManifest["credentials"];
+  if (await exists(credentialsEntry)) {
+    credentialsBundle = await bundleCredentials(projectDir);
+    if (Buffer.byteLength(credentialsBundle) > maxBackendBytes)
+      throw new ExtensionProjectError({
+        what: `The credentials bundle is larger than ${maxBackendBytes} bytes.`,
+        where: "dist/credentials.js",
+        fix: "Remove large dependencies from the credential provider; the host refuses bundles over 8 MiB.",
+      });
+    credentials = {
+      sha256: createHash("sha256").update(credentialsBundle).digest("hex"),
+      operations: evaluateCredentialProvider(credentialsBundle),
+    };
+  }
   const manifest = {
     ...data,
     version: project.version,
     sdkVersion: await sdkVersion(),
+    ...(credentials ? { credentials } : {}),
     // A JSON round trip: the plan holds objects from the sandbox's realm.
     ...(uiPlan ? { ui: JSON.parse(JSON.stringify(uiPlan.manifest)) } : {}),
   } as BuiltManifest;
@@ -393,6 +481,21 @@ export async function buildExtension(
       what: `The folder name '${project.id}' must equal the extension id '${manifest.id}'.`,
       where: projectDir,
       fix: `Rename the folder to '${manifest.id}' (Nerve loads an extension only from a folder named like its id), or change the id in src/extension.ts.`,
+    });
+  const extensionKinds = Object.entries(data.accounts ?? {}).filter(
+    ([, kind]) => (kind as { provider?: unknown }).provider === "extension",
+  );
+  if (extensionKinds.length > 0 && !credentials)
+    problems.push({
+      what: `The account kind '${extensionKinds[0]![0]}' names provider "extension" but src/credentials.ts does not exist.`,
+      where: "src/credentials.ts",
+      fix: 'Create src/credentials.ts with `export default defineCredentialProvider({ signIn, apply })`, or use a built-in provider ("oauth2" or typed-in secrets).',
+    });
+  if (credentials && extensionKinds.length === 0)
+    problems.push({
+      what: 'src/credentials.ts exists but no account kind names provider "extension".',
+      where: "src/extension.ts: accounts",
+      fix: 'Set `provider: "extension"` on the account kind it serves, or delete src/credentials.ts.',
     });
   const settingsMigrations = (
     definition.settings as { migrations?: unknown } | undefined
@@ -430,6 +533,8 @@ export async function buildExtension(
       throw cause;
     }
   await writeFile(join(distDir, "backend.js"), bundle);
+  if (credentialsBundle)
+    await writeFile(join(distDir, "credentials.js"), credentialsBundle);
   await writeFile(join(distDir, "manifest.json"), manifestText);
   return { manifest, distDir };
 }

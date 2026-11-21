@@ -5,9 +5,13 @@ import type { AccountView } from "@nervekit/contracts/settings";
 import {
   accountRows,
   duplicateWarning,
+  accountProblem,
+  facetOptions,
   filterAccountRows,
+  kindsToAdd,
   levelChoices,
   noAccountFilters,
+  platformsOfExtension,
   visibleAccounts,
   type AccountExtension,
 } from "./accounts-view";
@@ -99,5 +103,77 @@ describe("accounts page", () => {
     assert.match(duplicateWarning(ready!, true) ?? "", /signs the other out/);
     assert.equal(duplicateWarning(ready!, false), undefined);
     assert.equal(duplicateWarning(waiting!, true), undefined);
+  });
+});
+
+describe("accounts of a platform", () => {
+  const on = (name: string, platform: string): AccountKind => ({
+    ...kind(name),
+    platform,
+  });
+  const platformKinds = [
+    on("gh-a", "github"),
+    on("gh-b", "github"),
+    on("jira", "jira"),
+  ];
+  const owners: Record<string, AccountExtension> = {
+    "gh-a": { id: "ext-a", name: "A", icon, projectOnly: false },
+    "gh-b": { id: "ext-b", name: "B", icon, projectOnly: false },
+    jira: { id: "ext-j", name: "J", icon, projectOnly: false },
+  };
+  const rows = accountRows(
+    [
+      account({ id: "1", kind: "gh-a" }),
+      account({ id: "2", kind: "gh-b" }),
+      account({ id: "3", kind: "jira" }),
+      account({ id: "4", kind: "gone", state: "unavailable" }),
+    ],
+    platformKinds,
+    (k) => owners[k],
+  );
+
+  it("shows every account of a platform across the extensions that define it", () => {
+    const ids = filterAccountRows(rows, {
+      ...noAccountFilters,
+      platform: "github",
+    }).map((row) => row.account.id);
+    assert.deepEqual(ids, ["1", "2"]);
+    assert.deepEqual(facetOptions("platform", rows, platformKinds), [
+      { value: "github", label: "github" },
+      { value: "jira", label: "jira" },
+    ]);
+  });
+
+  it("offers the platform's definitions when adding, narrowed by a kind filter", () => {
+    const names = (platform: string, kindFilter = "") =>
+      kindsToAdd(platformKinds, { platform, kind: kindFilter }).map(
+        (k) => k.kind,
+      );
+    assert.deepEqual(names("github"), ["gh-a", "gh-b"]);
+    assert.deepEqual(names("github", "gh-b"), ["gh-b"]);
+    assert.deepEqual(names(""), ["gh-a", "gh-b", "jira"]);
+  });
+
+  it("links an extension page to the platforms it defines and uses", () => {
+    assert.deepEqual(
+      platformsOfExtension({
+        accountKinds: [on("gh-a", "github"), kind("plain")],
+        uses: [{ platform: "jira" }, { platform: "github" }],
+      }),
+      ["github", "jira"],
+    );
+  });
+
+  it("says why an account is unavailable or needs more permissions", () => {
+    assert.equal(
+      accountProblem(
+        account({ state: "unavailable", error: "Defined by the A extension." }),
+      ),
+      "Defined by the A extension.",
+    );
+    assert.equal(
+      accountProblem(account({ state: "needs_sign_in", error: "more: repo" })),
+      "more: repo",
+    );
   });
 });

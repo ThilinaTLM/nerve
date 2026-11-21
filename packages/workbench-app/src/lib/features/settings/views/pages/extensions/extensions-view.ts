@@ -1,6 +1,8 @@
 import {
   accountFieldKinds,
   fieldScopes,
+  kindsForUse,
+  type AccountKind,
   type ExtensionCatalogEntry,
   type ExtensionView,
   type SettingField,
@@ -9,8 +11,17 @@ import {
 /** Scopes the Extensions page edits. */
 export type ExtensionsScope = "user" | "project";
 
-export type AccountChoice = { id: string; name: string; detail?: string };
-/** The user's accounts by extension account kind (`atlassian`, `tavily`). */
+export type AccountChoice = {
+  id: string;
+  name: string;
+  detail?: string;
+  /** The account's kind, for choices listed under a platform. */
+  kind?: string;
+};
+/**
+ * The user's accounts by extension account kind (`atlassian`, `tavily`), and by platform under
+ * `platform:<name>` (every account of the platform, whichever definition holds it).
+ */
 export type AccountChoices = Readonly<Record<string, readonly AccountChoice[]>>;
 
 /**
@@ -18,18 +29,48 @@ export type AccountChoices = Readonly<Record<string, readonly AccountChoice[]>>;
  * declared order. With several kinds each choice's detail leads with its
  * kind's label (`kindLabels`, falling back to the kind).
  */
+/**
+ * The account kinds an extension's account settings may select, by kind with their labels: its
+ * own definitions and, for each platform it uses, every definition covering what it declared.
+ */
+export function eligibleKindLabels(
+  extension: Pick<ExtensionView, "accountKinds" | "uses">,
+  kinds: readonly AccountKind[],
+): Record<string, string> {
+  return Object.fromEntries(
+    [
+      ...(extension.uses ?? []).flatMap((use) => kindsForUse(kinds, use)),
+      ...extension.accountKinds,
+    ].map((kind) => [kind.kind, kind.label]),
+  );
+}
+
+export const platformChoicesKey = (platform: string): string =>
+  `platform:${platform}`;
+
 export function accountChoicesFor(
-  field: { kind: string | readonly string[] },
+  field: {
+    kind?: string | readonly string[] | undefined;
+    platform?: string | undefined;
+  },
   accounts: AccountChoices,
-  kindLabels: Readonly<Record<string, string>> = {},
+  kindLabels?: Readonly<Record<string, string>>,
 ): AccountChoice[] {
+  if (field.platform !== undefined)
+    // `kindLabels` names the definitions the extension may select (`kindsForUse`); without it every account of the platform is listed.
+    return (accounts[platformChoicesKey(field.platform)] ?? []).filter(
+      (account) =>
+        kindLabels === undefined ||
+        (account.kind !== undefined && account.kind in kindLabels),
+    );
+  const labels = kindLabels ?? {};
   const kinds = accountFieldKinds(field);
   return kinds.flatMap((kind) =>
     (accounts[kind] ?? []).map((account) =>
       kinds.length > 1
         ? {
             ...account,
-            detail: [kindLabels[kind] ?? kind, account.detail]
+            detail: [labels[kind] ?? kind, account.detail]
               .filter(Boolean)
               .join(" · "),
           }
@@ -255,6 +296,7 @@ function failingNamespace(extension: ExtensionView): string | undefined {
 export function extensionFix(
   extension: ExtensionView,
   accounts: AccountChoices,
+  kinds?: readonly AccountKind[],
 ): ExtensionFix | undefined {
   if (!extensionProblem(extension)) return undefined;
   const failing = extension.metadata.contributes.namespaces.find(
@@ -266,7 +308,8 @@ export function extensionFix(
   if (field?.type !== "account")
     return { label: "Review", section: "settings" };
   const merged = mergedAccountFields(extension).has(failing!.requiresAccount!);
-  return accountChoicesFor(field, accounts).length === 0
+  const eligible = kinds ? eligibleKindLabels(extension, kinds) : undefined;
+  return accountChoicesFor(field, accounts, eligible).length === 0
     ? { label: "Add account", section: "accounts" }
     : { label: "Choose account", section: merged ? "accounts" : "settings" };
 }

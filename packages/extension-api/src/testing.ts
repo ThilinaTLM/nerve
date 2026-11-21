@@ -1,3 +1,23 @@
+import {
+  constants,
+  createHash,
+  createHmac,
+  createPrivateKey,
+  randomBytes,
+  sign,
+} from "node:crypto";
+import type {
+  CredentialAccount,
+  CredentialApplyContext,
+  CredentialCrypto,
+  CredentialHttpRequest,
+  CredentialHttpResponse,
+  CredentialRefreshContext,
+  CredentialRequest,
+  CredentialRevokeContext,
+  CredentialSignInContext,
+  CredentialUi,
+} from "./credentials.js";
 import type {
   ArtifactInfo,
   ArtifactRef,
@@ -287,4 +307,163 @@ export function createFakeContext(options: FakeContextOptions = {}): {
     },
   };
   return { ctx, record };
+}
+
+// ── Credential providers ─────────────────────────────────────────────────────
+
+/** What a fake credential `ctx` recorded. */
+export type FakeCredentialRecord = {
+  /** Every `ctx.http.request` of `signIn`, `refresh` or `revoke`. */
+  requests: CredentialHttpRequest[];
+  /** What `ctx.ui` showed, in order (`link`, `deviceCode`, `progress`). */
+  shown: {
+    /** What was shown. */
+    kind: "link" | "deviceCode" | "progress";
+    /** What was passed to it. */
+    value: unknown;
+  }[];
+};
+
+/** What `createFakeCredentialContext` is set up with. */
+export type FakeCredentialContextOptions = {
+  /** The account (`id`, `kind`, `fields`); defaults to an empty one. */
+  account?: Partial<CredentialAccount>;
+  /** The typed-in secrets by name. */
+  secrets?: Record<string, string>;
+  /** `ctx.state`. */
+  state?: unknown;
+  /** Answers `ctx.http.request`; default: a 404. */
+  http?: (
+    request: CredentialHttpRequest,
+  ) =>
+    | Partial<CredentialHttpResponse>
+    | Promise<Partial<CredentialHttpResponse>>;
+  /** Answers for `ctx.ui.choose` and `ctx.ui.askText`, in order. */
+  answers?: string[];
+  /** The `request` of `apply`. */
+  request?: {
+    /** Default `GET`. */
+    method?: string;
+    /** The request URL. */
+    url: string;
+    /** Headers set so far. */
+    headers?: Record<string, string>;
+    /** The body's bytes (or text); digests are computed from it. */
+    body?: Uint8Array | string;
+  };
+};
+
+/**
+ * A `ctx` for the operations of a credential provider, for tests: `crypto` is real (Node's), `http`
+ * and `ui` are scripted, and `apply` gets a request whose body digests are computed.
+ */
+export function createFakeCredentialContext(
+  options: FakeCredentialContextOptions = {},
+): {
+  /** Pass to `signIn`. */
+  signIn: CredentialSignInContext;
+  /** Pass to `refresh`. */
+  refresh: CredentialRefreshContext;
+  /** Pass to `apply`. */
+  apply: CredentialApplyContext;
+  /** Pass to `revoke`. */
+  revoke: CredentialRevokeContext;
+  /** What the operations did with `http` and `ui`. */
+  record: FakeCredentialRecord;
+} {
+  const record: FakeCredentialRecord = { requests: [], shown: [] };
+  const account: CredentialAccount = {
+    id: "account-1",
+    kind: "kind",
+    fields: {},
+    ...options.account,
+  };
+  const bytes = (value: Uint8Array | string) =>
+    typeof value === "string" ? Buffer.from(value, "utf8") : Buffer.from(value);
+  const crypto: CredentialCrypto = {
+    hash: async (algorithm, data) =>
+      new Uint8Array(createHash(algorithm).update(bytes(data)).digest()),
+    hmac: async (algorithm, key, data) =>
+      new Uint8Array(
+        createHmac(algorithm, bytes(key)).update(bytes(data)).digest(),
+      ),
+    randomBytes: async (length) => new Uint8Array(randomBytes(length)),
+    sign: async ({ algorithm, privateKey, data }) => {
+      const key = createPrivateKey(privateKey);
+      const digest = algorithm === "EdDSA" ? null : `sha${algorithm.slice(2)}`;
+      const signature = algorithm.startsWith("ES")
+        ? sign(digest, bytes(data), { key, dsaEncoding: "ieee-p1363" })
+        : algorithm === "PS256"
+          ? sign(digest, bytes(data), {
+              key,
+              padding: constants.RSA_PKCS1_PSS_PADDING,
+              saltLength: 32,
+            })
+          : sign(digest, bytes(data), key);
+      return new Uint8Array(signature);
+    },
+  };
+  const http = {
+    request: async (request: CredentialHttpRequest) => {
+      record.requests.push(request);
+      const answer = (await options.http?.(request)) ?? {};
+      return {
+        status: 404,
+        ok: false,
+        headers: {},
+        body: undefined,
+        ...answer,
+      } as CredentialHttpResponse;
+    },
+  };
+  const answers = [...(options.answers ?? [])];
+  const ui: CredentialUi = {
+    showLink: (url, instructions) =>
+      void record.shown.push({ kind: "link", value: { url, instructions } }),
+    showDeviceCode: (input) =>
+      void record.shown.push({ kind: "deviceCode", value: input }),
+    choose: async () => answers.shift() ?? "",
+    askText: async () => answers.shift() ?? "",
+    progress: (message) =>
+      void record.shown.push({ kind: "progress", value: message }),
+    loopback: async () => {
+      throw new Error("createFakeCredentialContext has no loopback listener.");
+    },
+  };
+  const base = {
+    account,
+    secrets: options.secrets ?? {},
+    state: options.state,
+    crypto,
+  };
+  const given = options.request;
+  const body = given?.body;
+  const url = new URL(given?.url ?? "https://example.test/");
+  const request: CredentialRequest = {
+    method: given?.method ?? "GET",
+    url: url.toString(),
+    host: url.host,
+    path: url.pathname,
+    query: [...url.searchParams],
+    headers: given?.headers ?? {},
+    body:
+      body === undefined
+        ? undefined
+        : {
+            size: bytes(body).byteLength,
+            digest: async (algorithm) =>
+              new Uint8Array(
+                createHash(algorithm).update(bytes(body)).digest(),
+              ),
+            bytes: async () => new Uint8Array(bytes(body)),
+          },
+  };
+  const signal = new AbortController().signal;
+  return {
+    signIn: { ...base, http, ui, signal },
+    refresh: { ...base, http, signal },
+    apply: { ...base, request },
+    revoke: { ...base, http, signal },
+    record,
+  };
 }

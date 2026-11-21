@@ -3,6 +3,7 @@ export const extensionSurfaceNames = [
   "manifest",
   "backend",
   "ui",
+  "credentials",
   "themes",
 ] as const;
 export type ExtensionSurface = (typeof extensionSurfaceNames)[number];
@@ -12,13 +13,14 @@ const surfaceLabels: Record<ExtensionSurface, string> = {
   manifest: "manifest format",
   backend: "backend API",
   ui: "UI bridge and ui-kit components",
+  credentials: "credential provider API",
   themes: "theme tokens",
 };
 
 /**
  * The oldest SDK version whose extensions this Nerve still loads, per surface: `manifest` (the
  * `manifest.json` format), `backend` (the extension API and `ctx`), `ui` (the frame bridge and
- * `ui-kit`) and `themes` (token names). Raise one floor only when a release breaks that surface,
+ * `ui-kit`), `credentials` (the credential provider API and its `ctx`) and `themes` (token names). Raise one floor only when a release breaks that surface,
  * and add an `UPGRADING.md` section in the same change (see docs/architecture/extension-platform.md,
  * "Installed extensions"). An extension is checked only against the surfaces its manifest uses.
  */
@@ -26,13 +28,15 @@ export const oldestCompatibleSdkVersion: Record<ExtensionSurface, string> = {
   manifest: "0.41.0",
   backend: "0.41.0",
   ui: "0.41.0",
+  // New surface: nothing older than the SDK that introduced it can use it, so the floor is the first version.
+  credentials: "0.41.0",
   themes: "0.41.0",
 };
 
 /**
  * The surfaces a manifest uses, read leniently from untrusted JSON (before the strict schema):
- * `manifest` always; `backend` with namespaces, tools or accounts; `ui` with previews, pages or
- * panels; `themes` with themes.
+ * `manifest` always; `backend` with namespaces, tools or accounts; `credentials` with a credential
+ * provider; `ui` with previews, pages or panels; `themes` with themes.
  */
 export function usedExtensionSurfaces(manifest: unknown): ExtensionSurface[] {
   const record =
@@ -58,6 +62,7 @@ export function usedExtensionSurfaces(manifest: unknown): ExtensionSurface[] {
     used.push("backend");
   if (filled(ui.previews) || filled(ui.pages) || filled(ui.panels))
     used.push("ui");
+  if (filled(record.credentials)) used.push("credentials");
   if (filled(ui.themes)) used.push("themes");
   return used;
 }

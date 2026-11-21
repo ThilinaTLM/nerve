@@ -412,3 +412,71 @@ void test("a direct tool bound to a method runs the same parse → authorize →
     },
   ]);
 });
+
+void test("a platform account setting selects accounts of another extension's definition that covers its origins", async () => {
+  const using = {
+    ...demoExtension,
+    id: "csv-sync",
+    name: "CSV sync",
+    accounts: undefined,
+    uses: [{ platform: "demo-platform", origins: ["https://api.demo.test"] }],
+    settings: {
+      ...demoExtension.settings,
+      fields: {
+        ...demoExtension.settings.fields,
+        account: {
+          type: "account" as const,
+          platform: "demo-platform",
+          label: "Account",
+        },
+      },
+    },
+  };
+  const definition = (kind: string, origins: string[]) => ({
+    kind,
+    label: `${kind} account`,
+    platform: "demo-platform",
+    fields: {},
+    origins,
+  });
+  const platformRegistry = createQuickScriptRegistry([using]);
+  const lookups: string[] = [];
+  const derive = (kinds: ReturnType<typeof definition>[], ready = true) =>
+    deriveAvailability(platformRegistry, {
+      extension: () => ({
+        enabled: true,
+        settings: { account: "acc1", items: true, maintenance: false },
+      }),
+      accounts: {
+        get: async (kind) => {
+          lookups.push(kind);
+          return kind === "wide-def" ? account() : undefined;
+        },
+        state: async () => (ready ? "ready" : "needs_sign_in"),
+        problem: async () => "missing scopes: repo",
+      },
+      platformKinds: () => kinds,
+      checkSecrets: true,
+    });
+
+  // The account's definition lists the origin the extension declared: offered and ready.
+  const ok = await derive([
+    definition("narrow-def", ["https://other.test"]),
+    definition("wide-def", ["https://api.demo.test", "https://x.test"]),
+  ]);
+  assert.equal(ok.namespaces.demo.available, true);
+  // A definition that does not cover its origins is never even asked for the account.
+  assert.ok(lookups.length > 0 && lookups.every((kind) => kind === "wide-def"));
+
+  const none = await derive([definition("narrow-def", ["https://other.test"])]);
+  assert.equal(none.namespaces.demo.available, false);
+
+  const signIn = await derive(
+    [definition("wide-def", ["https://api.demo.test"])],
+    false,
+  );
+  assert.match(
+    (signIn.namespaces.demo as { reason: string }).reason,
+    /needs sign-in \(missing scopes: repo\)/,
+  );
+});

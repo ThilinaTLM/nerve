@@ -177,6 +177,7 @@ export function fromDefinition(
       ? { migrations: definition.settings.migrations }
       : {}),
     ...(accounts.length > 0 ? { accounts } : {}),
+    ...(definition.uses?.length ? { uses: [...definition.uses] } : {}),
     ...(definition.permissions ? { permissions: definition.permissions } : {}),
     definition,
     ...(definition.tools ? { tools: definition.tools } : {}),

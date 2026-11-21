@@ -11,6 +11,8 @@ import SettingsFormField from "../../shared/settings-form-field.svelte";
 type Props = {
   open?: boolean;
   kinds: readonly AccountKind[];
+  /** The extension that defines a kind; shown beside it, since several extensions can define accounts for one platform. */
+  extensionName?: (kind: string) => string | undefined;
   /** The open project, offered as a level. */
   project?: { id: string; name: string };
   /** Kinds that only exist in the open project. */
@@ -22,6 +24,7 @@ type Props = {
 let {
   open = $bindable(false),
   kinds,
+  extensionName,
   project,
   projectOnly,
   initialKind,
@@ -64,7 +67,11 @@ function submit(): void {
 >
   <SettingsFormField id="add-account-kind" label="Kind">
     <SelectField
-      items={kinds.map((k) => ({ value: k.kind, label: k.label }))}
+      items={kinds.map((k) => ({
+        value: k.kind,
+        label: k.label,
+        ...(extensionName?.(k.kind) ? { detail: extensionName(k.kind) } : {}),
+      }))}
       bind:value={kind}
       ariaLabel="Account kind"
     />

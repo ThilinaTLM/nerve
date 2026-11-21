@@ -1,5 +1,6 @@
 import type { AccountKind } from "@nervekit/contracts/extensions";
 import type { AccountLevel } from "@nervekit/contracts/settings";
+import type { ExtensionCredentialCode } from "./extension-credential-provider.js";
 
 /**
  * An account kind as a composition defines it. Kinds of built-in and user extensions are available
@@ -9,6 +10,8 @@ export type AccountDefinition = {
   kind: AccountKind;
   /** Set for a kind a project's own extension defines. */
   projectId?: string;
+  /** The credential code of the extension that defines the kind, for `provider: "extension"`. */
+  credentials?: ExtensionCredentialCode;
 };
 
 export const levelOf = (row: { projectId: string | null }): AccountLevel =>

@@ -31,6 +31,7 @@
         "{test,src}/**/*.test.ts",
         "src/git/read/git-isolated-reader-helper.ts",
         "src/extension-host/sandbox-runtime/extension-runtime.ts",
+        "src/extension-host/sandbox-runtime/credential-runtime.ts",
       ],
       // Types for shell-quote are consumed implicitly by tsc, not by an import.
       // Sandbox libraries are copied as assets by scripts/build/copy-quick-script-assets.ts, not imported.
@@ -67,7 +68,7 @@
         "assets/frame.css",
         "assets/vitest.config.mjs",
       ],
-      "ignore": ["templates/**"],
+      "ignore": ["templates/**", "examples/**"],
       // shadcn-svelte, tw-animate-css, tailwindcss: imported by
       // ui-kit's app.css, which the generated Vite/Tailwind build resolves from this package.
       "ignoreDependencies": ["shadcn-svelte", "tw-animate-css", "tailwindcss"],

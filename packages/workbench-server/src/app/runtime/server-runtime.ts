@@ -244,8 +244,8 @@ export function composeServerRuntime(
   });
   const backgroundJobNotices = new BackgroundJobNotices(activities);
   const backgroundJobs = new BackgroundJobService({
-    onChanged: (jobs) =>
-      events.publishBestEffort("backgroundJobs.changed", { jobs }),
+    onChanged: (job) =>
+      events.publishBestEffort("backgroundJobs.changed", { job }),
     onOutcome: backgroundJobNotices.jobOutcome,
     log: (message, context) => void logger.warn(message, { context }),
   });

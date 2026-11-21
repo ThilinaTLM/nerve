@@ -24,10 +24,14 @@ export function accountPorts(
             kind: found.kind,
             fields: found.fields,
             level: found.level,
+            ...(found.identity ? { identity: found.identity } : {}),
           }
         : undefined;
     },
     state: (kind, id) => accounts.state(kind, id),
+    ...(accounts.problem
+      ? { problem: (kind: string, id: string) => accounts.problem!(kind, id) }
+      : {}),
     apply: (kind, id, request) => accounts.apply(kind, id, request),
     refreshAfterRejection: (kind, id, since) =>
       accounts.refreshAfterRejection(kind, id, since),

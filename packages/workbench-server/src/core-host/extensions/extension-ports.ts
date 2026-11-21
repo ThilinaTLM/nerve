@@ -3,7 +3,11 @@ import type { ExtensionHostPorts } from "@nervekit/tools/extension-host";
 import type { QuickScriptRegistry } from "@nervekit/tools/quick-script";
 import { accountPorts } from "../../domains/accounts/account-ports.js";
 import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
-import { accountFieldKinds, fieldValue } from "@nervekit/contracts/extensions";
+import {
+  accountFieldKinds,
+  fieldValue,
+  kindsForUse,
+} from "@nervekit/contracts/extensions";
 import type { ExtensionState } from "@nervekit/tools/extension-host";
 import type { VisionHost } from "../vision-models.js";
 import type { ExtensionStore } from "./extension-store/extension-store.js";
@@ -73,6 +77,12 @@ export function createExtensionPorts(input: {
   return {
     settings: (id) => states(id)?.settings ?? {},
     accounts: resolvedAccounts(input.resolution, input.accounts),
+    ...(input.accounts.platformKinds
+      ? {
+          platformKinds: (platform: string) =>
+            input.accounts.platformKinds!(platform),
+        }
+      : {}),
     ...(input.generateImage ? { generateImage: input.generateImage } : {}),
     ...(vision
       ? {
@@ -113,7 +123,20 @@ export async function selectedAccountsTarget(
       const id = state.settings[field];
       if (typeof id !== "string" || !id) continue;
       let account: Awaited<ReturnType<AccountsReader["get"]>>;
-      for (const kind of accountFieldKinds(declared)) {
+      const use =
+        declared.platform === undefined
+          ? undefined
+          : extension.uses?.find((u) => u.platform === declared.platform);
+      const kinds = use
+        ? kindsForUse(
+            [
+              ...(accounts.platformKinds?.(use.platform) ?? []),
+              ...(extension.accounts ?? []),
+            ],
+            use,
+          ).map((kind) => kind.kind)
+        : accountFieldKinds(declared);
+      for (const kind of kinds) {
         account = await accounts.get(kind, id, {
           userLevelOnly: selectedAtUserScope(resolution, {
             extensionId: extension.id,

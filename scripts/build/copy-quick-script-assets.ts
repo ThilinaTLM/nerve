@@ -74,6 +74,26 @@ await build({
   logLevel: "warning",
 });
 
+// The runtime library of credential providers: evaluated before an extension's `credentials.js`
+// in a sandbox of its own (see extension-host/credential-sandbox.ts).
+await build({
+  entryPoints: [
+    join(
+      packageRoot,
+      "src",
+      "extension-host",
+      "sandbox-runtime",
+      "credential-runtime.ts",
+    ),
+  ],
+  outfile: join(destination, "credential-runtime.js"),
+  bundle: true,
+  format: "iife",
+  target: "es2020",
+  legalComments: "none",
+  logLevel: "warning",
+});
+
 // Runtime doc topics (Markdown beside the code that owns them) -> dist/quick-script/quick-script-docs/runtime/.
 // Extensions ship their own topics (scripts/build/copy-extension-assets.ts).
 const docsDestination = join(

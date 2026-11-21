@@ -45,7 +45,8 @@ import {
   type ExtensionTrustVerdict,
   type InstalledExtensionCandidate,
 } from "./trust-gate.js";
-import { accountDefinitions } from "./account-definitions.js";
+import { accountDefinitions, credentialCode } from "./account-definitions.js";
+import { extensionNameOfKind, platformUses } from "./account-platforms.js";
 import { resolveKey } from "./project-key.js";
 
 /** What a consumer needs of the catalog: the registry and the entries at a project. */
@@ -245,6 +246,15 @@ export class ExtensionCatalog implements ExtensionUiSource {
   /** Account kinds of every extension composed so far, with the project a kind belongs to. */
   accountDefinitions() {
     return accountDefinitions(this.#latest);
+  }
+
+  /** Platform uses of every composed extension, and the name of the extension defining an account kind. */
+  platformUses() {
+    return platformUses(this.#latest);
+  }
+
+  extensionNameOfKind(kind: string) {
+    return extensionNameOfKind(kind, this.#latest);
   }
 
   /** Called after `reload`. */
@@ -506,6 +516,8 @@ export class ExtensionCatalog implements ExtensionUiSource {
         ],
       };
     this.#bundles.set(loaded.definition, loaded.bundle);
+    if (loaded.credentials)
+      credentialCode.set(loaded.definition, loaded.credentials);
     return { ...base, state: "loadable", loaded };
   }
 

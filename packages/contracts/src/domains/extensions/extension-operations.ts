@@ -4,6 +4,7 @@ import { defineOperation } from "../../operations/definition.js";
 import { extensionCatalogEntrySchema } from "./catalog.js";
 import {
   accountKindSchema,
+  platformUseSchema,
   extensionMetadataSchema,
   extensionIdSchema,
   settingsSchemaSchema,
@@ -55,6 +56,8 @@ export const extensionViewSchema = z.strictObject({
   metadata: extensionMetadataSchema,
   settingsSchema: settingsSchemaSchema,
   accountKinds: z.array(accountKindSchema),
+  /** Platforms whose accounts the extension uses; its platform `account` fields offer their accounts. */
+  uses: z.array(platformUseSchema).optional(),
   enabled: z.strictObject({ value: z.boolean(), source: sourceSchema }),
   fields: z.record(z.string(), resolvedFieldSchema),
   /** This scope's own entry after upgrade, or null; drives "set here" markers and per-field reset. */

@@ -5,6 +5,7 @@ import type {
   AccountOAuth2Provider,
   AccountSecretField,
   ExtensionPermissions,
+  PlatformUse,
   SettingField as ApiSettingField,
   SettingsSchema as ApiSettingsSchema,
 } from "@nervekit/extension-api";
@@ -17,6 +18,9 @@ export const extensionIdSchema = z
   .string()
   .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/)
   .max(64);
+
+/** A platform name: lowercase words joined by hyphens (`github`, `google-workspace`). */
+const PLATFORM_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 const fieldKeySchema = z
   .string()
@@ -79,25 +83,44 @@ export const settingFieldSchema = z.discriminatedUnion("type", [
       .min(1),
   }),
   /** Id of a user account of this kind, or any of several (`accounts.json`). */
-  z.strictObject({
-    ...fieldBase,
-    type: z.literal("account"),
-    kind: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
-  }),
+  /** Id of an account of one of the `kind`s, or of a `platform`, whichever extension defined its kind. */
+  z
+    .strictObject({
+      ...fieldBase,
+      type: z.literal("account"),
+      kind: z
+        .union([z.string().min(1), z.array(z.string().min(1)).min(1)])
+        .optional(),
+      platform: z.string().regex(PLATFORM_NAME).optional(),
+    })
+    .refine(
+      (field) => (field.kind === undefined) !== (field.platform === undefined),
+      {
+        message: "An account field names either `kind` or `platform`.",
+      },
+    ),
   z.strictObject({
     ...fieldBase,
     type: z.literal("model"),
     capability: z.enum(["image", "vision"]).optional(),
   }),
-]) satisfies z.ZodType<ApiSettingField>;
+]) as unknown as z.ZodType<ApiSettingField>;
 export type SettingField = z.infer<typeof settingFieldSchema>;
 
 /** The account kinds an `account` field accepts, in declared order. */
 export function accountFieldKinds(field: {
-  kind: string | readonly string[];
+  kind?: string | readonly string[] | undefined;
 }): readonly string[] {
+  if (field.kind === undefined) return [];
   return typeof field.kind === "string" ? [field.kind] : field.kind;
 }
+
+/** What an extension says about using a platform's accounts (`PlatformUse`). */
+export const platformUseSchema = z.strictObject({
+  platform: z.string().regex(PLATFORM_NAME),
+  scopes: z.array(z.string().min(1)).optional(),
+  origins: z.array(z.string().min(1)).optional(),
+}) satisfies z.ZodType<PlatformUse>;
 
 export const settingsSchemaSchema = z.strictObject({
   sections: z
@@ -196,10 +219,14 @@ export const accountOAuth2ProviderSchema = z.strictObject({
     .optional(),
 }) satisfies z.ZodType<AccountOAuth2Provider>;
 
-/** The injections an account's credential goes out with: its `auth`, or a bearer token for `oauth2`. */
+/**
+ * The injections an account's credential goes out with: its `auth`, or a bearer token for `oauth2`.
+ * An extension provider decides itself what it adds; the bearer entry only marks the kind as
+ * credentialed and names `authorization` among the headers a caller's own value must not reach.
+ */
 export function accountEffectiveAuth(kind: {
   auth?: AccountAuth | readonly AccountAuth[] | undefined;
-  provider?: { type: "oauth2" } | undefined;
+  provider?: { type: "oauth2" } | "extension" | undefined;
 }): AccountAuth | readonly AccountAuth[] | undefined {
   return kind.auth ?? (kind.provider ? { scheme: "bearer" } : undefined);
 }
@@ -212,6 +239,8 @@ export const accountClientIdField = (provider: {
 const accountKindObjectSchema = z.strictObject({
   kind: z.string().min(1),
   label: z.string().min(1),
+  /** The platform the account is for; shared between definitions. */
+  platform: z.string().regex(PLATFORM_NAME).optional(),
   /** Non-secret fields stored with the account. */
   fields: z
     .record(fieldKeySchema, settingFieldSchema)
@@ -231,7 +260,11 @@ const accountKindObjectSchema = z.strictObject({
     .union([accountAuthSchema, z.array(accountAuthSchema).min(1)])
     .optional(),
   /** How the host obtains the credential. Absent: the user types in the secrets. */
-  provider: accountOAuth2ProviderSchema.optional(),
+  provider: z
+    .union([accountOAuth2ProviderSchema, z.literal("extension")])
+    .optional(),
+  /** Origins an extension provider's `ctx.http` may reach. */
+  signInOrigins: z.array(z.string().min(1)).optional(),
   /** Origins the credential is sent to; `{<field>}` is replaced by the account's field. */
   origins: z.array(z.string().min(1)).optional(),
   test: z.literal(true).optional(),
@@ -290,6 +323,30 @@ function checkOAuth2(
       );
 }
 
+/** An extension provider signs the requests itself: it needs the origins its output may go to. */
+function checkExtensionProvider(
+  kind: Pick<
+    z.infer<typeof accountKindObjectSchema>,
+    "auth" | "origins" | "signInOrigins"
+  >,
+  context: z.RefinementCtx,
+): void {
+  if (kind.auth !== undefined)
+    context.addIssue({
+      code: "custom",
+      path: ["auth"],
+      message:
+        'A kind with `provider: "extension"` signs requests in its credential provider; remove `auth`.',
+    });
+  if (!kind.origins?.length)
+    context.addIssue({
+      code: "custom",
+      path: ["origins"],
+      message:
+        'A kind with `provider: "extension"` needs `origins`: the credential is sent only there.',
+    });
+}
+
 /** Secrets are declared once, and every injection names one of them. */
 const checkAccountSecrets = (
   kind:
@@ -305,7 +362,8 @@ const checkAccountSecrets = (
     });
   const names = Object.keys(accountSecretFields(kind));
   const provider = kind.provider;
-  if (provider) checkOAuth2(kind, provider, names, context);
+  if (provider === "extension") checkExtensionProvider(kind, context);
+  else if (provider) checkOAuth2(kind, provider, names, context);
   else if (names.length === 0)
     context.addIssue({
       code: "custom",

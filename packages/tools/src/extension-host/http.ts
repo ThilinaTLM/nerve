@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { rm } from "node:fs/promises";
 import { Readable } from "node:stream";
@@ -12,6 +12,7 @@ import {
   type HttpRequest,
   type HttpResponse,
 } from "@nervekit/extension-api";
+import { narrowOrigins } from "@nervekit/contracts/extensions";
 import { withTimeoutSignal } from "../execution/process/abort.js";
 import {
   assertSafeHttpUrl,
@@ -20,7 +21,7 @@ import {
 import { fillTemplate, expandPatterns, originMatches } from "./network.js";
 import { baseContentType, getExtension } from "../execution/web/web-fetch.js";
 import { settingsPage } from "./errors.js";
-import type { ExtensionHostPorts } from "./ports.js";
+import type { CredentialBody, ExtensionHostPorts } from "./ports.js";
 
 const MAX_REDIRECTS = 5;
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -39,7 +40,13 @@ export type HttpHostDeps = {
   kinds: Readonly<
     Record<
       string,
-      { label: string; auth?: AccountKindAuth; origins?: readonly string[] }
+      {
+        label: string;
+        auth?: AccountKindAuth;
+        origins?: readonly string[];
+        /** A platform definition of another extension: the origins this extension declared; the credential goes only to those the definition also lists. */
+        useOrigins?: readonly string[];
+      }
     >
   >;
   /** Kinds an `account` setting accepts; empty when `field` is not one. */
@@ -112,6 +119,62 @@ function withoutSecrets(error: unknown, secrets: readonly string[]): unknown {
   const safe = new Error(message);
   safe.name = error.name;
   return safe;
+}
+
+/** Largest body whose bytes a credential provider may read; digests have no limit. */
+export const MAX_CREDENTIAL_BODY_BYTES = 20 * 1024 * 1024;
+
+const HASHES = new Set(["sha256", "sha384", "sha512", "sha1", "md5"]);
+
+/**
+ * The body of a hop as a credential provider sees it: digests computed once per algorithm by the
+ * host (streamed bodies are read once per algorithm and never handed over), and `bytes()` for
+ * bodies a provider may buffer.
+ */
+function credentialBody(
+  data: Uint8Array | string | undefined,
+  stream: EncodedBody["stream"],
+): CredentialBody | undefined {
+  if (data === undefined && !stream) return undefined;
+  const bytes =
+    typeof data === "string" ? new TextEncoder().encode(data) : data;
+  const size = bytes ? bytes.byteLength : stream?.length;
+  const digests = new Map<string, Promise<Uint8Array>>();
+  return {
+    size,
+    digest(algorithm) {
+      if (!HASHES.has(algorithm))
+        throw new ExtensionError(
+          "BAD_REQUEST",
+          `Unsupported digest algorithm ${algorithm}. Use sha256, sha384, sha512, sha1 or md5.`,
+        );
+      let digest = digests.get(algorithm);
+      if (!digest) {
+        digest = (async () => {
+          const hash = createHash(algorithm);
+          if (bytes) hash.update(bytes);
+          else
+            for await (const chunk of stream!.open() as unknown as AsyncIterable<Uint8Array>)
+              hash.update(chunk);
+          return new Uint8Array(hash.digest());
+        })();
+        digests.set(algorithm, digest);
+      }
+      return digest;
+    },
+    async bytes() {
+      if (bytes) return new Uint8Array(bytes);
+      if ((stream?.length ?? 0) > MAX_CREDENTIAL_BODY_BYTES)
+        throw new ExtensionError(
+          "BAD_REQUEST",
+          `The request body is streamed from a file and is larger than ${MAX_CREDENTIAL_BODY_BYTES / 1024 / 1024} MiB, so this credential code cannot read its bytes. Use digest() or a smaller upload.`,
+        );
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of stream!.open() as unknown as AsyncIterable<Uint8Array>)
+        chunks.push(chunk);
+      return new Uint8Array(Buffer.concat(chunks));
+    },
+  };
 }
 
 type BodySegment = Uint8Array | { path: string; size: number };
@@ -297,10 +360,13 @@ export function createHttp(deps: HttpHostDeps) {
         account,
         kind: kindId,
         headers: injectedHeaders(selectedKind.auth),
-        origins: (selectedKind.origins ?? []).flatMap((origin) => {
-          const filled = fillTemplate(origin, { account: account.fields });
-          return filled ? [filled] : [];
-        }),
+        origins: narrowOrigins(
+          (selectedKind.origins ?? []).flatMap((origin) => {
+            const filled = fillTemplate(origin, { account: account.fields });
+            return filled ? [filled] : [];
+          }),
+          selectedKind.useOrigins,
+        ),
         label: selectedKind.label,
       };
     }
@@ -337,6 +403,10 @@ export function createHttp(deps: HttpHostDeps) {
       for (let attempt = 0; ; attempt += 1) {
         const hopHeaders = new Headers(headers);
         const attemptStartedAt = Date.now();
+        const requestBody =
+          method === "GET" || method === "HEAD"
+            ? undefined
+            : credentialBody(data, stream);
         let target = safe;
         let querySecrets: string[] = [];
         if (credential) {
@@ -345,7 +415,12 @@ export function createHttp(deps: HttpHostDeps) {
             const applied = await deps.credential.apply(
               credential.kind,
               credential.account.id,
-              { method, url: safe },
+              {
+                method,
+                url: safe,
+                headers: Object.fromEntries(hopHeaders),
+                ...(requestBody ? { body: requestBody } : {}),
+              },
             );
             if (!applied.ok && applied.state === "unreachable")
               throw new ExtensionError(

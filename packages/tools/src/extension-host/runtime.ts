@@ -10,6 +10,8 @@ import type {
 import {
   accountEffectiveAuth,
   accountFieldKinds,
+  kindsForUse,
+  type AccountKind,
 } from "@nervekit/contracts/extensions";
 import { ExtensionError } from "@nervekit/extension-api";
 import { isolatedHtmlToMarkdown, resolveToolPath } from "../execution/index.js";
@@ -144,6 +146,32 @@ export class ExtensionRuntime {
     if (!ports)
       throw new Error("Extensions are not available in this context.");
     const settings = ports.settings(definition.id);
+    const platformKinds = (platform: string): AccountKind[] => {
+      const all = new Map<string, AccountKind>();
+      for (const kind of ports.platformKinds?.(platform) ?? [])
+        all.set(kind.kind, kind);
+      for (const [name, { test, ...data }] of Object.entries(
+        definition.accounts ?? {},
+      ))
+        all.set(name, { ...data, kind: name, ...(test ? { test: true } : {}) });
+      return [...all.values()];
+    };
+    // The definitions an `account` setting selects from: its kinds, or, for a platform, every
+    // definition of it that covers what this extension declared it uses.
+    const kindsOfField = (field: {
+      kind?: string | readonly string[] | undefined;
+      platform?: string | undefined;
+    }): readonly string[] => {
+      if (field.platform === undefined) return accountFieldKinds(field);
+      const use = definition.uses?.find(
+        (candidate) => candidate.platform === field.platform,
+      );
+      return use
+        ? kindsForUse(platformKinds(field.platform), use).map(
+            (kind) => kind.kind,
+          )
+        : [];
+    };
     const selected = async (
       field: string,
     ): Promise<AccountInfo | undefined> => {
@@ -151,7 +179,7 @@ export class ExtensionRuntime {
       const id = settings[field];
       if (declared?.type !== "account" || typeof id !== "string" || !id)
         return undefined;
-      for (const kind of accountFieldKinds(declared)) {
+      for (const kind of kindsOfField(declared)) {
         const account = await ports.accounts.get(kind, id, {
           extensionId: definition.id,
           field,
@@ -185,8 +213,19 @@ export class ExtensionRuntime {
     const http = createHttp({
       extensionName: definition.name,
       network: definition.permissions?.network ?? [],
-      kinds: Object.fromEntries(
-        Object.entries(definition.accounts ?? {}).map(([kind, def]) => [
+      kinds: Object.fromEntries([
+        ...(definition.uses ?? []).flatMap((use) =>
+          kindsForUse(platformKinds(use.platform), use).map((def) => [
+            def.kind,
+            {
+              label: def.label,
+              auth: accountEffectiveAuth(def),
+              origins: def.origins,
+              ...(use.origins ? { useOrigins: use.origins } : {}),
+            },
+          ]),
+        ),
+        ...Object.entries(definition.accounts ?? {}).map(([kind, def]) => [
           kind,
           {
             label: def.label,
@@ -194,10 +233,10 @@ export class ExtensionRuntime {
             origins: def.origins,
           },
         ]),
-      ),
+      ]),
       kindsOfField: (field) => {
         const declared = definition.settings.fields[field];
-        return declared?.type === "account" ? accountFieldKinds(declared) : [];
+        return declared?.type === "account" ? kindsOfField(declared) : [];
       },
       settings,
       selected,

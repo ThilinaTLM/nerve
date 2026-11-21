@@ -1,7 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- method tables hold methods of different session and input types */
 /* The extension definition: methods, namespaces, direct tools, UI contributions. */
 import type { AuthorizeResult, Risk } from "./authorization.js";
-import type { AccountKind, ExtensionSettings } from "./settings.js";
+import type {
+  AccountKind,
+  ExtensionSettings,
+  PlatformUse,
+} from "./settings.js";
 import type { ExtensionContext } from "./types.js";
 
 // ── Methods, namespaces, tools ───────────────────────────────────────────────
@@ -386,6 +390,8 @@ export type ExtensionDefinition = {
   settings: ExtensionSettings;
   /** Account kinds this extension defines, by kind. Kinds are unique across extensions. */
   accounts?: Readonly<Record<string, AccountKind>>;
+  /** Platforms whose accounts this extension uses, whichever extension defines them; an `account` setting names a platform instead of a kind. Consent is per platform. */
+  uses?: readonly PlatformUse[];
   /** Network origins and host capabilities the extension may use. Absent: none. */
   permissions?: ExtensionPermissions;
   /** `quick_script` namespaces; see `defineNamespace`. */

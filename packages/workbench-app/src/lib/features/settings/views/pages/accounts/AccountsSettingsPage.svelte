@@ -59,6 +59,7 @@ import {
   facetOptions,
   filterAccountRows,
   hasAccountFilters,
+  kindsToAdd,
   levelChoices,
   visibleAccounts,
   type AccountExtension,
@@ -122,6 +123,14 @@ const shown = $derived(filterAccountRows(rows, filters));
 const kindsOffered = $derived(
   accountsState.kinds.filter((kind) => kind.kind in extensionsByKind),
 );
+// With a platform filtered, only its definitions are offered; the dialog says which extension defines each.
+const kindsToChoose = $derived.by(() => {
+  const ofPlatform = kindsToAdd(kindsOffered, {
+    platform: filters.platform,
+    kind: "",
+  });
+  return ofPlatform.length > 0 ? ofPlatform : kindsOffered;
+});
 
 let error = $state<string | undefined>();
 let checking = $state<Record<string, boolean>>({});
@@ -289,9 +298,10 @@ function summaryOf(row: AccountRowModel): string {
   {@const testable =
     row.kind !== undefined && accountCanTest(row.kind, account)}
   {@const unhealthy = badge.tone === "destructive" || badge.tone === "warning"}
-  {@const problem = row.kind
-    ? accountProblem(account)
-    : "No extension defines this kind"}
+  {@const problem =
+    row.kind || account.state === "unavailable"
+      ? accountProblem(account)
+      : "No extension defines this kind"}
   {#snippet mark()}
     {#if row.extension}
       <ExtensionMark icon={row.extension.icon} />
@@ -384,7 +394,8 @@ function summaryOf(row: AccountRowModel): string {
 
 <AddAccountDialog
   bind:open={addChooserOpen}
-  kinds={kindsOffered}
+  kinds={kindsToChoose}
+  extensionName={(kind) => extensionsByKind[kind]?.name}
   project={projectInfo}
   projectOnly={(kind) => extensionsByKind[kind]?.projectOnly === true}
   initialKind={filters.kind || undefined}

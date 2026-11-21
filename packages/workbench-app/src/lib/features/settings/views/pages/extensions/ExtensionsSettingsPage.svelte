@@ -119,7 +119,7 @@ const rows = $derived(
       inherited,
       changes: extensionChanges(extension, scope, accounts, inherited),
       problem: extensionProblem(extension),
-      fix: extensionFix(extension, accounts),
+      fix: extensionFix(extension, accounts, accountsState.kinds),
     };
   }),
 );
