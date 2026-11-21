@@ -10,8 +10,6 @@ export const coreToolNameSchema = z.enum([
   "find",
   "ls",
   "ask_user",
-  "todos_set",
-  "todos_get",
   "web_fetch",
   "quick_script",
 ]);

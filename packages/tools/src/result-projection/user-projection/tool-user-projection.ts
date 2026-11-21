@@ -714,17 +714,6 @@ export function buildUserProjection(
       break;
     }
 
-    case "todos_set":
-    case "todos_get": {
-      const argsBound = previewUnknown(args);
-      const resultBound = previewUnknown(publicResult);
-      argsPreview = argsBound.value;
-      resultPreview = resultBound.value;
-      ({ hidden, noun } = unknownOverflowStats([argsBound, resultBound]));
-      direction = "head";
-      break;
-    }
-
     default: {
       const extension = buildExtensionToolTranscriptPreview(resultRecord);
       if (extension) {

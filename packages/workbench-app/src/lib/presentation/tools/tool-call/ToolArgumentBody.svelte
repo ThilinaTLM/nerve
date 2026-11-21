@@ -4,10 +4,8 @@ import { COLLAPSED_LINES } from "../views/tool-view-helpers";
 import DiffSections from "./DiffSections.svelte";
 import EntityList from "./EntityList.svelte";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
-import TodoChecklist from "./TodoChecklist.svelte";
 import { StreamingText } from "@nervekit/ui-kit/components/composites/streaming-text";
 import { getToolMotion } from "./tool-motion-context";
-import { parseToolView } from "../views/tool-result-parser";
 import { enrichEntities } from "./subagent-entities";
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 
@@ -34,14 +32,6 @@ let {
   streaming = false,
   section = false,
 }: Props = $props();
-
-// Persistent checklist rows show the durable result's state once settled.
-function checklistItems(items: Array<{ text: string; done: boolean }>) {
-  const fromArgs = items.map((item) => ({ todo: item.text, done: item.done }));
-  if (!toolCall) return fromArgs;
-  const view = parseToolView(toolCall);
-  return view.kind === "todos" && view.items.length > 0 ? view.items : fromArgs;
-}
 
 const pad = $derived(section ? "px-2.5 py-2" : "");
 
@@ -119,8 +109,6 @@ const streamMotion = $derived(streaming && toolMotion.streamMotion);
       </dd>
     {/each}
   </dl>
-{:else if body.kind === "checklist"}
-  <TodoChecklist items={checklistItems(body.items)} {streaming} />
 {:else if body.kind === "text-summary"}
   <div class={`grid gap-1.5 ${pad}`}>
     {#if body.label}

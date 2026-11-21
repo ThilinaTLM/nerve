@@ -7,7 +7,6 @@ import {
   findResultDetailsSchema,
   editOperationResultDetailsSchema,
   pythonResultDetailsSchema,
-  todosResultSchema,
   webFetchResultDetailsSchema,
 } from "@nervekit/contracts/tools";
 import { extensionToolResultDetailsSchema } from "@nervekit/contracts/extensions";
@@ -47,7 +46,6 @@ import {
   resolveToolPath,
   resultOutputText,
   stringField,
-  todoItemsField,
   trimMatchText,
 } from "./tool-view-helpers";
 import type { ExtensionSectionView, ToolView } from "./tool-view-types";
@@ -558,22 +556,6 @@ export function parseToolView(
 
     case "ask_user": {
       return { kind: "ask_user", ...askUserViewFromCall(args, rawResult) };
-    }
-
-    case "todos_set":
-    case "todos_get": {
-      const parsed = todosResultSchema.safeParse(rawResult);
-      const fromResult = parsed.success
-        ? parsed.data.details?.todos
-        : undefined;
-      const items = fromResult ?? todoItemsField(args.todos) ?? [];
-      const completed = items.filter((item) => item.done).length;
-      return {
-        kind: "todos",
-        items,
-        completed,
-        total: items.length,
-      };
     }
 
     case "subagent_prompt": {

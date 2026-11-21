@@ -236,7 +236,7 @@ const python = $derived(status?.runtime.python);
 {:else if editor.resolution}
   <SettingsSection
     id="tools"
-    description="Read, edit, ask_user, process and todo tools are always on. Permissions govern them."
+    description="Read, edit, ask_user and process tools are always on. Permissions govern them."
   >
     {#snippet actions()}{#if project}<ProjectCapabilityTrustAction
           document={editor.document}

@@ -127,7 +127,6 @@ function submit(): void {
     compactDisabled={blocked || !actions.onCompact}
     onCompact={actions.onCompact}
     onOpenSystemPrompt={actions.onOpenSystemPrompt}
-    todos={model.todos}
     models={model.models}
     selectedModelKey={model.selectedModelKey}
     thinkingLevel={model.thinkingLevel}

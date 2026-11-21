@@ -9,20 +9,14 @@ import {
   DEV_BENCH_TOKENS_PER_SECOND,
 } from "../../src/models/dev-bench-script.js";
 
-test("dev bench script is deterministic with ~16 tool calls", () => {
+test("dev bench script is deterministic with ~12 tool calls", () => {
   const dir = "qa-sandbox-bench-123";
   const script = buildDevBenchScript(dir);
   assert.deepEqual(script, buildDevBenchScript(dir));
   const tools = script.filter((turn) => turn.tool);
-  assert.equal(tools.length, 16);
+  assert.equal(tools.length, 12);
   assert.equal(script.at(-1)?.tool, undefined);
-  assert.ok(
-    tools.every(
-      (turn) =>
-        JSON.stringify(turn.tool).includes(dir) ||
-        turn.tool!.name === "todos_set",
-    ),
-  );
+  assert.ok(tools.every((turn) => JSON.stringify(turn.tool).includes(dir)));
 });
 
 test("dev bench streams for roughly 30-45 seconds", () => {

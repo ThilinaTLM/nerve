@@ -53,7 +53,6 @@ import MetaChip from "$lib/presentation/cards/MetaChip.svelte";
 import StatusGlyph from "$lib/presentation/cards/StatusGlyph.svelte";
 import ToolCallCard from "$lib/presentation/tools/ToolCallCard.svelte";
 import ResultCodeBlock from "$lib/presentation/tools/tool-call/ResultCodeBlock.svelte";
-import TodoChecklist from "$lib/presentation/tools/tool-call/TodoChecklist.svelte";
 import ToolCallDetailsDialog from "$lib/presentation/tools/tool-call/ToolCallDetailsDialog.svelte";
 import ToolOutputBlock from "$lib/presentation/tools/tool-call/ToolOutputBlock.svelte";
 import ArtifactList from "$lib/presentation/tools/tool-call/ArtifactList.svelte";
@@ -320,7 +319,6 @@ const interactionCases: LabeledCard[] = [
     label: "plan_present — accepted",
     props: { toolCall: fx.planAccepted, cwd, onOpenFile: noop },
   },
-  { label: "todos — checklist", props: { toolCall: vfx.todosCompleted, cwd } },
   {
     label: "subagent — running",
     props: { toolCall: fx.subagentRunning, cwd },
@@ -354,7 +352,6 @@ const contextCases: CardProps[] = [
   { toolCall: fx.bashCompleted, cwd },
   { toolCall: fx.bashNonZeroExit, cwd },
   { toolCall: fx.subagentRunning, cwd },
-  { toolCall: vfx.todosCompleted, cwd },
   {
     toolCall: fx.bashWaiting,
     pendingApproval: fx.bashWaitingApproval,
@@ -643,8 +640,8 @@ let failedDetailsOpen = $state(false);
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="ask_user · plan_present · todos · subagent"
-      source="presentation/tools/tool-call/AskUserToolView, PlanPresentToolView, TodoToolView, SubagentToolView"
+      title="ask_user · plan_present · subagent"
+      source="presentation/tools/tool-call/AskUserToolView, PlanPresentToolView, SubagentToolView"
       usage="1 file each · tools"
       layout="stack"
       class="max-w-[720px]"
@@ -660,7 +657,7 @@ let failedDetailsOpen = $state(false);
 
   <GalleryGroup
     title="Output blocks and details"
-    description="The recessed output well inside cards, the checklist, and the View details dialog."
+    description="The recessed output well inside cards and the View details dialog."
   >
     <GallerySpecimen
       title="ToolOutputBlock"
@@ -685,29 +682,6 @@ let failedDetailsOpen = $state(false);
     >
       <ResultCodeBlock code={codeSample} language="ts" />
       <ResultCodeBlock code={diffSnippet} language="diff" />
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="TodoChecklist"
-      description="Default scale (card body) and dense (composer popover)."
-      source="presentation/tools/tool-call/TodoChecklist"
-      usage="3 files · tools, composer"
-      layout="stack"
-      class="max-w-[720px]"
-    >
-      <TodoChecklist
-        items={[
-          { todo: "Read the existing card components", done: true },
-          { todo: "Render the lifecycle states", done: false },
-        ]}
-      />
-      <TodoChecklist
-        dense
-        items={[
-          { todo: "Dense item, done", done: true },
-          { todo: "Dense item, open", done: false },
-        ]}
-      />
     </GallerySpecimen>
 
     <GallerySpecimen

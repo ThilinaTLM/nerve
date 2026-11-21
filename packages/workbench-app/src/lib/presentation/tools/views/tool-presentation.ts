@@ -373,17 +373,6 @@ function projectToolPresentation(
       };
     }
 
-    case "todos":
-      return {
-        ...base,
-        badge: "todos",
-        primaryArg:
-          view.total > 0
-            ? { text: `${view.completed}/${view.total} done` }
-            : undefined,
-        meta: [],
-      };
-
     case "subagent":
       return subagentPresentation(view, base);
 

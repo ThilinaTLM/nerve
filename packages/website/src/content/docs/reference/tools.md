@@ -37,12 +37,11 @@ Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, u
 
 The `diagram` namespace renders Mermaid, D2, PlantUML and other Kroki engines to PNG. The Diagrams extension is on by default and uses `https://kroki.io/` unless you set a trusted endpoint under **Settings → Extensions → Diagrams**. Diagram source is sent to that server; use a self-hosted endpoint for private diagrams.
 
-## Interaction and to-dos
+## Interaction
 
 - `ask_user`
-- `todos_set`, `todos_get`
 
-Questions suspend a run. To-dos are structured current-work state, not background processes.
+Questions suspend a run until the user answers.
 
 ## Background processes
 

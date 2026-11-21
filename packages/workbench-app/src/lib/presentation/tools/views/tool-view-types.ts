@@ -5,7 +5,6 @@ import type {
   GrepMatch,
   ProcessStreamResultDetails,
   PythonArtifactResultDetails,
-  TodoItem,
   ToolOutputArtifactPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts/tools";
@@ -231,12 +230,6 @@ export type ToolView =
       dismissed: boolean;
       /** Arguments are still streaming in: missing values render as skeletons. */
       streaming?: boolean;
-    }
-  | {
-      kind: "todos";
-      items: TodoItem[];
-      completed: number;
-      total: number;
     }
   | {
       kind: "subagent";

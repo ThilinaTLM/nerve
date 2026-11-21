@@ -84,7 +84,6 @@ let {
   agentUsageLoading,
   agentUsageError,
   contextWindow = 0,
-  todos = [],
   focusToken = 0,
   composerEscapeToken = 0,
   micShortcutToken = 0,
@@ -647,7 +646,6 @@ function handleMicContextMenu(event: MouseEvent) {
     profileShortcutAria,
     historyOpen,
     historyShortcut,
-    todos,
     slashCompletions,
     completionSource,
     capabilityConfiguration,
@@ -668,7 +666,6 @@ function handleMicContextMenu(event: MouseEvent) {
       completions: true,
       suggestions: true,
       shortcuts: true,
-      todos: true,
       queueing: true,
     },
   }}

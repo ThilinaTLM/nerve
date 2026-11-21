@@ -16,14 +16,12 @@ import type {
 } from "@nervekit/contracts/permissions";
 
 import type { ConversationAgentUsage } from "@nervekit/contracts/core";
-import type { TodoItem } from "@nervekit/contracts/tools";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ComposerProfilePicker from "./ComposerProfilePicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationSessionInfo } from "./session-info";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
-import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import ComposerPermissionPicker from "./ComposerPermissionPicker.svelte";
 import ComposerSettingsPopover from "./ComposerSettingsPopover.svelte";
@@ -67,7 +65,6 @@ type Props = {
   contextWindow: number;
   compacting?: boolean;
   compactDisabled?: boolean;
-  todos?: TodoItem[];
   models: ModelInfo[];
   selectedModelKey: string;
   thinkingLevel: ThinkingLevel;
@@ -131,7 +128,6 @@ let {
   contextWindow,
   compacting = false,
   compactDisabled = false,
-  todos = [],
   models,
   selectedModelKey,
   thinkingLevel,
@@ -343,7 +339,6 @@ non-default permission. -->
     <History />
   </Button>
 {/if}
-<TodoProgressChip {todos} />
 
 <ContextProgressBadge
   {session}

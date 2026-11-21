@@ -1,6 +1,6 @@
 /**
  * Deterministic turn script for the dev-only "Scripted Bench" model. It mimics
- * a real coding run (thinking + text + one tool call per turn, ~16 calls) so
+ * a real coding run (thinking + text + one tool call per turn, ~12 calls) so
  * UI streaming benchmarks are repeatable without a real model. Pure data: the
  * provider in `dev-bench-provider.ts` streams it.
  */
@@ -159,20 +159,6 @@ A tiny JSON-backed todo list.
 Run the tests with \`python3 -m unittest\`.
 `;
 
-const STEP_TITLES = [
-  "Set up the project folder",
-  "Write todo.py",
-  "Write README and tests",
-  "Run the tests",
-  "Review the code",
-] as const;
-
-function todos(done: number) {
-  return {
-    todos: STEP_TITLES.map((todo, index) => ({ todo, done: index < done })),
-  };
-}
-
 /** The ordered turns for a run whose scratch folder is `dir`. */
 export function buildDevBenchScript(dir: string): DevBenchTurn[] {
   const turn = (
@@ -180,17 +166,12 @@ export function buildDevBenchScript(dir: string): DevBenchTurn[] {
     text: string,
     tool: DevBenchToolCall | undefined,
     index: number,
-  ): DevBenchTurn => ({ thinking: pad(thinking, 800, index), text, tool });
+  ): DevBenchTurn => ({ thinking: pad(thinking, 2200, index), text, tool });
   const streamCommand =
     'for i in 1 2 3 4 5 6 7 8 9 10 11 12; do echo "check $i: ok"; sleep 0.4; done';
   const turns: [string, string, DevBenchToolCall?][] = [
     [
-      "The task is a small Python todo CLI in a scratch folder.",
-      "I'll start by laying out a plan.",
-      { name: "todos_set", args: todos(0) },
-    ],
-    [
-      "First I need the folder itself.",
+      "The task is a small Python todo CLI in a scratch folder; first the folder itself.",
       `Creating ${dir}.`,
       { name: "bash", args: { command: `mkdir -p ${dir}` } },
     ],
@@ -211,11 +192,6 @@ export function buildDevBenchScript(dir: string): DevBenchTurn[] {
         name: "write",
         args: { path: `${dir}/test_todo.py`, content: TEST_PY },
       },
-    ],
-    [
-      "Files are in place; the plan can move forward.",
-      "Updating the todo list.",
-      { name: "todos_set", args: todos(3) },
     ],
     [
       "Run the suite once to see where things stand.",
@@ -268,19 +244,9 @@ export function buildDevBenchScript(dir: string): DevBenchTurn[] {
       { name: "read", args: { path: `${dir}/test_todo.py` } },
     ],
     [
-      "Everything checks out; update the plan.",
-      "Updating the todo list.",
-      { name: "todos_set", args: todos(4) },
-    ],
-    [
       "A last look at what the folder contains.",
       "Listing the final files.",
       { name: "bash", args: { command: "ls -la", cwd: dir } },
-    ],
-    [
-      "All steps are done.",
-      "Marking everything complete.",
-      { name: "todos_set", args: todos(5) },
     ],
   ];
   const script = turns.map(([thinking, text, tool], index) =>

@@ -1,5 +1,5 @@
 /**
- * Per-tool-view sample data (file, search, web and todo tools) for the ToolCards gallery section. Builders and
+ * Per-tool-view sample data (file, search and web tools) for the ToolCards gallery section. Builders and
  * lifecycle fixtures live in `tool-card-fixtures.ts`.
  */
 import { setExtensionTools } from "$lib/presentation/tools/lifecycle/extension-tools";
@@ -597,29 +597,6 @@ export const webFetchFailed = sampleCall({
   status: "failed",
   args: { url: "https://internal.example.com/unreachable" },
   error: "fetch failed: getaddrinfo ENOTFOUND internal.example.com",
-});
-
-export const todosCompleted = sampleCall({
-  id: "tool_todos_ok",
-  toolName: "todos_set",
-  args: {
-    todos: [
-      { todo: "Read the existing card components", done: true },
-      { todo: "Build typed fixtures for every tool view", done: true },
-      { todo: "Render lifecycle states in the gallery", done: false },
-      { todo: "Validate with svelte-check", done: false },
-    ],
-  },
-  result: {
-    details: {
-      todos: [
-        { todo: "Read the existing card components", done: true },
-        { todo: "Build typed fixtures for every tool view", done: true },
-        { todo: "Render lifecycle states in the gallery", done: false },
-        { todo: "Validate with svelte-check", done: false },
-      ],
-    },
-  },
 });
 
 /** A call recorded by a tool that no longer exists: rendered by the generic view. */

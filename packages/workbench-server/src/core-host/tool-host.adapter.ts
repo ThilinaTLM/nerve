@@ -15,8 +15,8 @@ import {
   type ToolDefinition,
 } from "@nervekit/tools/catalog";
 import {
-  createTodoHandlers,
   createToolDispatcher,
+  type ToolHandlerRegistry,
 } from "@nervekit/tools/runtime";
 import {
   isPathInside,
@@ -51,14 +51,7 @@ export function createToolHostPort(
   launchTool?: LaunchTool,
 ) {
   registerHostTools();
-  const todos = new Map<unknown, { todo: string; done: boolean }[]>();
-  const handlers = createTodoHandlers({
-    get: async (id) => todos.get(id) ?? [],
-    set: async (id, value) => {
-      todos.set(id, value);
-      return value;
-    },
-  });
+  const handlers: ToolHandlerRegistry = {};
   if (launchTool)
     handlers.launch = (args, context) =>
       launchTool.execute(args, String(context.identity));

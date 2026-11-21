@@ -52,10 +52,6 @@ export type ToolArgumentBody =
         tone?: MetaItem["tone"];
       }>;
     }
-  | {
-      kind: "checklist";
-      items: Array<{ text: string; done: boolean }>;
-    }
   | { kind: "text-summary"; text: string; label?: string; mono?: boolean };
 
 export type ToolArgumentPresentation = {
@@ -104,7 +100,6 @@ export type CompletedViewFamily =
   | "find"
   | "ls"
   | "ask_user"
-  | "todos"
   | "subagent"
   | "plan_present"
   | "web_fetch"

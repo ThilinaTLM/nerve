@@ -511,38 +511,6 @@ export const coreToolLifecycleSpecs = {
       });
     },
   }),
-  todos_set: defineToolLifecycleSpec({
-    name: "todos_set",
-    argumentRegion: "persistent",
-    completedView: "todos",
-    present: (source) => {
-      const exact = source.recordsArray("todos") ?? [];
-      const partial = source.nestedStrings("todo");
-      const items =
-        exact.length > 0
-          ? exact.flatMap((item) =>
-              typeof item.todo === "string"
-                ? [{ text: item.todo, done: item.done === true }]
-                : [],
-            )
-          : partial.map((text) => ({ text, done: false }));
-      return argumentPresentation({
-        primaryArg: textArg(
-          items.length
-            ? `${items.filter((item) => item.done).length}/${items.length} done`
-            : "todos",
-        ),
-        body: items.length > 0 ? { kind: "checklist", items } : undefined,
-      });
-    },
-  }),
-  todos_get: defineToolLifecycleSpec({
-    name: "todos_get",
-    argumentRegion: "none",
-    completedView: "todos",
-    emptyResult: "No todos",
-    present: () => argumentPresentation({ primaryArg: textArg("Get todos") }),
-  }),
   quick_script: defineToolLifecycleSpec({
     name: "quick_script",
     argumentRegion: "persistent",
@@ -589,8 +557,6 @@ export const coreToolLifecycleSpecs = {
     | "find"
     | "ls"
     | "ask_user"
-    | "todos_set"
-    | "todos_get"
     | "web_fetch"
     | "quick_script"
   >,

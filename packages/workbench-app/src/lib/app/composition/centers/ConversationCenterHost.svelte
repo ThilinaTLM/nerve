@@ -177,7 +177,6 @@ const context: ReturnType<typeof conversationContext> | undefined = $derived(
     : undefined,
 );
 const activeConversation = $derived(context?.activeConversation);
-const activeAgent = $derived(context?.activeAgent);
 const activeProject = $derived.by(() => {
   const id =
     activePendingConversation?.projectId ??
@@ -514,7 +513,6 @@ const historyLocked = $derived(stoppable || isForking(conversationId));
   {session}
   {activeProject}
   {activeConversation}
-  {activeAgent}
   {activePendingConversation}
   {pendingConversationActive}
   conversationLoading={Boolean(

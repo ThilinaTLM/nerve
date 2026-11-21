@@ -29,7 +29,6 @@ export type HistoryIconName =
   | "message-circle-question"
   | "clipboard-list"
   | "clipboard-check"
-  | "list-todo"
   | "fold-vertical"
   | "git-branch"
   | "info"
@@ -83,8 +82,6 @@ const TOOL_ICONS: Record<string, HistoryIconName> = {
   web_fetch: "download",
   ask_user: "message-circle-question",
   plan_present: "clipboard-check",
-  todos_set: "list-todo",
-  todos_get: "list-todo",
 };
 
 export function toolIcon(name: string | undefined): HistoryIconName {
