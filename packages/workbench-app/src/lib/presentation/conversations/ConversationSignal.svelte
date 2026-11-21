@@ -65,44 +65,48 @@ const launchpad = $derived(variant === "launchpad");
     </p>
     {#if starters.length > 0}
       <div
-        class="mt-6 grid w-full max-w-md grid-cols-2 gap-3"
+        class="mt-6 grid grid-cols-2 gap-2.5"
         role="group"
         aria-label="Start a conversation"
       >
         {#each starters as starter (starter.profile)}
+          <!-- The art alone identifies each profile at rest, so users learn
+               it; hover and focus fade it into a backdrop behind the name and
+               tagline. Touch has no hover, so coarse pointers always show the
+               text. -->
           <button
             type="button"
-            class="group flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card bg-linear-to-b from-well to-card text-left shadow-sm transition-colors duration-300 outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
+            class="group relative size-32 cursor-pointer overflow-hidden rounded-lg border bg-card bg-linear-to-b from-well to-card shadow-sm transition-colors duration-300 outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >
-            <!-- At rest the art is a soft glow behind the label; hover and focus
-                 lift the label away and bring the illustration into focus. -->
             <span
-              class="starter-art relative flex h-16 shrink-0 items-center justify-center"
+              class="starter-art absolute inset-0 flex items-center justify-center p-3"
             >
               <ProfileStarterArt
                 profile={starter.profile}
-                class="absolute inset-0 size-full scale-125 opacity-70 blur-sm transition duration-300 ease-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-none group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-none motion-reduce:transition-none"
+                class="relative w-full transition duration-300 ease-out group-hover:scale-110 group-hover:opacity-20 group-hover:blur-xs group-focus-visible:scale-110 group-focus-visible:opacity-20 group-focus-visible:blur-xs motion-reduce:transition-none pointer-coarse:opacity-20 pointer-coarse:blur-xs"
               />
-              <span
-                class="relative text-ui font-medium text-foreground transition duration-300 ease-out group-hover:-translate-y-3 group-hover:opacity-0 group-focus-visible:-translate-y-3 group-focus-visible:opacity-0 motion-reduce:transition-none"
-                >{starter.label}</span
-              >
-              {#if starter.profile === defaultStarter}
-                <span class="absolute top-2 right-2" title="Default">
-                  <StarIcon
-                    class="size-3.5 fill-current text-primary"
-                    aria-hidden="true"
-                  />
-                  <span class="sr-only">Default</span>
-                </span>
-              {/if}
             </span>
             <span
-              class="relative flex-1 px-3 pt-1 pb-3 text-caption text-muted-foreground transition-colors duration-300 group-hover:text-foreground"
-              >{starter.tagline}</span
+              class="absolute inset-0 flex scale-95 flex-col items-center justify-center gap-0.5 px-2.5 text-center opacity-0 transition duration-300 ease-out group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:scale-100 pointer-coarse:opacity-100"
             >
+              <span class="text-ui font-medium text-foreground"
+                >{starter.label}</span
+              >
+              <span class="text-caption leading-snug text-muted-foreground"
+                >{starter.tagline}</span
+              >
+            </span>
+            {#if starter.profile === defaultStarter}
+              <span class="absolute top-2 right-2" title="Default">
+                <StarIcon
+                  class="size-3.5 fill-current text-primary"
+                  aria-hidden="true"
+                />
+                <span class="sr-only">Default</span>
+              </span>
+            {/if}
           </button>
         {/each}
       </div>
