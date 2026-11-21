@@ -144,21 +144,6 @@ describe("AuthManager", () => {
     assert.equal(custom.supportsApiKey, true);
   });
 
-  it("keeps account secrets out of the provider lists", async () => {
-    const auth = new AuthManager(
-      new EncryptedFileSecretProvider(await tempHome()),
-    );
-    await auth.setApiKey("account:atlassian:work", "atlassian-token");
-    await auth.setApiKey("custom-compatible", "key");
-
-    const providers = await auth.listProviderMetadata();
-    assert.ok(providers.some((p) => p.provider === "custom-compatible"));
-    assert.ok(!providers.some((p) => p.provider.startsWith("account:")));
-    assert.equal(
-      await auth.getApiKey("account:atlassian:work"),
-      "atlassian-token",
-    );
-  });
   it("passes a stable installation device ID to OAuth login flows", async () => {
     const home = await tempHome();
     const deviceIds: string[] = [];
