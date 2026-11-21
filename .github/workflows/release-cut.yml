@@ -351,7 +351,7 @@ jobs:
             echo "main fast-forwarded to ${SHA}"
           fi
 
-      # The v* tag ruleset admits only the nerve-release app.
+      # The v* tag ruleset admits only the nervekit-release app.
       - name: Create release app token
         id: app-token
         uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0

@@ -38,7 +38,7 @@ gh workflow run release-cut.yml --ref <branch> -f version=X.Y.Z -f dry_run=true
 1. **Prepare.** `pnpm release:prepare X.Y.Z` on the dispatched commit (`scripts/release/prepare-release.ts`) checks that the version is plain SemVer above the current version and that `vX.Y.Z` does not exist, then updates every workspace `package.json`, the native `Cargo.toml` and the `nerve-native` entry in `Cargo.lock`, stamps Discover announcements authored with `releasedIn: "next"`, marks every draft migration step released (`stage: "released"`, `releasedIn`, folder hash as checksum, a drifted draft label kept in `previousChecksums`, `rerunOnChange` dropped) and runs the migration lock check.
 2. **Commit.** `scripts/release/commit-release.ts` creates `release/vX.Y.Z` at the base and commits the changes through the GraphQL `createCommitOnBranch` mutation. GitHub signs it, which satisfies the `main` ruleset's signature rule.
 3. **Test**, in parallel: `ci.yml` (called with the commit as `ref`; full coverage), native prebuilds on architecture-matched runners for the six targets, build, smokes and packing on Ubuntu, package smokes on Windows and macOS, and the extension packages (`pnpm pack` for the three, then the SDK end-to-end test against those tarballs).
-4. **Finalize**, only when everything passed and `dry_run` is false: fast-forward `main` to the release commit (fails when `main` moved during the run; rerun the cut), create the annotated tag `vX.Y.Z` with the `nerve-release` app token, and create a **draft** GitHub release with the ten tarballs and `SHA256SUMS`.
+4. **Finalize**, only when everything passed and `dry_run` is false: fast-forward `main` to the release commit (fails when `main` moved during the run; rerun the cut), create the annotated tag `vX.Y.Z` with the `nervekit-release` app token, and create a **draft** GitHub release with the ten tarballs and `SHA256SUMS`.
 5. **Clean up.** `release/vX.Y.Z` is deleted whether the run passed, failed or was a dry run.
 
 A dry run may start from any branch; it tests the release commit built on that branch and stops before finalize. Real cuts must start from `main`.
@@ -109,9 +109,9 @@ Requirements: Node.js 24+, pnpm 11.28.10, rustup with the toolchain pinned in `r
 
 ## One-time setup
 
-- **`nerve-release` GitHub App**, owned by the maintainer and installed on this repository with **Contents: read and write**. It is the only actor that can create release tags; an app is needed because `GITHUB_TOKEN` cannot be a ruleset bypass actor. Everything else in Cut uses `GITHUB_TOKEN`.
+- **`nervekit-release` GitHub App**, owned by the maintainer and installed on this repository with **Contents: read and write**. It is the only actor that can create release tags; an app is needed because `GITHUB_TOKEN` cannot be a ruleset bypass actor. Everything else in Cut uses `GITHUB_TOKEN`.
 - **`release` environment** used only by `release-cut.yml`: variable `RELEASE_APP_CLIENT_ID` and secret `RELEASE_APP_PRIVATE_KEY`. Add required reviewers to get an approval step before `main` moves and the tag is created.
-- **Tag ruleset** on `refs/tags/v*` restricting creation, update and deletion, with the `nerve-release` app as the only bypass actor (no repository admins), so release tags cannot be pushed by hand.
+- **Tag ruleset** on `refs/tags/v*` restricting creation, update and deletion, with the `nervekit-release` app as the only bypass actor (no repository admins), so release tags cannot be pushed by hand.
 - **`main` ruleset**: `GITHUB_TOKEN` must be able to fast-forward `main` (signed commits and linear history are satisfied by the API commit).
 - **`github-pages` environment**: allow deployments from `main` (workflows are dispatched from `main`).
 - **npm trusted publishers** (no npm token is stored). For each of the ten packages on npmjs.com, Settings → Trusted Publisher → GitHub Actions, repository `ThilinaTLM/nerve`:
