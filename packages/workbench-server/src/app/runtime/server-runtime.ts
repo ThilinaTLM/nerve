@@ -253,6 +253,10 @@ export function composeServerRuntime(
     createCredentialRefreshJob({
       accounts: services.accounts,
       notices: backgroundJobNotices,
+      changed: ({ kind, accountId }) =>
+        void events
+          .publish("accounts.changed", { kind, accountId })
+          .catch(() => undefined),
     }),
   );
   events.subscribeNotify((event) => {

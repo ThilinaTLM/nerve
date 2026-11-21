@@ -15,6 +15,8 @@ const ACCOUNTS_SETTINGS_PAGE = "accounts";
 export function createCredentialRefreshJob(deps: {
   accounts: Pick<AccountsService, "vault">;
   notices: Pick<BackgroundJobNotices, "report" | "clear">;
+  /** Called for an account whose state the sweep changed, so open views reload it. */
+  changed?: (account: { kind: string; accountId: string }) => void;
 }): BackgroundJobDefinition {
   return {
     id: CREDENTIAL_REFRESH_JOB_ID,
@@ -25,7 +27,8 @@ export function createCredentialRefreshJob(deps: {
     timeoutMs: 2 * 60_000,
     run: async (signal) => {
       const sweep = await deps.accounts.vault.refreshDue({ signal });
-      for (const problem of sweep.problems)
+      for (const problem of sweep.problems) {
+        deps.changed?.({ kind: problem.kind, accountId: problem.id });
         deps.notices.report(CREDENTIAL_REFRESH_JOB_ID, problem.id, {
           title:
             problem.state === "needs_sign_in"
@@ -35,6 +38,7 @@ export function createCredentialRefreshJob(deps: {
             problem.error ?? "Open Accounts in Settings to sign in again.",
           settingsPage: ACCOUNTS_SETTINGS_PAGE,
         });
+      }
       const parts = [
         sweep.checked === 0
           ? "Nothing to refresh"

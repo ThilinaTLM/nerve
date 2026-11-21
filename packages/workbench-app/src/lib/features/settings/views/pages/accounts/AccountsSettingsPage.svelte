@@ -209,24 +209,15 @@ const runDuplicate = (row: AccountRowModel, level: AccountLevel) =>
 const levelName = (level: AccountLevel) =>
   level === "user" ? "user level" : (project?.name ?? "this project");
 
+/** Where the account lives; shown beside the row's actions so a problem line does not hide it. */
 function levelText(row: AccountRowModel): string {
   return row.account.level === "project"
-    ? `Project account${project ? ` · ${project.name}` : ""}`
-    : "User account";
-}
-
-/** The status line of a ready account. */
-function summaryOf(row: AccountRowModel): string {
-  return [accountSummary(row), levelText(row)].filter(Boolean).join(" · ");
+    ? (project?.name ?? "Project")
+    : "User";
 }
 </script>
 
-<SettingsSection
-  id="accounts"
-  title="Accounts"
-  description="Credentials extensions use to reach other services. User accounts are available in every project; project accounts only in their project."
-  surface={false}
->
+<SettingsSection id="accounts" surface={false}>
   {#snippet actions()}
     <Button
       variant="outline"
@@ -314,6 +305,9 @@ function summaryOf(row: AccountRowModel): string {
       <Badge variant="warning">{accountStateLabel(account.state)}</Badge>
     {/if}
   {/snippet}
+  {#snippet levelMeta()}
+    <span class="text-caption text-muted-foreground">{levelText(row)}</span>
+  {/snippet}
   {#snippet rowActions()}
     {#if testable}
       <AccountHealthIcon
@@ -370,7 +364,7 @@ function summaryOf(row: AccountRowModel): string {
   {/snippet}
   <SettingsItem
     title={account.name}
-    summary={summaryOf(row)}
+    summary={accountSummary(row)}
     problem={problem ??
       (checkErrors[account.id]
         ? "Couldn’t test the connection"
@@ -388,6 +382,7 @@ function summaryOf(row: AccountRowModel): string {
     openLabel={`Edit ${account.name}`}
     leading={mark}
     {badges}
+    meta={levelMeta}
     actions={rowActions}
   ></SettingsItem>
 {/snippet}

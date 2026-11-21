@@ -235,6 +235,48 @@ describe("CredentialVault", () => {
   });
 });
 
+describe("sign-in without typed-in secrets", () => {
+  it("keeps the provider state of an account that has no secrets", async () => {
+    const storage = openCoreStorage(":memory:");
+    open.push(storage);
+    const key = randomBytes(32);
+    const oauth: AccountKind = { kind: "svc", label: "S", fields: {} };
+    const vault = new CredentialVault({
+      repository: () => storage.accounts,
+      key: async () => key,
+      definition: () => oauth,
+      provider: () => ({
+        ...staticProvider,
+        signIn: async () => ({
+          status: "ready",
+          state: { accessToken: "at" },
+          expiresAt: "2026-01-01T01:00:00.000Z",
+        }),
+      }),
+    });
+    storage.accounts.insert({
+      id: "a",
+      kind: "svc",
+      projectId: null,
+      name: "a",
+      fields: {},
+      createdAt: "now",
+      updatedAt: "now",
+    });
+    await vault.signIn({ id: "a", kind: oauth, fields: {} }, {
+      signal: new AbortController().signal,
+    } as never);
+    const row = storage.accounts.get("a")!;
+    assert.equal(row.status, "ready");
+    assert.deepEqual(
+      openCredential(key, "a", storage.accounts.readCredential("a")!).state,
+      {
+        accessToken: "at",
+      },
+    );
+  });
+});
+
 describe("static provider", () => {
   const account = (
     kind: AccountKind,

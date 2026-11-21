@@ -37,7 +37,7 @@ const extensions: PageData = {
 const accounts: PageData = {
   label: "Accounts",
   description:
-    "Credentials extensions use to reach other services: add, test, sign in, move and duplicate them.",
+    "Credentials extensions use to reach other services. User accounts are available in every project; project accounts only in their project.",
   sections: [{ id: "accounts", label: "Accounts" }],
 };
 const general: PageData = {

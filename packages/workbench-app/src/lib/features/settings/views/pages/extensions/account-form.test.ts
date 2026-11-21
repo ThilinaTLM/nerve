@@ -53,6 +53,24 @@ describe("account form", () => {
     );
   });
 
+  it("starts a new account from the kind's field defaults", () => {
+    const shipped: AccountKind = {
+      ...tavily,
+      fields: {
+        clientId: { type: "string", label: "Client ID", default: "app-1" },
+        region: { type: "string", label: "Region" },
+      },
+    };
+    assert.deepEqual(initialAccountForm(shipped).fields, {
+      clientId: "app-1",
+      region: "",
+    });
+    assert.equal(
+      initialAccountForm(shipped, { name: "A", fields: {} }).fields.clientId,
+      "",
+    );
+  });
+
   it("submits normalized fields and requires the secret only while none is stored", () => {
     const form = {
       ...initialAccountForm(atlassian),

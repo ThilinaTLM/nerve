@@ -16,6 +16,7 @@ function setup(sweep: RefreshSweep) {
     clear: (job: string, key: string) => void cleared.push(`${job}:${key}`),
   };
   const signals: AbortSignal[] = [];
+  const changed: string[] = [];
   const job = createCredentialRefreshJob({
     accounts: {
       vault: {
@@ -26,8 +27,9 @@ function setup(sweep: RefreshSweep) {
       } as never,
     },
     notices,
+    changed: ({ accountId }) => void changed.push(accountId),
   });
-  return { job, reported, cleared, signals, notices };
+  return { job, reported, cleared, signals, notices, changed };
 }
 
 describe("account credential refresh job", () => {
@@ -45,7 +47,7 @@ describe("account credential refresh job", () => {
   });
 
   it("summarizes the sweep and reports the accounts that need sign-in, linking the Accounts page", async () => {
-    const { job, reported, signals } = setup({
+    const { job, reported, signals, changed } = setup({
       checked: 3,
       refreshed: 1,
       skipped: 0,
@@ -77,6 +79,8 @@ describe("account credential refresh job", () => {
         [CREDENTIAL_REFRESH_JOB_ID, "a2", "Home stopped working", "accounts"],
       ],
     );
+    // Open views reload the accounts whose state the sweep changed.
+    assert.deepEqual(changed, ["a1", "a2"]);
     assert.doesNotMatch(JSON.stringify(reported), /token|secret/i);
   });
 

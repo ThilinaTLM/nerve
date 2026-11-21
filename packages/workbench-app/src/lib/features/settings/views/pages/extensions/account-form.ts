@@ -71,8 +71,15 @@ export function initialAccountForm(
   account?: Pick<AccountView, "name" | "fields">,
 ): AccountFormValues {
   const fields: AccountFormValues["fields"] = {};
+  const declared = accountKindFields(kind);
   for (const input of accountFormInputs(kind)) {
-    const value = account?.fields[input.key];
+    // A new account starts from the kind's defaults (a shipped client id, a region).
+    const field = declared[input.key];
+    const value = account
+      ? account.fields[input.key]
+      : field && "default" in field
+        ? field.default
+        : undefined;
     fields[input.key] =
       input.control === "switch"
         ? value === true

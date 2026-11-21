@@ -335,7 +335,10 @@ export class CredentialVault {
       if (outcome.codeHash) blob.codeHash = outcome.codeHash;
       expiresAt = outcome.expiresAt ?? null;
     } else if (outcome.message) blob.error = outcome.message;
-    const empty = Object.keys(secrets).length === 0 && !blob.error;
+    const empty =
+      Object.keys(secrets).length === 0 &&
+      blob.state === undefined &&
+      !blob.error;
     this.deps.repository().writeCredential(id, {
       credential: empty ? null : await this.#seal(id, blob),
       status: outcome.status,
