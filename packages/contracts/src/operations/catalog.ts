@@ -6,6 +6,7 @@ import { projectsOperationDefinitions } from "../domains/projects/operations.js"
 import { maintenanceOperationDefinitions } from "../domains/maintenance/maintenance-operations.js";
 import { extensionOperationDefinitions } from "../domains/extensions/extension-operations.js";
 import { extensionUiOperationDefinitions } from "../domains/extensions/extension-ui-operations.js";
+import { backgroundJobsOperationDefinitions } from "../domains/background-jobs/background-jobs-operations.js";
 import { z } from "zod";
 export type {
   OperationDefinition,
@@ -35,6 +36,7 @@ const methodDefinitions = [
   ...extensionUiOperationDefinitions,
   ...maintenanceOperationDefinitions,
   ...activityOperationDefinitions,
+  ...backgroundJobsOperationDefinitions,
   ...authOperationDefinitions,
   ...completionsOperationDefinitions,
   ...filesystemOperationDefinitions,

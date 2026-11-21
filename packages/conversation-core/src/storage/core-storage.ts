@@ -7,6 +7,7 @@ import { openCoreDatabase, type CoreDatabase } from "./database.js";
 import { migrate } from "./migrations.js";
 import { ProjectRepository } from "./project.repository.js";
 import { TrustedResourceRepository } from "./trusted-resource.repository.js";
+import { AccountRepository } from "./account.repository.js";
 import {
   ConversationRepository,
   type ConversationFailureReporter,
@@ -23,6 +24,7 @@ export class CoreStorage {
   readonly references: ConversationReferenceRepository;
   readonly projects: ProjectRepository;
   readonly trustedResources: TrustedResourceRepository;
+  readonly accounts: AccountRepository;
   readonly conversations: ConversationRepository;
   readonly events: ConversationEventRepository;
   readonly toolCalls: ToolCallRepository;
@@ -38,6 +40,7 @@ export class CoreStorage {
     this.references = new ConversationReferenceRepository(db);
     this.projects = new ProjectRepository(db);
     this.trustedResources = new TrustedResourceRepository(db);
+    this.accounts = new AccountRepository(db);
     this.conversations = new ConversationRepository(db, onConversationFailure);
     this.events = new ConversationEventRepository(db, (id, error) =>
       this.conversations.reportFailure(id, "events.read", error),

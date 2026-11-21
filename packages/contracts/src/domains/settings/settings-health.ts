@@ -5,7 +5,6 @@ export const settingsDocumentIdSchema = z.enum([
   "ui",
   "permissions",
   "providers",
-  "accounts",
 ]);
 export type SettingsDocumentId = z.infer<typeof settingsDocumentIdSchema>;
 

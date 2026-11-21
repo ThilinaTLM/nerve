@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { HttpRequest, HttpResponse } from "@nervekit/extension-api";
+import type {
+  AccountInfo,
+  HttpRequest,
+  HttpResponse,
+} from "@nervekit/extension-api";
 import { createFakeContext } from "@nervekit/extension-api/testing";
 import { webSearchExtension } from "./manifest.js";
 import { tavilyProvider } from "./providers/tavily.js";
@@ -18,7 +22,15 @@ function setup(account = true, kind = "tavily") {
   const tavily: HttpRequest[] = [];
   const fake = createFakeContext({
     accounts: account
-      ? { searchAccount: { id: "t1", name: "T", kind, fields: {} } }
+      ? {
+          searchAccount: {
+            id: "t1",
+            name: "T",
+            kind,
+            fields: {},
+            level: "user",
+          },
+        }
       : {},
     http: (request) => {
       tavily.push(request);
@@ -92,7 +104,13 @@ void test("search.web without an account, or of a kind no provider serves, is DE
 void test("a provider's HTTP failure keeps its host code", async () => {
   const { ctx } = createFakeContext({
     accounts: {
-      searchAccount: { id: "t1", name: "T", kind: "tavily", fields: {} },
+      searchAccount: {
+        id: "t1",
+        name: "T",
+        kind: "tavily",
+        fields: {},
+        level: "user",
+      },
     },
     http: () => reply("slow down", 429),
   });
@@ -171,7 +189,13 @@ void test("web_search gives the agent the answer and full result content, the tr
   assert.equal(links[1].snippet, "more");
 });
 
-const account = { id: "t1", name: "T", kind: "tavily", fields: {} };
+const account: AccountInfo = {
+  id: "t1",
+  name: "T",
+  kind: "tavily",
+  fields: {},
+  level: "user",
+};
 const usage = (body: unknown, status = 200) => {
   const { ctx, record } = createFakeContext({
     http: () => reply(body, status),

@@ -14,6 +14,7 @@ import { ExtensionUiService } from "../../../src/core-host/extensions/extension-
 import { ExtensionUiError } from "../../../src/core-host/extensions/extension-ui/extension-ui-error.js";
 import { createExtensionFrameRoutes } from "../../../src/adapters/http/routes/extension-frame-routes.js";
 import { writeExtension, createTestCatalog } from "./fixtures.js";
+import { fakeAccountScopes } from "../../../src/domains/accounts/test-support.js";
 
 /** Shared harness of the extension UI service tests. */
 
@@ -111,12 +112,7 @@ export async function world(
           ],
         ),
     } as never,
-    accounts: {
-      get: async () => undefined,
-      list: async () => [],
-      secret: async () => undefined,
-      hasSecret: async () => false,
-    },
+    accounts: fakeAccountScopes(),
     store,
     errors: catalog.errors,
     project: (id) => projects[id],

@@ -239,15 +239,36 @@ export const accountRefSchema = z.object({
 });
 export type AccountRef = z.infer<typeof accountRefSchema>;
 
+const accountSecretNameSchema = z.string().min(1).max(64);
+const accountProjectSchema = z.string().min(1).max(256);
+
 /**
- * Creates (no `id`) or updates an account. `secret` is the encrypted API
- * token or key; omit it to keep the stored one.
+ * Creates (no `id`) or updates an account. `secrets` holds the encrypted typed-in secrets by
+ * name (`secret` for a kind's single one); a name left out keeps the stored value. `projectId`
+ * makes a new account project-level and is ignored for an existing one (use `accounts.move`).
  */
 export const saveAccountRequestSchema = z.object({
   kind: z.string().min(1).max(64),
   id: z.string().min(1).max(256).optional(),
   name: z.string().max(256),
   fields: z.record(z.string(), z.unknown()),
-  secret: encryptedSecretEnvelopeSchema.optional(),
+  secrets: z
+    .record(accountSecretNameSchema, encryptedSecretEnvelopeSchema)
+    .optional(),
+  projectId: accountProjectSchema.optional(),
 });
 export type SaveAccountRequest = z.infer<typeof saveAccountRequestSchema>;
+
+/** Moves an account to a project, or to user level (`projectId` null), keeping its credential. */
+export const moveAccountRequestSchema = accountRefSchema.extend({
+  projectId: accountProjectSchema.nullable(),
+});
+export type MoveAccountRequest = z.infer<typeof moveAccountRequestSchema>;
+
+/** Copies an account, with its credential, to a project or to user level. */
+export const duplicateAccountRequestSchema = moveAccountRequestSchema.extend({
+  name: z.string().min(1).max(256).optional(),
+});
+export type DuplicateAccountRequest = z.infer<
+  typeof duplicateAccountRequestSchema
+>;

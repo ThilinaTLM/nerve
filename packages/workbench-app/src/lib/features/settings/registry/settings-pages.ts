@@ -1,5 +1,6 @@
 import TextCursorInput from "@lucide/svelte/icons/text-cursor-input";
 import type { Component } from "svelte";
+import Timer from "@lucide/svelte/icons/timer";
 import Bell from "@lucide/svelte/icons/bell";
 import Bot from "@lucide/svelte/icons/bot";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
@@ -57,6 +58,7 @@ const icons: Record<string, Component> = {
   titles: TextCursorInput,
   suggestions: Lightbulb,
   storage: HardDrive,
+  "background-jobs": Timer,
   devices: Smartphone,
   system: Server,
   launch: Play,

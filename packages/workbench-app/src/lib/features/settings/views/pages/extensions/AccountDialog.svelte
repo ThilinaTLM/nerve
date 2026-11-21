@@ -4,11 +4,15 @@
   blank keeps it.
 -->
 <script lang="ts">
-import type { AccountKind } from "@nervekit/contracts/extensions";
+import {
+  accountSecretFields,
+  type AccountKind,
+} from "@nervekit/contracts/extensions";
 import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
+import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import type { AccountView } from "$lib/api";
 import { getCredentialKey, saveAccount } from "$lib/api";
 import { encryptApiKey } from "$lib/platform/crypto/credential-crypto";
@@ -31,7 +35,12 @@ type Props = {
 let { open = $bindable(false), kind, account, onSaved }: Props = $props();
 
 const inputs = $derived(accountFormInputs(kind));
-let form = $state<AccountFormValues>({ name: "", fields: {}, secret: "" });
+const secretInputs = $derived(Object.entries(accountSecretFields(kind)));
+// Whether the account already holds its secrets, so the inputs may stay blank.
+const credentialStored = $derived(
+  account !== undefined && account.state !== "needs_sign_in",
+);
+let form = $state<AccountFormValues>({ name: "", fields: {}, secrets: {} });
 let busy = $state(false);
 let error = $state<string | undefined>();
 let lastOpen = false;
@@ -45,11 +54,7 @@ $effect(() => {
 });
 
 async function save(): Promise<void> {
-  const submission = submitAccountForm(
-    kind,
-    form,
-    account?.secretConfigured ?? false,
-  );
+  const submission = submitAccountForm(kind, form, credentialStored);
   if (!submission.ok) {
     error = submission.message;
     return;
@@ -62,11 +67,17 @@ async function save(): Promise<void> {
       ...(account ? { id: account.id } : {}),
       name: submission.name,
       fields: submission.fields,
-      ...(submission.secret
+      ...(submission.secrets
         ? {
-            secret: await encryptApiKey(
-              submission.secret,
-              await getCredentialKey(),
+            secrets: Object.fromEntries(
+              await Promise.all(
+                Object.entries(submission.secrets).map(
+                  async ([name, value]) => [
+                    name,
+                    await encryptApiKey(value, await getCredentialKey()),
+                  ],
+                ),
+              ),
             ),
           }
         : {}),
@@ -125,32 +136,43 @@ async function save(): Promise<void> {
       {/if}
     </SettingsFormField>
   {/each}
-  <SettingsFormField
-    id={`account-${kind.kind}-secret`}
-    label={kind.secret.label}
-  >
-    <Input
-      id={`account-${kind.kind}-secret`}
-      type="password"
-      autocomplete="off"
-      bind:value={form.secret}
-      placeholder={account?.secretConfigured
-        ? "Leave blank to keep the current one"
-        : `Paste the ${kind.secret.label}`}
-    />
-    {#if kind.secret.help}
-      <p class="text-ui text-muted-foreground">
-        {#each helpParts(kind.secret.help) as part, index (index)}
-          {#if part.href}
-            <a
-              class="text-info underline underline-offset-2"
-              href={part.href}
-              target="_blank"
-              rel="noreferrer">{part.text}</a
-            >
-          {:else}{part.text}{/if}
-        {/each}
-      </p>
-    {/if}
-  </SettingsFormField>
+  {#each secretInputs as [name, secret] (name)}
+    {@const id = `account-${kind.kind}-secret-${name}`}
+    <SettingsFormField {id} label={secret.label}>
+      {#if secret.multiline}
+        <Textarea
+          {id}
+          autocomplete="off"
+          bind:value={form.secrets[name]}
+          placeholder={credentialStored
+            ? "Leave blank to keep the current one"
+            : `Paste the ${secret.label}`}
+        />
+      {:else}
+        <Input
+          {id}
+          type="password"
+          autocomplete="off"
+          bind:value={form.secrets[name]}
+          placeholder={credentialStored
+            ? "Leave blank to keep the current one"
+            : `Paste the ${secret.label}`}
+        />
+      {/if}
+      {#if secret.help}
+        <p class="text-ui text-muted-foreground">
+          {#each helpParts(secret.help) as part, index (index)}
+            {#if part.href}
+              <a
+                class="text-info underline underline-offset-2"
+                href={part.href}
+                target="_blank"
+                rel="noreferrer">{part.text}</a
+              >
+            {:else}{part.text}{/if}
+          {/each}
+        </p>
+      {/if}
+    </SettingsFormField>
+  {/each}
 </FormDialog>

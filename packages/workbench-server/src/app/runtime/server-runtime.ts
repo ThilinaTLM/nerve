@@ -1,6 +1,8 @@
 import { shutdownServerRuntime } from "./shutdown-server-runtime.js";
 export { shutdownServerRuntime } from "./shutdown-server-runtime.js";
 import type { ActivityService } from "../../domains/activity/activity.service.js";
+import { BackgroundJobService } from "../../domains/background-jobs/background-jobs.service.js";
+import { BackgroundJobNotices } from "../../domains/background-jobs/background-job-notices.js";
 import { MaintenanceActivityProducer } from "../../domains/activity/maintenance-activity-producer.js";
 import { MaintenanceService } from "../../domains/maintenance/maintenance.service.js";
 import { MaintenanceRepository } from "../../domains/maintenance/maintenance.repository.js";
@@ -77,6 +79,9 @@ export interface ServerRuntime {
   adapterContexts: ServerAdapterContexts;
   storageUsage: StorageUsageService;
   maintenance: MaintenanceService;
+  /** Register jobs before the daemon calls `start()` (after storage is ready). */
+  backgroundJobs: BackgroundJobService;
+  backgroundJobNotices: BackgroundJobNotices;
   activities: ActivityService;
   latestRelease: LatestReleaseService;
   secrets: SecretProvider;
@@ -233,6 +238,13 @@ export function composeServerRuntime(
       });
     },
   });
+  const backgroundJobNotices = new BackgroundJobNotices(activities);
+  const backgroundJobs = new BackgroundJobService({
+    onChanged: (jobs) =>
+      events.publishBestEffort("backgroundJobs.changed", { jobs }),
+    onOutcome: backgroundJobNotices.jobOutcome,
+    log: (message, context) => void logger.warn(message, { context }),
+  });
   const daemonId = options.daemonId ?? createId("daemon");
   const applicationConfiguration =
     options.applicationConfiguration ??
@@ -271,6 +283,7 @@ export function composeServerRuntime(
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
     storageUsage,
     maintenance,
+    backgroundJobs,
     activities,
     latestRelease,
     secrets,
@@ -299,6 +312,8 @@ export function composeServerRuntime(
     adapterContexts: createServerAdapterContexts(services, infrastructure),
     storageUsage,
     maintenance,
+    backgroundJobs,
+    backgroundJobNotices,
     activities,
     latestRelease,
     secrets,

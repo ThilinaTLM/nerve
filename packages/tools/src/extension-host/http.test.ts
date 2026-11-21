@@ -8,6 +8,7 @@ import { after, before, test } from "node:test";
 import { createHttp, type HttpHostDeps } from "./http.js";
 
 type Seen = {
+  url: string;
   method: string;
   headers: Record<string, string | string[] | undefined>;
   body: Buffer;
@@ -22,6 +23,7 @@ before(async () => {
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(chunk as Buffer);
     seen.push({
+      url: request.url ?? "",
       method: request.method ?? "",
       headers: request.headers,
       body: Buffer.concat(chunks),
@@ -42,6 +44,23 @@ before(async () => {
 });
 after(() => void server.close());
 
+/** A stand-in for the vault: a ready account whose credential is a bearer token. */
+function bearerCredential(
+  secret: string | undefined,
+): HttpHostDeps["credential"] {
+  return {
+    state: async () => (secret ? "ready" : "needs_sign_in"),
+    apply: async () =>
+      secret
+        ? {
+            ok: true,
+            headers: { authorization: `Bearer ${secret}` },
+            query: {},
+          }
+        : { ok: false, state: "needs_sign_in" },
+  };
+}
+
 function deps(over: Partial<HttpHostDeps> = {}): HttpHostDeps {
   const written: { path: string; name: string }[] = [];
   return {
@@ -52,7 +71,7 @@ function deps(over: Partial<HttpHostDeps> = {}): HttpHostDeps {
     selected: async () => undefined,
     allSelected: async () => [],
     settings: {},
-    secret: async () => undefined,
+    credential: bearerCredential(undefined),
     signal: new AbortController().signal,
     allowPrivateNetwork: true,
     openHandle: async () => {
@@ -172,8 +191,9 @@ void test("a redirect to another allowed origin drops the credential, reports th
           name: "A",
           kind: "demo",
           fields: {},
+          level: "user",
         }),
-        secret: async () => "SECRET",
+        credential: bearerCredential("SECRET"),
       }),
     );
     for (const path of ["attachment/1", "attachment/denied"]) {
@@ -230,8 +250,9 @@ void test("an attachment download follows the redirect without the credential an
           name: "A",
           kind: "demo",
           fields: {},
+          level: "user",
         }),
-        secret: async () => "SECRET",
+        credential: bearerCredential("SECRET"),
       }),
     );
     const response = await request({
@@ -258,4 +279,73 @@ void test("an attachment download follows the redirect without the credential an
     media.close();
     site.close();
   }
+});
+
+void test("a query credential is added for the credential origin only and never shows in the result", async () => {
+  const applied: string[] = [];
+  const { request } = createHttp(
+    deps({
+      kinds: {
+        demo: {
+          label: "Demo account",
+          auth: { scheme: "query", name: "api_key" },
+          origins: [base],
+        },
+      },
+      kindsOfField: () => ["demo"],
+      selected: async () => ({
+        id: "a",
+        name: "A",
+        kind: "demo",
+        fields: {},
+        level: "user",
+      }),
+      credential: {
+        state: async () => "ready",
+        apply: async (_kind, _id, hop) => {
+          applied.push(`${hop.method} ${hop.url.pathname}`);
+          return { ok: true, headers: {}, query: { api_key: "S3 CRET&" } };
+        },
+      },
+    }),
+  );
+  seen.length = 0;
+  const response = await request({
+    url: `${base}/json?q=1`,
+    auth: { account: "account" },
+  });
+  assert.deepEqual(applied, ["GET /json"]);
+  const url = new URL(seen[0].url, base);
+  assert.equal(url.searchParams.get("q"), "1");
+  assert.equal(url.searchParams.get("api_key"), "S3 CRET&");
+  assert.doesNotMatch(response.url, /api_key|CRET/);
+});
+
+void test("an account that needs sign-in fails the request before anything is sent", async () => {
+  const { request } = createHttp(
+    deps({
+      kinds: {
+        demo: {
+          label: "Demo account",
+          auth: { scheme: "bearer" },
+          origins: [base],
+        },
+      },
+      kindsOfField: () => ["demo"],
+      selected: async () => ({
+        id: "a",
+        name: "A",
+        kind: "demo",
+        fields: {},
+        level: "user",
+      }),
+      credential: bearerCredential(undefined),
+    }),
+  );
+  seen.length = 0;
+  await assert.rejects(
+    request({ url: `${base}/json`, auth: { account: "account" } }),
+    /needs sign-in/,
+  );
+  assert.equal(seen.length, 0);
 });

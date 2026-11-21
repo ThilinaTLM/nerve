@@ -32,13 +32,13 @@ Related: [extension accounts](../extension-accounts/README.md#token-refresh) (th
 
 A job is registered once at daemon start:
 
-| Field | Meaning |
-| --- | --- |
-| `id` | Stable (`accounts.credential-refresh`). |
-| `label`, `description` | Shown in Settings. |
-| `interval` | Time between runs (`5m` for credential refresh). |
-| `timeout` | Per run; the run's abort signal fires when it passes. |
-| `run(signal)` | One sweep. Returns a short summary for Settings (`Refreshed 2 accounts`) or throws. |
+| Field                  | Meaning                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `id`                   | Stable (`accounts.credential-refresh`).                                             |
+| `label`, `description` | Shown in Settings.                                                                  |
+| `interval`             | Time between runs (`5m` for credential refresh).                                    |
+| `timeout`              | Per run; the run's abort signal fires when it passes.                               |
+| `run(signal)`          | One sweep. Returns a short summary for Settings (`Refreshed 2 accounts`) or throws. |
 
 A job is a **sweep**, not a queue of individual work items: each run looks at its domain's state and does whatever is due. Credential refresh selects the accounts that expire soon and were used recently, and refreshes them. _Why:_ the domain's state is the single source of truth, so nothing has to be registered, updated or removed when an account changes, and a restart needs no recovery. Work that must happen at an exact moment (a workflow at 09:00) can still be expressed as a sweep that runs what is due since the last run; a later client that needs finer timing can add it then.
 
@@ -63,11 +63,11 @@ A job is a **sweep**, not a queue of individual work items: each run looks at it
 
 In memory only, rebuilt on start:
 
-| Per job | Meaning |
-| --- | --- |
-| `status` | `idle`, `running`, `failing` (the last run failed; backing off) |
-| `lastRun` | Start, duration, outcome (`ok` with summary, or error message) |
-| `nextRun` | When it runs next |
+| Per job   | Meaning                                                         |
+| --------- | --------------------------------------------------------------- |
+| `status`  | `idle`, `running`, `failing` (the last run failed; backing off) |
+| `lastRun` | Start, duration, outcome (`ok` with summary, or error message)  |
+| `nextRun` | When it runs next                                               |
 
 - **Settings.** A **Background jobs** page lists each job as a `SettingsItem`: label, description, status, last run (time and summary or error) and next run, with a **Run now** action. Run now starts a run immediately unless one is running. Operations: `backgroundJobs.list` and `backgroundJobs.runNow`; changes publish `backgroundJobs.changed`. Like other user-UI operations, they are not reachable by agents or extensions.
 - **Activity bell.** Routine runs stay out of the bell. A job reports what the user must act on as a producer-owned notice through `ActivityService.reportNotice` (an account that needs sign-in), and clears it when resolved. A job that keeps failing shows as a notice linking to its Settings entry.
@@ -85,12 +85,12 @@ Defined in [extension accounts](../extension-accounts/README.md#token-refresh):
 
 Each needs its own proposal; listed to check that the mechanism fits.
 
-| Job | Fits as | Needs elsewhere |
-| --- | --- | --- |
-| Scheduled workflows | A sweep that starts workflows due since the last run | Workflow files, permissions for unattended runs, results and notification |
-| Extension background work (poll an API, keep a panel current) | One job per enabled extension task, or one sweep over all | Manifest declaration and consent, sandbox limits, results through the extension store (`extensionStoreChanged` already reaches frames) |
-| Git fetch for open projects | A sweep over open projects' repositories | Fits with the existing [workspace sync](../../../packages/workbench-server/src/domains/git/workspace-sync/git-workspace-sync-service.ts) |
-| Maintenance (artifact retention, cache cleanup) | A daily sweep | Retention settings |
+| Job                                                           | Fits as                                                   | Needs elsewhere                                                                                                                          |
+| ------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Scheduled workflows                                           | A sweep that starts workflows due since the last run      | Workflow files, permissions for unattended runs, results and notification                                                                |
+| Extension background work (poll an API, keep a panel current) | One job per enabled extension task, or one sweep over all | Manifest declaration and consent, sandbox limits, results through the extension store (`extensionStoreChanged` already reaches frames)   |
+| Git fetch for open projects                                   | A sweep over open projects' repositories                  | Fits with the existing [workspace sync](../../../packages/workbench-server/src/domains/git/workspace-sync/git-workspace-sync-service.ts) |
+| Maintenance (artifact retention, cache cleanup)               | A daily sweep                                             | Retention settings                                                                                                                       |
 
 When a later job is user-configurable, the Settings page gains an on/off switch for it; credential refresh has none, because turning it off only makes sign-ins expire.
 

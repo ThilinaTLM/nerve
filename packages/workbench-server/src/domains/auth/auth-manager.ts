@@ -12,7 +12,6 @@ import {
 } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { AuthProviderMetadata } from "@nervekit/contracts/auth";
-import { isAccountSecretId } from "@nervekit/contracts/settings";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import {
@@ -222,9 +221,7 @@ export class AuthManager {
       providers.add(providerId);
     }
     for (const credential of await this.credentials.list()) {
-      // Account secrets belong to their account, not to the provider lists.
-      if (!isAccountSecretId(credential.providerId))
-        providers.add(credential.providerId);
+      providers.add(credential.providerId);
     }
 
     const items = await Promise.all(

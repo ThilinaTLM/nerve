@@ -6,6 +6,8 @@ import {
   type ExtensionEntries,
 } from "@nervekit/contracts/extensions";
 import { createQuickScriptRegistry } from "@nervekit/tools/quick-script";
+import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
+import { fakeAccountsReader } from "../../domains/accounts/test-support.js";
 import { selectedAccountsTarget } from "./extension-ports.js";
 
 const extension = defineExtension({
@@ -32,15 +34,18 @@ const extension = defineExtension({
 const registry = createQuickScriptRegistry([extension]);
 
 const sites = new Map([["a1", "https://one.example"]]);
-const accounts = {
-  get: async (kind: string, id: string) =>
+const accounts: AccountsReader = fakeAccountsReader({
+  get: async (kind, id) =>
     sites.has(id)
-      ? { id, kind, name: "Acme", fields: { site: sites.get(id) } }
+      ? {
+          id,
+          kind,
+          name: "Acme",
+          fields: { site: sites.get(id) },
+          level: "user",
+        }
       : undefined,
-  list: async () => [],
-  secret: async () => "TOP-SECRET",
-  hasSecret: async () => true,
-};
+});
 const resolution = (entries: ExtensionEntries) =>
   resolveExtensions(
     [
@@ -68,6 +73,7 @@ void test("the approval target covers each enabled extension's selected account 
         kind: "demo",
         name: "Acme",
         fields: { site: "https://one.example" },
+        level: "user",
       },
     },
   });
@@ -149,4 +155,48 @@ void test("the approval target finds the selected account among several accepted
   );
   assert.deepEqual(asked, ["first", "demo"]);
   assert.equal((target.demo.account as { kind: string }).kind, "demo");
+});
+
+void test("an account setting saved at user scope selects user-level accounts only", async () => {
+  const levels = new Map<string, "user" | "project">([
+    ["u1", "user"],
+    ["p1", "project"],
+  ]);
+  const reader: AccountsReader = {
+    ...accounts,
+    get: async (kind, id, options) => {
+      const level = levels.get(id);
+      return !level || (level === "project" && options?.userLevelOnly)
+        ? undefined
+        : { id, kind, name: id, fields: {}, level };
+    },
+  };
+  const target = async (layer: "user" | "project", id: string) =>
+    (await selectedAccountsTarget(
+      registry,
+      resolveExtensions(
+        [
+          {
+            id: "demo",
+            settingsVersion: 1,
+            enabledByDefault: false,
+            settings: extension.settings,
+          },
+        ],
+        [
+          {
+            layer,
+            entries: {
+              demo: { version: 1, enabled: true, settings: { account: id } },
+            },
+          },
+        ],
+      ),
+      reader,
+    )) as Record<string, Record<string, { missing?: boolean }>>;
+  assert.deepEqual(await target("user", "p1"), {
+    demo: { account: { id: "p1", missing: true } },
+  });
+  assert.equal((await target("project", "p1")).demo.account.missing, undefined);
+  assert.equal((await target("user", "u1")).demo.account.missing, undefined);
 });

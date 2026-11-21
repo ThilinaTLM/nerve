@@ -200,7 +200,6 @@ function documentPaths(
     ["ui", paths.uiConfigPath],
     ["permissions", paths.permissionsConfigPath],
     ["providers", paths.providersConfigPath],
-    ["accounts", paths.accountsConfigPath],
   ];
 }
 
@@ -211,7 +210,6 @@ export async function writeHomeConfiguration(
     "daemon",
     "ui",
     "providers",
-    "accounts",
   ],
 ): Promise<UserConfiguration> {
   const parsed = decodeConfiguration(configuration);
@@ -291,7 +289,6 @@ function decodeConfiguration(
     providers: HOME_CONFIGURATION_CODECS.providers.decode(
       configuration.providers,
     ),
-    accounts: HOME_CONFIGURATION_CODECS.accounts.decode(configuration.accounts),
   };
 }
 
@@ -304,7 +301,6 @@ function configDocuments(
     { path: paths.uiConfigPath, value: configuration.ui },
     { path: paths.permissionsConfigPath, value: configuration.permissions },
     { path: paths.providersConfigPath, value: configuration.providers },
-    { path: paths.accountsConfigPath, value: configuration.accounts },
   ];
 }
 

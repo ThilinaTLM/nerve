@@ -31,6 +31,7 @@ import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifi
 import PermissionsSettingsPage from "$lib/features/settings/views/pages/permissions/PermissionsSettingsPage.svelte";
 import ProvidersSettingsPage from "$lib/features/settings/views/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/ShortcutsSettingsPage.svelte";
+import BackgroundJobsSettingsPage from "$lib/features/settings/views/pages/background-jobs/BackgroundJobsSettingsPage.svelte";
 import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
 import VoiceSettingsPage from "$lib/features/settings/views/pages/voice/VoiceSettingsPage.svelte";
@@ -242,6 +243,8 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
     />
   {:else if page.id === "storage"}
     <StorageSettingsPage controller={controllers.storageController} />
+  {:else if scope === "user" && page.id === "background-jobs"}
+    <BackgroundJobsSettingsPage />
   {:else if scope === "user" && page.id === "devices"}
     <DevicesSettingsPage />
   {:else if scope === "user" && page.id === "system"}

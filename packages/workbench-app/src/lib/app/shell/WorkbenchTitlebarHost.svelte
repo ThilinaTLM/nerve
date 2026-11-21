@@ -377,6 +377,11 @@ $effect(() => {
             activityInbox.setOpen(false);
             void openConversation(item.conversationId);
           }
+        } else if (intent === "settings") {
+          if (item.settingsPage) {
+            activityInbox.setOpen(false);
+            void openSettingsPane(item.settingsPage);
+          }
         } else void activityInbox.action(intent, item.id);
       }}
       onDeleteConversations={(entries) =>

@@ -75,6 +75,7 @@ const account = (): AccountInfo => ({
   name: "Acme",
   kind: "demo",
   fields: { baseUrl },
+  level: "user",
 });
 
 async function setup(settings: Record<string, unknown> = {}) {
@@ -99,7 +100,12 @@ async function setup(settings: Record<string, unknown> = {}) {
       accounts: {
         get: async (kind, id) =>
           kind === "demo" && id === "acc1" ? account() : undefined,
-        secret: async () => "secret-1",
+        state: async () => "ready",
+        apply: async () => ({
+          ok: true,
+          headers: { authorization: "Bearer secret-1" },
+          query: {},
+        }),
       },
     },
   };
@@ -251,7 +257,8 @@ void test("the description lists the namespace when its switch is on; unavailabi
 void test("availability is derived from switches, the selected account, its secret and the hook", async () => {
   const accounts = (secret: boolean, exists = true) => ({
     get: async () => (exists ? account() : undefined),
-    hasSecret: async () => secret,
+    state: async () =>
+      secret ? ("ready" as const) : ("needs_sign_in" as const),
   });
   const derive = (
     state: { enabled: boolean; settings: Record<string, unknown> },
@@ -315,13 +322,13 @@ void test("availability is derived from switches, the selected account, its secr
   );
   assert.match(
     (noAccount as { fix: string }).fix,
-    /choose the Demo account with a saved API token in Settings → Extensions → Demo/,
+    /choose the Demo account to use, and to sign in to it if needed, in Settings → Extensions → Demo/,
   );
 
   const noSecret = (
     await derive({ enabled: true, settings: base }, { secret: false })
   ).namespaces.demo;
-  assert.match((noSecret as { reason: string }).reason, /no API token saved/);
+  assert.match((noSecret as { reason: string }).reason, /needs sign-in/);
   // The tool description only needs `configured`; it skips the secret check.
   assert.equal(
     (

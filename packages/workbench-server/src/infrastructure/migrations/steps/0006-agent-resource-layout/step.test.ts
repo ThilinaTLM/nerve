@@ -10,6 +10,12 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { openCoreDatabase } from "@nervekit/conversation-core";
+import { openCredential } from "../../../../domains/accounts/credential-blob.js";
+import {
+  EncryptedFileSecretProvider,
+  loadMasterKey,
+} from "../../../secrets/index.js";
 import { createStepContext } from "../../framework/context.js";
 import { storagePaths } from "../../../storage-bootstrap/paths.js";
 import step from "./step.js";
@@ -86,4 +92,75 @@ void test("an existing target wins: identical copies collapse, different ones ar
   assert.ok(payload);
   assert.equal(readFileSync(payload, "utf8"), "OLD");
   await step.verify!(context);
+});
+
+void test("accounts move into the account table as user accounts with their secrets sealed; the secrets leave credentials.enc", async () => {
+  const { root, paths, context } = home();
+  mkdirSync(paths.configPath, { recursive: true });
+  writeFileSync(
+    paths.accountsConfigPath,
+    JSON.stringify({
+      version: 2,
+      accounts: {
+        atlassian: [
+          { id: "acme", name: "Acme", fields: { siteUrl: "https://a.test" } },
+          { id: "empty", name: "No secret yet", fields: {} },
+        ],
+        tavily: [{ id: "acme", name: "Same id", fields: {} }],
+      },
+    }),
+  );
+  const secrets = new EncryptedFileSecretProvider(root);
+  await secrets.initialize();
+  await secrets.set("provider:account:atlassian:acme:apiKey", "token-1");
+  await secrets.set("provider:account:tavily:acme:apiKey", "token-2");
+  await secrets.set("provider:openai:apiKey", "sk-model");
+  await step.run(context);
+  await step.verify!(context);
+
+  assert.equal(existsSync(paths.accountsConfigPath), false);
+  assert.deepEqual(await secrets.list(), ["provider:openai:apiKey"]);
+  const db = openCoreDatabase(paths.sqlitePath);
+  try {
+    const rows = db.sqlite
+      .prepare(
+        "SELECT id, kind, project_id, name, fields, credential, status FROM account ORDER BY kind, name",
+      )
+      .all();
+    assert.equal(rows.length, 3);
+    const byName = Object.fromEntries(rows.map((row) => [row.name, row]));
+    const key = await loadMasterKey(root);
+    for (const row of rows) assert.equal(row.project_id, null);
+    const acme = byName.Acme!;
+    assert.equal(acme.id, "acme");
+    assert.equal(acme.status, "ready");
+    assert.deepEqual(JSON.parse(acme.fields as string), {
+      siteUrl: "https://a.test",
+    });
+    const sealed = acme.credential as Uint8Array;
+    assert.equal(
+      Buffer.from(sealed).toString("utf8").includes("token-1"),
+      false,
+    );
+    assert.deepEqual(openCredential(key, "acme", sealed).secrets, {
+      secret: "token-1",
+    });
+    // The blob is bound to its account id.
+    assert.throws(() => openCredential(key, "other", sealed));
+    const empty = byName["No secret yet"]!;
+    assert.equal(empty.status, "needs_sign_in");
+    assert.equal(empty.credential, null);
+    // The second account that used the id "acme" got a new id and kept its own secret.
+    const second = byName["Same id"]!;
+    assert.notEqual(second.id, "acme");
+    assert.deepEqual(
+      openCredential(key, second.id as string, second.credential as Uint8Array)
+        .secrets,
+      { secret: "token-2" },
+    );
+  } finally {
+    db.close();
+  }
+  // Nothing left to do on a second run.
+  await step.run(context);
 });

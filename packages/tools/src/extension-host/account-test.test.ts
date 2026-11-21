@@ -87,9 +87,14 @@ const ports = (secret = "s3cret") => ({
   accounts: {
     get: async (kind: string, id: string): Promise<AccountInfo | undefined> =>
       kind === "probe" && id === "p1"
-        ? { id, name: "P", kind, fields: { baseUrl } }
+        ? { id, name: "P", kind, fields: { baseUrl }, level: "user" }
         : undefined,
-    secret: async () => secret,
+    state: async () => "ready" as const,
+    apply: async () => ({
+      ok: true as const,
+      headers: { authorization: `Bearer ${secret}` },
+      query: {},
+    }),
   },
 });
 
@@ -98,6 +103,7 @@ const account = (path: string): AccountInfo => ({
   name: "P",
   kind: "probe",
   fields: { baseUrl, path },
+  level: "user",
 });
 
 void test("a kind is testable when its extension declares a hook", () => {
@@ -148,7 +154,7 @@ void test("an account missing what the test needs is ACCOUNT_INCOMPLETE; a kind 
     testExtensionAccount({
       registry,
       ports: ports(),
-      account: { id: "x", name: "X", kind: "plain", fields: {} },
+      account: { id: "x", name: "X", kind: "plain", fields: {}, level: "user" },
     }),
     (error: unknown) =>
       error instanceof ToolExecutionError &&

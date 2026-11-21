@@ -130,6 +130,25 @@ async function remove(): Promise<void> {
   }
 }
 
+/** What an account that is not ready needs, as the problem line says it. */
+function problemLabel(account: AccountView): string {
+  switch (account.state) {
+    case "needs_sign_in":
+      return "Needs credentials";
+    case "failed":
+      return account.error ?? "Credential does not work";
+    case "unavailable":
+      return "Its extension is off";
+    case "ready":
+      return "";
+  }
+}
+
+/** The summary of an account without a filled field. */
+function stateLabel(account: AccountView): string {
+  return account.level === "project" ? "Project account" : "Credentials stored";
+}
+
 /** The first filled field, e.g. the site URL. */
 function summary(account: AccountView): string | undefined {
   for (const key of Object.keys(kind.fields)) {
@@ -213,7 +232,7 @@ function summary(account: AccountView): string | undefined {
     />
   {/snippet}
   {#snippet rowActions()}
-    {#if kind.test && account.secretConfigured}
+    {#if kind.test && account.state === "ready"}
       <AccountHealthIcon
         health={accountsState.healthOf(kind.kind, account.id)}
         busy={checking[account.id]}
@@ -238,9 +257,9 @@ function summary(account: AccountView): string | undefined {
   {@const unhealthy = badge.tone === "destructive" || badge.tone === "warning"}
   <SettingsItem
     title={account.name}
-    summary={summary(account) ?? `${kind.secret.label} stored`}
-    problem={!account.secretConfigured
-      ? `${kind.secret.label} missing`
+    summary={summary(account) ?? stateLabel(account)}
+    problem={account.state !== "ready"
+      ? problemLabel(account)
       : checkError
         ? "Couldn’t test the connection"
         : testable && unhealthy
@@ -248,8 +267,8 @@ function summary(account: AccountView): string | undefined {
           : undefined}
     problemAction={readonly
       ? undefined
-      : !account.secretConfigured
-        ? { label: "Add", onclick: () => openEdit(account) }
+      : account.state !== "ready"
+        ? { label: "Fix", onclick: () => openEdit(account) }
         : checkError || badge.tone === "warning"
           ? { label: "Retry", onclick: () => void test(account) }
           : { label: "Edit", onclick: () => openEdit(account) }}
@@ -271,7 +290,7 @@ function summary(account: AccountView): string | undefined {
   open={!!pendingDelete}
   title="Delete account?"
   description={pendingDelete
-    ? `Delete “${pendingDelete.name}” and its stored ${kind.secret.label}? Extensions that use it need another account.`
+    ? `Delete “${pendingDelete.name}” and its stored credentials? Extensions that use it need another account.`
     : ""}
   confirmLabel="Delete"
   destructive

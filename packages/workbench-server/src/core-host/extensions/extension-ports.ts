@@ -1,6 +1,7 @@
 import type { ExtensionResolution } from "@nervekit/contracts/extensions";
 import type { ExtensionHostPorts } from "@nervekit/tools/extension-host";
 import type { QuickScriptRegistry } from "@nervekit/tools/quick-script";
+import { accountPorts } from "../../domains/accounts/account-ports.js";
 import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
 import { accountFieldKinds, fieldValue } from "@nervekit/contracts/extensions";
 import type { ExtensionState } from "@nervekit/tools/extension-host";
@@ -27,6 +28,31 @@ export function extensionStates(
 }
 
 /**
+ * Whether an `account` setting's value was saved at user scope, which can select user-level
+ * accounts only. Project and conversation scope also see their project's accounts.
+ */
+function selectedAtUserScope(
+  resolution: ExtensionResolution,
+  selection: { extensionId: string; field: string } | undefined,
+): boolean {
+  if (!selection) return false;
+  return (
+    resolution.extensions[selection.extensionId]?.fields[selection.field]
+      ?.source.layer === "user"
+  );
+}
+
+/** The accounts an extension host reads for one resolution: the level rule of each selection applied, no credential. */
+export function resolvedAccounts(
+  resolution: ExtensionResolution,
+  accounts: AccountsReader,
+): ExtensionHostPorts["accounts"] {
+  return accountPorts(accounts, (selection) =>
+    selectedAtUserScope(resolution, selection),
+  );
+}
+
+/**
  * How the extension runtime reaches this host: the resolved settings of the
  * conversation, the accounts store (the credential is only handed to the
  * runtime's `ctx.http`), the image generation backend and the vision model
@@ -46,10 +72,7 @@ export function createExtensionPorts(input: {
   const { vision } = input;
   return {
     settings: (id) => states(id)?.settings ?? {},
-    accounts: {
-      get: async (kind, id) => await input.accounts.get(kind, id),
-      secret: async (kind, id) => await input.accounts.secret(kind, id),
-    },
+    accounts: resolvedAccounts(input.resolution, input.accounts),
     ...(input.generateImage ? { generateImage: input.generateImage } : {}),
     ...(vision
       ? {
@@ -91,7 +114,12 @@ export async function selectedAccountsTarget(
       if (typeof id !== "string" || !id) continue;
       let account: Awaited<ReturnType<AccountsReader["get"]>>;
       for (const kind of accountFieldKinds(declared)) {
-        account = await accounts.get(kind, id);
+        account = await accounts.get(kind, id, {
+          userLevelOnly: selectedAtUserScope(resolution, {
+            extensionId: extension.id,
+            field,
+          }),
+        });
         if (account) break;
       }
       selected[field] = account
@@ -100,6 +128,7 @@ export async function selectedAccountsTarget(
             kind: account.kind,
             name: account.name,
             fields: account.fields,
+            level: account.level,
           }
         : { id, missing: true };
     }

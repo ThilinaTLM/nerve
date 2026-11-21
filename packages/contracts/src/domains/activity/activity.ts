@@ -35,6 +35,8 @@ export const activitySchema = z.object({
   phase: z.string().optional(),
   message: z.string().optional(),
   unreadableConversations: z.array(unreadableConversationSchema).optional(),
+  /** User settings page the notice points to (e.g. `background-jobs`). */
+  settingsPage: z.string().min(1).optional(),
   progress: z
     .object({
       completed: z.number().nonnegative(),

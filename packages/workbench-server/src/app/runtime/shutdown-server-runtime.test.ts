@@ -30,6 +30,7 @@ void test("actual server shutdown finalizes Activity and every outer resource af
     rejectCompletion = reject;
   });
   const state: ServerShutdownResources = {
+    backgroundJobs: { stop: async () => {} },
     maintenance: {
       shutdown: async () => {
         order.push("maintenance");
@@ -135,6 +136,7 @@ void test("actual server shutdown finalizes Activity and every outer resource af
 void test("successful server cleanup is idempotent and returns the same drain promise", async () => {
   const order: string[] = [];
   const state: ServerShutdownResources = {
+    backgroundJobs: { stop: async () => {} },
     maintenance: {
       shutdown: async () => {
         order.push("maintenance");

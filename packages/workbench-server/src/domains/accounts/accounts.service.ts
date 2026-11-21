@@ -1,211 +1,398 @@
 import { randomUUID } from "node:crypto";
-import type { AccountKind } from "@nervekit/contracts/extensions";
 import {
-  accountSecretId,
+  accountSecretFields,
+  type AccountKind,
+} from "@nervekit/contracts/extensions";
+import {
   assertUniqueAccountKinds,
   validateAccountInput,
+  type AccountLevel,
+  type AccountState,
   type AccountView,
-  type StoredAccount,
 } from "@nervekit/contracts/settings";
+import type {
+  AccountRepository,
+  AccountRow,
+} from "@nervekit/conversation-core";
 import { ApplicationError } from "../../core/application-error.js";
-import { writeHomeConfiguration } from "../../infrastructure/configuration/home-configuration.js";
-import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/initialize.js";
-import { serializeSettingsMutation } from "../../infrastructure/storage-bootstrap/settings-mutations.js";
-import type { AuthManager } from "../auth/auth-manager.js";
+import {
+  allowsLevel,
+  definitionOf,
+  levelOf,
+  visibleTo,
+  type AccountDefinition,
+} from "./account-levels.js";
+import {
+  CredentialVault,
+  type ApplyOutcome,
+  type CredentialVaultDeps,
+} from "./credential-vault.js";
+import type { ApplyRequest, ProviderAccount } from "./credential-provider.js";
 
+/** An account as extension host code sees it; the credential is never part of it. */
 export type AccountRecord = {
   id: string;
   name: string;
   kind: string;
   fields: Record<string, unknown>;
+  level: AccountLevel;
+  /** The project of a project-level account. */
+  projectId?: string;
 };
 
-/** Read access to the user's accounts and their secrets, as extensions' host code sees them. */
+/**
+ * What a scope may read: its accounts and what the vault does with their credentials. Bound to
+ * a project (user-level accounts and that project's) or to none (user-level only).
+ */
 export interface AccountsReader {
-  get(kind: string, id: string): Promise<AccountRecord | undefined>;
+  /** `userLevelOnly`: the selection came from user scope, which can name user-level accounts only. */
+  get(
+    kind: string,
+    id: string,
+    options?: { userLevelOnly?: boolean },
+  ): Promise<AccountRecord | undefined>;
   list(kind: string): Promise<AccountRecord[]>;
-  /** Host-only; never passed to extension code. */
-  secret(kind: string, id: string): Promise<string | undefined>;
-  hasSecret(kind: string, id: string): Promise<boolean>;
+  state(kind: string, id: string): Promise<AccountState>;
+  /** Host-only: headers and query parameters for one hop to an allowed credential origin. */
+  apply(kind: string, id: string, request: ApplyRequest): Promise<ApplyOutcome>;
+  /** Marks the account used (an account test). */
+  touch(kind: string, id: string): void;
+}
+
+/** What creates readers bound to a project, for code that serves one project at a time. */
+export interface AccountScopes {
+  reader(projectId?: string): AccountsReader;
 }
 
 export type AccountsServiceDeps = {
-  storage: InitializedStorage;
-  /** Secrets are API-key credentials named `account:<kind>:<id>`. */
-  auth: Pick<
-    AuthManager,
-    "setApiKey" | "getApiKey" | "getCredential" | "deleteCredential"
-  >;
-  /** Account kinds the registered extensions define. */
-  kinds: () => readonly AccountKind[];
+  repository: () => AccountRepository;
+  /** The master key for the credential vault. */
+  key: CredentialVaultDeps["key"];
+  provider?: CredentialVaultDeps["provider"];
+  /** The kinds the registered extensions define, user-wide or per project. */
+  definitions: () => readonly AccountDefinition[];
+  projectExists: (projectId: string) => boolean;
+  now?: () => Date;
 };
 
-const record = (kind: string, account: StoredAccount): AccountRecord => ({
-  id: account.id,
-  name: account.name,
-  kind,
-  fields: { ...account.fields },
+const record = (row: AccountRow): AccountRecord => ({
+  id: row.id,
+  name: row.name,
+  kind: row.kind,
+  fields: { ...row.fields },
+  level: levelOf(row),
+  ...(row.projectId ? { projectId: row.projectId } : {}),
 });
 
-/** The accounts store (`config/accounts.json`) and the secrets behind it. */
-export class AccountsService implements AccountsReader {
+/** Accounts of extension account kinds, in the `account` table; their credentials are the vault's. */
+export class AccountsService implements AccountScopes {
+  readonly vault: CredentialVault;
+
   constructor(private readonly deps: AccountsServiceDeps) {
-    // Kinds are unique across extensions; a duplicate is a registry error.
+    // Kinds are unique across the built-in and user extensions; a duplicate is a registry error.
     assertUniqueAccountKinds([
-      { id: "extensions", accounts: this.deps.kinds() },
+      {
+        id: "extensions",
+        accounts: deps
+          .definitions()
+          .filter((definition) => definition.projectId === undefined)
+          .map(({ kind }) => kind),
+      },
     ]);
-  }
-
-  #stored(kind: string): readonly StoredAccount[] {
-    return this.deps.storage.configuration.accounts.accounts[kind] ?? [];
-  }
-
-  #kind(kind: string): AccountKind {
-    const found = this.deps
-      .kinds()
-      .find((candidate) => candidate.kind === kind);
-    if (!found)
-      throw new ApplicationError(
-        404,
-        "ACCOUNT_KIND_NOT_FOUND",
-        `No extension defines the account kind '${kind}'.`,
-      );
-    return found;
-  }
-
-  async get(kind: string, id: string): Promise<AccountRecord | undefined> {
-    const account = this.#stored(kind).find((item) => item.id === id);
-    return account ? record(kind, account) : undefined;
-  }
-
-  async list(kind: string): Promise<AccountRecord[]> {
-    return this.#stored(kind).map((account) => record(kind, account));
-  }
-
-  async secret(kind: string, id: string): Promise<string | undefined> {
-    const credential = await this.deps.auth
-      .getCredential(accountSecretId(kind, id))
-      .catch(() => undefined);
-    return credential?.type === "api_key" && credential.key
-      ? credential.key
-      : undefined;
-  }
-
-  async hasSecret(kind: string, id: string): Promise<boolean> {
-    return (await this.secret(kind, id)) !== undefined;
-  }
-
-  /** The kinds the registered extensions define. */
-  kinds(): readonly AccountKind[] {
-    return this.deps.kinds();
-  }
-
-  /** Every account of every defined kind, for the app. */
-  async views(): Promise<AccountView[]> {
-    return Promise.all(
-      this.deps
-        .kinds()
-        .flatMap((kind) =>
-          this.#stored(kind.kind).map((account) =>
-            this.#view(kind.kind, account),
-          ),
-        ),
-    );
-  }
-
-  async view(kind: string, id: string): Promise<AccountView | undefined> {
-    const account = this.#stored(kind).find((item) => item.id === id);
-    return account ? this.#view(kind, account) : undefined;
-  }
-
-  async #view(kind: string, account: StoredAccount): Promise<AccountView> {
-    return {
-      kind,
-      id: account.id,
-      name: account.name,
-      fields: { ...account.fields },
-      secretConfigured: await this.hasSecret(kind, account.id),
-    };
-  }
-
-  /** Creates the account (no `id`) or replaces an existing one. */
-  async save(input: {
-    kind: string;
-    id?: string;
-    name: string;
-    fields: Record<string, unknown>;
-  }): Promise<AccountRecord> {
-    const definition = this.#kind(input.kind);
-    const checked = validateAccountInput(definition, input);
-    if (!checked.ok)
-      throw new ApplicationError(400, "ACCOUNT_INVALID", checked.message);
-    return serializeSettingsMutation(this.deps.storage, async () => {
-      const current = this.#stored(input.kind);
-      if (input.id && !current.some((item) => item.id === input.id))
-        throw new ApplicationError(
-          404,
-          "ACCOUNT_NOT_FOUND",
-          `Account '${input.id}' does not exist.`,
-        );
-      const saved: StoredAccount = {
-        id: input.id ?? randomUUID(),
-        name: checked.name,
-        fields: checked.fields,
-      };
-      await this.#write(
-        input.kind,
-        input.id
-          ? current.map((item) => (item.id === saved.id ? saved : item))
-          : [...current, saved],
-      );
-      return record(input.kind, saved);
+    this.vault = new CredentialVault({
+      repository: deps.repository,
+      key: deps.key,
+      definition: (row) => definitionOf(deps.definitions(), row)?.kind,
+      ...(deps.provider ? { provider: deps.provider } : {}),
+      ...(deps.now ? { now: deps.now } : {}),
     });
   }
 
-  async setSecret(kind: string, id: string, secret: string): Promise<void> {
-    this.#kind(kind);
-    if (!(await this.get(kind, id)))
+  #repository(): AccountRepository {
+    return this.deps.repository();
+  }
+
+  #row(kind: string, id: string): AccountRow {
+    const row = this.#repository().get(id);
+    if (!row || row.kind !== kind)
       throw new ApplicationError(
         404,
         "ACCOUNT_NOT_FOUND",
         `Account '${id}' does not exist.`,
       );
-    await this.deps.auth.setApiKey(accountSecretId(kind, id), secret);
+    return row;
   }
 
-  /** Removes the account and its secret; false when it did not exist. */
-  async delete(kind: string, id: string): Promise<boolean> {
-    this.#kind(kind);
-    const removed = await serializeSettingsMutation(
-      this.deps.storage,
-      async () => {
-        const current = this.#stored(kind);
-        if (!current.some((item) => item.id === id)) return false;
-        await this.#write(
-          kind,
-          current.filter((item) => item.id !== id),
-        );
-        return true;
-      },
+  /** The definition of a kind that may hold accounts at `projectId` (null: user level). */
+  #definition(kind: string, projectId: string | null): AccountDefinition {
+    const candidates = this.deps
+      .definitions()
+      .filter((definition) => definition.kind.kind === kind);
+    if (candidates.length === 0)
+      throw new ApplicationError(
+        404,
+        "ACCOUNT_KIND_NOT_FOUND",
+        `No extension defines the account kind '${kind}'.`,
+      );
+    const found = candidates.find((definition) =>
+      allowsLevel(definition, projectId),
     );
-    if (removed)
-      await this.deps.auth.deleteCredential(accountSecretId(kind, id));
-    return removed;
+    if (!found)
+      throw new ApplicationError(
+        400,
+        "ACCOUNT_LEVEL_NOT_ALLOWED",
+        candidates[0].projectId === undefined
+          ? `The ${candidates[0].kind.label} cannot be saved there.`
+          : `The ${candidates[0].kind.label} is defined by a project; its accounts belong to that project.`,
+      );
+    return found;
   }
 
-  async #write(kind: string, accounts: StoredAccount[]): Promise<void> {
-    const { storage } = this.deps;
-    const next = {
-      ...storage.configuration.accounts.accounts,
-      [kind]: accounts,
+  #checkProject(projectId: string | null): void {
+    if (projectId !== null && !this.deps.projectExists(projectId))
+      throw new ApplicationError(
+        404,
+        "PROJECT_NOT_FOUND",
+        `Project '${projectId}' does not exist.`,
+      );
+  }
+
+  #provider(row: AccountRow, kind: AccountKind): ProviderAccount {
+    return { id: row.id, kind, fields: row.fields };
+  }
+
+  /** The kinds the registered extensions define (one entry per kind name). */
+  kinds(): readonly AccountKind[] {
+    const kinds = new Map<string, AccountKind>();
+    for (const { kind } of this.deps.definitions())
+      if (!kinds.has(kind.kind)) kinds.set(kind.kind, kind);
+    return [...kinds.values()];
+  }
+
+  /** Readers bound to a project (or to none); `all` sees every level, for the host's own checks. */
+  reader(projectId?: string): AccountsReader {
+    return this.#reader({ projectId });
+  }
+
+  /** Every account whatever its level, for the Accounts page and account tests. */
+  all(): AccountsReader {
+    return this.#reader({ all: true });
+  }
+
+  #reader(scope: {
+    projectId?: string | undefined;
+    all?: boolean;
+  }): AccountsReader {
+    const find = (
+      kind: string,
+      id: string,
+      userLevelOnly?: boolean,
+    ): AccountRow | undefined => {
+      const row = this.#repository().get(id);
+      return row &&
+        row.kind === kind &&
+        (scope.all ||
+          visibleTo(row, { projectId: scope.projectId, userLevelOnly }))
+        ? row
+        : undefined;
     };
-    storage.configuration = await writeHomeConfiguration(
-      storage.paths,
-      {
-        ...storage.configuration,
-        accounts: { version: 2, accounts: next },
+    return {
+      get: async (kind, id, options) => {
+        const row = find(kind, id, options?.userLevelOnly);
+        return row ? record(row) : undefined;
       },
-      ["accounts"],
+      list: async (kind) =>
+        (scope.all
+          ? this.#repository()
+              .list()
+              .filter((row) => row.kind === kind)
+          : this.#repository().listVisible(scope.projectId ?? null, kind)
+        ).map(record),
+      state: async (kind, id) => {
+        const row = find(kind, id);
+        return row ? (await this.vault.stateOf(row)).state : "needs_sign_in";
+      },
+      apply: async (kind, id, request) => {
+        const row = find(kind, id);
+        if (!row) return { ok: false, state: "needs_sign_in" };
+        const definition = definitionOf(this.deps.definitions(), row);
+        if (!definition) return { ok: false, state: "unavailable" };
+        return await this.vault.apply(
+          this.#provider(row, definition.kind),
+          request,
+        );
+      },
+      touch: (kind, id) => {
+        if (find(kind, id)) this.vault.touch(id);
+      },
+    };
+  }
+
+  /** Accounts for the app: every account, or those a project sees. */
+  async views(projectId?: string): Promise<AccountView[]> {
+    const rows = projectId
+      ? this.#repository().listVisible(projectId)
+      : this.#repository().list();
+    return await Promise.all(rows.map((row) => this.#view(row)));
+  }
+
+  async view(kind: string, id: string): Promise<AccountView | undefined> {
+    const row = this.#repository().get(id);
+    return row && row.kind === kind ? await this.#view(row) : undefined;
+  }
+
+  async #view(row: AccountRow): Promise<AccountView> {
+    const { state, error } = await this.vault.stateOf(row);
+    return {
+      kind: row.kind,
+      id: row.id,
+      name: row.name,
+      fields: { ...row.fields },
+      level: levelOf(row),
+      ...(row.projectId ? { projectId: row.projectId } : {}),
+      state,
+      ...(error ? { error } : {}),
+    };
+  }
+
+  /**
+   * Creates the account (no `id`), at user level or in `projectId`, or updates the name and
+   * fields of an existing one (its level changes only through `move`).
+   */
+  save(input: {
+    kind: string;
+    id?: string;
+    name: string;
+    fields: Record<string, unknown>;
+    projectId?: string;
+  }): AccountRecord {
+    const existing = input.id ? this.#row(input.kind, input.id) : undefined;
+    const projectId = existing ? existing.projectId : (input.projectId ?? null);
+    this.#checkProject(projectId);
+    const definition = this.#definition(input.kind, projectId);
+    const checked = validateAccountInput(definition.kind, input);
+    if (!checked.ok)
+      throw new ApplicationError(400, "ACCOUNT_INVALID", checked.message);
+    const now = (this.deps.now?.() ?? new Date()).toISOString();
+    if (existing) {
+      this.#repository().updateDetails(existing.id, {
+        name: checked.name,
+        fields: checked.fields,
+        updatedAt: now,
+      });
+      return record({
+        ...existing,
+        name: checked.name,
+        fields: checked.fields,
+        updatedAt: now,
+      });
+    }
+    const row = {
+      id: randomUUID(),
+      kind: input.kind,
+      projectId,
+      name: checked.name,
+      fields: checked.fields,
+      status: "needs_sign_in",
+      createdAt: now,
+      updatedAt: now,
+    } as const;
+    this.#repository().insert(row);
+    return record({
+      ...row,
+      hasCredential: false,
+      expiresAt: null,
+      lastUsedAt: null,
+    });
+  }
+
+  /**
+   * Stores typed-in secrets by name (names left out keep their value) and lets the kind's
+   * provider act on them. Unknown names are rejected.
+   */
+  async setSecrets(
+    kind: string,
+    id: string,
+    secrets: Record<string, string>,
+  ): Promise<void> {
+    const row = this.#row(kind, id);
+    const definition = this.#definition(kind, row.projectId);
+    const known = accountSecretFields(definition.kind);
+    for (const name of Object.keys(secrets))
+      if (!(name in known))
+        throw new ApplicationError(
+          400,
+          "ACCOUNT_INVALID",
+          `${definition.kind.label} has no secret '${name}'.`,
+        );
+    await this.vault.saveSecrets(this.#provider(row, definition.kind), secrets);
+  }
+
+  /** Moves the account to `projectId` (null: user level), keeping its credential. */
+  move(kind: string, id: string, projectId: string | null): void {
+    this.#row(kind, id);
+    this.#checkProject(projectId);
+    this.#definition(kind, projectId);
+    this.#repository().move(
+      id,
+      projectId,
+      (this.deps.now?.() ?? new Date()).toISOString(),
     );
+  }
+
+  /** Copies the account into `projectId` (null: user level) with its credential, under a new id. */
+  async duplicate(
+    kind: string,
+    id: string,
+    projectId: string | null,
+    name?: string,
+  ): Promise<AccountRecord> {
+    const row = this.#row(kind, id);
+    this.#checkProject(projectId);
+    this.#definition(kind, projectId);
+    const copyId = randomUUID();
+    const sealed = await this.vault.reseal(id, copyId);
+    const now = (this.deps.now?.() ?? new Date()).toISOString();
+    const copy = {
+      id: copyId,
+      kind,
+      projectId,
+      name: (name ?? `${row.name} (copy)`).slice(0, 128),
+      fields: { ...row.fields },
+      createdAt: now,
+      updatedAt: now,
+      ...(sealed
+        ? {
+            credential: sealed.credential,
+            status: sealed.status,
+            expiresAt: sealed.expiresAt,
+          }
+        : { status: "needs_sign_in" as const }),
+    };
+    this.#repository().insert(copy);
+    return record({
+      ...copy,
+      hasCredential: sealed !== null,
+      status: copy.status,
+      expiresAt: null,
+      lastUsedAt: null,
+    });
+  }
+
+  /** Forgets the stored credential; the account then needs sign-in. */
+  async clearCredentials(kind: string, id: string): Promise<void> {
+    this.#row(kind, id);
+    await this.vault.clear(id);
+  }
+
+  /** Revokes (best effort) and removes the account; false when it did not exist. */
+  async delete(kind: string, id: string): Promise<boolean> {
+    const row = this.#repository().get(id);
+    if (!row || row.kind !== kind) return false;
+    const definition = definitionOf(this.deps.definitions(), row);
+    if (definition)
+      await this.vault.revoke(this.#provider(row, definition.kind));
+    this.#repository().delete(id);
+    return true;
   }
 }

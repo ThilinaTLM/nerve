@@ -97,12 +97,12 @@ void test("explicit reset quarantines original bytes and writes defaults; reload
   );
 });
 
-void test("all five preserved documents can be invalid without blocking configuration reads", async (t) => {
+void test("all four preserved documents can be invalid without blocking configuration reads", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-config-six-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const paths = storagePaths(home);
   await initializeHomeConfiguration(paths);
-  const ids = ["daemon", "ui", "permissions", "providers", "accounts"] as const;
+  const ids = ["daemon", "ui", "permissions", "providers"] as const;
   for (const id of ids)
     await writeFile(join(paths.configPath, `${id}.json`), "broken");
   assert.deepEqual(
@@ -114,7 +114,7 @@ void test("all five preserved documents can be invalid without blocking configur
     ids,
   );
   await revalidateHomeConfigurationAfterMigration(paths);
-  assert.equal((await readSettingsHealth(paths)).invalid.length, 5);
+  assert.equal((await readSettingsHealth(paths)).invalid.length, 4);
   for (const id of ids)
     assert.equal(
       await readFile(join(paths.configPath, `${id}.json`), "utf8"),

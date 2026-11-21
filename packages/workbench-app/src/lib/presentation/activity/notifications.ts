@@ -13,7 +13,7 @@ export type NotificationChild = {
 };
 export type NotificationAction = {
   label: string;
-  intent: "open" | "cancel" | "retry";
+  intent: "open" | "cancel" | "retry" | "settings";
 };
 export type NotificationItem = {
   id: string;
@@ -34,6 +34,8 @@ export type NotificationItem = {
   /** Lists under "Needs attention" without being a request for input. */
   needsAttention?: boolean;
   unreadableConversations?: Activity["unreadableConversations"];
+  /** User settings page the item points to. */
+  settingsPage?: string;
 };
 
 /** What a conversation item says: input required, failed/interrupted, or finished. */
@@ -170,11 +172,15 @@ function activityItem(
       ? { label: "Stop", intent: "cancel" }
       : activity.actions.retry
         ? { label: "Retry", intent: "retry" }
-        : undefined;
+        : activity.settingsPage
+          ? { label: "Open settings", intent: "settings" }
+          : undefined;
   return {
     id: activity.id,
     unreadableConversations: activity.unreadableConversations,
-    needsAttention: !!activity.unreadableConversations?.length,
+    settingsPage: activity.settingsPage,
+    needsAttention:
+      !!activity.unreadableConversations?.length || !!activity.settingsPage,
     kind: running
       ? "running"
       : isFailure(activity)

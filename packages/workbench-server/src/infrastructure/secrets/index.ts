@@ -20,6 +20,21 @@ type EncryptedCredentialEnvelope = {
   data: string;
 };
 
+/** The master key (`secrets/master.key`), created on first use. */
+export async function loadMasterKey(home: string): Promise<Buffer> {
+  const path = storagePaths(home).masterKeyPath;
+  if (!(await pathExists(path))) {
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+    const key = randomBytes(32);
+    await atomicWriteFile(path, key.toString("base64"), { mode: 0o600 });
+    await chmod(path, 0o600).catch(() => undefined);
+    return key;
+  }
+  const key = Buffer.from((await readFile(path, "utf8")).trim(), "base64");
+  if (key.byteLength !== 32) throw new Error("Invalid Nerve master key.");
+  return key;
+}
+
 export class EncryptedFileSecretProvider implements SecretProvider {
   private writeTail: Promise<void> = Promise.resolve();
 
@@ -73,18 +88,8 @@ export class EncryptedFileSecretProvider implements SecretProvider {
     return storagePaths(this.home).credentialsPath;
   }
 
-  private async loadKey(): Promise<Buffer> {
-    const path = this.keyPath();
-    if (!(await pathExists(path))) {
-      await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-      const key = randomBytes(32);
-      await atomicWriteFile(path, key.toString("base64"), { mode: 0o600 });
-      await chmod(path, 0o600).catch(() => undefined);
-      return key;
-    }
-    const key = Buffer.from((await readFile(path, "utf8")).trim(), "base64");
-    if (key.byteLength !== 32) throw new Error("Invalid Nerve master key.");
-    return key;
+  private loadKey(): Promise<Buffer> {
+    return loadMasterKey(this.home);
   }
 
   private async readAll(): Promise<Record<string, string>> {

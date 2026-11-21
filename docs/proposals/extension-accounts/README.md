@@ -55,12 +55,12 @@ An account kind names its **provider**: a built-in provider (data) or the extens
 
 A provider has four operations. The host calls them; none is reachable from the backend, UI or agent.
 
-| Operation | Called when | Returns |
-| --- | --- | --- |
-| `signIn(account, ui)` | The user clicks Sign in, or saves the account form | A credential state (opaque JSON) and its expiry |
-| `refresh(account, state)` | Before expiry, or once after a 401 from a credentialed origin | A new state, or "needs sign-in" |
-| `apply(account, state, request)` | Every `ctx.http` hop to an allowed credential origin | Headers to set and query parameters to add |
-| `revoke(account, state)` | The account is deleted (best effort) | Nothing |
+| Operation                        | Called when                                                   | Returns                                         |
+| -------------------------------- | ------------------------------------------------------------- | ----------------------------------------------- |
+| `signIn(account, ui)`            | The user clicks Sign in, or saves the account form            | A credential state (opaque JSON) and its expiry |
+| `refresh(account, state)`        | Before expiry, or once after a 401 from a credentialed origin | A new state, or "needs sign-in"                 |
+| `apply(account, state, request)` | Every `ctx.http` hop to an allowed credential origin          | Headers to set and query parameters to add      |
+| `revoke(account, state)`         | The account is deleted (best effort)                          | Nothing                                         |
 
 - **Typed-in secrets** are inputs, not state: the account kind declares one or more secret fields (labels, help, multi-line for keys), entered in the account dialog and passed to the provider. The single `secret` becomes one case of this.
 - **`apply` input:** method, URL, headers and a body handle with two host calls: `digest(algorithm)` (any size, computed by the host, including bodies streamed from files) and `bytes()` (buffered bodies under a limit only; otherwise a clear error). See [Body access](#body-access). Output is limited to adding headers and query parameters; it cannot change the method, URL, path or body, so it cannot redirect a request.
@@ -91,24 +91,24 @@ For everything else, the extension ships a credential provider, built by the SDK
 
 #### What keeps credentials in
 
-| Channel | Rule |
-| --- | --- |
-| Return values | `apply` output goes on the wire only for hops to the account's credential origins; the backend sees the response, never the request headers it added. `signIn`/`refresh` state goes to the vault. Identity fields are checked to be short plain strings and shown in consent as "may share identity details". |
-| Network | Provider `http` reaches only declared sign-in origins; `apply` output reaches only credential origins. Both lists are grants. |
-| Errors and logs | Provider errors are shown to the user in Settings and reach the backend and agent only as a fixed message ("The <kind> account needs sign-in"). Provider logs are dropped outside development slots. |
-| Shared state | None between the two sandboxes; the backend cannot call the provider. |
-| Other projects | A project-defined kind's accounts and credential state are visible only in that project ([Account levels](#account-levels)). |
-| Echoing services | A service that echoes request headers back in its response can leak what `apply` added. The same is true of today's injected headers; origins are consented and user-templated. Accepted residual risk, called out in consent for broad origins. |
+| Channel          | Rule                                                                                                                                                                                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Return values    | `apply` output goes on the wire only for hops to the account's credential origins; the backend sees the response, never the request headers it added. `signIn`/`refresh` state goes to the vault. Identity fields are checked to be short plain strings and shown in consent as "may share identity details". |
+| Network          | Provider `http` reaches only declared sign-in origins; `apply` output reaches only credential origins. Both lists are grants.                                                                                                                                                                                 |
+| Errors and logs  | Provider errors are shown to the user in Settings and reach the backend and agent only as a fixed message ("The <kind> account needs sign-in"). Provider logs are dropped outside development slots.                                                                                                          |
+| Shared state     | None between the two sandboxes; the backend cannot call the provider.                                                                                                                                                                                                                                         |
+| Other projects   | A project-defined kind's accounts and credential state are visible only in that project ([Account levels](#account-levels)).                                                                                                                                                                                  |
+| Echoing services | A service that echoes request headers back in its response can leak what `apply` added. The same is true of today's injected headers; origins are consented and user-templated. Accepted residual risk, called out in consent for broad origins.                                                              |
 
 ### Body access
 
 Signing schemes differ in what they need from the body, and the platform cannot know which ones authors will use:
 
-| What `apply` gets | Covers | Leaves out |
-| --- | --- | --- |
-| SHA-256 only | SigV4, `Content-Digest` with SHA-256 | HTTP Message Signatures with other algorithms, OAuth 1.0a form bodies, HMAC over `timestamp + body`, MD5-based schemes |
-| Full body always | Everything | Large and file-streamed uploads would have to pass through the sandbox (slow, memory-heavy, and they stream from disk today) |
-| **Body on demand (chosen)** | Every scheme for buffered bodies; every hash-based scheme for any body | Raw-body schemes on large streamed uploads, which fail with a clear error |
+| What `apply` gets           | Covers                                                                 | Leaves out                                                                                                                   |
+| --------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| SHA-256 only                | SigV4, `Content-Digest` with SHA-256                                   | HTTP Message Signatures with other algorithms, OAuth 1.0a form bodies, HMAC over `timestamp + body`, MD5-based schemes       |
+| Full body always            | Everything                                                             | Large and file-streamed uploads would have to pass through the sandbox (slow, memory-heavy, and they stream from disk today) |
+| **Body on demand (chosen)** | Every scheme for buffered bodies; every hash-based scheme for any body | Raw-body schemes on large streamed uploads, which fail with a clear error                                                    |
 
 `digest(algorithm)` supports SHA-256, SHA-384, SHA-512, SHA-1 and MD5 and is computed once per request. `bytes()` is limited to the same size as a buffered `ctx.http` body.
 
@@ -118,10 +118,10 @@ An account has a **level**: a **user-level account** is available in every proje
 
 Which levels a kind allows depends on where the kind is defined:
 
-| Kind defined by | User-level accounts | Project-level accounts |
-| --- | --- | --- |
-| Built-in or user extension | Yes | Yes |
-| Project (repository) extension | No | Yes, for the defining project only |
+| Kind defined by                | User-level accounts | Project-level accounts             |
+| ------------------------------ | ------------------- | ---------------------------------- |
+| Built-in or user extension     | Yes                 | Yes                                |
+| Project (repository) extension | No                  | Yes, for the defining project only |
 
 _Why the restriction:_ account kinds are unique only within one composition (built-ins, user, the current project; [`extension-catalog.ts`](../../../packages/workbench-server/src/core-host/extensions/extension-catalog/extension-catalog.ts)), so two repositories can define the same kind name with different origins and different credential code. A user-wide account of such a kind would reach whichever repository asks. Today accounts are user-wide for every kind, so this gap exists already for typed-in secrets, guarded only by consent; the rule closes it.
 
@@ -257,16 +257,16 @@ On implementation, per phase: [configuration](../../architecture/configuration.m
 
 Shapes the design must support, as validation cases rather than host features:
 
-| Account | Provider | How |
-| --- | --- | --- |
-| Jira API token | `static` + `basic` | Today's manifest, unchanged |
-| GitHub user | `oauth2` device code | Data only |
-| Google Workspace | `oauth2` PKCE with OIDC discovery | Data only |
-| GitHub App installation | Extension | Private key secret → `crypto` RS256 JWT → token exchange in `refresh` → bearer in `apply` |
-| AWS access key | Extension | Key id + secret → SigV4 library in `apply` |
-| AWS IAM Identity Center | Extension | Device code via `ui` → role choice → role credentials in state → SigV4 in `apply` |
-| Exchange API with HMAC | Extension | Key + secret → HMAC of timestamp and body hash in `apply` |
-| Login for session token | Extension | Username + password secrets → login in `signIn` → token in state |
+| Account                 | Provider                          | How                                                                                       |
+| ----------------------- | --------------------------------- | ----------------------------------------------------------------------------------------- |
+| Jira API token          | `static` + `basic`                | Today's manifest, unchanged                                                               |
+| GitHub user             | `oauth2` device code              | Data only                                                                                 |
+| Google Workspace        | `oauth2` PKCE with OIDC discovery | Data only                                                                                 |
+| GitHub App installation | Extension                         | Private key secret → `crypto` RS256 JWT → token exchange in `refresh` → bearer in `apply` |
+| AWS access key          | Extension                         | Key id + secret → SigV4 library in `apply`                                                |
+| AWS IAM Identity Center | Extension                         | Device code via `ui` → role choice → role credentials in state → SigV4 in `apply`         |
+| Exchange API with HMAC  | Extension                         | Key + secret → HMAC of timestamp and body hash in `apply`                                 |
+| Login for session token | Extension                         | Username + password secrets → login in `signIn` → token in state                          |
 
 ## Phases
 
@@ -278,18 +278,18 @@ Shapes the design must support, as validation cases rather than host features:
 
 ## Risks
 
-| Risk | Mitigation |
-| --- | --- |
-| Credential reaches backend, UI or agent | Separate sandbox; fixed `ctx`; errors and logs filtered; tests per channel. |
-| Credential sent to a wrong origin | Per-hop origin check before `apply`; `apply` cannot change the URL; tests per hop and redirect. |
-| Provider code changes silently | Credential code hash is a grant for every scope. |
-| Provider stalls a request | Per-operation time and size limits; a failing `apply` fails the request with the fixed message. |
-| Refresh storms or lost tokens | Single-flight refresh; write before use. |
-| One repository reads another's accounts | Project kinds have project accounts. |
-| A using extension widens access | `uses` origins must be a subset of the selected account's definition; scopes are per-user grants. |
-| A definition squats a platform name | It gets only accounts the user creates with it; other definitions' accounts are never handed to its code. |
-| Remote daemon sign-in | Device code; loopback relay for redirects. |
-| Public API growth | Additive types plus one new surface with its own floor; `public-surface.test.ts` snapshot updated in the same change. |
+| Risk                                    | Mitigation                                                                                                            |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Credential reaches backend, UI or agent | Separate sandbox; fixed `ctx`; errors and logs filtered; tests per channel.                                           |
+| Credential sent to a wrong origin       | Per-hop origin check before `apply`; `apply` cannot change the URL; tests per hop and redirect.                       |
+| Provider code changes silently          | Credential code hash is a grant for every scope.                                                                      |
+| Provider stalls a request               | Per-operation time and size limits; a failing `apply` fails the request with the fixed message.                       |
+| Refresh storms or lost tokens           | Single-flight refresh; write before use.                                                                              |
+| One repository reads another's accounts | Project kinds have project accounts.                                                                                  |
+| A using extension widens access         | `uses` origins must be a subset of the selected account's definition; scopes are per-user grants.                     |
+| A definition squats a platform name     | It gets only accounts the user creates with it; other definitions' accounts are never handed to its code.             |
+| Remote daemon sign-in                   | Device code; loopback relay for redirects.                                                                            |
+| Public API growth                       | Additive types plus one new surface with its own floor; `public-surface.test.ts` snapshot updated in the same change. |
 
 ## Open questions
 

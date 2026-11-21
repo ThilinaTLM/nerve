@@ -37,6 +37,12 @@ import {
 import type { ServerAdapterContexts } from "../../contexts.js";
 
 type PlatformMethodContext = ServerAdapterContexts["protocol"]["platform"];
+const publishAccountChanged = (
+  state: PlatformMethodContext,
+  kind: string,
+  accountId: string,
+) => state.events.publish("accounts.changed", { kind, accountId });
+
 const definePlatformMethodHandlers =
   defineWorkbenchMethodHandlersFor<PlatformMethodContext>();
 
@@ -56,34 +62,54 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         state.providerCatalog.providerDisplayNames(),
       ),
     }),
-    "accounts.list": async (state) => ({
-      accounts: await state.accounts.views(),
+    "accounts.list": async (state, params) => ({
+      accounts: await state.accounts.views(params?.projectId),
       kinds: [...state.accounts.kinds()],
     }),
     "accounts.save": async (state, params) => {
-      const { secret, ...input } = params;
+      const { secrets, ...input } = params;
       // Decrypt first, so a stale key fails before anything is written.
-      const plaintext = secret
-        ? state.credentialKey.decryptEnvelope(secret)
-        : undefined;
-      const saved = await state.accounts.save(input);
-      if (plaintext) {
-        await state.accounts.setSecret(saved.kind, saved.id, plaintext);
+      const plaintext = Object.fromEntries(
+        Object.entries(secrets ?? {}).map(([name, envelope]) => [
+          name,
+          state.credentialKey.decryptEnvelope(envelope),
+        ]),
+      );
+      const saved = state.accounts.save(input);
+      if (Object.keys(plaintext).length > 0) {
+        await state.accounts.setSecrets(saved.kind, saved.id, plaintext);
         state.integrationHealth.forget(saved.kind, saved.id);
       }
-      await state.events.publish("accounts.changed", {
-        kind: saved.kind,
-        accountId: saved.id,
-      });
+      await publishAccountChanged(state, saved.kind, saved.id);
       return { account: (await state.accounts.view(saved.kind, saved.id))! };
+    },
+    "accounts.move": async (state, params) => {
+      state.accounts.move(params.kind, params.id, params.projectId);
+      await publishAccountChanged(state, params.kind, params.id);
+      return { account: (await state.accounts.view(params.kind, params.id))! };
+    },
+    "accounts.duplicate": async (state, params) => {
+      const copy = await state.accounts.duplicate(
+        params.kind,
+        params.id,
+        params.projectId,
+        params.name,
+      );
+      await publishAccountChanged(state, copy.kind, copy.id);
+      return { account: (await state.accounts.view(copy.kind, copy.id))! };
+    },
+    "accounts.clearCredentials": async (state, params) => {
+      await state.accounts.clearCredentials(params.kind, params.id);
+      state.integrationHealth.forget(params.kind, params.id);
+      await publishAccountChanged(state, params.kind, params.id);
+      return { account: (await state.accounts.view(params.kind, params.id))! };
     },
     "accounts.delete": async (state, params) => {
       const deleted = await state.accounts.delete(params.kind, params.id);
-      if (deleted)
-        await state.events.publish("accounts.changed", {
-          kind: params.kind,
-          accountId: params.id,
-        });
+      if (deleted) {
+        state.integrationHealth.forget(params.kind, params.id);
+        await publishAccountChanged(state, params.kind, params.id);
+      }
       return { deleted };
     },
     "accounts.health.list": async (state) => ({
@@ -139,6 +165,10 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         kind: "storage_cleanup",
         parameters,
       }),
+    }),
+    "backgroundJobs.list": (state) => ({ jobs: state.backgroundJobs.list() }),
+    "backgroundJobs.runNow": (state, params) => ({
+      job: state.backgroundJobs.runNow(params.jobId),
     }),
     "maintenance.get": (state) => ({ operation: state.maintenance.get() }),
     "maintenance.cancel": async (state, params) => ({

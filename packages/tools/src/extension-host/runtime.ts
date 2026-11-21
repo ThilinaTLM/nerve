@@ -149,7 +149,10 @@ export class ExtensionRuntime {
       if (declared?.type !== "account" || typeof id !== "string" || !id)
         return undefined;
       for (const kind of accountFieldKinds(declared)) {
-        const account = await ports.accounts.get(kind, id);
+        const account = await ports.accounts.get(kind, id, {
+          extensionId: definition.id,
+          field,
+        });
         if (account) return account;
       }
       return undefined;
@@ -195,7 +198,7 @@ export class ExtensionRuntime {
         (await Promise.all(accountFieldNames.map(selected))).filter(
           (account): account is AccountInfo => account !== undefined,
         ),
-      secret: (kind, id) => ports.accounts.secret(kind, id),
+      credential: ports.accounts,
       signal,
       allowPrivateNetwork: env.context.webFetchPolicy?.allowPrivateNetwork,
       openHandle: async (handle) => {

@@ -606,7 +606,7 @@ async function writeCustomProfile(home: string): Promise<void> {
  * contacts the invented site.
  */
 async function seedAtlassianExtension(services: Services): Promise<void> {
-  const account = await services.accounts.save({
+  const account = services.accounts.save({
     kind: "atlassian",
     name: "Aurora Atlassian",
     fields: {
@@ -616,11 +616,9 @@ async function seedAtlassianExtension(services: Services): Promise<void> {
       defaultSpaceKey: "REL",
     },
   });
-  await services.accounts.setSecret(
-    "atlassian",
-    account.id,
-    "demo-screenshot-fixture-token",
-  );
+  await services.accounts.setSecrets("atlassian", account.id, {
+    secret: "demo-screenshot-fixture-token",
+  });
   const scope = { scope: "user" } as const;
   const current = await services.extensionSettings.read(scope);
   const saved = await services.extensionSettings.save(

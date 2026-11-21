@@ -8,6 +8,24 @@ import type {
   ImageGenerateResponse,
 } from "@nervekit/extension-api/host";
 
+/** An `account` setting of an extension, as the selection of an account. */
+export type AccountSelection = { extensionId: string; field: string };
+
+/** `unavailable`: the extension that defines the account's kind is gone or off. */
+export type AccountCredentialState =
+  | "ready"
+  | "needs_sign_in"
+  | "failed"
+  | "unavailable";
+
+export type CredentialApplication =
+  | { ok: true; headers: Record<string, string>; query: Record<string, string> }
+  | {
+      ok: false;
+      state: Exclude<AccountCredentialState, "ready">;
+      error?: string;
+    };
+
 /**
  * What the embedding host (the server) provides so the runtime can build an
  * extension's `ctx`. Data in, data out: the host resolves settings and
@@ -17,9 +35,28 @@ export type ExtensionHostPorts = {
   /** Resolved values of the extension's settings (user → project → conversation), keyed by field. */
   settings(extensionId: string): Record<string, unknown>;
   accounts: {
-    get(kind: string, id: string): Promise<AccountInfo | undefined>;
-    /** The credential; used only to inject into `ctx.http` requests, never handed to extension code. */
-    secret(kind: string, id: string): Promise<string | undefined>;
+    /**
+     * An account by id. `selection` names the setting that selected it, so the host can apply the
+     * level rule of the setting's scope (user scope selects user-level accounts only).
+     */
+    get(
+      kind: string,
+      id: string,
+      selection?: AccountSelection,
+    ): Promise<AccountInfo | undefined>;
+    /** Whether the account's credential can be used. */
+    state(kind: string, id: string): Promise<AccountCredentialState>;
+    /**
+     * The headers and query parameters the credential adds to one hop to an allowed credential
+     * origin. Host-only: they go on the wire, never to extension code.
+     */
+    apply(
+      kind: string,
+      id: string,
+      request: { method: string; url: URL },
+    ): Promise<CredentialApplication>;
+    /** Marks the account used. */
+    touch?(kind: string, id: string): void;
   };
   /** Extension diagnostics (`ctx.log`); dropped when absent. */
   log?: (

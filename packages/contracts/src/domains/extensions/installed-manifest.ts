@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ExtensionDefinitionData } from "@nervekit/extension-api/host";
 import {
-  accountKindSchema,
+  accountKindDataSchema,
   extensionIdSchema,
   extensionPermissionsSchema,
   settingsSchemaSchema,
@@ -257,9 +257,7 @@ export const installedExtensionManifestSchema = z.strictObject({
   settings: settingsSchemaSchema.extend({
     version: z.number().int().positive(),
   }),
-  accounts: z
-    .record(z.string().min(1), accountKindSchema.omit({ kind: true }))
-    .optional(),
+  accounts: z.record(z.string().min(1), accountKindDataSchema).optional(),
   permissions: extensionPermissionsSchema.optional(),
   namespaces: z.array(namespaceSchema),
   tools: z.array(toolSchema).optional(),

@@ -193,7 +193,7 @@ export declare class ExtensionError extends Error {
 
 ===== declarations extension-api/src/index.d.ts =====
 export type { Risk, OperationTarget, OperationAuthorization, ToolAuthorization, Authorization, AuthorizeResult, } from "./authorization.js";
-export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountInfo, AccountTestResult, AccountKindData, AccountKind, } from "./settings.js";
+export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountSecretField, AccountInfo, AccountTestResult, AccountKindData, AccountKind, } from "./settings.js";
 export type { ArtifactRef, ArtifactInfo, FormPart, HttpRequest, HttpArtifactOptions, HttpResponse, ReportEntry, ImageOptions, ImageRequest, ImageResult, VisionRequest, VisionResult, VisionExplainRequest, ExtensionContext, } from "./types.js";
 export { ExtensionError } from "./errors.js";
 export type { ExtensionErrorCode } from "./errors.js";
@@ -260,17 +260,30 @@ export type ExtensionSettings = SettingsSchema & {
 export type AccountAuth = {
     scheme: "basic";
     user: string;
+    secret?: string;
 } | {
     scheme: "bearer";
+    secret?: string;
 } | {
     scheme: "header";
     name: string;
+    secret?: string;
+} | {
+    scheme: "query";
+    name: string;
+    secret?: string;
+};
+export type AccountSecretField = {
+    label: string;
+    help?: string;
+    multiline?: boolean;
 };
 export type AccountInfo = {
     id: string;
     name: string;
     kind: string;
     fields: Record<string, unknown>;
+    level: "user" | "project";
 };
 export type AccountTestResult = {
     ok: true;
@@ -284,11 +297,9 @@ export type AccountTestResult = {
 export type AccountKindData = {
     label: string;
     fields: Record<string, SettingField>;
-    secret: {
-        label: string;
-        help?: string;
-    };
-    auth?: AccountAuth;
+    secret?: AccountSecretField;
+    secrets?: Record<string, AccountSecretField>;
+    auth?: AccountAuth | AccountAuth[];
     origins?: string[];
 };
 export type AccountKind = AccountKindData & {
@@ -3296,6 +3307,9 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
               },
               "help": {
                 "type": "string"
+              },
+              "multiline": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -3303,57 +3317,224 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
             ],
             "additionalProperties": false
           },
+          "secrets": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^[a-z][A-Za-z0-9]*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "help": {
+                  "type": "string"
+                },
+                "multiline": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
           "auth": {
-            "oneOf": [
+            "anyOf": [
               {
-                "type": "object",
-                "properties": {
-                  "scheme": {
-                    "type": "string",
-                    "const": "basic"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "basic"
+                      },
+                      "user": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "secret": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      }
+                    },
+                    "required": [
+                      "scheme",
+                      "user"
+                    ],
+                    "additionalProperties": false
                   },
-                  "user": {
-                    "type": "string",
-                    "maxLength": 64,
-                    "pattern": "^[a-z][A-Za-z0-9]*$"
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "bearer"
+                      },
+                      "secret": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      }
+                    },
+                    "required": [
+                      "scheme"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "header"
+                      },
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9-]+$"
+                      },
+                      "secret": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      }
+                    },
+                    "required": [
+                      "scheme",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "query"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "secret": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      }
+                    },
+                    "required": [
+                      "scheme",
+                      "name"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "scheme",
-                  "user"
-                ],
-                "additionalProperties": false
+                ]
               },
               {
-                "type": "object",
-                "properties": {
-                  "scheme": {
-                    "type": "string",
-                    "const": "bearer"
-                  }
-                },
-                "required": [
-                  "scheme"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "scheme": {
-                    "type": "string",
-                    "const": "header"
-                  },
-                  "name": {
-                    "type": "string",
-                    "pattern": "^[A-Za-z0-9-]+$"
-                  }
-                },
-                "required": [
-                  "scheme",
-                  "name"
-                ],
-                "additionalProperties": false
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "scheme": {
+                          "type": "string",
+                          "const": "basic"
+                        },
+                        "user": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "secret": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        }
+                      },
+                      "required": [
+                        "scheme",
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "scheme": {
+                          "type": "string",
+                          "const": "bearer"
+                        },
+                        "secret": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        }
+                      },
+                      "required": [
+                        "scheme"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "scheme": {
+                          "type": "string",
+                          "const": "header"
+                        },
+                        "name": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9-]+$"
+                        },
+                        "secret": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        }
+                      },
+                      "required": [
+                        "scheme",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "scheme": {
+                          "type": "string",
+                          "const": "query"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "secret": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        }
+                      },
+                      "required": [
+                        "scheme",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
               }
             ]
           },
@@ -3371,8 +3552,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         },
         "required": [
           "label",
-          "fields",
-          "secret"
+          "fields"
         ],
         "additionalProperties": false
       }

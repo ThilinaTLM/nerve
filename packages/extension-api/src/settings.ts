@@ -133,24 +133,48 @@ export type ExtensionSettings = SettingsSchema & {
   >;
 };
 
-/** How `ctx.http` injects an account's credential. */
+/**
+ * How `ctx.http` injects an account's credential. `secret` names the typed-in secret the
+ * injection uses (a key of `AccountKindData.secrets`); it may be left out when the kind has one
+ * secret.
+ */
 export type AccountAuth =
   | {
       /** `Authorization: Basic base64(<account field>:<secret>)`. */
       scheme: "basic";
       /** Key of the account field holding the user name (`email`). */
       user: string;
+      secret?: string;
     }
   | {
       /** `Authorization: Bearer <secret>`. */
       scheme: "bearer";
+      secret?: string;
     }
   | {
       /** The secret is sent as this header's value. */
       scheme: "header";
       /** Header name: letters, digits and hyphens (`X-Api-Key`). */
       name: string;
+      secret?: string;
+    }
+  | {
+      /** The secret is added to the URL as this query parameter. */
+      scheme: "query";
+      /** Parameter name (`api_key`). */
+      name: string;
+      secret?: string;
     };
+
+/** A typed-in secret of an account kind. */
+export type AccountSecretField = {
+  /** Name of the secret input (`API token`). Non-empty. */
+  label: string;
+  /** Help text under the input, e.g. where to create the token. */
+  help?: string;
+  /** A multi-line input, for keys and certificates. */
+  multiline?: boolean;
+};
 
 /** An account the user added in Settings, as an extension sees it. The secret is never part of it. */
 export type AccountInfo = {
@@ -162,6 +186,8 @@ export type AccountInfo = {
   kind: string;
   /** The kind's non-secret fields as the user filled them (`{ site: "https://acme.atlassian.net" }`). */
   fields: Record<string, unknown>;
+  /** Whether the account is available in every project (`user`) or in one project only (`project`). */
+  level: "user" | "project";
 };
 
 /**
@@ -199,15 +225,12 @@ export type AccountKindData = {
   label: string;
   /** Non-secret fields stored with the account. Types `string`, `number`, `boolean` and `enum` only (not `account` or `model`). */
   fields: Record<string, SettingField>;
-  /** The one secret of an account (token, password), kept in the secret store. */
-  secret: {
-    /** Name of the secret input (`API token`). Non-empty. */
-    label: string;
-    /** Help text under the input, e.g. where to create the token. */
-    help?: string;
-  };
-  /** How `ctx.http` sends the secret. Absent: the kind has no injected credential and `HttpRequest.auth` is rejected. */
-  auth?: AccountAuth;
+  /** The one secret of an account (token, password), kept encrypted by the host. Shorthand for a single entry of `secrets`; set exactly one of the two. */
+  secret?: AccountSecretField;
+  /** The typed-in secrets of an account by name (`{ keyId: {...}, keySecret: {...} }`), kept encrypted by the host. */
+  secrets?: Record<string, AccountSecretField>;
+  /** How `ctx.http` sends the secrets: one injection, or several. Absent: the kind has no injected credential and `HttpRequest.auth` is rejected. */
+  auth?: AccountAuth | AccountAuth[];
   /**
    * Origins the credential is sent to: URL origins, with `{<field>}`
    * templates filled from the account's fields (`{site}`). A request with

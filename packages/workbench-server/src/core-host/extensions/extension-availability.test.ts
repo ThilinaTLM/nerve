@@ -7,27 +7,21 @@ import {
 } from "@nervekit/contracts/extensions";
 import { configuredNamespaces } from "@nervekit/tools/extension-host";
 import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
+import { fakeAccountsReader } from "../../domains/accounts/test-support.js";
 import {
   extensionAvailability,
   extensionToolOffered,
 } from "./extension-availability.js";
 import { hostRegistry } from "../host-tools.js";
 
-const accounts = (options: { secrets?: boolean } = {}): AccountsReader => {
-  const known = new Map([
-    ["atlassian:acme", "Acme"],
-    ["tavily:tav", "Tav"],
-  ]);
-  return {
-    get: async (kind, id) =>
-      known.has(`${kind}:${id}`)
-        ? { id, kind, name: known.get(`${kind}:${id}`)!, fields: {} }
-        : undefined,
-    list: async () => [],
-    secret: async () => (options.secrets === false ? undefined : "secret"),
-    hasSecret: async () => options.secrets !== false,
-  };
-};
+const accounts = (options: { secrets?: boolean } = {}): AccountsReader =>
+  fakeAccountsReader({
+    accounts: [
+      { id: "acme", kind: "atlassian", name: "Acme", fields: {} },
+      { id: "tav", kind: "tavily", name: "Tav", fields: {} },
+    ],
+    state: options.secrets === false ? "needs_sign_in" : "ready",
+  });
 const resolve = (user: ExtensionEntries = {}) =>
   resolveExtensions(extensionSettingsDefinitions, [
     { layer: "user", entries: user },
@@ -75,12 +69,12 @@ void test("an enabled product without an existing account or token is configured
   );
   assert.match(
     (missing.jira as { fix: string }).fix,
-    /choose the Atlassian account with a saved API token in Settings → Extensions → Atlassian/,
+    /choose the Atlassian account to use, and to sign in to it if needed, in Settings → Extensions → Atlassian/,
   );
   const noToken = (
     await derive(resolve(atlassian(settings)), { secrets: false })
   ).namespaces;
-  assert.match((noToken.jira as { reason: string }).reason, /API token/);
+  assert.match((noToken.jira as { reason: string }).reason, /needs sign-in/);
   assert.equal(noToken.atlassian.available, false);
   // The tool description only needs `configured`.
   const unchecked = (

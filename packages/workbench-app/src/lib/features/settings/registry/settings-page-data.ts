@@ -140,6 +140,12 @@ const userPages: Record<string, PageData> = {
       "Understand what Nerve keeps locally and safely reclaim space.",
     sections: [{ id: "storage", label: "Storage" }],
   },
+  "background-jobs": {
+    label: "Background jobs",
+    description:
+      "Work Nerve does on its own while it runs. A job that keeps failing shows in the notification bell.",
+    sections: [{ id: "jobs", label: "Jobs" }],
+  },
   devices: {
     label: "Devices",
     description:
@@ -252,7 +258,11 @@ const userLayout: NavLayout = [
     title: "App",
     pages: ["workbench", "notifications", "shortcuts", "voice", "titles"],
   },
-  { id: "system", title: "System", pages: ["storage", "devices", "system"] },
+  {
+    id: "system",
+    title: "System",
+    pages: ["storage", "background-jobs", "devices", "system"],
+  },
 ];
 
 const projectLayout: NavLayout = [

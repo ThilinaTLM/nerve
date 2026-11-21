@@ -23,6 +23,7 @@ import {
   registerHostTools,
 } from "../../core-host/host-tools.js";
 import type { ExtensionCatalog } from "../../core-host/extensions/extension-catalog/extension-catalog.js";
+import { resolveKey } from "../../core-host/extensions/extension-catalog/project-key.js";
 import { listAvailableSkills } from "../../core-host/resources/resource-loader.js";
 import { UnifiedCompletionService } from "../../domains/completions/unified-completion-service.js";
 import { createCompletionDependencies } from "./create-completion-dependencies.js";
@@ -42,7 +43,10 @@ import type { SubscriptionUsageService } from "../../domains/usage/subscription-
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
-import type { SecretProvider } from "../../infrastructure/secrets/index.js";
+import {
+  loadMasterKey,
+  type SecretProvider,
+} from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { ResourceLimits } from "@nervekit/contracts/settings";
 import type { NerveSkillCatalog } from "../../builtin-skills/index.js";
@@ -87,7 +91,7 @@ export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
 
 export function createRuntimeServices(deps: RuntimeDeps) {
   registerHostTools();
-  const { storage, events, auth, logger } = deps;
+  const { storage, events, logger } = deps;
   const extensionCatalog =
     deps.extensionCatalog ??
     createHostExtensionCatalog({
@@ -98,7 +102,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const extensionStore = new ExtensionStore({
     root: storage.paths.extensionStorePath,
     projectExists: (projectId) =>
-      conversationCore.projects.get(projectId) !== undefined,
+      Boolean(conversationCore.projects.get(projectId)),
     onChange: ({ projectId, extensionId, key, revision, origin }) =>
       void events
         .publish("extensions.store.changed", {
@@ -160,8 +164,25 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   void extensionCatalog.compose().catch((error) => {
     void logger.warn("Installed extensions could not be read", { error });
   });
-  const accountKinds = () => extensionCatalog.accountKinds();
-  const accounts = new AccountsService({ storage, auth, kinds: accountKinds });
+  // Kinds a project's own extension defines belong to that project.
+  const accountDefinitions = () =>
+    extensionCatalog.accountDefinitions().flatMap(({ kind, projectDir }) => {
+      if (projectDir === undefined) return [{ kind }];
+      const project = listProjects().find(
+        (candidate) => resolveKey(candidate.directory) === projectDir,
+      );
+      return project ? [{ kind, projectId: project.id }] : [];
+    });
+  const accountKinds = () => accountDefinitions().map(({ kind }) => kind);
+  let masterKey: Promise<Buffer> | undefined;
+  const accounts = new AccountsService({
+    // The core storage opens below, after the accounts service the core's tool host needs.
+    repository: () => coreStorage.accounts,
+    key: () => (masterKey ??= loadMasterKey(storage.paths.home)),
+    definitions: accountDefinitions,
+    projectExists: (projectId) =>
+      Boolean(conversationCore.projects.get(projectId)),
+  });
   const {
     conversationTitles,
     core: conversationCore,
@@ -203,11 +224,11 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     },
   );
   const integrationHealth = new IntegrationHealthService({
-    accounts,
+    accounts: accounts.all(),
     kinds: accountKinds,
     test: extensionAccountTester({
       registry: () => extensionCatalog.registryFor(),
-      accounts,
+      accounts: accounts.all(),
       warn: (extensionId, message, data) =>
         void deps.logger.warn("Extension warning", {
           context: { extension: extensionId, message, data },

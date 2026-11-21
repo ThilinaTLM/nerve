@@ -26,6 +26,7 @@ import type { ProjectMigrationService } from "../infrastructure/configuration/pr
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import type { agentConfigurationOperations } from "../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import type { ActivityService } from "../domains/activity/activity.service.js";
+import type { BackgroundJobService } from "../domains/background-jobs/background-jobs.service.js";
 import type { MaintenanceService } from "../domains/maintenance/maintenance.service.js";
 import type { ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
 import type { NerveSkillCatalog } from "../builtin-skills/index.js";
@@ -67,6 +68,7 @@ export interface AdapterInfrastructure {
   applicationLogsEnabled: boolean;
   storageUsage: StorageUsageService;
   maintenance: MaintenanceService;
+  backgroundJobs: BackgroundJobService;
   activities: ActivityService;
   latestRelease: LatestReleaseService;
   secrets: SecretProvider;

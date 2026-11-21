@@ -18,7 +18,7 @@ import {
   callExtensionMethodFromUi,
   ExtensionUiCallError,
 } from "@nervekit/tools/extension-host";
-import type { AccountsReader } from "../../../domains/accounts/accounts.service.js";
+import type { AccountScopes } from "../../../domains/accounts/accounts.service.js";
 import type { ExtensionSettingsService } from "../../../infrastructure/configuration/extensions/extension-settings-service.js";
 import type {
   ExtensionRegistryProvider,
@@ -49,7 +49,7 @@ export const baseCssUrl = `${frameUrlPrefix}/base.css`;
 export type ExtensionUiOptions = {
   catalog: ExtensionRegistryProvider & ExtensionUiSource;
   extensions: Pick<ExtensionSettingsService, "resolve">;
-  accounts: AccountsReader;
+  accounts: AccountScopes;
   vision?: VisionHost;
   store: ExtensionStore;
   /** Where frame errors are recorded: the catalog's, so they reach `extensions.status().recentErrors`. */
@@ -474,7 +474,7 @@ export class ExtensionUiService {
     const registry = await this.#options.catalog.registryFor(active.directory);
     const ports = createExtensionPorts({
       resolution: active.resolution,
-      accounts: this.#options.accounts,
+      accounts: this.#options.accounts.reader(projectId),
       ...(this.#options.vision ? { vision: this.#options.vision } : {}),
       store: this.#options.store,
       projectId,

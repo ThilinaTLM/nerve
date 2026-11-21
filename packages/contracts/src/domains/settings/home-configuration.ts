@@ -20,7 +20,6 @@ import {
   publicUrlSchema,
   trustProxySchema,
 } from "./application-configuration.js";
-import { accountsConfigSchema, defaultAccountsConfig } from "./accounts.js";
 
 const homeMigrationLedgerSchema = z.array(
   z
@@ -296,7 +295,6 @@ export const userConfigurationSchema = z
     ui: uiConfigSchema,
     permissions: permissionsConfigSchema,
     providers: providersConfigSchema,
-    accounts: accountsConfigSchema,
   })
   .strict();
 export type UserConfiguration = z.infer<typeof userConfigurationSchema>;
@@ -306,5 +304,4 @@ export const defaultUserConfiguration: UserConfiguration = {
   ui: defaultUiConfig,
   permissions: defaultPermissionsConfig,
   providers: defaultProvidersConfig,
-  accounts: defaultAccountsConfig,
 };

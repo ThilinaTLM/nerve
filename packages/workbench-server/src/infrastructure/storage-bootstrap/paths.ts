@@ -13,6 +13,7 @@ export interface StoragePaths {
   uiConfigPath: string;
   permissionsConfigPath: string;
   providersConfigPath: string;
+  /** Legacy `config/accounts.json`; read only by the migration steps that move it into the account table. */
   accountsConfigPath: string;
   secretsPath: string;
   masterKeyPath: string;

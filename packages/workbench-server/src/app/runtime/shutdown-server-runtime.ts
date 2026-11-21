@@ -1,4 +1,6 @@
 export interface ServerShutdownResources {
+  /** Stops background jobs before anything they use shuts down. */
+  backgroundJobs: { stop(): Promise<void> };
   maintenance: { shutdown(): Promise<void> };
   lifecycle: { shutdown(): Promise<void> };
   activities: { dispose(): void | Promise<void> };
@@ -22,6 +24,11 @@ export function shutdownServerRuntime(
   if (existing) return existing;
   const operation = Promise.resolve().then(async () => {
     const failures: unknown[] = [];
+    try {
+      await state.backgroundJobs.stop();
+    } catch (error) {
+      failures.push(error);
+    }
     try {
       await state.maintenance.shutdown();
     } catch (error) {

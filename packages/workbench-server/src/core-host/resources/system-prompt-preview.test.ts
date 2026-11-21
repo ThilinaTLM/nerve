@@ -8,15 +8,11 @@ import { scopedTurnResources } from "./scoped-turn-resources.js";
 import { hostRegistry } from "../host-tools.js";
 import { requireToolDefinition } from "@nervekit/tools/catalog";
 import type { Skill } from "@nervekit/harness/resources";
+import { fakeAccountsReader } from "../../domains/accounts/test-support.js";
 
 const noExtensions = async () => ({
   resolution: { extensions: {}, unknown: [], diagnostics: [] },
-  accounts: {
-    get: async () => undefined,
-    list: async () => [],
-    secret: async () => undefined,
-    hasSecret: async () => false,
-  },
+  accounts: fakeAccountsReader(),
 });
 
 void test("turns use captured instructions without consulting their source template, while project context stays fresh", async () => {

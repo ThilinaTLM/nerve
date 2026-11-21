@@ -48,7 +48,7 @@ describe("account form", () => {
       {
         name: "Acme",
         fields: { siteUrl: "https://acme.atlassian.net", email: "" },
-        secret: "",
+        secrets: { secret: "" },
       },
     );
   });
@@ -69,25 +69,58 @@ describe("account form", () => {
       fields: { siteUrl: "https://acme.atlassian.net" },
     });
     assert.deepEqual(
-      submitAccountForm(atlassian, { ...form, secret: " token " }, false),
+      submitAccountForm(
+        atlassian,
+        { ...form, secrets: { secret: " token " } },
+        false,
+      ),
       {
         ok: true,
         name: "Acme",
         fields: { siteUrl: "https://acme.atlassian.net" },
-        secret: "token",
+        secrets: { secret: "token" },
       },
     );
     assert.equal(
-      submitAccountForm(tavily, { name: "", fields: {}, secret: "k" }, false)
-        .ok,
+      submitAccountForm(
+        tavily,
+        { name: "", fields: {}, secrets: { secret: "k" } },
+        false,
+      ).ok,
       false,
     );
   });
 
+  it("asks for every secret of a kind with several, and sends only those typed", () => {
+    const keyed = {
+      ...tavily,
+      secret: undefined,
+      secrets: {
+        keyId: { label: "Key id" },
+        keySecret: { label: "Key secret" },
+      },
+    };
+    const form = {
+      ...initialAccountForm(keyed),
+      name: "K",
+      secrets: { keyId: "id", keySecret: "" },
+    };
+    assert.deepEqual(submitAccountForm(keyed, form, false), {
+      ok: false,
+      message: "Enter the Key secret.",
+    });
+    assert.deepEqual(submitAccountForm(keyed, form, true), {
+      ok: true,
+      name: "K",
+      fields: {},
+      secrets: { keyId: "id" },
+    });
+  });
+
   it("offers Test only for kinds that define it and accounts with a secret", () => {
-    assert.equal(accountCanTest(atlassian, { secretConfigured: true }), true);
-    assert.equal(accountCanTest(atlassian, { secretConfigured: false }), false);
-    assert.equal(accountCanTest(tavily, { secretConfigured: true }), false);
+    assert.equal(accountCanTest(atlassian, { state: "ready" }), true);
+    assert.equal(accountCanTest(atlassian, { state: "needs_sign_in" }), false);
+    assert.equal(accountCanTest(tavily, { state: "ready" }), false);
   });
 
   it("splits help text into links and text", () => {

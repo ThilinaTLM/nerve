@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   AccountAuth,
   AccountKindData,
+  AccountSecretField,
   ExtensionPermissions,
   SettingField as ApiSettingField,
   SettingsSchema as ApiSettingsSchema,
@@ -111,25 +112,67 @@ export const settingsSchemaSchema = z.strictObject({
 }) satisfies z.ZodType<ApiSettingsSchema>;
 export type SettingsSchema = z.infer<typeof settingsSchemaSchema>;
 
+const secretNameSchema = fieldKeySchema;
+
 /** How `ctx.http` injects an account's credential. */
 export const accountAuthSchema = z.discriminatedUnion("scheme", [
   z.strictObject({
     scheme: z.literal("basic"),
     /** Account field holding the user name. */
     user: fieldKeySchema,
+    secret: secretNameSchema.optional(),
   }),
-  z.strictObject({ scheme: z.literal("bearer") }),
+  z.strictObject({
+    scheme: z.literal("bearer"),
+    secret: secretNameSchema.optional(),
+  }),
   z.strictObject({
     scheme: z.literal("header"),
     name: z.string().regex(/^[A-Za-z0-9-]+$/),
+    secret: secretNameSchema.optional(),
+  }),
+  z.strictObject({
+    scheme: z.literal("query"),
+    name: z.string().min(1).max(128),
+    secret: secretNameSchema.optional(),
   }),
 ]) satisfies z.ZodType<AccountAuth>;
 
-/** An account kind an extension defines; accounts are user-only and hold credentials. */
-export const accountKindSchema = z.strictObject({
+export const accountSecretFieldSchema = z.strictObject({
+  label: z.string().min(1),
+  help: z.string().optional(),
+  multiline: z.boolean().optional(),
+}) satisfies z.ZodType<AccountSecretField>;
+
+/** The name of the single secret declared with the `secret` shorthand. */
+export const DEFAULT_ACCOUNT_SECRET = "secret";
+
+/** The typed-in secrets of a kind by name; the `secret` shorthand is the one named `secret`. */
+export function accountSecretFields(kind: {
+  secret?: AccountSecretField | undefined;
+  secrets?: Readonly<Record<string, AccountSecretField>> | undefined;
+}): Record<string, AccountSecretField> {
+  if (kind.secrets) return { ...kind.secrets };
+  return kind.secret ? { [DEFAULT_ACCOUNT_SECRET]: kind.secret } : {};
+}
+
+/** The injections of a kind, in declared order, each with the secret it uses resolved. */
+export function accountInjections(kind: {
+  secret?: AccountSecretField | undefined;
+  secrets?: Readonly<Record<string, AccountSecretField>> | undefined;
+  auth?: AccountAuth | readonly AccountAuth[] | undefined;
+}): (AccountAuth & { secret: string })[] {
+  if (!kind.auth) return [];
+  const names = Object.keys(accountSecretFields(kind));
+  return (Array.isArray(kind.auth) ? kind.auth : [kind.auth]).map(
+    (auth: AccountAuth) => ({ ...auth, secret: auth.secret ?? names[0] ?? "" }),
+  );
+}
+
+const accountKindObjectSchema = z.strictObject({
   kind: z.string().min(1),
   label: z.string().min(1),
-  /** Non-secret fields stored in `accounts.json`. */
+  /** Non-secret fields stored with the account. */
   fields: z
     .record(fieldKeySchema, settingFieldSchema)
     .superRefine((fields, context) => {
@@ -141,16 +184,67 @@ export const accountKindSchema = z.strictObject({
             message: `Account kinds cannot have ${field.type} fields: the account dialog cannot show them. Use string, number, boolean or enum.`,
           });
     }),
-  secret: z.strictObject({
-    label: z.string().min(1),
-    help: z.string().optional(),
-  }),
-  /** How the host sends the secret with `ctx.http` requests. Absent: the kind has no injected credential. */
-  auth: accountAuthSchema.optional(),
+  secret: accountSecretFieldSchema.optional(),
+  secrets: z.record(secretNameSchema, accountSecretFieldSchema).optional(),
+  /** How the host sends the secrets with `ctx.http` requests. Absent: the kind has no injected credential. */
+  auth: z
+    .union([accountAuthSchema, z.array(accountAuthSchema).min(1)])
+    .optional(),
   /** Origins the credential is sent to; `{<field>}` is replaced by the account's field. */
   origins: z.array(z.string().min(1)).optional(),
   test: z.literal(true).optional(),
-}) satisfies z.ZodType<AccountKindData & { kind: string; test?: true }>;
+});
+
+/** Secrets are declared once, and every injection names one of them. */
+const checkAccountSecrets = (
+  kind:
+    | z.infer<typeof accountKindObjectSchema>
+    | Omit<z.infer<typeof accountKindObjectSchema>, "kind">,
+  context: z.RefinementCtx,
+): void => {
+  if (kind.secret && kind.secrets)
+    context.addIssue({
+      code: "custom",
+      path: ["secrets"],
+      message: "Declare either `secret` or `secrets`, not both.",
+    });
+  const names = Object.keys(accountSecretFields(kind));
+  if (names.length === 0)
+    context.addIssue({
+      code: "custom",
+      path: ["secret"],
+      message:
+        "An account kind needs a `secret` or at least one `secrets` entry.",
+    });
+  for (const [index, auth] of (kind.auth === undefined
+    ? []
+    : Array.isArray(kind.auth)
+      ? kind.auth
+      : [kind.auth]
+  ).entries()) {
+    if (auth.secret === undefined && names.length > 1)
+      context.addIssue({
+        code: "custom",
+        path: ["auth", index, "secret"],
+        message: `Name the secret this injection uses (${names.join(", ")}).`,
+      });
+    else if (auth.secret !== undefined && !names.includes(auth.secret))
+      context.addIssue({
+        code: "custom",
+        path: ["auth", index, "secret"],
+        message: `'${auth.secret}' is not one of the kind's secrets (${names.join(", ")}).`,
+      });
+  }
+};
+
+/** An account kind an extension defines; holds credentials, at user or project level. */
+export const accountKindSchema = accountKindObjectSchema.superRefine(
+  checkAccountSecrets,
+) satisfies z.ZodType<AccountKindData & { kind: string; test?: true }>;
+/** The kind as written in an installed manifest, keyed by its name. */
+export const accountKindDataSchema = accountKindObjectSchema
+  .omit({ kind: true })
+  .superRefine(checkAccountSecrets);
 export type AccountKind = z.infer<typeof accountKindSchema>;
 
 /** What an extension may reach: network origins and host capabilities. */

@@ -14,7 +14,7 @@ import {
 } from "../../core-host/extensions/extension-ports.js";
 import { createHostExtensionCatalog } from "../../core-host/host-tools.js";
 import type { ExtensionCatalog } from "../../core-host/extensions/extension-catalog/extension-catalog.js";
-import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
+import type { AccountScopes } from "../../domains/accounts/accounts.service.js";
 import { conversationExtensions } from "../../core-host/extensions/conversation-extensions.js";
 import { ExtensionSettingsService } from "../../infrastructure/configuration/extensions/extension-settings-service.js";
 import { type QuickScriptContext } from "@nervekit/tools/quick-script";
@@ -83,7 +83,7 @@ import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generati
 
 export function createConversationCore(
   deps: RuntimeDeps & {
-    accounts: AccountsReader;
+    accounts: AccountScopes;
     extensionCatalog?: ExtensionCatalog;
     extensionStore: ExtensionStore;
   },
@@ -119,7 +119,6 @@ export function createConversationCore(
         throw new Error("Agent configuration unavailable");
       return view.resolution.settings.tools?.bash?.settings?.shellPath;
     });
-  const { accounts } = deps;
   const extensionCatalog =
     deps.extensionCatalog ??
     createHostExtensionCatalog({
@@ -245,6 +244,7 @@ export function createConversationCore(
             `${input.toolName}: not enabled for this conversation`,
           );
         const { extensions, python, shell } = resources;
+        const accounts = deps.accounts.reader(resources.projectId);
         const bash = structuredClone(
           settings.tools!.bash!.settings as BashToolSettings,
         );
@@ -429,7 +429,6 @@ export function createConversationCore(
       discoveredSkills: [...discoveredSkills],
       credentialEpoch,
       extensionEpoch,
-      accounts: deps.storage.configuration.accounts,
       modelConfiguration: deps.storage.configuration.providers,
       models: deps.providerCatalog.resolvedModels(),
       nerve: deps.nerveSkills.skills,
@@ -632,7 +631,7 @@ export function createConversationCore(
       extensionStore: deps.extensionStore,
       extensions: async (id, projectId) => ({
         resolution: await conversationExtensionSettings(id, projectId),
-        accounts,
+        accounts: deps.accounts.reader(projectId),
       }),
     }),
   });

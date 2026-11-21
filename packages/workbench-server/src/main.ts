@@ -472,6 +472,7 @@ async function main() {
       performance.now() - runtimeHydrateStartedAt,
     );
     state.subscriptionUsage.start();
+    state.backgroundJobs.start();
     const mobileTlsStartedAt = performance.now();
     const mobileTls = mobileHttpsEnabled
       ? await ensureMobileHttpsTlsMaterial(
