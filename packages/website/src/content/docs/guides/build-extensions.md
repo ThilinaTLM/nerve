@@ -48,4 +48,4 @@ Accounts and secrets are never part of the folder.
 
 ## For developers
 
-The agent builds on the [`@nervekit/extension-sdk`](https://www.npmjs.com/package/@nervekit/extension-sdk) package, and you can use it directly. Its README covers the workflow, and the API is documented in the package's type declarations.
+The agent builds on the [`@nervekit/extension-sdk`](https://www.npmjs.com/package/@nervekit/extension-sdk) package, and you can use it directly. Its README covers the workflow, and the API is documented in the package's type declarations. The SDK shares Nerve's version and channels: the default install matches stable Nerve, and `@nervekit/extension-sdk@next` matches the [staging channel](/start/install/#staging-channel).

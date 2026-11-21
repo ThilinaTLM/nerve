@@ -54,7 +54,7 @@ Steps use frozen local shapes and helpers so later application refactors cannot 
 
 A step's **checksum** is the hash of its folder, which lets the framework detect unexpected changes. Released steps are immutable; fixes ship in a later step. A released step's registry checksum must equal its folder hash, enforced by `migrations.lock.json`. A home records the checksum current when it applied a step, so a released step whose files changed afterwards lists the earlier values in `previousChecksums`. It admits a ledger entry matching its checksum or any previous one and refuses anything else, and a draft `rerunOnChange` step does not rerun for a listed previous checksum. List only revisions whose applied homes are valid inputs for later steps.
 
-A draft step may be edited freely, but its registry checksum must still equal its current folder hash; `pnpm storage:checksums` rewrites the draft checksums. `pnpm release:tag X.Y.Z` releases draft steps (see the [release runbook](../runbooks/release.md)).
+A draft step may be edited freely, but its registry checksum must still equal its current folder hash; `pnpm storage:checksums` rewrites the draft checksums. The Release: Cut workflow releases draft steps through `pnpm release:prepare X.Y.Z` (see the [release runbook](../runbooks/release.md)).
 
 ## Isolating damage
 

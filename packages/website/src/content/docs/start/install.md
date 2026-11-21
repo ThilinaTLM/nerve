@@ -37,6 +37,26 @@ Nerve stores settings, credentials, conversations, and logs in `~/.nerve`. Your 
 If Nerve finds a supported older Nerve home, it asks before migrating it. Read [Back up, move, and upgrade data](/operations/storage-migration/) first if you need your old conversations.
 :::
 
+## Staging channel
+
+New versions are published to the staging channel first and reach `@latest` once they have had time to show bugs. To try them early, launch `@next`:
+
+```sh wrap
+npx @nervekit/desktop@next
+```
+
+`npm view @nervekit/desktop dist-tags` shows which version each channel points at.
+
+:::caution
+A home opened by a staging version may be migrated to a storage format that the current stable version cannot open, and there is no way back. Use a separate home for staging, with its own port and Electron profile so it can run next to stable:
+
+```sh wrap
+NERVE_HOME="$HOME/.nerve-staging" NERVE_PORT=3757 NERVE_ELECTRON_USER_DATA="$HOME/.nerve-staging-electron" npx @nervekit/desktop@next
+```
+
+`NERVE_ELECTRON_USER_DATA` must be an absolute path outside `NERVE_HOME`.
+:::
+
 Want to run Nerve from source? See [Development setup](/developers/development/).
 
 ## If installation fails

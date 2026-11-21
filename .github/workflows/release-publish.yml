@@ -1,0 +1,146 @@
+name: "Release: Publish"
+run-name: Publish ${{ github.ref_name }} to ${{ inputs.channel }}
+
+# Run from a release tag ("Use workflow from"). Publishes the tarballs that
+# Release: Cut tested and attached to the draft GitHub release; nothing is
+# rebuilt. staging -> npm `next`, stable -> npm `latest`.
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: npm channel
+        type: choice
+        options:
+          - staging
+          - stable
+        default: staging
+
+env:
+  TAG: ${{ github.ref_name }}
+
+concurrency:
+  group: release-publish-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Draft releases are visible only with write access, so this job reads the
+  # assets and hands them to the publish job, which gets only id-token.
+  release-assets:
+    name: Verify draft release assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Require a release tag
+        run: |
+          if [ "${GITHUB_REF_TYPE}" != "tag" ] || [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Run this workflow from a release tag (vX.Y.Z), not ${GITHUB_REF}." >&2
+            exit 1
+          fi
+      - name: Check out release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      # Only Release: Cut creates drafts for its tags; a second guard behind
+      # the tag ruleset.
+      - name: Download draft release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "$(gh release view "${TAG}" --json isDraft -q .isDraft)" != "true" ]; then
+            echo "${TAG} has no draft GitHub release; it was published already or not cut by Release: Cut." >&2
+            exit 1
+          fi
+          gh release download "${TAG}" --dir release/assets
+      - name: Verify tarballs against SHA256SUMS and the tag
+        run: node scripts/release/release-artifacts.ts verify release/assets "${TAG#v}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: release/assets
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-npm:
+    name: Publish to npm (${{ inputs.channel }})
+    runs-on: ubuntu-latest
+    needs: release-assets
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Verify npm >= 11.5.1 (trusted publishing)
+        shell: bash
+        run: |
+          npm_version="$(npm --version)"
+          echo "npm: ${npm_version}"
+          if [ "$(printf '%s\n11.5.1\n' "${npm_version}" | sort -V | head -n1)" != "11.5.1" ]; then
+            npm install -g npm@latest
+            echo "npm: $(npm --version)"
+          fi
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: release/assets
+      - name: Verify tarballs again
+        run: node scripts/release/release-artifacts.ts verify release/assets "${TAG#v}"
+      # Platform packages, desktop, extension-api, ui-kit, then the SDK.
+      # Published versions are skipped, so a partial failure can be rerun.
+      - name: Publish tarballs
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          dist_tag="next"
+          if [ "${CHANNEL}" = "stable" ]; then dist_tag="latest"; fi
+          node scripts/release/release-artifacts.ts list "${version}" > packages.txt
+          while read -r name tarball; do
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "Skipping ${name}@${version} (already published)"
+              continue
+            fi
+            echo "Publishing ${name}@${version} with dist-tag ${dist_tag}"
+            npm publish "release/assets/${tarball}" --provenance --access public --tag "${dist_tag}"
+          done < packages.txt
+
+  github-release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs: publish-npm
+    permissions:
+      contents: write
+
+    steps:
+      - name: Publish ${{ env.TAG }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          if [ "${CHANNEL}" = "stable" ]; then
+            gh release edit "${TAG}" --draft=false --prerelease=false --latest
+          else
+            gh release edit "${TAG}" --draft=false --prerelease --latest=false
+          fi

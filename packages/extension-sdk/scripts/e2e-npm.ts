@@ -5,6 +5,8 @@
 //   pnpm --filter @nervekit/extension-sdk e2e
 // Needs network for the third-party dependencies (esbuild, vitest, mermaid ...). Not a unit test:
 // a cold install takes a minute or more. Set KEEP=1 to keep the temporary folder.
+// Set NERVE_SDK_TARBALLS=<dir> to test already packed tarballs (Release: Cut tests the ones it
+// publishes) instead of packing them here.
 import { execFileSync } from "node:child_process";
 import assert from "node:assert/strict";
 import {
@@ -16,7 +18,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fixtureDist, fixtureId } from "./fixture.ts";
 
@@ -34,10 +36,17 @@ function run(command: string, args: string[], cwd: string): string {
 
 try {
   // 1. Tarballs.
-  const tarballs = join(root, "tarballs");
-  await mkdir(tarballs);
-  for (const name of ["extension-api", "ui-kit", "extension-sdk"])
-    run("pnpm", ["pack", "--pack-destination", tarballs], join(packages, name));
+  const packed = process.env.NERVE_SDK_TARBALLS;
+  const tarballs = packed ? resolve(packed) : join(root, "tarballs");
+  if (!packed) {
+    await mkdir(tarballs);
+    for (const name of ["extension-api", "ui-kit", "extension-sdk"])
+      run(
+        "pnpm",
+        ["pack", "--pack-destination", tarballs],
+        join(packages, name),
+      );
+  }
   const files = (await readdir(tarballs)).map((file) => join(tarballs, file));
   assert.equal(
     files.length,

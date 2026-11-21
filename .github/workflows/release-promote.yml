@@ -1,0 +1,126 @@
+name: "Release: Promote"
+run-name: Promote v${{ inputs.version }} to stable${{ inputs.rollback && ' (rollback)' || '' }}
+
+# Moves npm `latest` to an already published version for all ten packages,
+# marks its GitHub release as latest and deploys the website from its tag.
+# Nothing is rebuilt: stable users get the bytes staging users tested.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published version to promote, without a leading v (X.Y.Z)
+        type: string
+        required: true
+      rollback:
+        description: Allow moving latest back to an older version
+        type: boolean
+        default: false
+
+env:
+  VERSION: ${{ inputs.version }}
+  TAG: v${{ inputs.version }}
+
+concurrency:
+  group: release-promote
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote-npm:
+    name: Move npm latest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Require a plain SemVer version
+        run: |
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version ${VERSION}; expected X.Y.Z." >&2
+            exit 1
+          fi
+      - name: Check out release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # OIDC dist-tag operations need npm 11.21.0 or later (12.x: 12.2.0).
+      - name: Verify npm supports OIDC dist-tags
+        run: |
+          npm_version="$(npm --version)"
+          echo "npm: ${npm_version}"
+          if [ "$(printf '%s\n11.21.0\n' "${npm_version}" | sort -V | head -n1)" != "11.21.0" ]; then
+            npm install -g npm@latest
+            echo "npm: $(npm --version)"
+          fi
+      - name: Check every package is published at ${{ env.VERSION }}
+        env:
+          ROLLBACK: ${{ inputs.rollback }}
+        run: |
+          set -euo pipefail
+          node scripts/release/release-artifacts.ts list "${VERSION}" > packages.txt
+          while read -r name _; do
+            published="$(npm view "${name}@${VERSION}" version 2>/dev/null || true)"
+            if [ "${published}" != "${VERSION}" ]; then
+              echo "${name}@${VERSION} is not published; run Release: Publish first." >&2
+              exit 1
+            fi
+          done < packages.txt
+          current="$(npm view @nervekit/desktop dist-tags.latest)"
+          echo "Current latest: ${current}"
+          if [ "${current}" = "${VERSION}" ]; then
+            echo "latest already points at ${VERSION}; moving the remaining packages if needed."
+          elif [ "${ROLLBACK}" != "true" ] && [ "$(printf '%s\n%s\n' "${current}" "${VERSION}" | sort -V | tail -n1)" != "${VERSION}" ]; then
+            echo "${VERSION} is older than latest ${current}; set rollback to move latest back." >&2
+            exit 1
+          fi
+      - name: Move latest to ${{ env.VERSION }}
+        run: |
+          set -euo pipefail
+          while read -r name _; do
+            npm dist-tag add "${name}@${VERSION}" latest
+          done < packages.txt
+
+  github-release:
+    name: Mark GitHub release latest
+    runs-on: ubuntu-latest
+    needs: promote-npm
+    permissions:
+      contents: write
+
+    steps:
+      # Stable notes cover every staging version since the previous stable
+      # release. A rollback keeps the notes the release already has.
+      - name: Mark ${{ env.TAG }} as the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ROLLBACK: ${{ inputs.rollback }}
+        run: |
+          set -euo pipefail
+          previous="$(gh api "repos/${GH_REPO}/releases/latest" -q .tag_name 2>/dev/null || true)"
+          args=(--draft=false --prerelease=false --latest)
+          if [ "${ROLLBACK}" != "true" ] && [ -n "${previous}" ] && [ "${previous}" != "${TAG}" ]; then
+            gh api "repos/${GH_REPO}/releases/generate-notes" -f tag_name="${TAG}" -f previous_tag_name="${previous}" -q .body > notes.md
+            args+=(--notes-file notes.md)
+            echo "Notes regenerated from ${previous}"
+          fi
+          gh release edit "${TAG}" "${args[@]}"
+
+  website:
+    name: Deploy website
+    needs: github-release
+    uses: ./.github/workflows/website-deploy.yml
+    with:
+      ref: v${{ inputs.version }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
