@@ -31,7 +31,6 @@ describe("tool lifecycle registry", () => {
         rows: 2,
       });
     }
-    assert.equal(toolLifecycleRegistry.todos_set.argumentRegion, "persistent");
     for (const name of ["plan_present"] as const) {
       assert.equal(
         toolLifecycleRegistry[name].argumentRegion,

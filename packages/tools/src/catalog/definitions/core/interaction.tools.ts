@@ -65,23 +65,6 @@ function normalizeAskUserArguments(
   return args as Static<typeof askUserParameters>;
 }
 
-const todoItemParameters = Type.Object(
-  {
-    todo: Type.String(),
-    done: Type.Boolean(),
-  },
-  { additionalProperties: false },
-);
-
-const todosSetParameters = Type.Object(
-  {
-    todos: Type.Array(todoItemParameters),
-  },
-  { additionalProperties: false },
-);
-
-const todosGetParameters = Type.Object({}, { additionalProperties: false });
-
 export const interactionToolDefinitions = [
   {
     name: "ask_user",
@@ -95,27 +78,5 @@ export const interactionToolDefinitions = [
     parameters: askUserParameters,
     normalizeArguments: normalizeAskUserArguments,
     executionMode: "sequential",
-  },
-  {
-    name: "todos_set",
-    group: "todos",
-    baseRisk: "interaction",
-    traits: [],
-    executionKind: "host",
-    label: "Set Todos",
-    description: "Replace the task todo list.",
-    parameters: todosSetParameters,
-    executionMode: "sequential",
-  },
-  {
-    name: "todos_get",
-    group: "todos",
-    baseRisk: "read",
-    traits: [],
-    executionKind: "host",
-    label: "Get Todos",
-    description: "Get the task todo list.",
-    parameters: todosGetParameters,
-    executionMode: "parallel",
   },
 ] satisfies ToolDefinition[];

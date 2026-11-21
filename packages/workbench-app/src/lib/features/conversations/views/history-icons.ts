@@ -14,7 +14,6 @@ import GitBranch from "@lucide/svelte/icons/git-branch";
 import Globe from "@lucide/svelte/icons/globe";
 import Hand from "@lucide/svelte/icons/hand";
 import Info from "@lucide/svelte/icons/info";
-import ListTodo from "@lucide/svelte/icons/list-todo";
 import MessageCircleQuestion from "@lucide/svelte/icons/message-circle-question";
 import Search from "@lucide/svelte/icons/search";
 import Sparkles from "@lucide/svelte/icons/sparkles";
@@ -47,7 +46,6 @@ export const HISTORY_ICONS: Record<HistoryIconName, Icon> = {
   "message-circle-question": MessageCircleQuestion,
   "clipboard-list": ClipboardList,
   "clipboard-check": ClipboardCheck,
-  "list-todo": ListTodo,
   "fold-vertical": FoldVertical,
   "git-branch": GitBranch,
   info: Info,

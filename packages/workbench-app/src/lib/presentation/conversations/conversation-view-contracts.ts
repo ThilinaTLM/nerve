@@ -27,7 +27,6 @@ import type { ProjectRecord } from "@nervekit/contracts/projects";
 
 import type { QueuedPromptRecord } from "$lib/presentation/view-models/conversation";
 
-import type { TodoItem } from "@nervekit/contracts/tools";
 import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
@@ -60,7 +59,6 @@ export type ConversationComposerCapabilities = {
   completions?: boolean;
   suggestions?: boolean;
   shortcuts?: boolean;
-  todos?: boolean;
   queueing?: boolean;
 };
 
@@ -152,7 +150,6 @@ export type ConversationComposerModel = {
   profileShortcut?: string;
   profileShortcutAria?: string;
   modelEmptyMessage?: string;
-  todos?: TodoItem[];
   slashCompletions?: CompletionItem[];
   completionSource?: ComposerReferenceSource;
   capabilities?: ConversationComposerCapabilities;

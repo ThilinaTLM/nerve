@@ -296,25 +296,6 @@ describe("adaptive agent tool-result projection", () => {
     assert.doesNotMatch(output, /submitted body/);
   });
 
-  it("projects todos exactly once", () => {
-    const projected = projectAgentResult(
-      context("todos_get", {
-        content: "- [ ] alpha\n- [x] beta",
-        contentBlocks: [{ type: "text", text: "- [ ] alpha\n- [x] beta" }],
-        details: {
-          todos: [
-            { todo: "alpha", done: false },
-            { todo: "beta", done: true },
-          ],
-        },
-      }),
-      agentResultPolicyForTool("todos_get"),
-    );
-    const output = text(projected.blocks);
-    assert.equal(output.match(/alpha/g)?.length, 1);
-    assert.equal(output.match(/beta/g)?.length, 1);
-  });
-
   it("ends a cut grep with a narrowing summary, not a limit hint", () => {
     const matches = Array.from({ length: 100 }, (_, index) => ({
       path:

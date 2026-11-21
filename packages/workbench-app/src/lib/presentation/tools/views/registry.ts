@@ -11,7 +11,6 @@ import PlanPresentToolView from "../tool-call/PlanPresentToolView.svelte";
 import PythonToolView from "../tool-call/PythonToolView.svelte";
 import ReadToolView from "../tool-call/ReadToolView.svelte";
 import SubagentToolView from "../tool-call/SubagentToolView.svelte";
-import TodoToolView from "../tool-call/TodoToolView.svelte";
 import WebFetchToolView from "../tool-call/WebFetchToolView.svelte";
 import ExtensionToolView from "../tool-call/ExtensionToolView.svelte";
 import WriteToolView from "../tool-call/WriteToolView.svelte";
@@ -30,7 +29,6 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   find: FindToolView,
   ls: LsToolView,
   ask_user: AskUserToolView,
-  todos: TodoToolView,
   subagent: SubagentToolView,
   plan_present: PlanPresentToolView,
   extension: ExtensionToolView,

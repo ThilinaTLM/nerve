@@ -161,13 +161,6 @@ const coreTools = [
     on: true,
     configure: true,
   },
-  {
-    id: "todos",
-    title: "Todos",
-    description: "Track multi-step work with a lightweight checklist.",
-    on: true,
-    configure: false,
-  },
 ];
 const thirdPartyTools = [
   {
@@ -195,7 +188,6 @@ let toolState = $state<Record<string, boolean>>({
   edit: true,
   shell: true,
   python: true,
-  todos: true,
   web: true,
   vision: false,
   images: false,

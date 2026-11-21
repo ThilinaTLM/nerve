@@ -148,7 +148,6 @@ export function conversationContext(
   }
   return {
     activeConversation: conversationView(snapshot),
-    activeAgent: conversationAgents[0],
     conversationAgents,
     agentActivities,
     conversationUsage: summarizeConversationUsage(events.map(eventEntry)),

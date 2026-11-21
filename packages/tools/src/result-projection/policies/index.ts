@@ -8,10 +8,7 @@ import {
   grepAgentResultPolicy,
   readAgentResultPolicy,
 } from "./filesystem.js";
-import {
-  askUserAgentResultPolicy,
-  todosAgentResultPolicy,
-} from "./interaction.js";
+import { askUserAgentResultPolicy } from "./interaction.js";
 import { planReviewAgentResultPolicy } from "./plan-review.js";
 import {
   processAgentResultPolicy,
@@ -39,8 +36,6 @@ const map: Record<ToolName, AgentResultPolicy> = {
   quick_script: scriptAgentResultPolicy,
   web_fetch: webFetchAgentResultPolicy,
   ask_user: askUserAgentResultPolicy,
-  todos_set: todosAgentResultPolicy,
-  todos_get: todosAgentResultPolicy,
   // Log pages are bounded by the process overflow budget, below this inline budget.
   async_bash: policy("process_output", "head", textCandidate),
   launch: policy("process_output", "head", textCandidate),

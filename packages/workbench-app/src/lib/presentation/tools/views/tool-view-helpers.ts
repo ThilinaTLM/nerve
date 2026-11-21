@@ -4,7 +4,6 @@ import {
   toolOutputLimitsSchema,
   truncationDetailsSchema,
 } from "@nervekit/contracts/tools";
-import { type TodoItem } from "@nervekit/contracts/tools";
 import {
   relativePathForDisplay,
   resolveDisplayPath,
@@ -163,19 +162,6 @@ export function resultOutputText(
     liveOutput?.text ??
     ""
   );
-}
-
-export function todoItemsField(value: unknown): TodoItem[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const items: TodoItem[] = [];
-  for (const item of value) {
-    const record = asRecord(item);
-    if (typeof record.todo !== "string" || typeof record.done !== "boolean") {
-      return undefined;
-    }
-    items.push({ todo: record.todo, done: record.done });
-  }
-  return items;
 }
 
 export function firstTextBlock(value: unknown): string | undefined {

@@ -6,8 +6,8 @@ describe("read-only tool availability and permissions", () => {
   it("allows read-only agents to execute session-state tools", () => {
     assert.equal(
       evaluateRuntimeToolPermission(
-        "todos_set",
-        { todos: [] },
+        "ask_user",
+        { questions: [{ question: "Continue?" }] },
         {
           permissionRuleSetId: "read_only",
         },

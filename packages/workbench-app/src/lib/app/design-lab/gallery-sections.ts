@@ -117,7 +117,7 @@ export const GALLERY_SECTIONS: readonly GallerySectionEntry[] = [
     title: "Composer",
     group: "Workbench",
     summary:
-      "Composer frame, toolbar chips, model and capabilities pickers, context and todo chips.",
+      "Composer frame, toolbar chips, model and capabilities pickers, context chip.",
     load: () => import("./sections/ComposerSection.svelte"),
   },
   {

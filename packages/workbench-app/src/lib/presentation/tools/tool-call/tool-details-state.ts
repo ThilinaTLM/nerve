@@ -28,8 +28,6 @@ export function hasSharedToolViewBody(view: ViewWithSharedBody): boolean {
       return view.count > 0;
     case "ls":
       return view.total > 0;
-    case "todos":
-      return view.items.length > 0;
     case "subagent":
       return view.action === "prompt"
         ? view.assignments.length > 0

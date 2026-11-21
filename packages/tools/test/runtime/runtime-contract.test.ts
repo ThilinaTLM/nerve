@@ -3,11 +3,9 @@ import { describe, it } from "node:test";
 import {
   createInteractionHandlers,
   createPlanHandlers,
-  createTodoHandlers,
   createToolDispatcher,
   evaluateRuntimeToolPermission,
   resolveToolAvailability,
-  type TodoItem,
   ToolRuntimeError,
 } from "../../src/runtime/index.js";
 
@@ -16,9 +14,9 @@ describe("shared tool runtime contract", () => {
     const events: string[] = [];
     const observedPaths: string[] = [];
     const dispatcher = createToolDispatcher({
-      advertisedToolNames: new Set(["edit", "todos_get"]),
+      advertisedToolNames: new Set(["edit", "launch"]),
       hostHandlers: {
-        todos_get: async () => ({ content: "host" }),
+        launch: async () => ({ content: "host" }),
       },
       localOverrides: {
         edit: async (args, context) => {
@@ -64,7 +62,7 @@ describe("shared tool runtime contract", () => {
       "started:authorized/x",
       "execute:authorized/x",
     ]);
-    assert.equal((await dispatcher.execute("todos_get", {})).content, "host");
+    assert.equal((await dispatcher.execute("launch", {})).content, "host");
   });
 
   it("rejects unavailable, denied, approval, and missing host handlers", async () => {
@@ -177,24 +175,5 @@ describe("shared tool runtime contract", () => {
       "interaction.request",
       "plan.present:plans/reuse.md",
     ]);
-  });
-
-  it("shares todo validation and result formatting through a host port", async () => {
-    let state: TodoItem[] = [];
-    const handlers = createTodoHandlers({
-      get: async () => state,
-      set: async (_scope, todos) => (state = todos),
-    });
-    const context = { cwd: process.cwd(), toolName: "todos_set" as const };
-    const set = await handlers.todos_set?.(
-      { todos: [{ todo: "Ship", done: false }] },
-      context,
-    );
-    assert.match(set?.content ?? "", /0\/1 complete/);
-    const get = await handlers.todos_get?.(
-      {},
-      { ...context, toolName: "todos_get" },
-    );
-    assert.deepEqual((get?.details as { todos: TodoItem[] }).todos, state);
   });
 });

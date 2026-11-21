@@ -8,7 +8,6 @@ import {
   activeRunStreamingText,
   buildActiveRunTimeline,
   CommittedTimelineProjection,
-  currentTodosForAgent,
   selectVisibleCommitted,
 } from "$lib/presentation/state";
 import { ConversationPane } from "$lib/presentation/conversations";
@@ -46,7 +45,6 @@ let {
   contextActions,
   activeProject,
   activeConversation,
-  activeAgent,
   activePendingConversation,
   pendingConversationActive = false,
   conversationLoading = false,
@@ -147,9 +145,6 @@ setConversationUiCapabilities(
   }),
 );
 
-const composerTodos = $derived(
-  currentTodosForAgent(toolCalls, activeAgent?.id),
-);
 const conversationOpen = $derived(
   Boolean(activeConversation || pendingConversationActive),
 );
@@ -370,7 +365,6 @@ function menuForTranscript(
         completions: true,
         suggestions: true,
         shortcuts: true,
-        todos: true,
         queueing: true,
       },
     },
@@ -427,7 +421,6 @@ function menuForTranscript(
       {agentUsageLoading}
       {agentUsageError}
       {contextWindow}
-      todos={composerTodos}
       focusToken={composerFocusToken}
       {composerEscapeToken}
       {micShortcutToken}

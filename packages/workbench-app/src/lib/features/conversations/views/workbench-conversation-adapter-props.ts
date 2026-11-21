@@ -57,7 +57,6 @@ export type WorkbenchConversationAdapterProps =
     contextActions?: Snippet<[closePopover: () => void]>;
     activeProject?: ProjectRecord;
     activeConversation?: ConversationRecord;
-    activeAgent?: AgentRecord;
     activePendingConversation?: PendingConversationState;
     pendingConversationActive?: boolean;
     /** An existing conversation whose snapshot is still loading: render nothing

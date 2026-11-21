@@ -4,7 +4,6 @@ import type {
   PermissionRuleSetSummary,
 } from "@nervekit/contracts/permissions";
 
-import type { TodoItem } from "@nervekit/contracts/tools";
 import type { ApprovalWithToolCall } from "$lib/presentation/view-models/conversation";
 import type {
   AgentRecord,
@@ -56,7 +55,6 @@ export type PromptComposerProps = {
   agentUsageLoading?: boolean;
   agentUsageError?: string;
   contextWindow?: number;
-  todos?: TodoItem[];
   focusToken?: number;
   composerEscapeToken?: number;
   micShortcutToken?: number;

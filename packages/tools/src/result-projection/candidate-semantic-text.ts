@@ -25,7 +25,6 @@ export function semanticSummary(
       "snippet",
       "content",
       "summary",
-      "todo",
       "done",
       "line",
       "text",

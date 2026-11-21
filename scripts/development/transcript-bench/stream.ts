@@ -21,7 +21,7 @@ import { NetworkCapture } from "./network.ts";
 import { selectProject } from "./open.ts";
 
 export const DEFAULT_PROMPT = (dir: string) =>
-  `Create a new folder ${dir} in the project root and build a small Python CLI todo app there: a todo.py module with add/list/done/remove commands storing JSON, a README.md, and unit tests in test_todo.py. Run the tests with python3 -m unittest and fix any failures. Then use grep and read to review your own code, and finish with a short summary. Work step by step with separate tool calls; keep the todo list updated as you go.`;
+  `Create a new folder ${dir} in the project root and build a small Python CLI todo app there: a todo.py module with add/list/done/remove commands storing JSON, a README.md, and unit tests in test_todo.py. Run the tests with python3 -m unittest and fix any failures. Then use grep and read to review your own code, and finish with a short summary. Work step by step with separate tool calls.`;
 
 export interface ProfileNode {
   id: number;

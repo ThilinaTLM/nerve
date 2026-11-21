@@ -1,6 +1,5 @@
 export * from "./active-run.js";
 export * from "./active-run-timeline.js";
-export * from "./conversation-view.js";
 export * from "./thinking-levels.js";
 export * from "./timeline.js";
 export * from "./timeline-projection.js";

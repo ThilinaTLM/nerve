@@ -21,7 +21,6 @@ export const toolGroupNameSchema = z.enum([
   "quickScript",
   "extension",
   "input",
-  "todos",
   "process",
   "planMode",
 ]);

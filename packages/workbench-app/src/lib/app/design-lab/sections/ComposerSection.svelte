@@ -15,7 +15,6 @@ import type {
   ThinkingLevel,
 } from "@nervekit/contracts/models";
 import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
-import type { TodoItem } from "@nervekit/contracts/tools";
 import GitCommitIcon from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequestIcon from "@lucide/svelte/icons/git-pull-request";
 import PromptSuggestionChips from "$lib/features/conversations/views/PromptSuggestionChips.svelte";
@@ -31,7 +30,6 @@ import ComposerToolbar from "$lib/presentation/composer/ComposerToolbar.svelte";
 import ContextProgressBadge from "$lib/presentation/composer/ContextProgressBadge.svelte";
 
 import type { ConversationSessionInfo } from "$lib/presentation/composer/session-info";
-import TodoProgressChip from "$lib/presentation/composer/TodoProgressChip.svelte";
 import { modelKey } from "$lib/presentation/utils/model";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
@@ -146,14 +144,6 @@ const permissionRuleSets: PermissionRuleSetSummary[] = [
     available: true,
   },
 ];
-
-const todos: TodoItem[] = [
-  { todo: "Reproduce the flaky reconnect test", done: true },
-  { todo: "Fix replay ordering", done: true },
-  { todo: "Add regression test", done: false },
-  { todo: "Update changelog", done: false },
-];
-const todosDone: TodoItem[] = todos.map((item) => ({ ...item, done: true }));
 
 const session: ConversationSessionInfo = {
   fields: [
@@ -325,7 +315,6 @@ const composerBase = $derived<ConversationComposerModel>({
   contextWindow: 200_000,
   conversationUsage: usage,
   session,
-  todos,
   capabilityConfiguration,
   capabilitySkills,
 });
@@ -425,7 +414,7 @@ function cycleMic() {
   >
     <GallerySpecimen
       title="AgentComposer — idle"
-      description="One card: text on top, a single bottom toolbar. Left: mode, model, permissions, capabilities; right: todos, context, then mic and send."
+      description="One card: text on top, a single bottom toolbar. Left: mode, model, permissions, capabilities; right: context, then mic and send."
       source="presentation/conversations/AgentComposer"
       usage="2 files · conversation, shell"
       layout="bare"
@@ -550,7 +539,6 @@ function cycleMic() {
                     contextWindow={200_000}
                     conversationUsage={usage}
                     {session}
-                    {todos}
                     {models}
                     selectedModelKey={selectedModel}
                     {thinkingLevel}
@@ -630,17 +618,6 @@ function cycleMic() {
           />
         </div>
       </div>
-    </GallerySpecimen>
-
-    <GallerySpecimen
-      title="TodoProgressChip"
-      description="Partial (info) and all done (success). Click for the checklist popover."
-      source="presentation/composer/TodoProgressChip"
-      usage="1 file · composer"
-      surface="panel"
-    >
-      <TodoProgressChip {todos} />
-      <TodoProgressChip todos={todosDone} />
     </GallerySpecimen>
 
     <GallerySpecimen
