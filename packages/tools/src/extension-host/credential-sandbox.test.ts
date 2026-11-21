@@ -194,9 +194,9 @@ void test(
       key.export({ type: "pkcs8", format: "pem" }).toString();
     const sign = (algorithm: string, privateKey: string) =>
       run(
-        `{ signIn: async () => ({}), apply: async ({ crypto }) => crypto.sign({ algorithm: ${JSON.stringify(algorithm)}, privateKey: ${JSON.stringify(privateKey)}, data: "header.payload" }) }`,
+        `{ signIn: async () => ({}), apply: async ({ crypto, secrets }) => crypto.sign({ algorithm: secrets.algorithm, privateKey: secrets.privateKey, data: "header.payload" }) }`,
         "apply",
-        { request: getRequest },
+        { request: getRequest, secrets: { algorithm, privateKey } },
       ) as Promise<Uint8Array>;
     const data = Buffer.from("header.payload");
     const rs = Buffer.from(await sign("RS256", pem(rsa.privateKey)));

@@ -8,20 +8,47 @@ import type { AccountKindData, PlatformUse } from "@nervekit/extension-api";
 
 const TEMPLATE = /\{[A-Za-z][A-Za-z0-9.]*\}/g;
 
-/** The host part of an origin pattern as a regular expression: `*` is one label, `{x}` anything. */
-function hostExpression(pattern: string): RegExp | undefined {
+type HostToken = { literal: string } | "label" | "any";
+
+/** The host part of an origin pattern as tokens: `*` is one host label, `{x}` any host text. */
+function hostTokens(
+  pattern: string,
+): { scheme: string; tokens: HostToken[] } | undefined {
   const parsed = /^(https?:)\/\/([^/]+)/.exec(pattern);
   if (!parsed) return undefined;
-  const host = parsed[2]
-    .split(TEMPLATE)
-    .map((part) =>
-      part
-        .split("*")
-        .map((piece) => piece.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
-        .join("[^.]+"),
-    )
-    .join(".+");
-  return new RegExp(`^${parsed[1]}//${host}$`, "i");
+  const tokens: HostToken[] = [];
+  parsed[2].split(TEMPLATE).forEach((part, index) => {
+    if (index > 0) tokens.push("any");
+    part.split("*").forEach((piece, pieceIndex) => {
+      if (pieceIndex > 0) tokens.push("label");
+      if (piece) tokens.push({ literal: piece.toLowerCase() });
+    });
+  });
+  return { scheme: parsed[1], tokens };
+}
+
+/** Matches without building a regular expression from manifest text. */
+function matchHost(tokens: readonly HostToken[], host: string): boolean {
+  const [token, ...rest] = tokens;
+  if (token === undefined) return host.length === 0;
+  if (typeof token === "object")
+    return (
+      host.startsWith(token.literal) &&
+      matchHost(rest, host.slice(token.literal.length))
+    );
+  for (let end = 1; end <= host.length; end++) {
+    if (token === "label" && host[end - 1] === ".") break;
+    if (matchHost(rest, host.slice(end))) return true;
+  }
+  return false;
+}
+
+function hostMatches(pattern: string, origin: string): boolean {
+  const expected = hostTokens(pattern);
+  const actual = /^(https?:)\/\/([^/]+)$/.exec(origin);
+  if (!expected || !actual || expected.scheme !== actual[1].toLowerCase())
+    return false;
+  return matchHost(expected.tokens, actual[2].toLowerCase());
 }
 
 const hostOf = (pattern: string): string | undefined => {
@@ -44,7 +71,7 @@ export function originCovers(
   const wide = hostOf(definitionOrigin);
   if (own === undefined || wide === undefined) return false;
   if (own.toLowerCase() === wide.toLowerCase()) return true;
-  return hostExpression(definitionOrigin)?.test(own) ?? false;
+  return hostMatches(definitionOrigin, own);
 }
 
 /** Whether every origin of `origins` lies within some origin of `definitionOrigins`. */
