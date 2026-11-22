@@ -5,10 +5,19 @@ on:
   push:
     branches:
       - main
+  # Release: Cut runs the full suite on the release commit before tagging it.
+  # A non-pull-request event, so the paths job selects full coverage.
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to test
+        type: string
+        required: true
 
 # A new push to a pull request cancels its superseded run. Other events get a
-# unique group: a shared group would cancel pending main runs, and the release
-# workflow requires the main run of the release commit.
+# unique group: a shared group would cancel pending main runs. Called from
+# Release: Cut, github.workflow is the caller's name, so the group cannot
+# collide with the caller's own concurrency group.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
@@ -36,6 +45,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
 
       # The classifier is plain erasable TypeScript run by Node's native type
       # stripping, so this job needs no pnpm install.
@@ -65,6 +76,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
       - name: Set up pnpm
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
@@ -125,6 +139,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
       - name: Restore native addon cache
         id: addon
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -189,6 +206,9 @@ jobs:
     steps: &native_addon_steps
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
       - name: Restore native addon cache
         id: addon
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -267,6 +287,9 @@ jobs:
     steps: &validate_steps
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
       - name: Set up pnpm
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
@@ -361,6 +384,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
       - name: Set up pnpm
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
@@ -414,6 +440,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
       - name: Set up pnpm
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
@@ -492,6 +521,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
       - name: Set up pnpm
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
@@ -540,6 +572,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
@@ -581,6 +616,9 @@ jobs:
     steps: &native_test_steps
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty outside workflow_call: checks out the event commit.
+          ref: ${{ inputs.ref }}
       - name: Set up pnpm
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:

@@ -32,7 +32,7 @@
     "storage:checksums": "tsx scripts/storage-migrations/run.ts checksums",
     "storage:copy": "tsx scripts/storage-migrations/run.ts copy",
     "storage:rehearse": "tsx scripts/storage-migrations/run.ts rehearse",
-    "release:tag": "tsx scripts/release/tag-release.ts",
+    "release:prepare": "tsx scripts/release/prepare-release.ts",
     "storage:migrate": "tsx scripts/storage-migrations/run.ts migrate",
     "migrations:check": "tsx scripts/storage-migrations/run.ts check"
   },

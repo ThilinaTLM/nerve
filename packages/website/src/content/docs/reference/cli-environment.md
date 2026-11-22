@@ -49,6 +49,7 @@ Pass app options after `--` when using `npx` or `pnpm dlx`.
 | `NERVE_ELECTRON_OZONE_PLATFORM`        | Linux: `x11`, `wayland`, `auto`                                            |
 | `NERVE_ELECTRON_FONT_RENDER_HINTING`   | Linux: `system`, `none`, `slight`, `medium`, `full`; default slight        |
 | `NERVE_ELECTRON_REMOTE_DEBUGGING_PORT` | Desktop: expose Chrome DevTools Protocol on `127.0.0.1:<port>`             |
+| `NERVE_ELECTRON_USER_DATA`             | Desktop: absolute Electron profile path outside `NERVE_HOME`               |
 | `NERVE_DEBUG_PROXY=1`                  | Redacted startup proxy diagnostics                                         |
 
 The DevTools port gives any local process full control of the desktop window, so set it only for automation or debugging, such as connecting an automation tool. Without a valid port the variable is ignored with a warning.

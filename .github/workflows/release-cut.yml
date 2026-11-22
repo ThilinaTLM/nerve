@@ -1,0 +1,417 @@
+name: "Release: Cut"
+run-name: ${{ inputs.dry_run && 'Release dry run' || 'Cut release' }} v${{ inputs.version }} (${{ github.ref_name }})
+
+# Bump commit, full tests and packaging, then fast-forward main, tag and create
+# a draft GitHub release holding the tested tarballs. Nothing is tagged until
+# the release commit has passed everything. Release: Publish takes it from there.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, plain SemVer without a leading v (X.Y.Z)
+        type: string
+        required: true
+      dry_run:
+        description: Test the release commit only; do not move main, tag or create a release
+        type: boolean
+        default: false
+
+env:
+  VERSION: ${{ inputs.version }}
+  RELEASE_BRANCH: release/v${{ inputs.version }}
+
+# One cut at a time. Distinct from CI's group: the called ci.yml computes its
+# group from this workflow's name and run ID.
+concurrency:
+  group: release-cut
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Prepare release commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+
+    steps:
+      # Real cuts start from main HEAD. Dry runs may start from any branch, to
+      # test a candidate or changes to this workflow.
+      - name: Require main for a real release
+        if: ${{ !inputs.dry_run && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "Releases are cut from main; run from main or set dry_run." >&2
+          exit 1
+
+      - name: Check out release base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 11.28.10
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Checks the version (plain SemVer above the current one) and that the
+      # tag is free, then bumps manifests and Cargo files, stamps Discover news,
+      # releases draft migration steps and checks the migration lock.
+      - name: Prepare release
+        run: pnpm release:prepare "${VERSION}"
+
+      - name: Commit release to ${{ env.RELEASE_BRANCH }}
+        id: commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.sha }}
+        run: |
+          node scripts/release/commit-release.ts "${RELEASE_BRANCH}" "${BASE_SHA}" "chore(release): bump version to v${VERSION}"
+
+  # Full coverage: called from a non-pull-request event, the paths job selects
+  # every area.
+  ci:
+    name: CI
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+    permissions:
+      contents: read
+
+  native-prebuilds:
+    name: Native prebuild (${{ matrix.target }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            node_arch: x64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            node_arch: arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            node_arch: x64
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            node_arch: arm64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            node_arch: x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            node_arch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 11.28.10
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable 2026-08-05
+        with:
+          toolchain: 1.97.1
+          targets: ${{ matrix.target }}
+      - run: pnpm install --frozen-lockfile
+      - name: Verify runner architecture
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+        run: node -e "if (process.arch !== process.env.EXPECTED_NODE_ARCH) throw new Error('Expected ' + process.env.EXPECTED_NODE_ARCH + ', got ' + process.arch)"
+      - name: Build native prebuild
+        working-directory: packages/native
+        run: pnpm exec napi build --cwd native --package-json-path ../package.json --platform --release --target ${{ matrix.target }} --output-dir ../prebuilds
+      - name: Test native prebuild
+        # A hung test must fail this step, not hit the job timeout: a
+        # job-timeout cancellation discards the log that names the test.
+        timeout-minutes: 12
+        run: pnpm --filter @nervekit/native test
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-prebuild-${{ matrix.target }}
+          path: packages/native/prebuilds/*.node
+          if-no-files-found: error
+
+  build-and-package:
+    name: Build, smoke, and package (Ubuntu)
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - native-prebuilds
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - name: Set up pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 11.28.10
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Download native prebuilds
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: native-prebuild-*
+          path: packages/native/prebuilds
+          merge-multiple: true
+      - name: Verify native prebuild inventory
+        run: node scripts/release/verify-native-prebuilds.ts
+      - name: Verify release tag
+        run: node scripts/release/verify-release-tag.ts "v${VERSION}"
+      - name: Build all packages
+        run: pnpm build
+      - name: Smoke built workbench HTTP and WebSocket parity
+        run: node scripts/release/smoke-workbench-release.ts
+      - name: Smoke desktop resolution and CLI
+        run: node scripts/release/smoke-desktop-release.ts
+      - name: Smoke generated desktop assets
+        run: node scripts/release/smoke-desktop-package.ts
+      - name: Pack and verify npm tarballs
+        run: node scripts/release/pack-npm.ts
+      - name: Upload verified desktop tarballs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-desktop-packages
+          path: release/npm/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  native-package-smoke:
+    name: npm package smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs:
+      - prepare
+      - native-prebuilds
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - name: Set up pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 11.28.10
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Download native prebuilds
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: native-prebuild-*
+          path: packages/native/prebuilds
+          merge-multiple: true
+      - name: Verify native prebuild inventory
+        run: node scripts/release/verify-native-prebuilds.ts
+      - name: Build all packages
+        run: pnpm build
+      - name: Smoke generated desktop assets
+        run: node scripts/release/smoke-desktop-package.ts
+      - name: Pack and verify npm tarballs
+        run: node scripts/release/pack-npm.ts
+      - name: Verify built desktop runtime
+        run: node scripts/release/smoke-desktop-release.ts
+
+  extension-packages:
+    name: Extension packages (pack and SDK end-to-end)
+    runs-on: ubuntu-latest
+    needs: prepare
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - name: Set up pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 11.28.10
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build extension packages
+        run: pnpm --filter "@nervekit/extension-sdk..." build
+      # pnpm pack runs prepack (LICENSE, NOTICE) and rewrites workspace:* to
+      # the exact version.
+      - name: Pack extension packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release/npm-extensions
+          for pkg in extension-api ui-kit extension-sdk; do
+            (cd "packages/${pkg}" && pnpm pack --pack-destination ../../release/npm-extensions)
+          done
+          for tgz in release/npm-extensions/*.tgz; do
+            if tar -xOzf "${tgz}" package/package.json | grep -q '"workspace:'; then
+              echo "${tgz} still has a workspace: dependency" >&2
+              exit 1
+            fi
+          done
+      - name: SDK end-to-end test against the packed tarballs
+        env:
+          NERVE_SDK_TARBALLS: ${{ github.workspace }}/release/npm-extensions
+        run: pnpm --filter @nervekit/extension-sdk e2e
+      - name: Upload extension tarballs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-extension-packages
+          path: release/npm-extensions/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  # Every step is idempotent, so "Re-run failed jobs" can finish a partly
+  # completed finalize.
+  finalize:
+    name: Fast-forward main, tag and draft release
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - ci
+      - build-and-package
+      - native-package-smoke
+      - extension-packages
+    environment: release
+    permissions:
+      contents: write
+    env:
+      SHA: ${{ needs.prepare.outputs.sha }}
+      TAG: v${{ inputs.version }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Download tested tarballs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: npm-*-packages
+          path: release/assets
+          merge-multiple: true
+      - name: Write and verify SHA256SUMS
+        run: |
+          node scripts/release/release-artifacts.ts checksums release/assets "${VERSION}"
+          node scripts/release/release-artifacts.ts verify release/assets "${VERSION}"
+
+      # Fails when main moved during the run: the tag must point at the tested
+      # commit, so rerun the cut from the new main.
+      - name: Fast-forward main to the release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/${GH_REPO}/git/ref/heads/main" -q .object.sha)"
+          if [ "${current}" = "${SHA}" ]; then
+            echo "main already points at ${SHA}"
+          else
+            gh api -X PATCH "repos/${GH_REPO}/git/refs/heads/main" -f sha="${SHA}" -F force=false >/dev/null
+            echo "main fast-forwarded to ${SHA}"
+          fi
+
+      # The v* tag ruleset admits only the nervekit-release app.
+      - name: Create release app token
+        id: app-token
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Create tag ${{ env.TAG }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          if existing="$(gh api "repos/${GH_REPO}/git/ref/tags/${TAG}" -q .object.sha 2>/dev/null)"; then
+            target="$(gh api "repos/${GH_REPO}/git/tags/${existing}" -q .object.sha)"
+            if [ "${target}" != "${SHA}" ]; then
+              echo "${TAG} already exists and points at ${target}, not ${SHA}" >&2
+              exit 1
+            fi
+            echo "${TAG} already points at ${SHA}"
+            exit 0
+          fi
+          tag_object="$(gh api "repos/${GH_REPO}/git/tags" -f tag="${TAG}" -f message="Release ${TAG}" -f object="${SHA}" -f type=commit -q .sha)"
+          gh api "repos/${GH_REPO}/git/refs" -f ref="refs/tags/${TAG}" -f sha="${tag_object}" >/dev/null
+          echo "Created ${TAG} at ${SHA}"
+
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} exists; refreshing its assets"
+            gh release upload "${TAG}" release/assets/* --clobber
+          else
+            gh release create "${TAG}" release/assets/* --draft --verify-tag --title "${TAG}" --generate-notes
+          fi
+
+  cleanup:
+    name: Delete release branch
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - finalize
+    permissions:
+      contents: write
+
+    steps:
+      - name: Delete ${{ env.RELEASE_BRANCH }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [[ ! "${VERSION}" =~ ^[0-9A-Za-z.+-]+$ ]]; then
+            echo "No release branch for version ${VERSION}"
+            exit 0
+          fi
+          if gh api -X DELETE "repos/${GH_REPO}/git/refs/heads/${RELEASE_BRANCH}" 2>/dev/null; then
+            echo "Deleted ${RELEASE_BRANCH}"
+          else
+            echo "No ${RELEASE_BRANCH} to delete"
+          fi

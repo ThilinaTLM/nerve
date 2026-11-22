@@ -170,17 +170,23 @@ export function unreadNewsCount(news: readonly ResolvedNewsEntry[]): number {
 }
 
 /**
- * Only news shipped in the running version may trigger release auto-open;
- * pending announcements are previewable but never pull Discover open.
+ * Only news shipped in the running version's release line may trigger release
+ * auto-open: a stable user promoted from 0.41.0 to 0.42.3 still gets the
+ * features stamped 0.42.0 on staging. Pending announcements are previewable
+ * but never pull Discover open.
  */
 export function unreadNewsForVersion(
   news: readonly ResolvedNewsEntry[],
   appVersion: string | undefined,
 ): number {
   if (!appVersion) return 0;
-  const version = normalizeVersion(appVersion);
-  return news.filter((entry) => entry.unread && entry.releasedIn === version)
-    .length;
+  const line = releaseLine(normalizeVersion(appVersion));
+  return news.filter(
+    (entry) =>
+      entry.unread &&
+      entry.releasedIn !== PENDING_DISCOVER_RELEASE &&
+      releaseLine(entry.releasedIn) === line,
+  ).length;
 }
 
 export function discoverReleaseLabel(releasedIn: string): string {

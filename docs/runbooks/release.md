@@ -2,114 +2,126 @@
 
 > **Scope:** Maintainer procedure. The release workflows and release scripts are authoritative when this document differs.
 
-Nerve publishes one npm package, `@nervekit/desktop`. The source implementation remains the private `@nervekit/desktop-shell` workspace; signed native installers are not part of this release path. Native-host filesystem and process requirements are documented in the public [Platform reliability](https://nerve.tlmtech.dev/developers/platform-reliability/) guide.
+Every release goes to the **staging** channel (npm `next`) first. A maintainer later **promotes** a staging version to **stable** (npm `latest`) once it has had time to show bugs. Four manual GitHub workflows cut, publish, promote and deploy; nothing is tagged until the release commit has passed the full test suite, and the tarballs tested at cut time are the ones published.
 
-## Requirements
+```mermaid
+flowchart LR
+  C["Release: Cut<br/>version, dry_run"] -->|"tag + draft release<br/>with tarballs"| P["Release: Publish<br/>(from the tag) channel"]
+  P -->|"npm next (or latest)"| S[(npm)]
+  R["Release: Promote<br/>version"] -->|"dist-tag latest"| S
+  R --> W["Website: Deploy<br/>ref"]
+```
 
-- Node.js 24+
-- pnpm 11.28.10
-- rustup with the pinned toolchain from `rust-toolchain.toml` (currently Rust 1.97.1)
+## Packages
 
-## Public npm package
+Ten public npm packages share Nerve's version and move together through the channels:
 
-Publish only `@nervekit/desktop`. Its generated tarball embeds the six private runtime workspaces `contracts`, `native`, `protocol`, `harness`, `tools`, and `workbench-server` as npm bundled dependencies. Third-party dependencies such as Electron remains normal dependencies so npm installs the correct platform artifacts.
+- `@nervekit/desktop`, the launcher. Its tarball bundles the private runtime workspaces (`contracts`, `native`, `protocol`, `harness`, `tools`, `workbench-server`, built workbench web assets) and pins the six platform packages as exact-version optional dependencies. Third-party dependencies such as Electron stay normal dependencies.
+- `@nervekit/native-<triple>` for `linux-x64-gnu`, `linux-arm64-gnu`, `darwin-x64`, `darwin-arm64`, `win32-x64-msvc` and `win32-arm64-msvc`.
+- `@nervekit/extension-api`, `@nervekit/ui-kit` and `@nervekit/extension-sdk` for extension authors. `scripts/checks/check-lockstep-versions.ts` (part of `pnpm check`) fails when one differs from the root version, because the version tracks extension compatibility. When a release breaks extensions, add a section to `packages/extension-sdk/UPGRADING.md` before cutting it.
 
-All source workspaces are private. Workbench-server embeds the built workbench web assets.
+Extensions that pin a caret range such as `^0.42.0` can resolve to a staging-only patch version. That is acceptable: patch versions are bug fixes and do not change the extension contract.
 
-## Version and validation
+`scripts/release/release-artifacts.ts` is the single list of the ten tarballs and their publish order: platform packages, desktop, `extension-api`, `ui-kit`, then `extension-sdk` (it depends on both at the exact version).
 
-Keep the root and workspace versions aligned and tag `v<version>`.
+Version numbers are plain SemVer (`0.42.1`) with no pre-release suffix; a staging version becomes stable unchanged. Minor versions bring features and improvements, patch versions bring bug fixes. Every staging version is a real release: the root `package.json` version is the latest release, staging or stable.
+
+## Release: Cut
+
+**Actions → Release: Cut → Run workflow** from `main`, with `version` (`X.Y.Z`, no `v`) and `dry_run`. With GitHub CLI:
 
 ```sh
-release_tag=vX.Y.Z
+gh workflow run release-cut.yml --ref main -f version=X.Y.Z            # real cut
+gh workflow run release-cut.yml --ref <branch> -f version=X.Y.Z -f dry_run=true
+```
+
+1. **Prepare.** `pnpm release:prepare X.Y.Z` on the dispatched commit (`scripts/release/prepare-release.ts`) checks that the version is plain SemVer above the current version and that `vX.Y.Z` does not exist, then updates every workspace `package.json`, the native `Cargo.toml` and the `nerve-native` entry in `Cargo.lock`, stamps Discover announcements authored with `releasedIn: "next"`, marks every draft migration step released (`stage: "released"`, `releasedIn`, folder hash as checksum, a drifted draft label kept in `previousChecksums`, `rerunOnChange` dropped) and runs the migration lock check.
+2. **Commit.** `scripts/release/commit-release.ts` creates `release/vX.Y.Z` at the base and commits the changes through the GraphQL `createCommitOnBranch` mutation. GitHub signs it, which satisfies the `main` ruleset's signature rule.
+3. **Test**, in parallel: `ci.yml` (called with the commit as `ref`; full coverage), native prebuilds on architecture-matched runners for the six targets, build, smokes and packing on Ubuntu, package smokes on Windows and macOS, and the extension packages (`pnpm pack` for the three, then the SDK end-to-end test against those tarballs).
+4. **Finalize**, only when everything passed and `dry_run` is false: fast-forward `main` to the release commit (fails when `main` moved during the run; rerun the cut), create the annotated tag `vX.Y.Z` with the `nervekit-release` app token, and create a **draft** GitHub release with the ten tarballs and `SHA256SUMS`.
+5. **Clean up.** `release/vX.Y.Z` is deleted whether the run passed, failed or was a dry run.
+
+A dry run may start from any branch; it tests the release commit built on that branch and stops before finalize. Real cuts must start from `main`.
+
+Finalize is idempotent: when it fails partway (for example after moving `main`), use **Re-run failed jobs** on the same run. A fresh cut of the same version would fail, because `main` already carries it. The fast-forwarded `main` commit gets no `push` CI run of its own; it already passed the same jobs.
+
+To preview the bump locally on a clean checkout: `pnpm release:prepare X.Y.Z --dry-run` prints the migration steps it would release and changes nothing. Without `--dry-run` it edits the working tree only; discard the result with `git restore .`.
+
+## Release: Publish
+
+**Actions → Release: Publish**, choose the tag `vX.Y.Z` in "Use workflow from", and pick `channel`:
+
+```sh
+gh workflow run release-publish.yml --ref vX.Y.Z -f channel=staging
+```
+
+It refuses unless the tag has a draft GitHub release whose ten tarballs match `SHA256SUMS` and the tag's names and versions. It publishes them with provenance under `next` (`staging`, the default) or `latest` (`stable`), skipping versions already on npm so a partial failure can be rerun, then publishes the GitHub release: as a pre-release for `staging`, as the latest release for `stable`.
+
+Use `stable` only when a release should not wait, such as an urgent fix. Nothing is rebuilt.
+
+## Release: Promote
+
+```sh
+gh workflow run release-promote.yml --ref main -f version=X.Y.Z
+```
+
+Checks that all ten packages are published at `version` and that it is above the current `latest` (set `rollback` to move `latest` back deliberately), runs `npm dist-tag add <pkg>@X.Y.Z latest` for each, marks the GitHub release as latest and not a pre-release with notes regenerated from the previous stable release, and calls **Website: Deploy** with `ref: vX.Y.Z`. `next` keeps pointing at the newest staging version. There is no minimum time on staging.
+
+Check the channels with `npm view @nervekit/desktop dist-tags`.
+
+## Website: Deploy
+
+The website describes what `@latest` installs, so it is deployed by Promote, not by every release. To redeploy by hand (for example a docs fix on the stable tag):
+
+```sh
+gh workflow run website-deploy.yml --ref main -f ref=vX.Y.Z
+```
+
+## Fixes while staging is ahead
+
+There are no maintenance branches. When stable has an urgent bug, fix it on `main`, cut a new staging version and promote it (or publish it with `channel: stable`). If `main` holds work that is not ready, finish or revert it first.
+
+## Storage migrations
+
+Each staging version releases its draft migration steps, so "all unreleased data changes since the latest release belong in one migration step" applies per staging version. A bug in a step that staging users have already applied is fixed by a new step. Promotion is safe: stable users apply the same steps in the same order. A home migrated by a staging version cannot be opened by an older stable version (the ledger rejects unknown step IDs); the install docs tell staging users to use a separate `NERVE_HOME`.
+
+Never validate a release or migration against the live home. Copy the source home to an isolated directory under `/tmp`, set an explicit `NERVE_HOME`, use explicit non-default ports, and give Electron a separate `userData` profile (`NERVE_ELECTRON_USER_DATA`) when desktop browser state must also be isolated. See [Storage, cleanup, and migration](https://nerve.tlmtech.dev/operations/storage-migration/) and the repository [storage architecture](../architecture/storage.md).
+
+## Local validation
+
+The local commands validate a release; they do not tag or publish.
+
+```sh
 pnpm install --frozen-lockfile
-node scripts/release/verify-release-tag.ts "$release_tag"
-pnpm fix
 pnpm check
 pnpm run test:full
 pnpm build
-node scripts/release/pack-npm.ts
-```
-
-`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. Final packing requires the exact six-file native prebuild inventory in `packages/native/prebuilds`; `node scripts/release/verify-native-prebuilds.ts` rejects missing, extra, or developer-local artifacts. The release workflow produces this inventory. Ordinary local development needs only the host binding under `packages/native/prebuilds/local` and does not produce a publishable package.
-
-`node scripts/release/pack-npm.ts` must produce only `release/npm/nervekit-desktop-<version>.tgz`; it verifies exact names, versions, contents, bundled package resolution, package entrypoints, native prebuilds, and the desktop launcher through an isolated install.
-
-Run the finite built-artifact smokes after `pnpm build`:
-
-```sh
-node scripts/release/verify-npm-tarballs.ts       # inspect packed tarballs and isolated install
+node scripts/release/pack-npm.ts                  # needs all six native prebuilds
 node scripts/release/smoke-workbench-release.ts   # built workbench server HTTP/WS parity
 node scripts/release/smoke-desktop-release.ts     # desktop --version/--help and server resolution
 node scripts/release/smoke-desktop-package.ts
+pnpm --filter @nervekit/extension-sdk e2e         # packs the extension packages, installs them with npm (needs network)
 ```
 
-## Release dry run
+`release/npm` is generated and must not be committed. Final packing requires the exact six-file native prebuild inventory in `packages/native/prebuilds` (`node scripts/release/verify-native-prebuilds.ts`), which only Release: Cut produces; ordinary development needs only the host binding under `packages/native/prebuilds/local`. `pack-npm.ts` verifies names, versions, contents, bundled package resolution, entrypoints, native prebuilds and the launcher through an isolated install.
 
-Before creating a release tag, push the candidate branch and select **Actions → Publish Release → Run workflow**, then choose that branch. Manual runs are always dry runs; there is no publish option. With GitHub CLI:
+Requirements: Node.js 24+, pnpm 11.28.10, rustup with the toolchain pinned in `rust-toolchain.toml`.
 
-```sh
-gh workflow run release.yml --ref <candidate-branch>
-```
+## One-time setup
 
-The workflow must be present on the default branch for manual dispatch to be available. Each run checks out the selected commit SHA across all jobs, derives a candidate tag from the root package version, and verifies workspace versions without creating a Git tag. It runs the same six-platform native builds/tests, package and desktop smokes, npm tarball verification, and website build as a tagged release. Quality checks and tests are not repeated: the dry run requires a passing CI run for the commit, either a `main` push run or the candidate's pull request run (which covers only affected areas), so open a pull request for the candidate branch first. Native prebuilds, the verified npm tarball, and the website build remain workflow artifacts for inspection.
+- **`nervekit-release` GitHub App**, owned by the maintainer and installed on this repository with **Contents: read and write**. It is the only actor that can create release tags; an app is needed because `GITHUB_TOKEN` cannot be a ruleset bypass actor. Everything else in Cut uses `GITHUB_TOKEN`.
+- **`release` environment** used only by `release-cut.yml`: variable `RELEASE_APP_CLIENT_ID` and secret `RELEASE_APP_PRIVATE_KEY`. Add required reviewers to get an approval step before `main` moves and the tag is created.
+- **Tag ruleset** on `refs/tags/v*` restricting creation, update and deletion, with the `nervekit-release` app as the only bypass actor (no repository admins), so release tags cannot be pushed by hand.
+- **`main` ruleset**: `GITHUB_TOKEN` must be able to fast-forward `main` (signed commits and linear history are satisfied by the API commit).
+- **`github-pages` environment**: allow deployments from `main` (workflows are dispatched from `main`).
+- **npm trusted publishers** (no npm token is stored). For each of the ten packages on npmjs.com, Settings → Trusted Publisher → GitHub Actions, repository `ThilinaTLM/nerve`:
+  - workflow `release-publish.yml` with **npm publish** allowed;
+  - workflow `release-promote.yml` with **npm dist-tag** allowed only (OIDC dist-tags need npm 11.21.0+; the workflow upgrades npm when needed).
 
-Manual runs skip npm publication, website deployment, and GitHub release creation. They cannot validate publishing credentials or deployment itself. A passing dry run does not publish anything; the normal tag-push flow below remains required.
+  Remove the old `release.yml` publishers. Trusted publishing can only be configured for a package that already exists on npm; a new package needs one manual first publish (`npm publish --access public --tag next` on a packed tarball).
 
-## Release tagging flow
+Do not unpublish desktop versions or legacy packages: pinned older installs may still need them.
 
-Start from a clean, up-to-date `main` (local `main` must equal `origin/main`) with a local Git identity and commit-signing key configured. Preview, then run, the release with the exact version to publish, without a leading `v`:
+## Scope
 
-```sh
-pnpm release:tag X.Y.Z --dry-run   # checks preconditions and prints the plan; changes nothing
-pnpm release:tag X.Y.Z             # asks before pushing; --yes pushes without asking
-```
-
-The script (`scripts/release/tag-release.ts`) refuses to run on another branch, with local changes, when `main` differs from `origin/main`, or when the tag already exists locally or on origin. It then:
-
-1. updates every workspace `package.json`, the native `Cargo.toml` and the `nerve-native` entry in `Cargo.lock`, and stamps Discover announcements authored with `releasedIn: "next"`;
-2. marks every draft migration step released in this version (`stage: "released"`, `releasedIn`) in `migrations.lock.json` and `registry-metadata.ts`, records the step folder hash as its checksum (a drifted draft label is kept in `previousChecksums` so homes that applied the draft stay admitted), drops `rerunOnChange`, and runs the migration lock check;
-3. creates the signed `chore(release): bump version to vX.Y.Z` commit and the annotated `vX.Y.Z` tag;
-4. pushes `main` and the tag to origin in one atomic push.
-
-After the release, the next storage change starts a new draft step. Pushing the tag immediately starts the **Publish Release** workflow, so confirm only when the commit is ready to publish. If the push is declined or no interactive terminal is available, publish later with `git push --atomic origin main refs/tags/vX.Y.Z`. The `main` ruleset requires signed commits and linear history; the release commit satisfies both.
-
-The authenticated SemVer tag push starts the **Publish Release** workflow. It validates the tag and builds the native runtime on architecture-matched runners for Linux x64/ARM64, Windows 11 x64/ARM64, macOS Intel, and macOS Apple Silicon. Every runner executes the generated addon before the artifacts are merged. Representative Linux, Windows, and macOS jobs then build, pack, and run the desktop package smokes against the merged inventory. Checks and tests are not repeated: the release commit reaches `main` in the same push, and publishing waits for that commit's full-coverage CI run to pass. If CI fails, fix forward with a new release; a flaky failure can be re-run in CI before re-running the release jobs. The workflow builds and deploys the website to GitHub Pages, publishes to npm through OIDC, and creates the GitHub release. Website deployment occurs only after release validation and npm publication.
-
-If publication fails after the immutable tag has started Publish Release, use GitHub Actions to re-run the failed jobs or the complete existing run. Do not recreate or move the tag.
-
-## Storage and migration testing
-
-Never validate a release or migration against the live home. Stop related Nerve processes, copy the source home to an isolated directory under `/tmp`, set an explicit `NERVE_HOME`, use explicit non-default ports, and give Electron a separate `userData` profile when desktop browser state must also be isolated.
-
-Current homes use `manifest.json` with format `nerve-home`, version `1`. The only supported legacy import is the explicit offline migration from the released `nerve-workbench-state` version `2` layout with its checksummed ledger through `0012-remove-workers`. Unknown, malformed, intermediate-development, and future homes fail closed and remain untouched. See [Storage, cleanup, and migration](https://nerve.tlmtech.dev/operations/storage-migration/) and the repository [storage architecture](../architecture/storage.md).
-
-## Release commit signing
-
-`pnpm release:tag` uses `git commit -S` and refuses to create the tag unless Git records a signature on the release commit. Each maintainer must configure a local Git identity and a signing key whose public identity GitHub recognizes. The script does not read private signing material from repository secrets.
-
-If any step fails before the commit exists (including signing), the script restores the working tree, so fix the cause and rerun it.
-
-## npm publication and OIDC
-
-Tagged releases use GitHub OIDC trusted publishing with provenance and no stored npm token. The trusted publisher for `@nervekit/desktop` uses `.github/workflows/release.yml` in `ThilinaTLM/nerve`. The workflow must not publish until the release commit's CI run passes (checks, all package tests, and Windows/macOS native host suites) and its own package verification, desktop packaging, and built-artifact smokes pass on Linux, Windows, and macOS. An already-published matching version may be skipped only after the expected local tarball is verified.
-
-After a release is published and clean-machine startup is verified, confirm npm `latest` points to it. Do not unpublish legacy packages or desktop versions: pinned older desktop installs may still require them.
-
-## Extension packages (manual publish)
-
-`@nervekit/extension-api`, `@nervekit/ui-kit` and `@nervekit/extension-sdk` are public packages for extension authors. They carry Nerve's version (`pnpm release:tag` bumps them with every other workspace package, and `scripts/checks/check-lockstep-versions.ts`, part of `pnpm check`, fails when one differs from the root). The Publish Release workflow does **not** publish them; publish by hand after the tagged release is out:
-
-```sh
-pnpm build
-pnpm --filter @nervekit/extension-sdk e2e      # packs the three, installs them with npm, runs `nerve-ext check` (needs network)
-for pkg in extension-api ui-kit extension-sdk; do
-  (cd packages/$pkg && pnpm publish --access public --no-git-checks)
-done
-```
-
-Publish `extension-api` and `ui-kit` before the SDK (it depends on both at the exact version). `pnpm publish` runs `prepack`, which copies `LICENSE` and `NOTICE` into the package, and rewrites `workspace:*` dependencies to the exact version. When a release breaks extensions, add a section to `packages/extension-sdk/UPGRADING.md` first.
-
-## Scope and cleanup
-
-The npm launcher supports Linux, Windows, and macOS. Signed/notarized app bundles and native installers remain explicit non-goals. Every smoke must use temporary homes and workspaces, random loopback ports, terminate child processes, and remove temporary install projects it promises to clean.
+The npm launcher supports Linux, Windows and macOS. Signed or notarized app bundles and native installers are not part of the release path. Every smoke uses temporary homes and workspaces and random loopback ports, terminates its child processes and removes the temporary install projects it creates.

@@ -8,6 +8,8 @@ cd csv-viewer && npm install --ignore-scripts
 npx nerve-ext check
 ```
 
+Without a tag, npm installs the stable SDK, which matches the Nerve version stable users run. To target a Nerve staging version (`npx @nervekit/desktop@next`), use `npx @nervekit/extension-sdk@next init`.
+
 | Command                                                                    | Does                                                                                                                                                                                                                                                                                                             |
 | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `nerve-ext init <id> --kind <kind>[,<kind>...] [--dir <path>] [--install]` | Writes the project for one or more of `preview`, `page`, `panel`, `theme`, `integration`: `package.json` pinned to this SDK version, `src/extension.ts` wiring one folder per part (`src/backend/`, `src/previews/<id>/`, `src/pages/<id>/`, `src/panels/<id>/`, `src/themes/`), tests beside the code, `docs/`. |

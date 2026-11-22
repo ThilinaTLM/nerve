@@ -142,6 +142,27 @@ describe("Discover sections", () => {
     assert.equal(unreadNewsForVersion(withPending, undefined), 0);
   });
 
+  it("counts a whole release line for a version promoted past its staging patches", () => {
+    // Staging shipped 0.28.0 and 0.28.1; stable jumps from 0.27.0 to 0.28.3.
+    const unread = resolveNews(news, {});
+    assert.equal(unreadNewsForVersion(unread, "0.28.3"), 2);
+    assert.equal(
+      unreadNewsForVersion(resolveNews(news, { patch: 1 }), "0.28.3"),
+      1,
+    );
+    assert.equal(releaseLine("0.28.3"), "0.28");
+    const grouped = buildDiscoverSections({
+      guides: [],
+      news: unread.filter((entry) => entry.releasedIn !== "0.29.0"),
+      tips: [],
+    });
+    assert.equal(grouped.news.spotlight?.id, "previous-featured");
+    assert.deepEqual(
+      grouped.news.releases.map((group) => group.release),
+      ["0.28", "0.27"],
+    );
+  });
+
   it("marks entries read once the stored version catches up", () => {
     const sections = sectionsFor({ "current-featured": 1, "current-plain": 1 });
     assert.equal(sections.news.spotlight?.unread, false);
