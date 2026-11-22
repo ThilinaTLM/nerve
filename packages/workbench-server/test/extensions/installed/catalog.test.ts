@@ -546,6 +546,7 @@ void test(
     await writeExtension(projectRoot, {
       id: "proj-settings",
       namespace: "projsettings",
+      accountKind: "proj-settings-kind",
     });
     const catalog = createTestCatalog({
       home,
@@ -553,10 +554,21 @@ void test(
     });
     await catalog.compose();
     await catalog.compose(project);
+    // A user extension's kind is available everywhere; a project's own belongs to that project.
+    const definitions = catalog.accountDefinitions();
     assert.ok(
-      catalog
-        .accountKinds()
-        .some((kind) => kind.kind === "with-kind" && kind.test === true),
+      definitions.some(
+        ({ kind, projectDir }) =>
+          kind.kind === "with-kind" &&
+          kind.test === true &&
+          projectDir === undefined,
+      ),
+    );
+    assert.deepEqual(
+      definitions
+        .filter(({ kind }) => kind.kind === "proj-settings-kind")
+        .map(({ projectDir }) => projectDir),
+      [project],
     );
     const ids = (projectDir?: string) =>
       catalog.settingsDefinitions(projectDir).map((d) => d.id);

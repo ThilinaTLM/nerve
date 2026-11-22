@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
+import { visibleAccounts } from "../accounts/accounts-view";
 import Blocks from "@lucide/svelte/icons/blocks";
 import { tick } from "svelte";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
@@ -96,7 +97,14 @@ $effect(() => {
 
 const view = $derived(extensions.view);
 const accounts = $derived(
-  accountOptions(accountsState.accounts, accountsState.kinds),
+  accountOptions(
+    // A user-scope setting offers user-level accounts; a project's also its own.
+    visibleAccounts(
+      accountsState.accounts,
+      scope === "project" ? projectId : undefined,
+    ),
+    accountsState.kinds,
+  ),
 );
 const usableModels = $derived(
   authenticatedRealModelOptions(models, authProviders),
@@ -111,7 +119,7 @@ const rows = $derived(
       inherited,
       changes: extensionChanges(extension, scope, accounts, inherited),
       problem: extensionProblem(extension),
-      fix: extensionFix(extension, accounts),
+      fix: extensionFix(extension, accounts, accountsState.kinds),
     };
   }),
 );

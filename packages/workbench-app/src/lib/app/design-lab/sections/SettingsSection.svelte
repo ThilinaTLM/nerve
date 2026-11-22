@@ -3,6 +3,8 @@ import SettingsNav from "$lib/presentation/settings/SettingsNav.svelte";
 import SettingsChangeIndicator from "$lib/presentation/settings/SettingsChangeIndicator.svelte";
 import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
 import EntityRow from "$lib/presentation/settings/EntityRow.svelte";
+import OAuthInteractionPanel from "$lib/presentation/settings/OAuthInteractionPanel.svelte";
+import type { OAuthFlowInfo } from "@nervekit/contracts/auth";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
 import FolderGit2Icon from "@lucide/svelte/icons/folder-git-2";
@@ -196,6 +198,21 @@ let activePageId = $state("workbench");
 let activeSectionId = $state("appearance");
 let trayToggle = $state(false);
 let headerStyle = $state("auto");
+const deviceCodeFlow: OAuthFlowInfo = {
+  flowId: "authflow_specimen",
+  provider: "account:work-github",
+  providerName: "Work GitHub",
+  account: { kind: "github", id: "work-github" },
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  state: "active",
+  interaction: {
+    type: "device_code",
+    verificationUrl: "https://github.com/login/device",
+    userCode: "WDJB-MJHT",
+  },
+};
+let oauthResponse = $state("");
 </script>
 
 <div class="flex flex-col gap-10">
@@ -716,6 +733,26 @@ let headerStyle = $state("auto");
         scope="project"
         from="Claude Sonnet 4"
         onReset={() => {}}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="OAuthInteractionPanel"
+      source="presentation/settings/OAuthInteractionPanel.svelte"
+      layout="stack"
+    >
+      <OAuthInteractionPanel
+        flow={deviceCodeFlow}
+        busy={false}
+        bind:responseValue={oauthResponse}
+        copiedLoginUrl={false}
+        copiedDeviceCode={false}
+        deviceCodeSecondsRemaining={540}
+        onSelect={() => {}}
+        onSubmit={() => {}}
+        onCopyLoginUrl={() => {}}
+        onCopyDeviceCode={() => {}}
+        onOpen={() => {}}
+        onRetry={() => {}}
       />
     </GallerySpecimen>
     <GallerySpecimen

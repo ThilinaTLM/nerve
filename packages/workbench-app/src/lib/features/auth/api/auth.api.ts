@@ -91,6 +91,17 @@ export async function saveAccount(
   ).result.account;
 }
 
+/** Starts the sign-in of an account; the prompts are answered through the OAuth flow calls. */
+export async function startAccountSignIn(
+  ref: AccountRef,
+): Promise<OAuthFlowInfo> {
+  return (
+    await protocolRequest("accounts.signIn", ref, {
+      idempotencyKey: crypto.randomUUID(),
+    })
+  ).result.flow;
+}
+
 export async function deleteAccount(ref: AccountRef): Promise<void> {
   await protocolRequest("accounts.delete", ref, {
     idempotencyKey: crypto.randomUUID(),

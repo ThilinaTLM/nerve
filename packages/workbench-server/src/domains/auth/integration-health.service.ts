@@ -21,6 +21,7 @@ export type AccountTester = (
 ) => Promise<AccountTestResult>;
 
 export type IntegrationHealthDeps = {
+  /** A reader over every account, whatever its level. */
   accounts: AccountsReader;
   /** Account kinds the registered extensions define; only kinds that declare `test` are checked. */
   kinds: () => readonly AccountKind[];
@@ -80,13 +81,18 @@ export class IntegrationHealthService {
         "ACCOUNT_NOT_FOUND",
         `Account '${id}' does not exist.`,
       );
-    const secret = await this.deps.accounts.secret(kind, id);
-    if (!secret)
+    const state = await this.deps.accounts.state(kind, id);
+    if (state !== "ready")
       throw new ApplicationError(
         400,
-        "ACCOUNT_SECRET_MISSING",
-        "Add the secret before testing this account.",
+        "ACCOUNT_NOT_READY",
+        state === "needs_sign_in"
+          ? "Sign in or add the secrets before testing this account."
+          : state === "unavailable"
+            ? "The extension of this account is off or gone."
+            : "Fix the credential of this account before testing it.",
       );
+    this.deps.accounts.touch(kind, id);
     const outcome = await this.deps.test(account);
     const result = accountHealthSchema.parse({
       kind,
@@ -106,11 +112,9 @@ export class IntegrationHealthService {
   async #current(account: AccountRecord): Promise<AccountHealth | undefined> {
     const stored = this.#health.get(key(account.kind, account.id));
     if (!stored) return undefined;
-    const hasSecret = await this.deps.accounts.hasSecret(
-      account.kind,
-      account.id,
-    );
-    return hasSecret && stored.fingerprint === fingerprint(account)
+    const ready =
+      (await this.deps.accounts.state(account.kind, account.id)) === "ready";
+    return ready && stored.fingerprint === fingerprint(account)
       ? stored.result
       : undefined;
   }

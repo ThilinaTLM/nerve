@@ -67,6 +67,12 @@ export const extensionGrantSnapshotSchema = z.strictObject({
   tools: z.array(z.string()),
   /** UI contributions, as `<kind>:<value>`. */
   ui: z.array(z.string()),
+  /**
+   * How credentials are obtained and where they go, per account kind, as `<kind>|<what>|<value>`:
+   * `provider|oauth2` or `provider|code` (own code), `signin|<origin>`, `scope|<scope>`,
+   * `identity`, and `code|<sha256 of credentials.js>`. Absent in snapshots saved before.
+   */
+  credentials: z.array(z.string()).optional(),
 });
 export type ExtensionGrantSnapshot = z.infer<
   typeof extensionGrantSnapshotSchema

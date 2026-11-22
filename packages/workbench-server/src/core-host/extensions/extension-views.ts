@@ -13,7 +13,7 @@ import type {
 import { conversationExtensionContext } from "./conversation-extensions.js";
 import { extensionMetadata } from "@nervekit/tools/extension-host";
 import type { ExtensionRegistryProvider } from "./extension-catalog/extension-catalog.js";
-import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
+import type { AccountScopes } from "../../domains/accounts/accounts.service.js";
 import { extensionAvailability } from "./extension-availability.js";
 import { createExtensionPorts } from "./extension-ports.js";
 import type { ExtensionStore } from "./extension-store/extension-store.js";
@@ -26,7 +26,7 @@ export type ExtensionViewOptions = {
   catalog: ExtensionRegistryProvider;
   /** The directory of a project, to find its own extensions. */
   projectDirectory?(projectId: string): string | undefined;
-  accounts: AccountsReader;
+  accounts: AccountScopes;
   vision?: VisionHost;
   /** The durable store behind `ctx.extensionStore` in availability hooks of a project's extensions. */
   extensionStore?: ExtensionStore;
@@ -60,12 +60,13 @@ export function createExtensionViews(options: ExtensionViewOptions) {
       options.extensions.resolve(ctx, target.scope),
       options.extensions.read(ref),
     ]);
+    const accounts = options.accounts.reader(ctx.projectId);
     const { namespaces: availability, tools: toolAvailability } =
-      await extensionAvailability(registry, resolution, options.accounts, {
+      await extensionAvailability(registry, resolution, accounts, {
         checkSecrets: true,
         ports: createExtensionPorts({
           resolution,
-          accounts: options.accounts,
+          accounts,
           ...(options.vision ? { vision: options.vision } : {}),
           store: options.extensionStore,
           projectId: ctx.projectId,
@@ -85,6 +86,7 @@ export function createExtensionViews(options: ExtensionViewOptions) {
         metadata: extensionMetadata(manifest),
         settingsSchema: manifest.settings,
         accountKinds: manifest.accounts ?? [],
+        ...(manifest.uses?.length ? { uses: manifest.uses } : {}),
         enabled: resolved.enabled,
         fields: resolved.fields,
         stored:

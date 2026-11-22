@@ -5,6 +5,7 @@ import type {
   AccountRecord,
   AccountsReader,
 } from "../../../src/domains/accounts/accounts.service.js";
+import { fakeAccountsReader } from "../../../src/domains/accounts/test-support.js";
 import { ApplicationError } from "../../../src/core/application-error.js";
 import { hostRegistry } from "../../../src/core-host/host-tools.js";
 import { extensionAccountTester } from "../../../src/domains/auth/account-testers.js";
@@ -27,46 +28,49 @@ function fixture() {
       id: "ner",
       name: "NER",
       kind: "atlassian",
+      level: "user",
       fields: {
         siteUrl: "https://ner.atlassian.net",
         email: "dev@example.com",
       },
     },
-    { id: "tav", name: "Tavily", kind: "tavily", fields: {} },
+    { id: "tav", name: "Tavily", kind: "tavily", fields: {}, level: "user" },
   ];
   const secrets = new Map([
     ["atlassian:ner", "token-1"],
     ["tavily:tav", "key"],
   ]);
   const reader: AccountsReader = {
+    ...fakeAccountsReader(),
     get: async (kind, id) =>
       accounts.find((a) => a.kind === kind && a.id === id),
     list: async (kind) => accounts.filter((a) => a.kind === kind),
-    secret: async (kind, id) => secrets.get(`${kind}:${id}`),
-    hasSecret: async (kind, id) => secrets.has(`${kind}:${id}`),
+    state: async (kind, id) =>
+      secrets.has(`${kind}:${id}`) ? "ready" : "needs_sign_in",
+    touch: (kind, id) => void touched.push(`${kind}:${id}`),
   };
+  const touched: string[] = [];
   const published: string[] = [];
   const tested: string[] = [];
   const service = new IntegrationHealthService({
     accounts: reader,
     kinds: () => kinds,
     test: async (account) => {
-      tested.push(
-        `${account.id}:${await reader.secret(account.kind, account.id)}`,
-      );
+      tested.push(account.id);
       return { status: "verified" };
     },
     publish: async (kind, id) => void published.push(`${kind}:${id}`),
     now: () => new Date("2026-10-01T00:00:00.000Z"),
   });
-  return { service, accounts, secrets, published, tested };
+  return { service, accounts, secrets, published, tested, touched };
 }
 
 describe("IntegrationHealthService", () => {
   it("tests only kinds that declare a test and lists the results", async () => {
-    const { service, published, tested } = fixture();
+    const { service, published, tested, touched } = fixture();
     const health = await service.check("atlassian", "ner");
-    assert.deepEqual(tested, ["ner:token-1"]);
+    assert.deepEqual(tested, ["ner"]);
+    assert.deepEqual(touched, ["atlassian:ner"]);
     assert.equal(health.status, "verified");
     assert.deepEqual(published, ["atlassian:ner"]);
     assert.deepEqual(await service.list(), [health]);
@@ -90,20 +94,15 @@ describe("IntegrationHealthService", () => {
     assert.deepEqual(await service.list(), []);
   });
 
-  it("rejects checks for accounts without a secret", async () => {
+  it("rejects checks for accounts that need sign-in", async () => {
     const { service, secrets } = fixture();
     secrets.delete("atlassian:ner");
-    await assert.rejects(service.check("atlassian", "ner"), /secret/);
+    await assert.rejects(service.check("atlassian", "ner"), /Sign in or add/);
   });
 });
 
 describe("extensionAccountTester", () => {
-  const reader: AccountsReader = {
-    get: async () => undefined,
-    list: async () => [],
-    secret: async () => "token",
-    hasSecret: async () => true,
-  };
+  const reader: AccountsReader = fakeAccountsReader();
   const test = extensionAccountTester({
     registry: hostRegistry,
     accounts: reader,
@@ -113,6 +112,7 @@ describe("extensionAccountTester", () => {
     name: "NER",
     kind: "atlassian",
     fields: { siteUrl: "https://ner.atlassian.net", email: "dev@example.com" },
+    level: "user",
   };
 
   it("runs the kind's hook; an account without a site or email is a client error", async () => {

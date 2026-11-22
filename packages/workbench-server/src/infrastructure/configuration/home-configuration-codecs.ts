@@ -3,7 +3,6 @@ import {
   uiConfigSchema,
   permissionsConfigSchema,
   providersConfigSchema,
-  accountsConfigSchema,
   type UserConfiguration,
 } from "@nervekit/contracts/settings";
 export type HomeConfigurationDocumentId = keyof UserConfiguration;
@@ -14,7 +13,4 @@ export const HOME_CONFIGURATION_CODECS = {
     decode: (value: unknown) => permissionsConfigSchema.parse(value),
   },
   providers: { decode: (value: unknown) => providersConfigSchema.parse(value) },
-  accounts: {
-    decode: (value: unknown) => accountsConfigSchema.parse(value),
-  },
 };

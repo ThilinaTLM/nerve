@@ -27,13 +27,13 @@ Web fetch isn't an extension. It's always available to Quick script and follows 
 <Steps>
 
 1. Open **Settings → Extensions** and select an extension. Each row shows how it is set up and has its own switch.
-2. If it needs an account, add one under **Accounts** (name, fields, and secret such as an API token). Use **Test connection** where it's offered.
+2. If it needs an account, add one under **Settings → Accounts** (name, fields, and secret such as an API token, or sign in in your browser for services that use OAuth). Use **Test connection** where it's offered.
 3. Choose that account in the extension's settings, adjust its options, and turn the extension on.
 4. Check **Settings → Tools**. Tools such as **Quick script** and **Web fetch** have their own switches, and the Quick script row lists which namespaces are usable or what to fix.
 
 </Steps>
 
-An extension's page shows a problem at the top when it can't be used, with a link to fix it: no account selected, an account without a saved secret, or a model that's no longer available. The agent only sees namespaces and tools that are on and usable.
+An extension's page shows a problem at the top when it can't be used, with a link to fix it: no account selected, an account that needs sign-in or has no saved secret, or a model that's no longer available. The agent only sees namespaces and tools that are on and usable.
 
 <DocsScreenshot
   light={extensionsLight}
@@ -47,7 +47,7 @@ An extension's page shows a problem at the top when it can't be used, with a lin
 ## Scope and trust
 
 - **User** settings apply to every project. **Project** settings override them for one project and can be shared through the repository. Anything unset in a project follows your user settings. An [agent profile](/reference/agent-profiles/) can also recommend or require extension settings.
-- **Accounts are user-level only.** Their secrets are stored encrypted on your computer and are never copied into project files; a project selects an account by an ID that exists only on your computer, so a teammate must choose their own.
+- **Accounts are user-level or project-level.** A user account is available in every project, a project account in one. Their credentials are stored encrypted on your computer and are never copied into project files; a project selects an account by an ID that exists only on your computer, so a teammate must choose their own. Settings at user scope can choose user accounts only. Manage accounts under **Settings → Accounts**; see [Settings at a glance](/guides/settings/#accounts).
 - A project's `.nerve/config/extensions.json` is ignored until you trust its exact content. The project's Extensions page shows **Project extension settings are not trusted** with a **Trust file** button. Changes you make through Nerve's settings pages are trusted automatically; an edit made in another editor needs trusting again.
 
 See [Configuration](/operations/configuration/#extension-settings-and-accounts) for the files.

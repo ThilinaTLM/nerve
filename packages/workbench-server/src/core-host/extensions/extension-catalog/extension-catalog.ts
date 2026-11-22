@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import type { Diagnostic } from "@nervekit/contracts/configuration";
 import type {
-  AccountKind,
   ExtensionConsent,
   ExtensionCatalogEntry,
   ExtensionSettingsDefinition,
@@ -46,6 +45,9 @@ import {
   type ExtensionTrustVerdict,
   type InstalledExtensionCandidate,
 } from "./trust-gate.js";
+import { accountDefinitions, credentialCode } from "./account-definitions.js";
+import { extensionNameOfKind, platformUses } from "./account-platforms.js";
+import { resolveKey } from "./project-key.js";
 
 /** What a consumer needs of the catalog: the registry and the entries at a project. */
 export interface ExtensionRegistryProvider {
@@ -241,14 +243,18 @@ export class ExtensionCatalog implements ExtensionUiSource {
     return [...seen.values()];
   }
 
-  /** Account kinds of every extension composed so far (accounts are user-wide; kinds are unique across scopes). */
-  accountKinds(): AccountKind[] {
-    const kinds = new Map<string, AccountKind>();
-    for (const { registry } of this.#latest.values())
-      for (const extension of registry.extensions)
-        for (const kind of extension.accounts ?? [])
-          if (!kinds.has(kind.kind)) kinds.set(kind.kind, kind);
-    return [...kinds.values()];
+  /** Account kinds of every extension composed so far, with the project a kind belongs to. */
+  accountDefinitions() {
+    return accountDefinitions(this.#latest);
+  }
+
+  /** Platform uses of every composed extension, and the name of the extension defining an account kind. */
+  platformUses() {
+    return platformUses(this.#latest);
+  }
+
+  extensionNameOfKind(kind: string) {
+    return extensionNameOfKind(kind, this.#latest);
   }
 
   /** Called after `reload`. */
@@ -510,6 +516,8 @@ export class ExtensionCatalog implements ExtensionUiSource {
         ],
       };
     this.#bundles.set(loaded.definition, loaded.bundle);
+    if (loaded.credentials)
+      credentialCode.set(loaded.definition, loaded.credentials);
     return { ...base, state: "loadable", loaded };
   }
 
@@ -784,11 +792,6 @@ export class ExtensionCatalog implements ExtensionUiSource {
     );
     this.#toolScopes.add(key);
   }
-}
-
-/** Project directories are keys: compare them by their normalized path. */
-function resolveKey(projectDir: string): string {
-  return projectDir.length > 1 ? projectDir.replace(/\/+$/, "") : projectDir;
 }
 
 export type { ExtensionTrustGate };

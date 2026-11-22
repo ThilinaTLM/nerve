@@ -17,14 +17,14 @@ const grouped = (kind: "user" | "project") =>
 describe("settings page registry", () => {
   it("groups the user nav as approved", () => {
     assert.deepEqual(grouped("user"), [
-      ["Connections", ["providers", "extensions"]],
+      ["Connections", ["providers", "extensions", "accounts"]],
       ["Agent", ["general", "tools", "skills"]],
       [
         "Catalog",
         ["agents", "sub-agents", "permission-rules", "models", "suggestions"],
       ],
       ["App", ["workbench", "notifications", "shortcuts", "voice", "titles"]],
-      ["System", ["storage", "devices", "system"]],
+      ["System", ["storage", "background-jobs", "devices", "system"]],
     ]);
   });
 

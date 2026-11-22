@@ -44,14 +44,26 @@ export const get = method({
 ## Network, accounts and data
 
 - `ctx.http.request` is the only network access, and only to origins in `permissions.network`. Declare the narrowest origins; `*` is shown to the user as broad.
-- Credentials never reach the extension: set `auth: { account: "<setting key>" }` and the host injects the selected account's secret, only toward that account kind's `origins`.
+- Credentials never reach the extension: set `auth: { account: "<setting key>" }` and the host adds the selected account's credential to the request, only toward that account's `origins`. `ctx.accounts.selected` returns non-secret `fields`, `level` and, for accounts with a provider, `identity`.
 - Bytes cross the sandbox boundary as base64, which costs a third more plus memory on both sides. For downloads use `response: "artifact"` and pass the artifact handle on instead of the bytes.
 - Settings hold no secrets; read them with `ctx.settings.get`.
 - `ctx.extensionStore` keeps this extension's data per project, across conversations and shared with its frames (`host.extensionStore`); revisions and `ifRevision` work as in `ui.md` ("Keeping state"), and a stale write throws `CONFLICT`. Without an open project it throws `BAD_REQUEST`. Use artifacts for files the conversation and agent should see, the store for the extension's own state.
 
 ### An account kind
 
-The user adds accounts of the kind in Settings; a setting of type `account` selects one; `auth` on a request names that setting.
+The user adds accounts of the kind in Settings → Accounts; a setting of type `account` selects one; `auth` on a request names that setting. An account is user-level (every project) or project-level. A kind a project extension defines has project-level accounts only.
+
+Choose how the credential is obtained with `provider`. Declare only what the service needs:
+
+| Need                                                                          | Declare                                                                                                                                                          |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Token, password or API key the user types in                                  | `secret` (or `secrets` for several by name) and `auth`: `bearer`, `basic`, `header` or `query`; a list of `auth` entries sets several, each naming its `secret`. |
+| Standard OAuth 2.0 (authorization code, device code)                          | `provider: { type: "oauth2", ... }`, no `auth`; the client id is an account field (`clientIdField`). Nerve ships no OAuth apps.                                  |
+| Request signing, token exchange, login for a session token, any other sign-in | `provider: "extension"`, `signInOrigins` and a credential provider in `src/credentials.ts` (`defineCredentialProvider`).                                         |
+
+Credential code runs in its own sandbox, sees the account's secrets and state and has no free I/O: `http` only to `signInOrigins` (`signIn`, `refresh`, `revoke`), `ui` only in `signIn`, `crypto`, and in `apply` the request with `body.digest()`/`body.bytes()` and no network. `apply` returns only headers and query parameters. Read `reference/extensions/api/extension-api/credentials.d.ts` and the SDK's `examples/aws-sigv4` and `examples/github-app`. Changing `credentials.js` asks the user for consent again.
+
+To use accounts that any extension defines for a platform (`github`), declare `uses: [{ platform, scopes?, origins? }]` and give the `account` setting `platform` instead of `kind`; it offers every account of that platform whose definition covers your origins. Set `platform` on your own kind to share it the same way.
 
 ```ts
 defineExtension({

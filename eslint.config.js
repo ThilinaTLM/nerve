@@ -15,6 +15,8 @@ export default tseslint.config(
       "data/**",
       // Extension project templates are checked by `nerve-ext check` on a scaffold (SDK e2e).
       "packages/extension-sdk/templates/**",
+      // Examples are built and run by the SDK tests (test/credential-examples.test.ts).
+      "packages/extension-sdk/examples/**",
       // Local git worktrees are separate checkouts with their own tsconfigs;
       // linting them from the root corrupts type-aware rule resolution.
       ".worktrees/**",

@@ -3,6 +3,12 @@ export { openCoreDatabase, type CoreDatabase } from "./storage/database.js";
 export { migrate, coreMigrations } from "./storage/migrations.js";
 export { ProjectRepository } from "./storage/project.repository.js";
 export { TrustedResourceRepository } from "./storage/trusted-resource.repository.js";
+export {
+  AccountRepository,
+  type AccountRow,
+  type AccountStatus,
+  type NewAccount,
+} from "./storage/account.repository.js";
 export { ConversationRepository } from "./storage/conversation.repository.js";
 export {
   ConversationEventRepository,

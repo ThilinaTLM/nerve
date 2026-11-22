@@ -1,9 +1,10 @@
 import { z } from "zod";
 import type { ExtensionDefinitionData } from "@nervekit/extension-api/host";
 import {
-  accountKindSchema,
+  accountKindDataSchema,
   extensionIdSchema,
   extensionPermissionsSchema,
+  platformUseSchema,
   settingsSchemaSchema,
 } from "./settings-schema.js";
 import { extensionToolViewSchema } from "./tool-display.js";
@@ -247,6 +248,14 @@ export const installedExtensionUiSchema = z.strictObject({
   themes: list(themeSchema).optional(),
 });
 
+/** The credential provider an extension ships (`dist/credentials.js`); see `defineCredentialProvider`. */
+export const installedExtensionCredentialsSchema = z.strictObject({
+  /** Hex SHA-256 of `dist/credentials.js`: part of what the user consents to. */
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  /** The operations the provider implements. */
+  operations: z.array(z.enum(["signIn", "refresh", "apply", "revoke"])).min(2),
+});
+
 export const installedExtensionManifestSchema = z.strictObject({
   id: extensionIdSchema,
   name: z.string().min(1),
@@ -257,9 +266,8 @@ export const installedExtensionManifestSchema = z.strictObject({
   settings: settingsSchemaSchema.extend({
     version: z.number().int().positive(),
   }),
-  accounts: z
-    .record(z.string().min(1), accountKindSchema.omit({ kind: true }))
-    .optional(),
+  accounts: z.record(z.string().min(1), accountKindDataSchema).optional(),
+  uses: z.array(platformUseSchema).optional(),
   permissions: extensionPermissionsSchema.optional(),
   namespaces: z.array(namespaceSchema),
   tools: z.array(toolSchema).optional(),
@@ -267,6 +275,7 @@ export const installedExtensionManifestSchema = z.strictObject({
   version: semver,
   sdkVersion: semver,
   ui: installedExtensionUiSchema.optional(),
+  credentials: installedExtensionCredentialsSchema.optional(),
 }) satisfies z.ZodType<InstalledExtensionManifest>;
 
 /** The fields of `manifest.json` that are not part of the definition's data. */
@@ -277,15 +286,18 @@ export type InstalledExtensionManifest = ExtensionDefinitionData & {
   sdkVersion: string;
   /** UI contributions as built output (`dist/ui/<id>/`, `dist/themes/<id>.json`). */
   ui?: z.infer<typeof installedExtensionUiSchema>;
+  /** The credential provider code in `dist/credentials.js`, when the extension has one. */
+  credentials?: z.infer<typeof installedExtensionCredentialsSchema>;
 };
 
 /** The definition-data part of a manifest: what the sandboxed bundle's registered definition must equal. */
 export function manifestDefinitionData(
   manifest: InstalledExtensionManifest,
 ): ExtensionDefinitionData {
-  const { version, sdkVersion, ui, ...data } = manifest;
+  const { version, sdkVersion, ui, credentials, ...data } = manifest;
   void version;
   void sdkVersion;
   void ui;
+  void credentials;
   return data;
 }

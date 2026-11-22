@@ -34,6 +34,12 @@ const extensions: PageData = {
   sections: [{ id: "builtin", label: "Built-in" }],
   detail: { param: "extension" },
 };
+const accounts: PageData = {
+  label: "Accounts",
+  description:
+    "Credentials extensions use to reach other services. User accounts are available in every project; project accounts only in their project.",
+  sections: [{ id: "accounts", label: "Accounts" }],
+};
 const general: PageData = {
   label: "General",
   description:
@@ -89,6 +95,7 @@ const suggestions: PageData = {
 const userPages: Record<string, PageData> = {
   providers,
   extensions,
+  accounts,
   general,
   tools,
   skills,
@@ -139,6 +146,12 @@ const userPages: Record<string, PageData> = {
     description:
       "Understand what Nerve keeps locally and safely reclaim space.",
     sections: [{ id: "storage", label: "Storage" }],
+  },
+  "background-jobs": {
+    label: "Background jobs",
+    description:
+      "Work Nerve does on its own while it runs. A job that keeps failing shows in the notification bell.",
+    sections: [{ id: "jobs", label: "Jobs" }],
   },
   devices: {
     label: "Devices",
@@ -233,7 +246,7 @@ const userLayout: NavLayout = [
   {
     id: "connections",
     title: "Connections",
-    pages: ["providers", "extensions"],
+    pages: ["providers", "extensions", "accounts"],
   },
   { id: "agent", title: "Agent", pages: ["general", "tools", "skills"] },
   {
@@ -252,7 +265,11 @@ const userLayout: NavLayout = [
     title: "App",
     pages: ["workbench", "notifications", "shortcuts", "voice", "titles"],
   },
-  { id: "system", title: "System", pages: ["storage", "devices", "system"] },
+  {
+    id: "system",
+    title: "System",
+    pages: ["storage", "background-jobs", "devices", "system"],
+  },
 ];
 
 const projectLayout: NavLayout = [

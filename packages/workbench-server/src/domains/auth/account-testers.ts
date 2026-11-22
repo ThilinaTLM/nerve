@@ -2,6 +2,7 @@ import { testExtensionAccount } from "@nervekit/tools/extension-host";
 import { type QuickScriptRegistry } from "@nervekit/tools/quick-script";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { ApplicationError } from "../../core/application-error.js";
+import { accountPorts } from "../accounts/account-ports.js";
 import type { AccountsReader } from "../accounts/accounts.service.js";
 import type { AccountTester } from "./integration-health.service.js";
 
@@ -26,10 +27,7 @@ export function extensionAccountTester(input: {
             : input.registry,
         account,
         ports: {
-          accounts: {
-            get: async (kind, id) => await accounts.get(kind, id),
-            secret: async (kind, id) => await accounts.secret(kind, id),
-          },
+          accounts: accountPorts(accounts),
           log: (level, extensionId, message, data) => {
             if (level === "warn") warn?.(extensionId, message, data);
           },

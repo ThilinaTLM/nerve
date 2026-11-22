@@ -3,6 +3,7 @@ import { activityEventDefinitions } from "../domains/activity/events.js";
 import { promptSuggestionEventDefinitions } from "../domains/prompt-suggestions/events.js";
 import { agentProfileEventDefinitions } from "../domains/agent-profiles/events.js";
 import { conversationChannelEvents } from "../domains/core/channel.js";
+import { backgroundJobsEventDefinitions } from "../domains/background-jobs/events.js";
 import { z } from "zod";
 import { scratchNoteEventDefinitions } from "../domains/scratch-notes/events.js";
 import { accessEventDefinitions } from "../domains/access/events.js";
@@ -48,6 +49,7 @@ const definitions: PublicEventDefinition[] = [
   ...daemonEventDefinitions,
   ...maintenanceEventDefinitions,
   ...activityEventDefinitions,
+  ...backgroundJobsEventDefinitions,
   ...completionEventDefinitions,
   ...usageEventDefinitions,
 ];

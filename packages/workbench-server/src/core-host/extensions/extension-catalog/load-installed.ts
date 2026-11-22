@@ -4,7 +4,12 @@ import {
   type InstalledExtensionManifest,
 } from "@nervekit/contracts/extensions";
 import type { ExtensionDefinition } from "@nervekit/extension-api";
-import { readSandboxedDefinitionData } from "@nervekit/tools/extension-host";
+import { createHash } from "node:crypto";
+import {
+  describeCredentialBundle,
+  readSandboxedDefinitionData,
+} from "@nervekit/tools/extension-host";
+import type { ExtensionCredentialCode } from "../../../domains/accounts/extension-credential-provider.js";
 import { distReader, maxBundleBytes } from "./read-installed.js";
 
 /** An installed extension whose backend matches its manifest. */
@@ -16,7 +21,67 @@ export type LoadedInstalledExtension = {
   definition: ExtensionDefinition;
   /** The classic script that registers the definition in the sandbox. */
   bundle: string;
+  /** The credential provider code (`dist/credentials.js`), verified against the manifest. */
+  credentials?: ExtensionCredentialCode;
 };
+
+/**
+ * Reads `dist/credentials.js` and checks it against the manifest: its hash is what the user
+ * consented to, and the operations it implements must be the ones the manifest lists. Account
+ * kinds that name `provider: "extension"` need it, and it needs one.
+ */
+async function loadCredentialCode(
+  folder: string,
+  manifest: InstalledExtensionManifest,
+): Promise<ExtensionCredentialCode | undefined | { error: string }> {
+  const wanted = Object.values(manifest.accounts ?? {}).some(
+    (kind) => kind.provider === "extension",
+  );
+  const declared = manifest.credentials;
+  if (wanted && !declared)
+    return {
+      error:
+        'An account kind names provider "extension" but the extension ships no dist/credentials.js. Add src/credentials.ts and rebuild.',
+    };
+  if (!declared) return undefined;
+  if (!wanted)
+    return {
+      error:
+        'dist/credentials.js is shipped but no account kind names provider "extension". Remove src/credentials.ts or set the provider.',
+    };
+  let bundle: string;
+  try {
+    bundle = distReader(`${folder}/dist`)("credentials.js", maxBundleBytes);
+  } catch (cause) {
+    return {
+      error: `Cannot read dist/credentials.js: ${cause instanceof Error ? cause.message : String(cause)}`,
+    };
+  }
+  const sha256 = createHash("sha256").update(bundle).digest("hex");
+  if (sha256 !== declared.sha256)
+    return {
+      error:
+        "dist/credentials.js does not match the hash in dist/manifest.json. Rebuild the extension.",
+    };
+  let operations: string[];
+  try {
+    operations = await describeCredentialBundle(bundle);
+  } catch (cause) {
+    return {
+      error: `dist/credentials.js did not load: ${cause instanceof Error ? cause.message : String(cause)}`,
+    };
+  }
+  if ([...operations].sort().join() !== [...declared.operations].sort().join())
+    return {
+      error: `dist/credentials.js implements ${operations.join(", ")}, but dist/manifest.json lists ${declared.operations.join(", ")}. Rebuild the extension.`,
+    };
+  return {
+    extensionId: manifest.id,
+    bundle,
+    sha256,
+    operations: declared.operations,
+  };
+}
 
 /** The first place two plain-data values differ, as `a.b[0].c: <one> vs <other>`. */
 export function firstDifference(
@@ -98,5 +163,11 @@ export async function loadInstalledExtension(
     return {
       error: `dist/backend.js registers a different definition than dist/manifest.json (${difference}). Rebuild the extension so both match.`,
     };
-  return { definition: fromManifest as ExtensionDefinition, bundle };
+  const credentials = await loadCredentialCode(folder, manifest);
+  if (credentials && "error" in credentials) return credentials;
+  return {
+    definition: fromManifest as ExtensionDefinition,
+    bundle,
+    ...(credentials ? { credentials } : {}),
+  };
 }

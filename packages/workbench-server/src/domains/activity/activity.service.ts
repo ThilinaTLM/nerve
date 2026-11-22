@@ -53,7 +53,15 @@ export class ActivityService implements ActivityProducerPort {
 
   /** Producer-owned attention stays until its underlying problem is resolved. */
   reportNotice(
-    input: Pick<Activity, "id" | "kind" | "title" | "unreadableConversations">,
+    input: Pick<
+      Activity,
+      | "id"
+      | "kind"
+      | "title"
+      | "message"
+      | "unreadableConversations"
+      | "settingsPage"
+    >,
   ): void {
     if (this.#closed) return;
     const previous = this.#entries.get(input.id);

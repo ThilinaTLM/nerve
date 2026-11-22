@@ -3,57 +3,25 @@ import type { AccountKind } from "../extensions/settings-schema.js";
 import { validateField } from "../extensions/validator.js";
 
 /**
- * The accounts store (`config/accounts.json`): the user's accounts by kind.
- * Kinds, their fields and their secret labels come from extension manifests;
- * the store only knows the shape. Secrets live in the secret store.
+ * Accounts live in the `account` table of the Nerve home database. Kinds, their fields and their
+ * secret labels come from extension manifests; secrets are only ever held by the credential vault.
  */
 
-/** Kinds are extension-defined ids, so they use the extension id shape. */
-const accountKindKeySchema = z
-  .string()
-  .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/)
-  .max(64);
+/** A user-level account is available in every project; a project-level one in one project. */
+export const accountLevelSchema = z.enum(["user", "project"]);
+export type AccountLevel = z.infer<typeof accountLevelSchema>;
 
-export const storedAccountSchema = z
-  .object({
-    id: z.string().trim().min(1).max(128),
-    name: z.string().trim().min(1).max(128),
-    /** Values of the kind's non-secret fields. */
-    fields: z.record(z.string(), z.unknown()),
-  })
-  .strict();
-export type StoredAccount = z.infer<typeof storedAccountSchema>;
-
-const uniqueAccountIds = (
-  accounts: StoredAccount[],
-  context: z.RefinementCtx,
-): void => {
-  const seen = new Set<string>();
-  for (const [index, account] of accounts.entries()) {
-    if (seen.has(account.id))
-      context.addIssue({
-        code: "custom",
-        message: `Duplicate account id '${account.id}'`,
-        path: [index, "id"],
-      });
-    seen.add(account.id);
-  }
-};
-
-export const accountsConfigSchema = z
-  .object({
-    version: z.literal(2),
-    accounts: z.record(
-      accountKindKeySchema,
-      z.array(storedAccountSchema).superRefine(uniqueAccountIds),
-    ),
-  })
-  .strict();
-export type AccountsConfig = z.infer<typeof accountsConfigSchema>;
-export const defaultAccountsConfig: AccountsConfig = {
-  version: 2,
-  accounts: {},
-};
+/**
+ * What an account can do now. `ready`, `needs_sign_in` and `failed` are stored with the
+ * credential; `unavailable` (the kind's extension is gone or off) is derived when read.
+ */
+export const accountStateSchema = z.enum([
+  "ready",
+  "needs_sign_in",
+  "failed",
+  "unavailable",
+]);
+export type AccountState = z.infer<typeof accountStateSchema>;
 
 /** An account as the app sees it; the secret itself never leaves the server. */
 export const accountViewSchema = z.object({
@@ -61,20 +29,14 @@ export const accountViewSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   fields: z.record(z.string(), z.unknown()),
-  secretConfigured: z.boolean(),
+  level: accountLevelSchema,
+  /** The project of a project-level account. */
+  projectId: z.string().min(1).optional(),
+  state: accountStateSchema,
+  /** Why the account `failed`, as the provider reported it. */
+  error: z.string().optional(),
 });
 export type AccountView = z.infer<typeof accountViewSchema>;
-
-/** Secret-store id of an account's secret, as a provider credential id. */
-export const ACCOUNT_SECRET_PREFIX = "account:";
-
-export function accountSecretId(kind: string, id: string): string {
-  return `${ACCOUNT_SECRET_PREFIX}${kind}:${id}`;
-}
-
-export function isAccountSecretId(value: string): boolean {
-  return value.startsWith(ACCOUNT_SECRET_PREFIX);
-}
 
 /** The `name` field of a kind is the account name, never a stored field. */
 export function accountKindFields(kind: AccountKind): AccountKind["fields"] {

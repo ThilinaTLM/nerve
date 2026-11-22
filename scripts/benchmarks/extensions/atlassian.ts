@@ -10,6 +10,7 @@
 import type { Loose } from "./loose.ts";
 import { createDecipheriv } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { CliError } from "../../cli/main.ts";
 import type { SlotTarget } from "./daemon-client.ts";
@@ -81,53 +82,61 @@ async function selectedAtlassianAccount(
 }
 
 async function readSlotConnection(target: SlotTarget): Promise<Connection> {
-  const accounts = JSON.parse(
-    await readFile(join(target.home, "config", "accounts.json"), "utf8"),
-  ) as {
-    accounts?: {
-      atlassian?: {
-        id: string;
-        fields: { siteUrl?: string; email?: string };
-      }[];
-    };
-  };
   // The account the Atlassian extension selects, so checks and the agent use
   // the same site; never guess, since write tasks must stay in the sandbox.
   const selected = await selectedAtlassianAccount(target.home);
-  const profile = accounts.accounts?.atlassian?.find(
-    (account) => account.id === selected,
-  );
-  if (!profile)
+  const database = new DatabaseSync(join(target.home, "data", "nerve.sqlite"), {
+    readOnly: true,
+  });
+  let row: { fields: string; credential: Uint8Array | null } | undefined;
+  try {
+    row = database
+      .prepare(
+        "SELECT fields, credential FROM account WHERE kind = 'atlassian' AND id = ?",
+      )
+      .get(selected ?? "") as typeof row;
+  } finally {
+    database.close();
+  }
+  if (!row)
     throw new CliError(
       `Slot ${target.slot} has no Atlassian account selected in Settings → Extensions → Atlassian (user scope); select the sandbox account, or set ATLASSIAN_SITE_URL, ATLASSIAN_EMAIL and ATLASSIAN_API_TOKEN.`,
     );
-  const envelope = JSON.parse(
-    await readFile(join(target.home, "secrets", "credentials.enc"), "utf8"),
-  ) as { iv: string; tag: string; data: string };
-  const key = Buffer.from(
-    (await readFile(join(target.home, "secrets", "master.key"), "utf8")).trim(),
-    "base64",
-  );
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    key,
-    Buffer.from(envelope.iv, "base64"),
-  );
-  decipher.setAuthTag(Buffer.from(envelope.tag, "base64"));
-  const values = JSON.parse(
-    Buffer.concat([
-      decipher.update(Buffer.from(envelope.data, "base64")),
-      decipher.final(),
-    ]).toString("utf8"),
-  ) as Record<string, string>;
-  const credential = `account:atlassian:${profile.id}`;
-  const token = values[`provider:${credential}:apiKey`];
-  const { siteUrl, email } = profile.fields;
+  const { siteUrl, email } = JSON.parse(row.fields) as {
+    siteUrl?: string;
+    email?: string;
+  };
+  const token = row.credential
+    ? await openAccountSecret(target.home, selected!, row.credential)
+    : undefined;
   if (!token || !siteUrl || !email)
     throw new CliError(
-      `Slot ${target.slot}: the selected Atlassian account needs a site URL, an email and a saved API token (${credential}).`,
+      `Slot ${target.slot}: the selected Atlassian account needs a site URL, an email and a saved API token.`,
     );
   return { siteUrl: siteUrl.replace(/\/+$/, ""), email, token };
+}
+
+/** The single secret of an account's credential: `version | iv(12) | tag(16) | ciphertext`, id as associated data. */
+async function openAccountSecret(
+  home: string,
+  accountId: string,
+  sealed: Uint8Array,
+): Promise<string | undefined> {
+  const key = Buffer.from(
+    (await readFile(join(home, "secrets", "master.key"), "utf8")).trim(),
+    "base64",
+  );
+  const bytes = Buffer.from(sealed);
+  const decipher = createDecipheriv("aes-256-gcm", key, bytes.subarray(1, 13));
+  decipher.setAAD(Buffer.from(accountId, "utf8"));
+  decipher.setAuthTag(bytes.subarray(13, 29));
+  const blob = JSON.parse(
+    Buffer.concat([
+      decipher.update(bytes.subarray(29)),
+      decipher.final(),
+    ]).toString("utf8"),
+  ) as { secrets?: Record<string, string> };
+  return blob.secrets?.secret;
 }
 
 async function restRequest(

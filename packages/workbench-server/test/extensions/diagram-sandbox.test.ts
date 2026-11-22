@@ -92,7 +92,11 @@ async function run(code: string, settings: Record<string, unknown>) {
       authorizeNested: async (request) => void authorized.push(request),
       extensionPorts: {
         settings: () => settings,
-        accounts: { get: async () => undefined, secret: async () => undefined },
+        accounts: {
+          get: async () => undefined,
+          state: async () => "needs_sign_in",
+          apply: async () => ({ ok: false, state: "needs_sign_in" }),
+        },
       },
     },
   );

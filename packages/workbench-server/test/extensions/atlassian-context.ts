@@ -20,6 +20,7 @@ export function atlassianPorts(
     name: "Acme",
     kind: "atlassian",
     fields: { siteUrl: SITE, email: "dev@example.com", ...options.fields },
+    level: "user",
   };
   return {
     settings: (id) =>
@@ -33,7 +34,12 @@ export function atlassianPorts(
     accounts: {
       get: async (kind, id) =>
         kind === "atlassian" && id === account.id ? account : undefined,
-      secret: async () => "token",
+      state: async () => "ready",
+      apply: async () => ({
+        ok: true,
+        headers: { authorization: "Bearer token" },
+        query: {},
+      }),
     },
   };
 }

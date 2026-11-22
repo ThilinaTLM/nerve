@@ -1,4 +1,7 @@
-import type { AccountKind } from "@nervekit/contracts/extensions";
+import {
+  accountSecretFields,
+  type AccountKind,
+} from "@nervekit/contracts/extensions";
 import {
   accountKindFields,
   validateAccountInput,
@@ -19,7 +22,8 @@ export type AccountFormValues = {
   name: string;
   /** Text for text, URL, number and select inputs; booleans for switches. */
   fields: Record<string, string | boolean>;
-  secret: string;
+  /** Typed-in secrets by name; never filled from a stored account. */
+  secrets: Record<string, string>;
 };
 
 /** The dialog's inputs after the name: the kind's own fields. */
@@ -67,8 +71,15 @@ export function initialAccountForm(
   account?: Pick<AccountView, "name" | "fields">,
 ): AccountFormValues {
   const fields: AccountFormValues["fields"] = {};
+  const declared = accountKindFields(kind);
   for (const input of accountFormInputs(kind)) {
-    const value = account?.fields[input.key];
+    // A new account starts from the kind's defaults (a shipped client id, a region).
+    const field = declared[input.key];
+    const value = account
+      ? account.fields[input.key]
+      : field && "default" in field
+        ? field.default
+        : undefined;
     fields[input.key] =
       input.control === "switch"
         ? value === true
@@ -76,7 +87,13 @@ export function initialAccountForm(
           ? ""
           : String(value);
   }
-  return { name: account?.name ?? "", fields, secret: "" };
+  return {
+    name: account?.name ?? "",
+    fields,
+    secrets: Object.fromEntries(
+      Object.keys(accountSecretFields(kind)).map((name) => [name, ""]),
+    ),
+  };
 }
 
 export type AccountFormSubmission =
@@ -84,8 +101,8 @@ export type AccountFormSubmission =
       ok: true;
       name: string;
       fields: Record<string, unknown>;
-      /** The secret to store; absent keeps the stored one. */
-      secret?: string;
+      /** The secrets to store by name; a name left out keeps the stored one. */
+      secrets?: Record<string, string>;
     }
   | { ok: false; message: string };
 
@@ -97,11 +114,11 @@ function withScheme(value: string): string {
     : text;
 }
 
-/** Checks the form against its kind; `secretConfigured` says whether a secret is already stored. */
+/** Checks the form against its kind; `credentialStored` says whether the account already has its secrets. */
 export function submitAccountForm(
   kind: AccountKind,
   form: AccountFormValues,
-  secretConfigured: boolean,
+  credentialStored: boolean,
 ): AccountFormSubmission {
   const fields: Record<string, unknown> = {};
   for (const input of accountFormInputs(kind)) {
@@ -115,23 +132,27 @@ export function submitAccountForm(
   }
   const checked = validateAccountInput(kind, { name: form.name, fields });
   if (!checked.ok) return checked;
-  const secret = form.secret.trim();
-  if (!secret && !secretConfigured)
-    return { ok: false, message: `Enter the ${kind.secret.label}.` };
+  const secrets: Record<string, string> = {};
+  for (const [name, field] of Object.entries(accountSecretFields(kind))) {
+    const value = (form.secrets[name] ?? "").trim();
+    if (value) secrets[name] = value;
+    else if (!credentialStored)
+      return { ok: false, message: `Enter the ${field.label}.` };
+  }
   return {
     ok: true,
     name: checked.name,
     fields: checked.fields,
-    ...(secret ? { secret } : {}),
+    ...(Object.keys(secrets).length > 0 ? { secrets } : {}),
   };
 }
 
-/** Testing needs a kind that defines a test and a stored secret to test with. */
+/** Testing needs a kind that defines a test and an account that is ready to use. */
 export function accountCanTest(
   kind: Pick<AccountKind, "test">,
-  account: Pick<AccountView, "secretConfigured">,
+  account: Pick<AccountView, "state">,
 ): boolean {
-  return kind.test === true && account.secretConfigured;
+  return kind.test === true && account.state === "ready";
 }
 
 export type HelpPart = { text: string; href?: string };

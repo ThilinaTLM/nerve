@@ -31,6 +31,7 @@ import {
 } from "../../../infrastructure/configuration/home-configuration.js";
 import { storagePaths } from "../../../infrastructure/storage-bootstrap/paths.js";
 import type { CoreProcessHost } from "../../process.adapter.js";
+import { fakeAccountScopes } from "../../../domains/accounts/test-support.js";
 
 type Runtime = ReturnType<typeof createConversationCore>;
 export interface ProductionAdmissionFixture {
@@ -219,12 +220,7 @@ export async function productionAdmissionFixture(
         events,
         auth: { requestAuthForPiModel: async () => ({ apiKey: "fixture" }) },
         secrets: {},
-        accounts: {
-          get: async () => undefined,
-          list: async () => [],
-          secret: async () => undefined,
-          hasSecret: async () => false,
-        },
+        accounts: fakeAccountScopes(),
         providerCatalog: {
           resolvedModels: () => [],
           resolvedModelsWithCredentials: async () => [],

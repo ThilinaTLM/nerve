@@ -58,6 +58,7 @@ The schema lists every table; these need a note:
 - `async_bash` tracks conversation-owned background commands beyond foreground tool completion.
 - `asset` tracks managed files and their producers so results can be referenced and cleaned up.
 - `conversation_reference` links a conversation to external resources; see [discovery](../conversation-discovery.md).
+- `account` holds extension accounts (core schema v5): non-secret fields, an encrypted credential blob and the state the host filters on without decrypting. It is owned by the host's credential vault, not by conversations; see [storage](../storage.md#accounts).
 - `scratch_note` holds project-owned workbench notes independent of agent history.
 
 ## Durability and identity

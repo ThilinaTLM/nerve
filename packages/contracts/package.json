@@ -138,6 +138,10 @@
       "types": "./dist/domains/maintenance/index.d.ts",
       "import": "./dist/domains/maintenance/index.js"
     },
+    "./background-jobs": {
+      "types": "./dist/domains/background-jobs/index.d.ts",
+      "import": "./dist/domains/background-jobs/index.js"
+    },
     "./launch-definitions": {
       "types": "./dist/domains/launch-definitions/index.d.ts",
       "import": "./dist/domains/launch-definitions/index.js"

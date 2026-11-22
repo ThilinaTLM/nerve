@@ -26,13 +26,13 @@ export function createAuthRoutes(state: AuthRoutesContext): Hono {
     "/auth/oauth/flows",
     routeHandler(async (c) => {
       const body = startOAuthFlowRequestSchema.parse(await c.req.json());
-      return c.json({ flow: await state.oauthFlows.start(body.provider) });
+      return c.json({ flow: await state.signIn.start(body.provider) });
     }),
   );
   app.get(
     "/auth/oauth/flows/:flowId",
     routeHandler((c) =>
-      c.json({ flow: state.oauthFlows.get(routeParam(c, "flowId")) }),
+      c.json({ flow: state.signIn.get(routeParam(c, "flowId")) }),
     ),
   );
   app.post(
@@ -40,7 +40,7 @@ export function createAuthRoutes(state: AuthRoutesContext): Hono {
     routeHandler(async (c) => {
       const body = respondOAuthFlowRequestSchema.parse(await c.req.json());
       return c.json({
-        flow: await state.oauthFlows.respond(routeParam(c, "flowId"), body),
+        flow: await state.signIn.respond(routeParam(c, "flowId"), body),
       });
     }),
   );
@@ -48,7 +48,7 @@ export function createAuthRoutes(state: AuthRoutesContext): Hono {
     "/auth/oauth/flows/:flowId/cancel",
     routeHandler(async (c) =>
       c.json({
-        flow: await state.oauthFlows.cancel(routeParam(c, "flowId")),
+        flow: await state.signIn.cancel(routeParam(c, "flowId")),
       }),
     ),
   );

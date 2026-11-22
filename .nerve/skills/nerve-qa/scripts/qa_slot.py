@@ -232,7 +232,7 @@ def copy_full_secrets(info: dict, source: Path) -> None:
 
 
 def copy_provider_config(info: dict, source_home: Path) -> None:
-    """Copy provider/account config so credential ids match the copied API keys."""
+    """Copy provider config so provider ids match the copied API keys."""
     config = info["home"] / "config"
     config.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -247,7 +247,7 @@ def copy_provider_config(info: dict, source_home: Path) -> None:
     providers = source_home / "config" / "providers.json"
     if providers.is_file():
         put(providers, "providers.json")
-    # Accounts are merged by copy-secrets.ts, in the slot's format (see there).
+    # Accounts are copied into the slot's database by copy-secrets.ts (see there).
 
 
 def run_secrets_tool(*args: str) -> dict:
@@ -290,7 +290,11 @@ def cmd_copy_secrets(info: dict, source: Path, full: bool) -> None:
     copy_provider_config(info, source.parent)
     accounts = summary.get("accounts")
     if accounts:
-        print(f"Merged accounts into config/{', config/'.join(accounts['files'])} ({accounts['format']} format; slot-only accounts kept)")
+        print(
+            f"Accounts copied into the slot database: {accounts['copied']} "
+            f"({accounts['needSignIn']} need sign-in because provider tokens are not copied; "
+            f"{accounts['skippedProject']} project-level skipped: project missing in the slot; slot-only accounts kept)"
+        )
     for s in summary["oauth"]:
         line, soon = describe_expiry(s["provider"], s["expires"])
         print(line + " (no refresh token copied)")

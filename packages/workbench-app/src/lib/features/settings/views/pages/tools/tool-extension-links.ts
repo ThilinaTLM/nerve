@@ -1,7 +1,11 @@
-import type { ExtensionView } from "@nervekit/contracts/extensions";
+import type {
+  AccountKind,
+  ExtensionView,
+} from "@nervekit/contracts/extensions";
 import {
   activeNamespaces,
   displayValue,
+  eligibleKindLabels,
   extensionFix,
   namespaceProblem,
   sentence,
@@ -52,6 +56,7 @@ export function toolExtensionState(
   id: ToolId,
   extensions: readonly ExtensionView[] | undefined,
   accounts: AccountChoices,
+  kinds?: readonly AccountKind[],
 ): ToolExtensionState | undefined {
   if (!extensions) return undefined;
   const find = (extensionId: string) =>
@@ -61,7 +66,7 @@ export function toolExtensionState(
       const problem = namespaceProblem(extensions);
       if (problem) {
         const owner = find(problem.extensionId)!;
-        const fix = extensionFix(owner, accounts);
+        const fix = extensionFix(owner, accounts, kinds);
         return {
           problem: problem.text,
           fix: {
@@ -99,6 +104,7 @@ export function extensionToolState(
   extensionId: string,
   extensions: readonly ExtensionView[] | undefined,
   accounts: AccountChoices,
+  definitions?: readonly AccountKind[],
 ): ToolExtensionState | undefined {
   const owner = extensions?.find(
     (extension) => extension.metadata.id === extensionId,
@@ -107,8 +113,11 @@ export function extensionToolState(
   if (!owner.enabled.value) return turnedOff(owner);
   const state = owner.toolAvailability?.[toolName];
   if (state && !state.available) {
-    const kinds = owner.accountKinds.map((account) => account.kind);
-    const kind = kinds.length > 0;
+    // Own definitions and, for platforms the extension uses, the definitions it may select.
+    const kinds = Object.keys(
+      eligibleKindLabels(owner, definitions ?? owner.accountKinds),
+    );
+    const kind = kinds.length > 0 || (owner.uses?.length ?? 0) > 0;
     const hasAccounts = kinds.some((id) => (accounts[id]?.length ?? 0) > 0);
     return {
       problem: sentence(state.reason),

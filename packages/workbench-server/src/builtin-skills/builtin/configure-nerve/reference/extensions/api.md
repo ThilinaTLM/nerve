@@ -6,21 +6,22 @@ The exact extension API is in the TypeScript declarations under `reference/exten
 
 Import everything from `@nervekit/extension-sdk`, which re-exports this package. A direct `@nervekit/extension-api` import fails the build.
 
-| Start from                                                                        | For                                                                                               |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `ExtensionDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)  | Everything `defineExtension` accepts: id, settings, accounts, permissions, namespaces, tools, UI. |
-| `defineExtension` (`reference/extensions/api/extension-api/define.d.ts`)          | Also `defineNamespace`, `method` and `defineTool`.                                                |
-| `NamespaceDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)  | A `quick_script` namespace: summary, rules, docs, methods, session.                               |
-| `MethodDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)     | One method: risk, signature, `parse`, `authorize`, `run`.                                         |
-| `ToolDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)       | Direct tools and their card `view`.                                                               |
-| `ExtensionPermissions` (`reference/extensions/api/extension-api/definition.d.ts`) | Network origins and model capabilities.                                                           |
-| `PreviewContribution` (`reference/extensions/api/extension-api/definition.d.ts`)  | Also `PageContribution`, `PanelContribution`, `ThemeContribution`.                                |
-| `ExtensionContext` (`reference/extensions/api/extension-api/types.d.ts`)          | `ctx`: settings, accounts, HTTP, artifacts, text, authorization, reports, models, progress, log.  |
-| `HttpRequest` (`reference/extensions/api/extension-api/types.d.ts`)               | Every option of `ctx.http.request` and its limits.                                                |
-| `Risk` (`reference/extensions/api/extension-api/authorization.d.ts`)              | Also `Authorization`, what `authorize` returns.                                                   |
-| `SettingField` (`reference/extensions/api/extension-api/settings.d.ts`)           | Also `SettingsSchema` and `AccountKind`.                                                          |
-| `ExtensionError` (`reference/extensions/api/extension-api/errors.d.ts`)           | Also `EXTENSION_ERROR_CODES`.                                                                     |
-| `createFakeContext` (`reference/extensions/api/extension-api/testing.d.ts`)       | Backend tests; import it from `@nervekit/extension-sdk/testing`.                                  |
+| Start from                                                                             | For                                                                                                  |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ExtensionDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)       | Everything `defineExtension` accepts: id, settings, accounts, permissions, namespaces, tools, UI.    |
+| `defineExtension` (`reference/extensions/api/extension-api/define.d.ts`)               | Also `defineNamespace`, `method` and `defineTool`.                                                   |
+| `NamespaceDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)       | A `quick_script` namespace: summary, rules, docs, methods, session.                                  |
+| `MethodDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)          | One method: risk, signature, `parse`, `authorize`, `run`.                                            |
+| `ToolDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)            | Direct tools and their card `view`.                                                                  |
+| `ExtensionPermissions` (`reference/extensions/api/extension-api/definition.d.ts`)      | Network origins and model capabilities.                                                              |
+| `PreviewContribution` (`reference/extensions/api/extension-api/definition.d.ts`)       | Also `PageContribution`, `PanelContribution`, `ThemeContribution`.                                   |
+| `ExtensionContext` (`reference/extensions/api/extension-api/types.d.ts`)               | `ctx`: settings, accounts, HTTP, artifacts, text, authorization, reports, models, progress, log.     |
+| `HttpRequest` (`reference/extensions/api/extension-api/types.d.ts`)                    | Every option of `ctx.http.request` and its limits.                                                   |
+| `Risk` (`reference/extensions/api/extension-api/authorization.d.ts`)                   | Also `Authorization`, what `authorize` returns.                                                      |
+| `SettingField` (`reference/extensions/api/extension-api/settings.d.ts`)                | Also `SettingsSchema`, `AccountKind` (secrets, `auth`, `provider`, `platform`) and `PlatformUse`.    |
+| `ExtensionError` (`reference/extensions/api/extension-api/errors.d.ts`)                | Also `EXTENSION_ERROR_CODES`.                                                                        |
+| `defineCredentialProvider` (`reference/extensions/api/extension-api/credentials.d.ts`) | Credential providers (`src/credentials.ts`): the four operations and their fixed `ctx`.              |
+| `createFakeContext` (`reference/extensions/api/extension-api/testing.d.ts`)            | Backend tests; import it from `@nervekit/extension-sdk/testing`. Also `createFakeCredentialContext`. |
 
 ## Frames (`reference/extensions/api/extension-sdk/`)
 

@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { rm } from "node:fs/promises";
 import { Readable } from "node:stream";
@@ -12,6 +12,7 @@ import {
   type HttpRequest,
   type HttpResponse,
 } from "@nervekit/extension-api";
+import { narrowOrigins } from "@nervekit/contracts/extensions";
 import { withTimeoutSignal } from "../execution/process/abort.js";
 import {
   assertSafeHttpUrl,
@@ -20,6 +21,7 @@ import {
 import { fillTemplate, expandPatterns, originMatches } from "./network.js";
 import { baseContentType, getExtension } from "../execution/web/web-fetch.js";
 import { settingsPage } from "./errors.js";
+import type { CredentialBody, ExtensionHostPorts } from "./ports.js";
 
 const MAX_REDIRECTS = 5;
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -38,7 +40,13 @@ export type HttpHostDeps = {
   kinds: Readonly<
     Record<
       string,
-      { label: string; auth?: AccountAuth; origins?: readonly string[] }
+      {
+        label: string;
+        auth?: AccountKindAuth;
+        origins?: readonly string[];
+        /** A platform definition of another extension: the origins this extension declared; the credential goes only to those the definition also lists. */
+        useOrigins?: readonly string[];
+      }
     >
   >;
   /** Kinds an `account` setting accepts; empty when `field` is not one. */
@@ -49,7 +57,11 @@ export type HttpHostDeps = {
   allSelected(): Promise<AccountInfo[]>;
   /** Resolved settings of the extension, for `{settings.<key>}` templates. */
   settings: Record<string, unknown>;
-  secret(kind: string, id: string): Promise<string | undefined>;
+  /** The credential vault: what an account's credential adds to a hop. Host-only. */
+  credential: Pick<
+    ExtensionHostPorts["accounts"],
+    "state" | "apply" | "refreshAfterRejection"
+  >;
   signal: AbortSignal;
   /** Plain fetch for destinations the user configured themselves in tests/host policy; others are SSRF-guarded. */
   allowPrivateNetwork?: boolean;
@@ -78,24 +90,91 @@ function extensionFor(contentType: string): string {
 
 const REDIRECT_STATUS = [301, 302, 303, 307, 308];
 
-function credentialHeader(
-  auth: AccountAuth,
-  account: AccountInfo,
-  secret: string,
-): [name: string, value: string] {
-  switch (auth.scheme) {
-    case "bearer":
-      return ["authorization", `Bearer ${secret}`];
-    case "header":
-      return [auth.name.toLowerCase(), secret];
-    case "basic": {
-      const user = account.fields[auth.user];
-      return [
-        "authorization",
-        `Basic ${Buffer.from(`${typeof user === "string" ? user : ""}:${secret}`, "utf8").toString("base64")}`,
-      ];
-    }
-  }
+/** The header names an account's injections set, so the caller's own never carry a credential. */
+function injectedHeaders(auth: AccountKindAuth): string[] {
+  return (Array.isArray(auth) ? auth : [auth]).flatMap((injection) =>
+    injection.scheme === "query"
+      ? []
+      : [
+          injection.scheme === "header"
+            ? injection.name.toLowerCase()
+            : "authorization",
+        ],
+  );
+}
+
+type AccountKindAuth = AccountAuth | readonly AccountAuth[];
+
+/** A failure of a hop whose URL carried a credential must not repeat it. */
+function withoutSecrets(error: unknown, secrets: readonly string[]): unknown {
+  if (!(error instanceof Error) || error instanceof ExtensionError)
+    return error;
+  let message = error.message;
+  for (const secret of secrets)
+    message = message
+      .split(secret)
+      .join("***")
+      .split(encodeURIComponent(secret))
+      .join("***");
+  const safe = new Error(message);
+  safe.name = error.name;
+  return safe;
+}
+
+/** Largest body whose bytes a credential provider may read; digests have no limit. */
+export const MAX_CREDENTIAL_BODY_BYTES = 20 * 1024 * 1024;
+
+const HASHES = new Set(["sha256", "sha384", "sha512", "sha1", "md5"]);
+
+/**
+ * The body of a hop as a credential provider sees it: digests computed once per algorithm by the
+ * host (streamed bodies are read once per algorithm and never handed over), and `bytes()` for
+ * bodies a provider may buffer.
+ */
+function credentialBody(
+  data: Uint8Array | string | undefined,
+  stream: EncodedBody["stream"],
+): CredentialBody | undefined {
+  if (data === undefined && !stream) return undefined;
+  const bytes =
+    typeof data === "string" ? new TextEncoder().encode(data) : data;
+  const size = bytes ? bytes.byteLength : stream?.length;
+  const digests = new Map<string, Promise<Uint8Array>>();
+  return {
+    size,
+    digest(algorithm) {
+      if (!HASHES.has(algorithm))
+        throw new ExtensionError(
+          "BAD_REQUEST",
+          `Unsupported digest algorithm ${algorithm}. Use sha256, sha384, sha512, sha1 or md5.`,
+        );
+      let digest = digests.get(algorithm);
+      if (!digest) {
+        digest = (async () => {
+          const hash = createHash(algorithm);
+          if (bytes) hash.update(bytes);
+          else
+            for await (const chunk of stream!.open() as unknown as AsyncIterable<Uint8Array>)
+              hash.update(chunk);
+          return new Uint8Array(hash.digest());
+        })();
+        digests.set(algorithm, digest);
+      }
+      return digest;
+    },
+    async bytes() {
+      if (bytes) return new Uint8Array(bytes);
+      if ((stream?.length ?? 0) > MAX_CREDENTIAL_BODY_BYTES)
+        throw new ExtensionError(
+          "BAD_REQUEST",
+          `The request body is streamed from a file and is larger than ${MAX_CREDENTIAL_BODY_BYTES / 1024 / 1024} MiB, so this credential code cannot read its bytes. Use digest() or a smaller upload.`,
+        );
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of stream!.open() as unknown as AsyncIterable<Uint8Array>)
+        chunks.push(chunk);
+      return new Uint8Array(Buffer.concat(chunks));
+    },
+  };
 }
 
 type BodySegment = Uint8Array | { path: string; size: number };
@@ -241,7 +320,9 @@ export function createHttp(deps: HttpHostDeps) {
     let credential:
       | {
           account: AccountInfo;
-          header: [string, string];
+          kind: string;
+          /** Headers the injections set. */
+          headers: string[];
           origins: string[];
           label: string;
         }
@@ -262,26 +343,30 @@ export function createHttp(deps: HttpHostDeps) {
       );
       const kind = selectedKind ?? accountKinds[0];
       const kindId = kind.id;
-      const secret = account
-        ? await deps.secret(kindId, account.id)
+      const state = account
+        ? await deps.credential.state(kindId, account.id)
         : undefined;
-      if (!account || !secret || !selectedKind?.auth)
+      if (!account || state !== "ready" || !selectedKind?.auth)
         throw new ExtensionError(
           "BAD_REQUEST",
           account
-            ? `The ${kind.label} "${account.name}" has no saved credential.`
+            ? `The ${kind.label} "${account.name}" ${state === "failed" ? "has a credential that does not work" : state === "unavailable" ? "is unavailable" : "needs sign-in"}.`
             : `No ${accountKinds.map((candidate) => candidate.label).join(" or ")} is selected.`,
           {
-            fix: `Ask the user to choose an account with a saved credential in ${settingsPage(deps.extensionName)}.`,
+            fix: `Ask the user to choose an account that is ready to use, or to sign in to it, in ${settingsPage(deps.extensionName)}.`,
           },
         );
       credential = {
         account,
-        header: credentialHeader(selectedKind.auth, account, secret),
-        origins: (selectedKind.origins ?? []).flatMap((origin) => {
-          const filled = fillTemplate(origin, { account: account.fields });
-          return filled ? [filled] : [];
-        }),
+        kind: kindId,
+        headers: injectedHeaders(selectedKind.auth),
+        origins: narrowOrigins(
+          (selectedKind.origins ?? []).flatMap((origin) => {
+            const filled = fillTemplate(origin, { account: account.fields });
+            return filled ? [filled] : [];
+          }),
+          selectedKind.useOrigins,
+        ),
         label: selectedKind.label,
       };
     }
@@ -311,32 +396,95 @@ export function createHttp(deps: HttpHostDeps) {
         allowPrivateNetwork:
           deps.allowPrivateNetwork === true || match.fromUser,
       });
-      const hopHeaders = new Headers(headers);
       const send =
         credential && credential.origins.some((o) => originMatches(safe, o));
       credentialSent = Boolean(send);
-      if (credential) {
-        hopHeaders.delete(credential.header[0]);
-        if (send) hopHeaders.set(credential.header[0], credential.header[1]);
-        else if (hop === 0)
-          throw new ExtensionError(
-            "DENIED",
-            `The credential of the ${credential.label} is not sent to ${safe.origin}; it is only sent to ${credential.origins.join(", ") || "no origin"}.`,
-          );
-      }
-      const fetchImpl =
-        deps.allowPrivateNetwork === true || match.fromUser ? fetch : guarded;
-      response = await fetchImpl(safe, {
-        method,
-        headers: hopHeaders,
-        body:
+      // A 401 may only mean the access token expired: refresh and send the hop once more.
+      for (let attempt = 0; ; attempt += 1) {
+        const hopHeaders = new Headers(headers);
+        const attemptStartedAt = Date.now();
+        const requestBody =
           method === "GET" || method === "HEAD"
             ? undefined
-            : ((stream?.open() ?? data) as BodyInit | undefined),
-        ...(stream ? { duplex: "half" } : {}),
-        redirect: "manual",
-        signal,
-      });
+            : credentialBody(data, stream);
+        let target = safe;
+        let querySecrets: string[] = [];
+        if (credential) {
+          for (const name of credential.headers) hopHeaders.delete(name);
+          if (send) {
+            const applied = await deps.credential.apply(
+              credential.kind,
+              credential.account.id,
+              {
+                method,
+                url: safe,
+                headers: Object.fromEntries(hopHeaders),
+                ...(requestBody ? { body: requestBody } : {}),
+              },
+            );
+            if (!applied.ok && applied.state === "unreachable")
+              throw new ExtensionError(
+                "SERVER_ERROR",
+                `The credential of the ${credential.label} "${credential.account.name}" could not be refreshed: its sign-in service is unreachable.`,
+                { fix: "Try again later." },
+              );
+            if (!applied.ok)
+              throw new ExtensionError(
+                "BAD_REQUEST",
+                `The ${credential.label} "${credential.account.name}" ${applied.state === "failed" ? "has a credential that does not work" : applied.state === "unavailable" ? "is unavailable" : "needs sign-in"}.`,
+                {
+                  fix: `Ask the user to sign in to the account in ${settingsPage(deps.extensionName)}.`,
+                },
+              );
+            for (const [name, value] of Object.entries(applied.headers))
+              hopHeaders.set(name, value);
+            if (Object.keys(applied.query).length > 0) {
+              target = new URL(safe);
+              for (const [name, value] of Object.entries(applied.query))
+                target.searchParams.set(name, value);
+              querySecrets = Object.values(applied.query);
+            }
+          } else if (hop === 0)
+            throw new ExtensionError(
+              "DENIED",
+              `The credential of the ${credential.label} is not sent to ${safe.origin}; it is only sent to ${credential.origins.join(", ") || "no origin"}.`,
+            );
+        }
+        const fetchImpl =
+          deps.allowPrivateNetwork === true || match.fromUser ? fetch : guarded;
+        try {
+          response = await fetchImpl(target, {
+            method,
+            headers: hopHeaders,
+            body:
+              method === "GET" || method === "HEAD"
+                ? undefined
+                : ((stream?.open() ?? data) as BodyInit | undefined),
+            ...(stream ? { duplex: "half" } : {}),
+            redirect: "manual",
+            signal,
+          });
+        } catch (error) {
+          throw querySecrets.length > 0
+            ? withoutSecrets(error, querySecrets)
+            : error;
+        }
+        if (
+          response.status === 401 &&
+          send &&
+          credential &&
+          attempt === 0 &&
+          (await deps.credential.refreshAfterRejection?.(
+            credential.kind,
+            credential.account.id,
+            attemptStartedAt,
+          ))
+        ) {
+          await response.body?.cancel().catch(() => undefined);
+          continue;
+        }
+        break;
+      }
       if (!REDIRECT_STATUS.includes(response.status)) break;
       const location = response.headers.get("location");
       await response.body?.cancel().catch(() => undefined);

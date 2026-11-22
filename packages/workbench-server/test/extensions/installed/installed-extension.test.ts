@@ -17,6 +17,7 @@ import {
   quickScriptDescription,
 } from "@nervekit/tools/quick-script";
 import type { AccountsReader } from "../../../src/domains/accounts/accounts.service.js";
+import { fakeAccountsReader } from "../../../src/domains/accounts/test-support.js";
 import { hostRegistry } from "../../../src/core-host/host-tools.js";
 import { overrideTrustGate } from "../../../src/core-host/extensions/extension-catalog/trust-gate.js";
 import { extensionAvailability } from "../../../src/core-host/extensions/extension-availability.js";
@@ -30,7 +31,7 @@ import { writeExtension, createTestCatalog } from "./fixtures.js";
  */
 
 const skip = !sandbox.isPersistentAvailable();
-const accounts: AccountsReader = {
+const accounts: AccountsReader = fakeAccountsReader({
   get: async (kind, id) =>
     kind === "e2e-probe-account"
       ? {
@@ -38,12 +39,10 @@ const accounts: AccountsReader = {
           kind,
           name: id,
           fields: { site: id === "bad" ? "bad" : "https://probe.test" },
+          level: "user",
         }
       : undefined,
-  list: async () => [],
-  secret: async () => "secret",
-  hasSecret: async () => true,
-};
+});
 
 let root = "";
 before(async () => {
@@ -232,7 +231,12 @@ void test(
     const ports = {
       accounts: {
         get: async () => undefined,
-        secret: async () => "secret",
+        state: async () => "ready" as const,
+        apply: async () => ({
+          ok: true as const,
+          headers: { authorization: "Bearer secret" },
+          query: {},
+        }),
       },
       log: () => undefined,
     };

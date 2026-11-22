@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  accountsConfigSchema,
   assertUniqueAccountKinds,
   validateAccountInput,
 } from "../../src/domains/settings/index.js";
@@ -18,36 +17,7 @@ const atlassian: AccountKind = {
   secret: { label: "API token" },
 };
 
-describe("accounts store", () => {
-  it("parses accounts by kind and rejects duplicate ids within a kind", () => {
-    assert.equal(
-      accountsConfigSchema.safeParse({
-        version: 2,
-        accounts: {
-          atlassian: [{ id: "acme", name: "Acme", fields: { email: "a@b.c" } }],
-          tavily: [],
-        },
-      }).success,
-      true,
-    );
-    assert.equal(
-      accountsConfigSchema.safeParse({
-        version: 2,
-        accounts: {
-          tavily: [
-            { id: "x", name: "One", fields: {} },
-            { id: "x", name: "Two", fields: {} },
-          ],
-        },
-      }).success,
-      false,
-    );
-    assert.equal(
-      accountsConfigSchema.safeParse({ version: 2, profiles: {} }).success,
-      false,
-    );
-  });
-
+describe("account input", () => {
   it("validates input against the kind's fields and drops blanks", () => {
     assert.deepEqual(
       validateAccountInput(atlassian, {

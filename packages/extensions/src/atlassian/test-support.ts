@@ -49,6 +49,7 @@ export const ACCOUNT: AccountInfo = {
   id: "acct",
   name: "Acme",
   kind: "atlassian",
+  level: "user",
   fields: {
     siteUrl: SITE,
     email: "dev@example.com",

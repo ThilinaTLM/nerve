@@ -8,7 +8,11 @@ import { type QuickScriptRegistry } from "@nervekit/tools/quick-script";
 import { openAvailabilityCode } from "@nervekit/tools/extension-host";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
-import { createExtensionPorts, extensionStates } from "./extension-ports.js";
+import {
+  createExtensionPorts,
+  extensionStates,
+  resolvedAccounts,
+} from "./extension-ports.js";
 import type { ExtensionStore } from "./extension-store/extension-store.js";
 import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
 import type { VisionHost } from "../vision-models.js";
@@ -29,7 +33,10 @@ export async function extensionAvailability(
   const { ports } = options;
   return await deriveAvailability(registry, {
     extension: extensionStates(resolution),
-    accounts,
+    accounts: resolvedAccounts(resolution, accounts),
+    ...(accounts.platformKinds
+      ? { platformKinds: (platform) => accounts.platformKinds!(platform) }
+      : {}),
     checkSecrets: options.checkSecrets,
     ...(ports
       ? {

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
+import { visibleAccounts } from "../accounts/accounts-view";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { untrack } from "svelte";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
@@ -178,7 +179,14 @@ const rules = $derived(
   ),
 );
 const accounts = $derived(
-  accountOptions(accountsState.accounts, accountsState.kinds),
+  accountOptions(
+    // A user-scope setting offers user-level accounts; a project's also its own.
+    visibleAccounts(
+      accountsState.accounts,
+      scope === "project" ? projectId : undefined,
+    ),
+    accountsState.kinds,
+  ),
 );
 const context = $derived<ProfileEditContext>({
   models: authenticatedRealModelOptions(models, authProviders),

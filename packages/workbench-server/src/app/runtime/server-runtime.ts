@@ -1,6 +1,12 @@
+import {
+  createCredentialRefreshJob,
+  reconcileCredentialNotice,
+} from "../../domains/accounts/credential-refresh-job.js";
 import { shutdownServerRuntime } from "./shutdown-server-runtime.js";
 export { shutdownServerRuntime } from "./shutdown-server-runtime.js";
 import type { ActivityService } from "../../domains/activity/activity.service.js";
+import { BackgroundJobService } from "../../domains/background-jobs/background-jobs.service.js";
+import { BackgroundJobNotices } from "../../domains/background-jobs/background-job-notices.js";
 import { MaintenanceActivityProducer } from "../../domains/activity/maintenance-activity-producer.js";
 import { MaintenanceService } from "../../domains/maintenance/maintenance.service.js";
 import { MaintenanceRepository } from "../../domains/maintenance/maintenance.repository.js";
@@ -25,7 +31,7 @@ import {
 import {
   AuthManager,
   CredentialKeyService,
-  OAuthFlowManager,
+  SignInService,
 } from "../../domains/auth/index.js";
 import { PiAiCredentialStore } from "../../domains/auth/pi-ai-credential-store.js";
 import { PiAiModelsStore } from "../../domains/auth/pi-ai-models-store.js";
@@ -77,13 +83,16 @@ export interface ServerRuntime {
   adapterContexts: ServerAdapterContexts;
   storageUsage: StorageUsageService;
   maintenance: MaintenanceService;
+  /** Register jobs before the daemon calls `start()` (after storage is ready). */
+  backgroundJobs: BackgroundJobService;
+  backgroundJobNotices: BackgroundJobNotices;
   activities: ActivityService;
   latestRelease: LatestReleaseService;
   secrets: SecretProvider;
   auth: AuthManager;
   providerCatalog: ProviderCatalogStore;
   credentialKey: CredentialKeyService;
-  oauthFlows: OAuthFlowManager;
+  signIn: SignInService;
   subscriptionUsage: SubscriptionUsageService;
   nerveSkills: NerveSkillCatalog;
   agentBrowserSkills: AgentBrowserSkillCatalog;
@@ -158,7 +167,7 @@ export function composeServerRuntime(
   });
   const providerCatalog = new ProviderCatalogStore(storage);
   const credentialKey = new CredentialKeyService();
-  const oauthFlows = new OAuthFlowManager(auth, events);
+  const signIn = new SignInService(auth, events);
   const subscriptionUsage = new SubscriptionUsageService({
     auth,
     events,
@@ -233,6 +242,31 @@ export function composeServerRuntime(
       });
     },
   });
+  const backgroundJobNotices = new BackgroundJobNotices(activities);
+  const backgroundJobs = new BackgroundJobService({
+    onChanged: (job) =>
+      events.publishBestEffort("backgroundJobs.changed", { job }),
+    onOutcome: backgroundJobNotices.jobOutcome,
+    log: (message, context) => void logger.warn(message, { context }),
+  });
+  backgroundJobs.register(
+    createCredentialRefreshJob({
+      accounts: services.accounts,
+      notices: backgroundJobNotices,
+      changed: ({ kind, accountId }) =>
+        void events
+          .publish("accounts.changed", { kind, accountId })
+          .catch(() => undefined),
+    }),
+  );
+  events.subscribeNotify((event) => {
+    if (event.type !== "accounts.changed") return;
+    void reconcileCredentialNotice(
+      services.accounts,
+      backgroundJobNotices,
+      event.data as { kind: string; accountId: string },
+    ).catch(() => undefined);
+  });
   const daemonId = options.daemonId ?? createId("daemon");
   const applicationConfiguration =
     options.applicationConfiguration ??
@@ -271,13 +305,14 @@ export function composeServerRuntime(
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
     storageUsage,
     maintenance,
+    backgroundJobs,
     activities,
     latestRelease,
     secrets,
     auth,
     providerCatalog,
     credentialKey,
-    oauthFlows,
+    signIn,
     subscriptionUsage,
     nerveSkills,
     agentBrowserSkills,
@@ -299,13 +334,15 @@ export function composeServerRuntime(
     adapterContexts: createServerAdapterContexts(services, infrastructure),
     storageUsage,
     maintenance,
+    backgroundJobs,
+    backgroundJobNotices,
     activities,
     latestRelease,
     secrets,
     auth,
     providerCatalog,
     credentialKey,
-    oauthFlows,
+    signIn,
     nerveSkills,
     agentBrowserSkills,
     subscriptionUsage,

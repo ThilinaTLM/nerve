@@ -18,6 +18,134 @@ export type ToolAuthorization = {
 export type Authorization = OperationAuthorization | ToolAuthorization;
 export type AuthorizeResult = Authorization | readonly Authorization[] | undefined;
 
+===== declarations extension-api/src/credentials.d.ts =====
+export type CredentialAccount = {
+    id: string;
+    kind: string;
+    fields: Record<string, unknown>;
+};
+export type CredentialCrypto = {
+    hash(algorithm: CredentialHashAlgorithm, data: Uint8Array | string): Promise<Uint8Array>;
+    hmac(algorithm: CredentialHashAlgorithm, key: Uint8Array | string, data: Uint8Array | string): Promise<Uint8Array>;
+    randomBytes(length: number): Promise<Uint8Array>;
+    sign(input: {
+        algorithm: CredentialSignAlgorithm;
+        privateKey: string;
+        data: Uint8Array | string;
+    }): Promise<Uint8Array>;
+};
+export type CredentialHashAlgorithm = "sha256" | "sha384" | "sha512" | "sha1" | "md5";
+export type CredentialSignAlgorithm = "RS256" | "RS384" | "RS512" | "PS256" | "ES256" | "ES384" | "ES512" | "EdDSA";
+export type CredentialHttpRequest = {
+    url: string;
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string | {
+        json: unknown;
+    } | {
+        form: Record<string, string>;
+    };
+};
+export type CredentialHttpResponse = {
+    status: number;
+    ok: boolean;
+    headers: Record<string, string>;
+    body: unknown;
+};
+export type CredentialHttp = {
+    request(request: CredentialHttpRequest): Promise<CredentialHttpResponse>;
+};
+export type CredentialChoice = {
+    id: string;
+    label: string;
+    description?: string;
+};
+export type CredentialLoopback = {
+    redirectUri: string;
+    wait(): Promise<CredentialLoopbackResult>;
+};
+export type CredentialLoopbackResult = {
+    code: string;
+};
+export type CredentialUi = {
+    showLink(url: string, instructions?: string): void;
+    showDeviceCode(input: {
+        userCode: string;
+        verificationUri: string;
+        intervalSeconds?: number;
+        expiresInSeconds?: number;
+    }): void;
+    choose(message: string, options: CredentialChoice[]): Promise<string>;
+    askText(message: string, options?: {
+        secret?: boolean;
+        placeholder?: string;
+    }): Promise<string>;
+    progress(message: string): void;
+    loopback(state: string): Promise<CredentialLoopback>;
+};
+export type CredentialResult = {
+    state: unknown;
+    expiresAt?: string | number;
+    identity?: Record<string, string>;
+    grantedScopes?: string[];
+};
+export type CredentialRefreshResult = CredentialResult | CredentialNeedsSignIn;
+export type CredentialNeedsSignIn = {
+    needsSignIn: true;
+    message?: string;
+};
+export type CredentialContextBase = {
+    account: CredentialAccount;
+    secrets: Record<string, string>;
+    crypto: CredentialCrypto;
+};
+export type CredentialSignInContext = CredentialContextBase & {
+    http: CredentialHttp;
+    ui: CredentialUi;
+    state: unknown;
+    signal: AbortSignal;
+};
+export type CredentialRefreshContext = CredentialContextBase & {
+    http: CredentialHttp;
+    state: unknown;
+    signal: AbortSignal;
+};
+export type CredentialRequestBody = {
+    size: number | undefined;
+    digest(algorithm: CredentialHashAlgorithm): Promise<Uint8Array>;
+    bytes(): Promise<Uint8Array>;
+};
+export type CredentialRequest = {
+    method: string;
+    url: string;
+    host: string;
+    path: string;
+    query: [name: string, value: string][];
+    headers: Record<string, string>;
+    body: CredentialRequestBody | undefined;
+};
+export type CredentialApplyContext = CredentialContextBase & {
+    state: unknown;
+    request: CredentialRequest;
+};
+export type CredentialRevokeContext = CredentialContextBase & {
+    http: CredentialHttp;
+    state: unknown;
+    signal: AbortSignal;
+};
+export type CredentialApplyResult = {
+    headers?: Record<string, string>;
+    query?: Record<string, string>;
+};
+export type CredentialProviderDefinition = {
+    signIn(ctx: CredentialSignInContext): Promise<CredentialResult>;
+    refresh?(ctx: CredentialRefreshContext): Promise<CredentialRefreshResult>;
+    apply(ctx: CredentialApplyContext): Promise<CredentialApplyResult> | CredentialApplyResult;
+    revoke?(ctx: CredentialRevokeContext): Promise<void>;
+};
+export declare function defineCredentialProvider(definition: CredentialProviderDefinition): CredentialProviderDefinition;
+export declare function credentialOperations(definition: CredentialProviderDefinition): ("signIn" | "refresh" | "apply" | "revoke")[];
+
 ===== declarations extension-api/src/define.d.ts =====
 import type { ExtensionDefinition, MethodDefinition, NamespaceDefinition, ToolDefinition } from "./definition.js";
 export declare function defineExtension(definition: ExtensionDefinition): ExtensionDefinition;
@@ -27,7 +155,7 @@ export declare function defineTool<const T extends ToolDefinition>(definition: T
 
 ===== declarations extension-api/src/definition.d.ts =====
 import type { AuthorizeResult, Risk } from "./authorization.js";
-import type { AccountKind, ExtensionSettings } from "./settings.js";
+import type { AccountKind, ExtensionSettings, PlatformUse } from "./settings.js";
 import type { ExtensionContext } from "./types.js";
 export type MethodDefinition<Session = unknown, Input = unknown, Output = unknown> = {
     risk: Risk;
@@ -169,6 +297,7 @@ export type ExtensionDefinition = {
     enabledByDefault: boolean;
     settings: ExtensionSettings;
     accounts?: Readonly<Record<string, AccountKind>>;
+    uses?: readonly PlatformUse[];
     permissions?: ExtensionPermissions;
     namespaces: readonly NamespaceDefinition<any>[];
     tools?: readonly ToolDefinition[];
@@ -193,8 +322,10 @@ export declare class ExtensionError extends Error {
 
 ===== declarations extension-api/src/index.d.ts =====
 export type { Risk, OperationTarget, OperationAuthorization, ToolAuthorization, Authorization, AuthorizeResult, } from "./authorization.js";
-export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountInfo, AccountTestResult, AccountKindData, AccountKind, } from "./settings.js";
+export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountOAuth2Provider, AccountSecretField, AccountInfo, AccountTestResult, AccountKindData, AccountKind, PlatformUse, } from "./settings.js";
 export type { ArtifactRef, ArtifactInfo, FormPart, HttpRequest, HttpArtifactOptions, HttpResponse, ReportEntry, ImageOptions, ImageRequest, ImageResult, VisionRequest, VisionResult, VisionExplainRequest, ExtensionContext, } from "./types.js";
+export type { CredentialAccount, CredentialApplyContext, CredentialApplyResult, CredentialChoice, CredentialContextBase, CredentialCrypto, CredentialHashAlgorithm, CredentialHttp, CredentialHttpRequest, CredentialHttpResponse, CredentialLoopback, CredentialLoopbackResult, CredentialNeedsSignIn, CredentialProviderDefinition, CredentialRefreshContext, CredentialRefreshResult, CredentialRequest, CredentialRequestBody, CredentialResult, CredentialRevokeContext, CredentialSignAlgorithm, CredentialSignInContext, CredentialUi, } from "./credentials.js";
+export { defineCredentialProvider } from "./credentials.js";
 export { ExtensionError } from "./errors.js";
 export type { ExtensionErrorCode } from "./errors.js";
 export type { MethodDefinition, Availability, DocTopic, Requires, NamespaceDefinition, ViewSectionType, ViewSection, ToolView, JsonSchemaObject, MethodToolDefinition, OwnToolDefinition, ToolDefinition, Capability, ExtensionPermissions, PreviewEditMode, PreviewContribution, PageContribution, PanelContribution, ThemeContribution, ExtensionUi, ExtensionDefinition, } from "./definition.js";
@@ -241,6 +372,11 @@ export type SettingField = (FieldBase & {
 }) | (FieldBase & {
     type: "account";
     kind: string | string[];
+    platform?: never;
+}) | (FieldBase & {
+    type: "account";
+    platform: string;
+    kind?: never;
 }) | (FieldBase & {
     type: "model";
     capability?: "image" | "vision";
@@ -260,17 +396,31 @@ export type ExtensionSettings = SettingsSchema & {
 export type AccountAuth = {
     scheme: "basic";
     user: string;
+    secret?: string;
 } | {
     scheme: "bearer";
+    secret?: string;
 } | {
     scheme: "header";
     name: string;
+    secret?: string;
+} | {
+    scheme: "query";
+    name: string;
+    secret?: string;
+};
+export type AccountSecretField = {
+    label: string;
+    help?: string;
+    multiline?: boolean;
 };
 export type AccountInfo = {
     id: string;
     name: string;
     kind: string;
     fields: Record<string, unknown>;
+    level: "user" | "project";
+    identity?: Record<string, string>;
 };
 export type AccountTestResult = {
     ok: true;
@@ -281,14 +431,37 @@ export type AccountTestResult = {
     fix?: string;
     reason?: "rejected" | "restricted" | "unavailable" | "unreachable";
 };
+export type AccountOAuth2Provider = {
+    type: "oauth2";
+    flows?: ("authorization_code" | "device_code")[];
+    discovery?: string;
+    authorizationUrl?: string;
+    tokenUrl?: string;
+    deviceAuthorizationUrl?: string;
+    revocationUrl?: string;
+    scopes?: string[];
+    clientIdField?: string;
+    clientSecret?: string;
+    authorizationParams?: Record<string, string>;
+    userinfo?: {
+        url: string;
+        identity: Record<string, string>;
+    };
+};
 export type AccountKindData = {
     label: string;
+    platform?: string;
     fields: Record<string, SettingField>;
-    secret: {
-        label: string;
-        help?: string;
-    };
-    auth?: AccountAuth;
+    secret?: AccountSecretField;
+    secrets?: Record<string, AccountSecretField>;
+    auth?: AccountAuth | AccountAuth[];
+    provider?: AccountOAuth2Provider | "extension";
+    signInOrigins?: string[];
+    origins?: string[];
+};
+export type PlatformUse = {
+    platform: string;
+    scopes?: string[];
     origins?: string[];
 };
 export type AccountKind = AccountKindData & {
@@ -297,6 +470,7 @@ export type AccountKind = AccountKindData & {
 export {};
 
 ===== declarations extension-api/src/testing.d.ts =====
+import type { CredentialAccount, CredentialApplyContext, CredentialHttpRequest, CredentialHttpResponse, CredentialRefreshContext, CredentialRevokeContext, CredentialSignInContext } from "./credentials.js";
 import type { ExtensionContext, HttpRequest, HttpResponse, ImageRequest, ImageResult, VisionRequest, VisionResult } from "./types.js";
 import type { Risk } from "./authorization.js";
 import type { AccountInfo } from "./settings.js";
@@ -347,6 +521,33 @@ export type FakeContextOptions = {
 export declare function createFakeContext(options?: FakeContextOptions): {
     ctx: ExtensionContext;
     record: FakeContextRecord;
+};
+export type FakeCredentialRecord = {
+    requests: CredentialHttpRequest[];
+    shown: {
+        kind: "link" | "deviceCode" | "progress";
+        value: unknown;
+    }[];
+};
+export type FakeCredentialContextOptions = {
+    account?: Partial<CredentialAccount>;
+    secrets?: Record<string, string>;
+    state?: unknown;
+    http?: (request: CredentialHttpRequest) => Partial<CredentialHttpResponse> | Promise<Partial<CredentialHttpResponse>>;
+    answers?: string[];
+    request?: {
+        method?: string;
+        url: string;
+        headers?: Record<string, string>;
+        body?: Uint8Array | string;
+    };
+};
+export declare function createFakeCredentialContext(options?: FakeCredentialContextOptions): {
+    signIn: CredentialSignInContext;
+    refresh: CredentialRefreshContext;
+    apply: CredentialApplyContext;
+    revoke: CredentialRevokeContext;
+    record: FakeCredentialRecord;
 };
 
 ===== declarations extension-api/src/types.d.ts =====
@@ -2721,12 +2922,15 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                         }
                       }
                     ]
+                  },
+                  "platform": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
                   }
                 },
                 "required": [
                   "label",
-                  "type",
-                  "kind"
+                  "type"
                 ],
                 "additionalProperties": false
               },
@@ -2824,6 +3028,10 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
           "label": {
             "type": "string",
             "minLength": 1
+          },
+          "platform": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
           },
           "fields": {
             "type": "object",
@@ -3208,12 +3416,15 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                           }
                         }
                       ]
+                    },
+                    "platform": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
                     }
                   },
                   "required": [
                     "label",
-                    "type",
-                    "kind"
+                    "type"
                   ],
                   "additionalProperties": false
                 },
@@ -3296,6 +3507,9 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
               },
               "help": {
                 "type": "string"
+              },
+              "multiline": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -3303,59 +3517,343 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
             ],
             "additionalProperties": false
           },
+          "secrets": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^[a-z][A-Za-z0-9]*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "help": {
+                  "type": "string"
+                },
+                "multiline": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
           "auth": {
-            "oneOf": [
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "basic"
+                      },
+                      "user": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "secret": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      }
+                    },
+                    "required": [
+                      "scheme",
+                      "user"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "bearer"
+                      },
+                      "secret": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      }
+                    },
+                    "required": [
+                      "scheme"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "header"
+                      },
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9-]+$"
+                      },
+                      "secret": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      }
+                    },
+                    "required": [
+                      "scheme",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "query"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "secret": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      }
+                    },
+                    "required": [
+                      "scheme",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "scheme": {
+                          "type": "string",
+                          "const": "basic"
+                        },
+                        "user": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "secret": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        }
+                      },
+                      "required": [
+                        "scheme",
+                        "user"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "scheme": {
+                          "type": "string",
+                          "const": "bearer"
+                        },
+                        "secret": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        }
+                      },
+                      "required": [
+                        "scheme"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "scheme": {
+                          "type": "string",
+                          "const": "header"
+                        },
+                        "name": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9-]+$"
+                        },
+                        "secret": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        }
+                      },
+                      "required": [
+                        "scheme",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "scheme": {
+                          "type": "string",
+                          "const": "query"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "secret": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        }
+                      },
+                      "required": [
+                        "scheme",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "provider": {
+            "anyOf": [
               {
                 "type": "object",
                 "properties": {
-                  "scheme": {
+                  "type": {
                     "type": "string",
-                    "const": "basic"
+                    "const": "oauth2"
                   },
-                  "user": {
+                  "flows": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "authorization_code",
+                        "device_code"
+                      ]
+                    }
+                  },
+                  "discovery": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "authorizationUrl": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "tokenUrl": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "deviceAuthorizationUrl": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "revocationUrl": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "clientIdField": {
                     "type": "string",
                     "maxLength": 64,
                     "pattern": "^[a-z][A-Za-z0-9]*$"
-                  }
-                },
-                "required": [
-                  "scheme",
-                  "user"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "scheme": {
-                    "type": "string",
-                    "const": "bearer"
-                  }
-                },
-                "required": [
-                  "scheme"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "scheme": {
-                    "type": "string",
-                    "const": "header"
                   },
-                  "name": {
+                  "clientSecret": {
                     "type": "string",
-                    "pattern": "^[A-Za-z0-9-]+$"
+                    "maxLength": 64,
+                    "pattern": "^[a-z][A-Za-z0-9]*$"
+                  },
+                  "authorizationParams": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "userinfo": {
+                    "type": "object",
+                    "properties": {
+                      "url": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2048
+                      },
+                      "identity": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    },
+                    "required": [
+                      "url",
+                      "identity"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
-                  "scheme",
-                  "name"
+                  "type"
                 ],
                 "additionalProperties": false
+              },
+              {
+                "type": "string",
+                "const": "extension"
               }
             ]
+          },
+          "signInOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
           },
           "origins": {
             "type": "array",
@@ -3371,8 +3869,37 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         },
         "required": [
           "label",
-          "fields",
-          "secret"
+          "fields"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "uses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "origins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "platform"
         ],
         "additionalProperties": false
       }
@@ -4077,6 +4604,33 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
           }
         }
       },
+      "additionalProperties": false
+    },
+    "credentials": {
+      "type": "object",
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "operations": {
+          "minItems": 2,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "signIn",
+              "refresh",
+              "apply",
+              "revoke"
+            ]
+          }
+        }
+      },
+      "required": [
+        "sha256",
+        "operations"
+      ],
       "additionalProperties": false
     }
   },

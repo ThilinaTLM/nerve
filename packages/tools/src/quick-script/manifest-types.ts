@@ -8,6 +8,7 @@ import type {
 import type {
   ExtensionDefinition,
   ExtensionPermissions,
+  PlatformUse,
   Requires,
   ToolDefinition as ExtensionToolDefinition,
 } from "@nervekit/extension-api";
@@ -78,6 +79,8 @@ export type ExtensionManifest = {
   migrations?: ExtensionSettingsDefinition["migrations"];
   /** Account kinds the extension defines (user-only, credentials in the secret store). */
   accounts?: AccountKind[];
+  /** Platforms whose accounts the extension uses (`ExtensionDefinition.uses`). */
+  uses?: PlatformUse[];
   /** What the extension may reach: network origins and host capabilities. */
   permissions?: ExtensionPermissions;
   /** The definition this view was derived from; its methods run through `ctx`, not `SdkEnvironment`. */

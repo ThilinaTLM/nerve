@@ -22,9 +22,10 @@ Extensions that add a file preview, page, or side panel apply to the project the
 ## Trust
 
 - Nothing in an extension runs until you allow it in **Settings → Extensions**. The review lists what it asks for, and your approval covers exactly the files you reviewed.
-- A **project** extension asks again after any change to its files. A **user** extension keeps your approval through code-only changes and asks again when it gains a permission, a file type to open, a tool, or another contribution; the review shows only what is new.
+- The review also lists the sign-in an extension performs (OAuth 2.0, or its own code, called out as broad access), the sign-in websites and scopes it asks for, and, for an extension that uses a platform's accounts, "Uses your github accounts with scopes ...".
+- A **project** extension asks again after any change to its files. A **user** extension keeps your approval through code-only changes and asks again when it gains a permission, a file type to open, a tool, or another contribution, or when its sign-in code changes; the review shows only what is new.
 - You can withdraw approval at any time. The on/off switch is separate from approval: approval decides whether the extension loads, the switch whether it is used.
-- Extension code runs in a sandbox with no file system access of its own. It reaches only the websites and accounts it declared, and it never sees your account secrets. Panels and pages run in isolated frames without network access.
+- Extension code runs in a sandbox with no file system access of its own. It reaches only the websites and accounts it declared, and it never sees your account credentials. An extension that signs in with its own code (for request signing or token exchanges) runs that code in a separate sandbox; changing it asks you to allow the extension again. Panels and pages run in isolated frames without network access.
 - When the agent uses an extension's tools, the usual [permission rules](/guides/agent-controls/) apply to those actions.
 
 ## States and compatibility

@@ -80,9 +80,14 @@ async function run(
         accounts: {
           get: async (kind, id) =>
             kind === "tavily" && id === "t1"
-              ? { id, name: "Tavily", kind, fields: {} }
+              ? { id, name: "Tavily", kind, fields: {}, level: "user" }
               : undefined,
-          secret: async () => "tvly-secret",
+          state: async () => "ready",
+          apply: async () => ({
+            ok: true,
+            headers: { authorization: "Bearer tvly-secret" },
+            query: {},
+          }),
         },
       },
     },

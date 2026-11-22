@@ -14,7 +14,7 @@ Start with the codebase overview, then the conversation core.
 
 - [Codebase architecture](architecture/codebase.md) — packages, layers and allowed dependencies.
 - [Startup and reconnection](architecture/startup.md) — daemon early bind, shell supervision, storage failure handoff and client reconnect.
-- [Storage architecture](architecture/storage.md) — `NERVE_HOME` areas and the home layout standard (`agent/`, `config/`, `data/`), SQLite versus files versus memory, restart behavior and settings health.
+- [Storage architecture](architecture/storage.md) — `NERVE_HOME` areas and the home layout standard (`agent/`, `config/`, `data/`), SQLite versus files versus memory, the `account` table, restart behavior and settings health.
 - [Storage migrations](architecture/migrations.md) — home upgrades, damage isolation and rollback.
 - [Access and authentication](architecture/access.md) — principals, device credentials, pairing, owner passkeys, public URL and proxy trust, and the audit log.
 - [Scoped configuration](architecture/configuration.md) — user/project/conversation scopes, save guarantees and when changes take effect.
@@ -27,13 +27,14 @@ Start with the codebase overview, then the conversation core.
 - [Permissions](architecture/permissions.md) — rule sets, overlays, guardrails and tool-call authorization.
 - [System prompt and tool descriptions](architecture/system-prompt.md) — prompt assembly and tool-writing rules.
 - [Tool-result projection](architecture/tool-result-projection.md) — complete payload, agent projection and user projection.
-- [Extension platform](architecture/extension-platform.md) — extension API contract, `ctx` security rules, direct tools, display kinds and the naming rule.
+- [Extension platform](architecture/extension-platform.md) — extension API contract, `ctx` security rules, accounts (levels, platforms, credential vault, credential providers), direct tools, display kinds and the naming rule.
 - [Code mode (`quick_script`)](architecture/code-mode.md) — sandboxed TypeScript scripts with integration SDKs, nested authorization, artifacts and results.
 - [Conversation state and attention](architecture/conversation-state-and-attention.md) — composer and drafts, execution status, summary activity and notifications.
 - [Conversation discovery](architecture/conversation-discovery.md) — local and AI titles, PR/issue references, list sections, stable ordering and smart search.
 
 **Workbench**
 
+- [Background jobs](architecture/background-jobs.md) — the daemon's periodic work: scheduler, limits, Settings and bell reporting, credential refresh.
 - [Launch catalog](architecture/launch-definitions.md) — saved project commands, folders, safe shared editing and client cache.
 - [Git workspace sync](architecture/git-workspace-sync.md) — server-owned repository and worktree state, demand-driven reads and background fetch.
 - [Pull request sync](architecture/pull-request-sync.md) — server-owned PR snapshots, rate-limit-free change detection and the shared client store.
@@ -41,7 +42,7 @@ Start with the codebase overview, then the conversation core.
 **UI design system**
 
 - [Styling](ui/styling.md) — tokens, surfaces, themes, type scale, controls, scoped styles and global CSS.
-- [Settings UI](ui/settings.md) — headings, navigation, sections, lists, entity cards and provenance.
+- [Settings UI](ui/settings.md) — headings, navigation, sections, lists, the Accounts and Background jobs pages, entity cards and provenance.
 - [Transcript notices](ui/transcript-notices.md) — notice cards and their shared anatomy with tool calls.
 - [Panel views](ui/panels.md) — dock panel primitives and layout rules.
 
