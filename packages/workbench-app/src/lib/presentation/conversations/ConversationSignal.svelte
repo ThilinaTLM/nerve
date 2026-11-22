@@ -65,7 +65,7 @@ const launchpad = $derived(variant === "launchpad");
     </p>
     {#if starters.length > 0}
       <div
-        class="mt-6 grid grid-cols-2 gap-2.5"
+        class="mt-6 grid grid-cols-2 gap-2.5 @min-[37rem]:grid-cols-4"
         role="group"
         aria-label="Start a conversation"
       >
