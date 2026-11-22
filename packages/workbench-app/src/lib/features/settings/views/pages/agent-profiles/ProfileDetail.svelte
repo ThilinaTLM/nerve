@@ -29,8 +29,7 @@ import { accountsState } from "$lib/application/extensions/accounts-state.svelte
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
 import type { AuthProviderMetadata, AvailableSkill, ModelInfo } from "$lib/api";
 import {
-  ColumnLabels,
-  LayerSwitches,
+  LayerEnabledTable,
   LevelMenu,
   SettingsEmptyState,
   SettingsItem,
@@ -318,57 +317,50 @@ async function trust() {
         class="size-4"
       />{/if}
   {/snippet}
-  {#snippet actions()}
-    <div class="flex items-end gap-1">
+  {#snippet below()}
+    <!-- Labelled outline buttons under the description: the title row stays free of controls. -->
+    <div class="flex flex-wrap items-center gap-2 pt-2">
       {#if definition}
-        <IconAction
-          icon={Copy}
-          label={`Duplicate ${row.name}`}
+        <Button
+          size="sm"
+          variant="outline"
+          aria-label={`Duplicate ${row.name}`}
           disabled={busy}
           onclick={() => swallow(duplicate)}
-        />
+        >
+          <Copy aria-hidden="true" />Duplicate
+        </Button>
       {/if}
       {#if onOpenFile && !readOnly}
-        <IconAction
-          icon={FileText}
-          label="Open profile file"
+        <Button
+          size="sm"
+          variant="outline"
           onclick={() => onOpenFile?.(entry.path)}
-        />
+        >
+          <FileText aria-hidden="true" />Open file
+        </Button>
       {/if}
       {#if row.origin === "project" && definition && entry.trusted}
-        <IconAction
-          icon={ShieldCheck}
-          label="Review or revoke trust"
-          onclick={() => (reviewOpen = true)}
-        />
+        <Button size="sm" variant="outline" onclick={() => (reviewOpen = true)}>
+          <ShieldCheck aria-hidden="true" />Review trust
+        </Button>
       {/if}
       {#if !readOnly && entry.local}
-        <IconAction
-          icon={row.replaces ? RotateCcw : Trash2}
-          tone={row.replaces ? undefined : "destructive"}
-          label={row.replaces
+        <Button
+          size="sm"
+          variant={row.replaces ? "outline" : "destructive"}
+          aria-label={row.replaces
             ? `Revert to the ${row.replaces === "builtin" ? "built-in" : "User"} version`
             : `Delete ${row.name}`}
           disabled={busy}
           onclick={() => (deleteOpen = true)}
-        />
-      {/if}
-      {#if kind === "subagent" && definition && definition.usableBy !== "lead"}
-        <div class="ml-2 grid justify-items-end gap-0.5">
-          <ColumnLabels {projectName} projectOnly={row.origin === "project"} />
-          <LayerSwitches
-            name={`${definition.label ?? row.name} launches`}
-            user={launch.user}
-            project={launch.project}
-            projectSet={launch.projectSet}
-            {projectName}
-            projectOnly={row.origin === "project"}
-            pending={untrusted}
-            locked={store.launchLocked}
-            onChange={(layer, next) =>
-              swallow(() => store.setLaunch(row, layer, next))}
-          />
-        </div>
+        >
+          {#if row.replaces}
+            <RotateCcw aria-hidden="true" />Revert
+          {:else}
+            <Trash2 aria-hidden="true" />Delete
+          {/if}
+        </Button>
       {/if}
     </div>
   {/snippet}
@@ -471,6 +463,21 @@ async function trust() {
 {/each}
 
 {#if definition}
+  {#if kind === "subagent" && definition.usableBy !== "lead"}
+    <LayerEnabledTable
+      name={`${definition.label ?? row.name} launches`}
+      description="The main agent can launch it."
+      {projectName}
+      user={launch.user}
+      project={launch.project}
+      projectSet={launch.projectSet}
+      projectOnly={row.origin === "project"}
+      pending={untrusted}
+      locked={store.launchLocked}
+      onChange={(layer, next) =>
+        swallow(() => store.setLaunch(row, layer, next))}
+    />
+  {/if}
   <SettingsSection title="Profile" divided>
     <SettingsRow label="Label">
       {#snippet control()}

@@ -25,9 +25,10 @@ export type {
   SettingsPageDef,
 } from "./settings-component-contracts";
 export { default as OriginGroup } from "./OriginGroup.svelte";
-export { default as ColumnLabels } from "./ColumnLabels.svelte";
+export { default as LayerCells } from "./LayerCells.svelte";
 export { default as SplitColumns } from "./SplitColumns.svelte";
 export { default as LayerSwitches } from "./LayerSwitches.svelte";
+export { default as LayerEnabledTable } from "./LayerEnabledTable.svelte";
 export { default as LayerRow } from "./LayerRow.svelte";
 export { default as LevelMenu } from "./LevelMenu.svelte";
 export { default as TipBadge } from "./TipBadge.svelte";

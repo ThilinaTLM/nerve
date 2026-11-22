@@ -2,7 +2,9 @@
   Grouped settings navigation. Group titles are quiet captions (no hover, no
   icon); items are the interactive text, so icons and weight carry the
   hierarchy. Items are `SelectRow`s: the active item takes the shared
-  selection (`bg-selected`, medium label, brand icon). In a narrow settings pane
+  selection (`bg-selected`, medium label, brand icon). The sidebar has no right
+  padding, so the thin scrollbar sits flush with the panel edge; the nav pads
+  its own content. In a narrow settings pane
   (`settings-page` container) the groups flow into one scrollable row.
 -->
 <script lang="ts">
@@ -32,7 +34,7 @@ let {
 
 <nav
   aria-label={ariaLabel}
-  class="-mx-1 grid min-h-0 flex-1 content-start gap-3 overflow-y-auto px-1 pt-0 pb-1 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:gap-1 @max-[46rem]/settings-page:overflow-x-auto @max-[46rem]/settings-page:pt-0"
+  class="-ml-1 grid min-h-0 flex-1 content-start gap-3 overflow-y-auto pt-0 pr-3 pb-1 pl-1 @max-[46rem]/settings-page:mr-0 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:gap-1 @max-[46rem]/settings-page:overflow-x-auto @max-[46rem]/settings-page:pr-0 @max-[46rem]/settings-page:pt-0"
 >
   {#each groups as group (group.id)}
     <div

@@ -3,13 +3,14 @@
   the effective value at that layer. The component only emits intent
   (`onChange(layer, value)`); callers decide what that means for the stored
   layers (e.g. a project value equal to User's means "follow User").
-  `projectOnly` leaves the User slot empty at the same width, so switches line
-  up down the page.
+  `projectOnly` leaves the User slot empty at the same width. Cells are the
+  shared `LayerCells`, so switches line up with the column labels.
 -->
 <script lang="ts">
 import Lock from "@lucide/svelte/icons/lock";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import HoverTip from "./HoverTip.svelte";
+import LayerCells from "./LayerCells.svelte";
 import type { SettingsLayer } from "./settings-origin";
 
 type Props = {
@@ -56,50 +57,48 @@ const projectTip = $derived(
 );
 </script>
 
-<div class="flex items-center">
-  <div class="flex w-20 items-center justify-end">
-    {#if !pending && !projectOnly}
-      <HoverTip
-        delay={400}
-        tip={`User: ${onOff(user)} in every project${projectName ? " that doesn't set its own" : ""}`}
-      >
-        <Switch
-          checked={user}
-          aria-label={`${name} at User level`}
-          onCheckedChange={(value) => onChange("user", value)}
-        />
-      </HoverTip>
-    {/if}
-  </div>
-  {#if projectName}
-    <div class="flex w-20 items-center justify-end gap-1">
-      {#if pending || inapplicable}
-        <!-- Empty: the row explains it. -->
-      {:else if locked}
-        <HoverTip
-          delay={400}
-          tip={`Locked until you trust ${projectName}'s settings file. Uses User for now.`}
-        >
-          <span class="flex items-center gap-1"
-            ><Lock
-              class="size-3.5 text-muted-foreground"
-              aria-hidden="true"
-            /><Switch
-              checked={user}
-              disabled
-              aria-label={`${name} in ${projectName}`}
-            /></span
-          >
-        </HoverTip>
-      {:else}
-        <HoverTip delay={400} tip={projectTip}>
-          <Switch
-            checked={effectiveProject}
-            aria-label={`${name} in ${projectName}`}
-            onCheckedChange={(value) => onChange("project", value)}
-          />
-        </HoverTip>
-      {/if}
-    </div>
+{#snippet userCell()}
+  {#if !pending && !projectOnly}
+    <HoverTip
+      delay={400}
+      tip={`User: ${onOff(user)} in every project${projectName ? " that doesn't set its own" : ""}`}
+    >
+      <Switch
+        checked={user}
+        aria-label={`${name} at User level`}
+        onCheckedChange={(value) => onChange("user", value)}
+      />
+    </HoverTip>
   {/if}
-</div>
+{/snippet}
+{#snippet projectCell()}
+  {#if pending || inapplicable}
+    <!-- Empty: the row explains it. -->
+  {:else if locked}
+    <HoverTip
+      delay={400}
+      tip={`Locked until you trust ${projectName}'s settings file. Uses User for now.`}
+    >
+      <Switch
+        checked={user}
+        disabled
+        aria-label={`${name} in ${projectName}`}
+      />
+    </HoverTip>
+    <!-- Beside the switch, so the switch itself stays centered in the column. -->
+    <Lock
+      class="pointer-events-none absolute left-3 size-3.5 text-muted-foreground"
+      aria-hidden="true"
+    />
+  {:else}
+    <HoverTip delay={400} tip={projectTip}>
+      <Switch
+        checked={effectiveProject}
+        aria-label={`${name} in ${projectName}`}
+        onCheckedChange={(value) => onChange("project", value)}
+      />
+    </HoverTip>
+  {/if}
+{/snippet}
+
+<LayerCells {projectName} user={userCell} project={projectCell} />

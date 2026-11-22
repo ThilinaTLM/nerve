@@ -17,13 +17,13 @@ import type {
   AccountKind,
   ExtensionIcon,
 } from "@nervekit/contracts/extensions";
-import { ColumnLabels } from "$lib/presentation/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as RadioGroup from "@nervekit/ui-kit/components/ui/radio-group";
 import type { AccountView } from "$lib/api";
 import { testAccount } from "$lib/api";
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import {
+  LayerCells,
   SettingsChangeIndicator,
   SettingsEmptyState,
   SettingsItem,
@@ -174,13 +174,6 @@ const accounts = $derived(
     </SettingsEmptyState>
   {:else}
     {#if choice?.layers}
-      <div class="flex justify-end pr-3">
-        <ColumnLabels
-          chevron
-          projectName={choice.layers.projectName}
-          {projectOnly}
-        />
-      </div>
       {@render list()}
     {:else if choice}
       <RadioGroup.Root
@@ -204,23 +197,26 @@ const accounts = $derived(
   disabled: boolean,
   onclick: () => void,
 )}
-  <span class="flex w-9 justify-center"
-    ><button
-      type="button"
-      role="radio"
-      aria-checked={checked}
-      aria-label={label}
-      {disabled}
-      class="flex size-4 items-center justify-center rounded-full border border-input bg-background focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
-      {onclick}
-    >
-      {#if checked}<span class="size-2 rounded-full bg-primary"></span>{/if}
-    </button></span
+  <button
+    type="button"
+    role="radio"
+    aria-checked={checked}
+    aria-label={label}
+    {disabled}
+    class="flex size-4 items-center justify-center rounded-full border border-input bg-background focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+    {onclick}
   >
+    {#if checked}<span class="size-2 rounded-full bg-primary"></span>{/if}
+  </button>
 {/snippet}
 
 {#snippet list()}
-  <SettingsList ariaLabel={`${kind.label}s`}>
+  <SettingsList
+    ariaLabel={`${kind.label}s`}
+    columns={choice?.layers
+      ? { chevron: true, projectName: choice.layers.projectName, projectOnly }
+      : undefined}
+  >
     {#each accounts as account (account.id)}
       {#snippet mark()}
         <RadioGroup.Item
@@ -235,29 +231,27 @@ const accounts = $derived(
       {#snippet slots()}
         {@const layers = choice?.layers}
         {#if layers}
-          <div
-            class="flex items-center"
-            role="radiogroup"
-            aria-label={`${account.name} is used by`}
-          >
-            <div class="flex w-20 justify-end">
-              {#if account.level !== "project" && !projectOnly}
+          <div role="radiogroup" aria-label={`${account.name} is used by`}>
+            <LayerCells projectName={layers.projectName}>
+              {#snippet user()}
+                {#if account.level !== "project" && !projectOnly}
+                  {@render radio(
+                    layers.userValue === account.id,
+                    `Use ${account.name} at User level`,
+                    layers.userDisabled,
+                    () => layers.onSelectUser(account.id),
+                  )}
+                {/if}
+              {/snippet}
+              {#snippet project()}
                 {@render radio(
-                  layers.userValue === account.id,
-                  `Use ${account.name} at User level`,
-                  layers.userDisabled,
-                  () => layers.onSelectUser(account.id),
+                  choice?.value === account.id,
+                  `Use ${account.name} in ${layers.projectName}`,
+                  choice?.disabled === true,
+                  () => choice?.onSelect(account.id),
                 )}
-              {/if}
-            </div>
-            <div class="flex w-20 justify-end">
-              {@render radio(
-                choice?.value === account.id,
-                `Use ${account.name} in ${layers.projectName}`,
-                choice?.disabled === true,
-                () => choice?.onSelect(account.id),
-              )}
-            </div>
+              {/snippet}
+            </LayerCells>
           </div>
         {/if}
       {/snippet}

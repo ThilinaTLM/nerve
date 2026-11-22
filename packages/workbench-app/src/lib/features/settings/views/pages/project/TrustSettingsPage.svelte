@@ -7,11 +7,19 @@
 <script lang="ts">
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
-import ShieldCheck from "@lucide/svelte/icons/shield-check";
-import ShieldOff from "@lucide/svelte/icons/shield-off";
-import { Badge, type BadgeVariant } from "@nervekit/ui-kit/components/ui/badge";
+import Blocks from "@lucide/svelte/icons/blocks";
+import Bot from "@lucide/svelte/icons/bot";
+import FileText from "@lucide/svelte/icons/file-text";
+import Sparkles from "@lucide/svelte/icons/sparkles";
+import type { BadgeVariant } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { SettingsRow, SettingsSection } from "$lib/presentation/settings";
+import {
+  SettingsEmptyState,
+  SettingsItem,
+  SettingsList,
+  SettingsSection,
+  TipBadge,
+} from "$lib/presentation/settings";
 import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
 import type { ExtensionCatalogEntry } from "@nervekit/contracts/extensions";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
@@ -28,6 +36,8 @@ import { ensureProfilesFor } from "../../shared/profile-options.svelte";
 
 export type TrustEntry = {
   id: string;
+  /** What the file is, e.g. "Permission rules". */
+  title: string;
   /** Project-relative file path. */
   path: string;
   description: string;
@@ -40,10 +50,28 @@ export type TrustEntry = {
 
 type Props = {
   projectId?: string;
+  /** The project's directory; paths show relative to it, the full path in a tooltip. */
+  projectDirectory?: string;
+  /** Opens another settings page (Suggestions). */
+  onOpenPage?: (pageId: string) => void;
   /** Capabilities and permissions files, from their controllers. */
   entries: TrustEntry[];
 };
-let { projectId, entries }: Props = $props();
+let { projectId, projectDirectory, onOpenPage, entries }: Props = $props();
+
+const root = $derived(
+  projectDirectory?.replaceAll("\\", "/").replace(/\/$/, ""),
+);
+/** Project-relative path of a file or directory the project owns. */
+function relative(path: string): string {
+  const normalized = path.replaceAll("\\", "/");
+  return root && normalized.startsWith(`${root}/`)
+    ? normalized.slice(root.length + 1)
+    : normalized;
+}
+/** The full path, for the icon's tooltip. */
+const absolute = (path: string): string =>
+  root && !path.startsWith("/") ? `${root}/${path}` : path;
 const agentDocument = new ScopedAgentState();
 $effect(() => {
   if (projectId) void agentDocument.load({ scope: "project", projectId });
@@ -88,6 +116,25 @@ const labels: Record<TrustEntry["status"], string> = {
   invalid: "Invalid",
   missing: "No file",
 };
+const tips: Record<TrustEntry["status"], string> = {
+  trusted: "Reviewed by you. It applies only while its content is unchanged.",
+  untrusted: "Ignored until you review it. Any change asks again.",
+  invalid: "The file can't be read, so it is ignored.",
+  missing: "The project has no such file.",
+};
+
+/** Status of the project's capabilities file (`.nerve/agent.json`). */
+const agentStatus = $derived.by((): TrustEntry["status"] => {
+  const document = agentDocument.document;
+  if (document?.status !== "available") return document ? "invalid" : "missing";
+  if (document.source.digest === "missing") return "missing";
+  return document.trusted === false ? "untrusted" : "trusted";
+});
+const agentPath = $derived(
+  agentDocument.document?.status === "available"
+    ? relative(agentDocument.document.source.path)
+    : ".nerve/agent.json",
+);
 
 let busy = $state<string>();
 let reviewOpen = $state(false);
@@ -124,155 +171,193 @@ async function trustProfile(): Promise<void> {
 }
 </script>
 
-<SettingsSection id="trust" title="Configuration files" divided>
-  {#if projectId}<SettingsRow
-      label={agentDocument.document?.status === "available"
-        ? agentDocument.document.source.path
-        : ".nerve/agent.json"}
-      mono
-      description={agentDocument.error ??
-        "Scoped models, tools, skills and delegation. Trust applies only to the exact reviewed bytes."}
-      >{#snippet control()}<ProjectCapabilityTrustAction
-          document={agentDocument.document}
-          scope={{ scope: "project", projectId }}
-          onReload={() => agentDocument.reload()}
-        />{/snippet}</SettingsRow
-    >{/if}
-  {#each entries as entry (entry.id)}
-    <SettingsRow
-      label={entry.path}
-      mono
-      description={entry.detail ?? entry.description}
-    >
-      {#snippet badges()}<Badge variant={tones[entry.status]}
-          >{labels[entry.status]}</Badge
-        >{/snippet}
-      {#snippet control()}
-        {#if entry.status === "untrusted" && entry.onTrust}
-          <Button size="sm" variant="outline" onclick={entry.onTrust}
-            ><ShieldCheck class="size-3.5" aria-hidden="true" />Trust file</Button
-          >
-        {:else if entry.status === "trusted" && entry.onRevoke}
-          <Button
-            size="sm"
-            variant="ghost"
-            class="text-muted-foreground"
-            onclick={entry.onRevoke}
-            ><ShieldOff class="size-3.5" aria-hidden="true" />Revoke trust</Button
-          >
-        {/if}
-      {/snippet}
-    </SettingsRow>
-  {/each}
+{#snippet status(value: TrustEntry["status"])}
+  <TipBadge text={labels[value]} tip={tips[value]} variant={tones[value]} />
+{/snippet}
+
+<SettingsSection
+  id="trust"
+  title="Configuration files"
+  description="Each file is reviewed on its own, per machine. Trust applies only to the exact reviewed content."
+  surface={false}
+>
+  <SettingsList ariaLabel="Configuration files">
+    {#if projectId}
+      <SettingsItem
+        title="Agent capabilities"
+        icon={FileText}
+        iconLabel={`Scoped models, tools, skills and delegation · ${absolute(agentPath)}`}
+        summary={agentPath}
+        mono
+        problem={agentDocument.error}
+      >
+        {#snippet badges()}{@render status(agentStatus)}{/snippet}
+        {#snippet actions()}
+          {#if agentStatus !== "missing"}
+            <ProjectCapabilityTrustAction
+              document={agentDocument.document}
+              scope={{ scope: "project", projectId }}
+              onReload={() => agentDocument.reload()}
+              variant="outline"
+              label={agentStatus === "untrusted"
+                ? "Review and trust"
+                : agentStatus === "trusted"
+                  ? "Revoke trust"
+                  : "Review"}
+            />
+          {/if}
+        {/snippet}
+      </SettingsItem>
+    {/if}
+    {#each entries as entry (entry.id)}
+      <SettingsItem
+        title={entry.title}
+        icon={FileText}
+        iconLabel={`${entry.description} · ${absolute(entry.path)}`}
+        summary={relative(entry.path)}
+        mono
+        problem={entry.status === "invalid" ? entry.detail : undefined}
+      >
+        {#snippet badges()}{@render status(entry.status)}{/snippet}
+        {#snippet actions()}
+          {#if entry.status === "untrusted" && entry.onTrust}
+            <Button size="sm" variant="outline" onclick={entry.onTrust}
+              >Review and trust</Button
+            >
+          {:else if entry.status === "trusted" && entry.onRevoke}
+            <Button size="sm" variant="outline" onclick={entry.onRevoke}
+              >Revoke trust</Button
+            >
+          {/if}
+        {/snippet}
+      </SettingsItem>
+    {/each}
+  </SettingsList>
 </SettingsSection>
 
 <SettingsSection
   id="profile-files"
   title="Agent profile files"
   description="One file per profile. Trust applies to the exact version reviewed."
-  divided
+  surface={false}
 >
-  {#each profileFiles as profile (profile.name)}
-    <SettingsRow
-      label={profile.path ?? `.nerve/agent-profiles/${profile.name}.json`}
-      mono
-      description={profile.definition?.label ?? profile.name}
-    >
-      {#snippet badges()}
-        <Badge variant={profile.trusted ? "success" : "warning"}
-          >{profile.trusted ? "Trusted" : "Needs review"}</Badge
-        >
-      {/snippet}
-      {#snippet control()}
-        {#if profile.definition}
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy === profile.name}
-            onclick={() => {
-              reviewProfile = profile;
-              error = undefined;
-              reviewOpen = true;
-            }}
-            >{profile.trusted
-              ? "Review / revoke trust"
-              : "Review and trust"}</Button
-          >
-        {/if}
-        <Button
-          size="sm"
-          variant="ghost"
-          onclick={() => {
-            repairProfile = profile;
-            repairOpen = true;
-          }}>Preview repair</Button
-        >
-      {/snippet}
-    </SettingsRow>
+  {#if profileFiles.length === 0}
+    <SettingsEmptyState
+      variant="card"
+      icon={Bot}
+      title="No project profile files"
+      description="Profiles in .nerve/agent-profiles appear here to be reviewed."
+    />
   {:else}
-    <p class="px-3 py-3 text-ui text-muted-foreground">
-      No project profile files.
-    </p>
-  {/each}
+    <SettingsList ariaLabel="Agent profile files">
+      {#each profileFiles as profile (profile.name)}
+        {@const path = relative(
+          profile.path ?? `.nerve/agent-profiles/${profile.name}.json`,
+        )}
+        {@const value = profile.trusted ? "trusted" : "untrusted"}
+        <SettingsItem
+          title={profile.definition?.label ?? profile.name}
+          icon={Bot}
+          iconLabel={absolute(path)}
+          summary={path}
+          mono
+        >
+          {#snippet badges()}{@render status(value)}{/snippet}
+          {#snippet actions()}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy === profile.name}
+              onclick={() => {
+                if (profile.definition) {
+                  reviewProfile = profile;
+                  error = undefined;
+                  reviewOpen = true;
+                } else {
+                  repairProfile = profile;
+                  repairOpen = true;
+                }
+              }}
+              >{profile.definition
+                ? profile.trusted
+                  ? "Revoke trust"
+                  : "Review and trust"
+                : "Preview repair"}</Button
+            >
+          {/snippet}
+        </SettingsItem>
+      {/each}
+    </SettingsList>
+  {/if}
 </SettingsSection>
 
 <SettingsSection
   id="project-extensions"
   title="Project extensions"
   description="Extensions installed in this project's .nerve/extensions. Any change to one asks again."
-  divided
+  surface={false}
 >
-  {#each projectExtensions as entry (entry.path ?? entry.id)}
-    <SettingsRow
-      label={entry.name ?? entry.id}
-      description={installedProblem(entry) ??
-        entry.path ??
-        `.nerve/extensions/${entry.id}`}
-    >
-      {#snippet badges()}
-        <Badge variant={entry.state === "enabled" ? "success" : "warning"}
-          >{entry.state === "enabled" ? "Trusted" : "Needs review"}</Badge
-        >
-      {/snippet}
-      {#snippet control()}
-        {#if entry.state === "enabled"}
-          <Button
-            size="sm"
-            variant="ghost"
-            class="text-muted-foreground"
-            disabled={extensions.saving}
-            onclick={() => void extensions.revokeConsent(entry)}
-            ><ShieldOff class="size-3.5" aria-hidden="true" />Revoke trust</Button
-          >
-        {:else if entry.consent}
-          <Button
-            size="sm"
-            variant="outline"
-            onclick={() => {
-              extensionReview = entry;
-              extensionReviewOpen = true;
-            }}>Review and trust</Button
-          >
-        {/if}
-      {/snippet}
-    </SettingsRow>
+  {#if projectExtensions.length === 0}
+    <SettingsEmptyState
+      variant="card"
+      icon={Blocks}
+      title="No project extensions"
+      description="Extensions installed in .nerve/extensions appear here to be reviewed."
+    />
   {:else}
-    <p class="px-3 py-3 text-ui text-muted-foreground">
-      No project extensions.
-    </p>
-  {/each}
+    <SettingsList ariaLabel="Project extensions">
+      {#each projectExtensions as entry (entry.path ?? entry.id)}
+        {@const path = relative(entry.path ?? `.nerve/extensions/${entry.id}`)}
+        {@const value = entry.state === "enabled" ? "trusted" : "untrusted"}
+        <SettingsItem
+          title={entry.name ?? entry.id}
+          icon={Blocks}
+          iconLabel={absolute(path)}
+          summary={path}
+          mono
+          problem={installedProblem(entry)}
+        >
+          {#snippet badges()}{@render status(value)}{/snippet}
+          {#snippet actions()}
+            {#if entry.state === "enabled"}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={extensions.saving}
+                onclick={() => void extensions.revokeConsent(entry)}
+                >Revoke trust</Button
+              >
+            {:else if entry.consent}
+              <Button
+                size="sm"
+                variant="outline"
+                onclick={() => {
+                  extensionReview = entry;
+                  extensionReviewOpen = true;
+                }}>Review and trust</Button
+              >
+            {/if}
+          {/snippet}
+        </SettingsItem>
+      {/each}
+    </SettingsList>
+  {/if}
 </SettingsSection>
 
 <SettingsSection
   id="suggestion-scripts"
   title="Prompt suggestions"
-  description="JavaScript conditions in suggestions are allowed or denied per suggestion in Suggestions. That choice is yours, not the project's."
-  divided
+  surface={false}
 >
-  <SettingsRow
-    label="Suggestion JavaScript"
-    description="Not covered by the files above."
-  />
+  <SettingsList>
+    <SettingsItem
+      title="Suggestion JavaScript"
+      icon={Sparkles}
+      summary="You allow or deny it per suggestion, not the project."
+      onOpen={onOpenPage ? () => onOpenPage?.("suggestions") : undefined}
+      openLabel="Open Suggestions"
+    />
+  </SettingsList>
 </SettingsSection>
 
 <ExtensionConsentDialog

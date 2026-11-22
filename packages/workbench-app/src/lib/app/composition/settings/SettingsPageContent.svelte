@@ -37,6 +37,7 @@ import StorageSettingsPage from "$lib/features/settings/views/pages/storage/Stor
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
 import VoiceSettingsPage from "$lib/features/settings/views/pages/voice/VoiceSettingsPage.svelte";
 import ExtensionsSettingsPage from "$lib/features/settings/views/pages/extensions/ExtensionsSettingsPage.svelte";
+import { LaunchDefinitionDialog } from "$lib/features/launches";
 import InstructionsFilesPage from "$lib/features/settings/views/pages/project/InstructionsFilesPage.svelte";
 import LaunchSettingsPage from "$lib/features/settings/views/pages/project/LaunchSettingsPage.svelte";
 import TrustSettingsPage from "$lib/features/settings/views/pages/project/TrustSettingsPage.svelte";
@@ -226,8 +227,27 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
   {:else if page.id === "launch"}
     <LaunchSettingsPage
       definitions={controllers.launchDefinitions()}
+      onAdd={() => controllers.openLaunchDialog()}
+      onEdit={(id) => controllers.openLaunchDialog(id)}
       onDelete={(id) => void controllers.deleteProjectLaunch(id)}
     />
+    {#if controllers.launchDialog}
+      {@const session = controllers.launchDialog}
+      {#key session}
+        <LaunchDefinitionDialog
+          open
+          definition={session.kind === "edit" ? session.definition : undefined}
+          projectCwd={project?.directory}
+          folders={controllers.launchFolders()}
+          saving={controllers.launchSaving}
+          onSave={(input, parentFolderId) =>
+            void controllers.saveLaunchDialog(input, parentFolderId)}
+          onOpenChange={(open) => {
+            if (!open) controllers.launchDialog = undefined;
+          }}
+        />
+      {/key}
+    {/if}
   {:else if page.id === "instructions-files"}
     <InstructionsFilesPage
       files={controllers.instructionsFiles}
@@ -239,6 +259,8 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
   {:else if page.id === "trust"}
     <TrustSettingsPage
       projectId={layerProjectId}
+      projectDirectory={project?.directory}
+      {onOpenPage}
       entries={controllers.trustEntries()}
     />
   {:else if page.id === "providers"}

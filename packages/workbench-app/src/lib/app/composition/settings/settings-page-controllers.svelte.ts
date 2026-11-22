@@ -10,11 +10,18 @@ import {
   readAgentProfiles,
   resetAgentProfile,
 } from "$lib/features/settings/api/agent-profiles.api";
-import type { LaunchDefinitionCatalog } from "@nervekit/contracts/launch-definitions";
+import type {
+  LaunchDefinition,
+  LaunchDefinitionCatalog,
+  UpdateLaunchDefinitionRequest,
+} from "@nervekit/contracts/launch-definitions";
 import {
+  createLaunchDefinition,
   deleteLaunchDefinition,
   getLaunchCatalog,
+  updateLaunchDefinition,
 } from "$lib/features/launches";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import type { InstructionsFile } from "$lib/features/settings/views/pages/project/InstructionsFilesPage.svelte";
 import type { LaunchDefinitionRow } from "$lib/features/settings/views/pages/project/LaunchSettingsPage.svelte";
@@ -105,6 +112,7 @@ export function createSettingsPageControllers(deps: {
       ?.directory.replaceAll("\\", "/")
       .replace(/\/$/, "");
     const normalized = path.replaceAll("\\", "/");
+    if (root && normalized === root) return "";
     return root && normalized.startsWith(`${root}/`)
       ? normalized.slice(root.length + 1)
       : normalized;
@@ -164,8 +172,86 @@ export function createSettingsPageControllers(deps: {
   async function deleteProjectLaunch(id: string): Promise<void> {
     const projectId = targetProjectId();
     if (!projectId || !launchCatalog) return;
-    await deleteLaunchDefinition(projectId, id, launchCatalog.revision);
-    await loadLaunchCatalog();
+    try {
+      await deleteLaunchDefinition(projectId, id, launchCatalog.revision);
+      notify.success("Saved launch deleted");
+    } catch (error) {
+      notify.error(`Could not delete launch: ${errorText(error)}`);
+    } finally {
+      await loadLaunchCatalog();
+    }
+  }
+
+  const errorText = (error: unknown) =>
+    error instanceof Error ? error.message : String(error);
+
+  /** The launch dialog of the Launch page: creating, or editing one definition. */
+  let launchDialog = $state.raw<
+    { kind: "create" } | { kind: "edit"; definition: LaunchDefinition }
+  >();
+  let launchSaving = $state(false);
+  function openLaunchDialog(id?: string): void {
+    const definition = id
+      ? launchCatalog?.definitions.find((entry) => entry.id === id)
+      : undefined;
+    launchDialog = definition
+      ? { kind: "edit", definition }
+      : id
+        ? undefined
+        : { kind: "create" };
+  }
+  /** Folders a new launch can go in, in tree order, labelled by their path. */
+  function launchFolders(): { id: string; label: string; depth: number }[] {
+    const folders = launchCatalog?.folders ?? [];
+    const options: { id: string; label: string; depth: number }[] = [];
+    const visit = (parent: string | null, path: string[]) => {
+      for (const folder of folders
+        .filter((entry) => entry.parentFolderId === parent)
+        .sort((a, b) => a.order - b.order)) {
+        const trail = [...path, folder.label];
+        options.push({
+          id: folder.id,
+          label: trail.join(" / "),
+          depth: path.length,
+        });
+        visit(folder.id, trail);
+      }
+    };
+    visit(null, []);
+    return options;
+  }
+  async function saveLaunchDialog(
+    input: UpdateLaunchDefinitionRequest,
+    parentFolderId: string | null,
+  ): Promise<void> {
+    const projectId = targetProjectId();
+    const session = launchDialog;
+    if (!projectId || !launchCatalog || !session || launchSaving) return;
+    launchSaving = true;
+    try {
+      if (session.kind === "edit")
+        await updateLaunchDefinition(
+          projectId,
+          session.definition.id,
+          input,
+          launchCatalog.revision,
+        );
+      else
+        await createLaunchDefinition(
+          projectId,
+          { ...input, parentFolderId, beforeSibling: null },
+          launchCatalog.revision,
+        );
+      notify.success(
+        session.kind === "edit" ? "Launch updated" : "Launch saved",
+      );
+      launchDialog = undefined;
+    } catch (error) {
+      notify.error(`Could not save launch: ${errorText(error)}`);
+    } finally {
+      launchSaving = false;
+      await loadLaunchCatalog();
+    }
   }
 
   async function decideSuggestionFile(trusted: boolean): Promise<void> {
@@ -189,6 +275,7 @@ export function createSettingsPageControllers(deps: {
         ? [
             {
               id: "suggestions",
+              title: "Prompt suggestion choices",
               path: ".nerve/config/prompt-suggestions.json",
               description:
                 "Which prompt suggestions this project turns on or off.",
@@ -202,6 +289,7 @@ export function createSettingsPageControllers(deps: {
         ? [
             {
               id: "permissions",
+              title: "Permission rules",
               path: ".nerve/config/permissions.json",
               description: "Permission rule overrides for this project.",
               status: permissions.status,
@@ -336,6 +424,10 @@ export function createSettingsPageControllers(deps: {
       onEvent("settings.updated", () => void refresh()),
       onEvent("agentProfiles.changed", () => void refresh()),
       onEvent("prompt_suggestions.enabled_updated", () => void refresh()),
+      onEvent("launchCatalog.changed", (event) => {
+        if (event.data?.projectId === targetProjectId())
+          void loadLaunchCatalog();
+      }),
     ];
     return () => {
       stop();
@@ -357,6 +449,18 @@ export function createSettingsPageControllers(deps: {
     },
     launchDefinitions,
     deleteProjectLaunch,
+    get launchDialog() {
+      return launchDialog;
+    },
+    set launchDialog(value) {
+      launchDialog = value;
+    },
+    get launchSaving() {
+      return launchSaving;
+    },
+    openLaunchDialog,
+    launchFolders,
+    saveLaunchDialog,
     trustEntries,
     pageDiffs,
     resetProjectPage,

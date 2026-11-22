@@ -4,7 +4,8 @@ import SettingsChangeIndicator from "$lib/presentation/settings/SettingsChangeIn
 import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
 import EntityRow from "$lib/presentation/settings/EntityRow.svelte";
 import OAuthInteractionPanel from "$lib/presentation/settings/OAuthInteractionPanel.svelte";
-import ColumnLabels from "$lib/presentation/settings/ColumnLabels.svelte";
+import LayerCells from "$lib/presentation/settings/LayerCells.svelte";
+import LayerEnabledTable from "$lib/presentation/settings/LayerEnabledTable.svelte";
 import LayerRow from "$lib/presentation/settings/LayerRow.svelte";
 import LayerSwitches from "$lib/presentation/settings/LayerSwitches.svelte";
 import LevelMenu from "$lib/presentation/settings/LevelMenu.svelte";
@@ -602,6 +603,14 @@ let oauthResponse = $state("");
           description="Select a project to configure overrides."
           icon={CpuIcon}
         />
+        <SettingsSection title="In a divided section" divided>
+          <SettingsEmptyState
+            variant="card"
+            icon={CpuIcon}
+            title="Pads like a row"
+            description="A divided surface has no padding, so the empty state supplies it."
+          />
+        </SettingsSection>
       </div>
     </GallerySpecimen>
   </GalleryGroup>
@@ -868,12 +877,79 @@ let oauthResponse = $state("");
       </OriginGroup>
     </GallerySpecimen>
     <GallerySpecimen
-      title="ColumnLabels"
+      title="ColumnLabels + LayerCells"
       source="presentation/settings/ColumnLabels.svelte"
       layout="stack"
     >
-      <ColumnLabels projectName={layerProject} />
-      <ColumnLabels projectName={layerProject} projectOnly />
+      <p class="text-caption text-muted-foreground">
+        The header row of the list's own card (`SettingsList columns`). Labels
+        and controls share the fixed, centered `LayerCells` columns.
+      </p>
+      <SettingsList
+        ariaLabel="Column labels"
+        columns={{ projectName: layerProject, chevron: true }}
+      >
+        <SettingsItem title="Both layers" summary="Radios in the same cells">
+          {#snippet meta()}
+            <LayerCells projectName={layerProject}>
+              {#snippet user()}<input
+                  type="radio"
+                  checked
+                  aria-label="User"
+                />{/snippet}
+              {#snippet project()}<input
+                  type="radio"
+                  aria-label={layerProject}
+                />{/snippet}
+            </LayerCells>
+          {/snippet}
+        </SettingsItem>
+      </SettingsList>
+      <SettingsList
+        ariaLabel="Project-only column labels"
+        columns={{
+          projectName: layerProject,
+          projectOnly: true,
+          chevron: true,
+        }}
+      >
+        <SettingsItem title="Project-only" summary="The User cell stays empty">
+          {#snippet meta()}
+            <LayerCells projectName={layerProject}>
+              {#snippet project()}<input
+                  type="radio"
+                  checked
+                  aria-label={layerProject}
+                />{/snippet}
+            </LayerCells>
+          {/snippet}
+        </SettingsItem>
+      </SettingsList>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="LayerEnabledTable"
+      source="presentation/settings/LayerEnabledTable.svelte"
+      layout="stack"
+    >
+      <LayerEnabledTable
+        name="core"
+        description="Detail pages put layer switches in a table row under the header, not in the title."
+        projectName={layerProject}
+        user={layered.core.user}
+        project={layered.core.project ?? layered.core.user}
+        projectSet={layered.core.project !== undefined}
+        onChange={(layer, value) =>
+          layer === "user"
+            ? (layered.core.user = value)
+            : (layered.core.project = value)}
+      />
+      <LayerEnabledTable
+        name="core"
+        title="Available"
+        description="Without a project there is only the User column."
+        user={layered.core.user}
+        onChange={(_, value) => (layered.core.user = value)}
+      />
     </GallerySpecimen>
     <GallerySpecimen
       title="LayerRow + SplitColumns"

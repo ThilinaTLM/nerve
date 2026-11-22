@@ -1,7 +1,7 @@
 <!--
-  One origin group: caption (origin icon, name, count) on the left with a hover
-  tooltip saying where the group comes from; the layer column labels on the
-  right, aligned with every row's LayerSwitches. Order groups Project, User,
+  One origin group: caption (origin icon, name, count) above the card with a hover
+  tooltip saying where the group comes from; the card's first row is the layer
+  column labels, aligned with every row's LayerSwitches. Order groups Project, User,
   other sources, Built-in. An empty group is hidden unless `emptyText` is given
   (the user can add to it).
 -->
@@ -13,7 +13,6 @@ import Globe from "@lucide/svelte/icons/globe";
 import Package from "@lucide/svelte/icons/package";
 import type { Snippet } from "svelte";
 import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
-import ColumnLabels from "./ColumnLabels.svelte";
 import HoverTip from "./HoverTip.svelte";
 import { originLabel, originTip, type SettingsOrigin } from "./settings-origin";
 import SettingsEmptyState from "./SettingsEmptyState.svelte";
@@ -77,13 +76,6 @@ const icon = $derived(
         <HoverTip {tip}><GroupLabel {label} {count} {icon} /></HoverTip>
       </div>
       {#if actions}{@render actions()}{/if}
-      {#if layers && count !== 0}
-        <ColumnLabels
-          {chevron}
-          {projectName}
-          projectOnly={origin.kind === "project"}
-        />
-      {/if}
     </div>
     {#if count === 0 && emptyText}
       <SettingsEmptyState
@@ -93,7 +85,12 @@ const icon = $derived(
         actions={emptyAction}
       />
     {:else if list}
-      <SettingsList ariaLabel={label}>
+      <SettingsList
+        ariaLabel={label}
+        columns={layers
+          ? { chevron, projectName, projectOnly: origin.kind === "project" }
+          : undefined}
+      >
         {@render children()}
       </SettingsList>
     {:else}

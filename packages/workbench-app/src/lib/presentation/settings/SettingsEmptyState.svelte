@@ -25,8 +25,12 @@ let {
 <div
   class={cn(
     "flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-ui",
+    // A divided section surface has no padding of its own (its rows pad
+    // themselves), so the empty state pads like a row. Other surfaces already
+    // pad their body, so it sits flush there.
+    "group-data-settings-divided/surface:min-h-14 group-data-settings-divided/surface:px-3",
     variant === "card" &&
-      "rounded-md border border-dashed bg-card px-3 py-2 group-data-settings-surface/surface:border-0 group-data-settings-surface/surface:bg-transparent group-data-settings-surface/surface:px-0",
+      "rounded-md border border-dashed bg-card px-3 py-2 group-data-settings-surface/surface:border-0 group-data-settings-surface/surface:bg-transparent group-not-data-settings-divided/surface:group-data-settings-surface/surface:px-0",
     className,
   )}
 >

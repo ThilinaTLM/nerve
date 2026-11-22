@@ -13,10 +13,15 @@ let {
   document,
   scope,
   onReload,
+  label = "Review configuration",
+  variant = "ghost",
 }: {
   document?: GetAgentConfigurationResult;
   scope?: AgentScope;
   onReload: () => void | Promise<void>;
+  /** The button's label and look; the default is the quiet one used inside a callout. */
+  label?: string;
+  variant?: "ghost" | "outline";
 } = $props();
 let open = $state(false);
 let repairOpen = $state(false);
@@ -55,13 +60,14 @@ async function trust(trusted: boolean) {
 </script>
 <Button
   size="sm"
-  variant="ghost"
-  class="text-muted-foreground"
+  {variant}
+  class={variant === "ghost" ? "text-muted-foreground" : undefined}
   disabled={!targetScope}
   onclick={() => {
     error = undefined;
     open = true;
-  }}><ShieldCheck class="size-3.5" />Review configuration</Button
+  }}
+  >{#if variant === "ghost"}<ShieldCheck class="size-3.5" />{/if}{label}</Button
 >
 <Dialog
   {open}

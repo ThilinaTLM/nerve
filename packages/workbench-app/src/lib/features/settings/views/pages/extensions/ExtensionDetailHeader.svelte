@@ -1,6 +1,8 @@
 <!--
   The page header of an open extension, in the settings page-header slot:
-  `Extensions › [mark] Name`, its description and the enable switch. It
+  `Extensions › [mark] Name`, its description and, with no project open, the
+  enable switch. With one, the User and project switches are an "Enabled" table
+  row under the header (`below`), never in the title row. It
   stays valid while the extension view loads or when the id is unknown, so the
   heading never jumps.
 -->
@@ -9,8 +11,7 @@ import Lock from "@lucide/svelte/icons/lock";
 import type { ExtensionView } from "@nervekit/contracts/extensions";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import {
-  ColumnLabels,
-  LayerSwitches,
+  LayerEnabledTable,
   SettingsPageHeader,
   type SettingsLayer,
 } from "$lib/presentation/settings";
@@ -79,24 +80,7 @@ const source = $derived(extension?.enabled.source);
           />
         </span>
       {/if}
-      {#if layers}
-        <div class="grid justify-items-end gap-0.5">
-          <ColumnLabels
-            projectName={layers.projectName}
-            projectOnly={layers.projectOnly}
-          />
-          <LayerSwitches
-            name={extension.metadata.name}
-            user={layers.user}
-            project={layers.project}
-            projectSet={layers.projectSet}
-            projectName={layers.projectName}
-            projectOnly={layers.projectOnly}
-            locked={layers.locked}
-            onChange={layers.onChange}
-          />
-        </div>
-      {:else}
+      {#if !layers}
         <Switch
           checked={extension.enabled.value}
           disabled={busy || extension.readOnly || source?.locked === true}
@@ -104,6 +88,23 @@ const source = $derived(extension?.enabled.source);
           onCheckedChange={onEnabledChange}
         />
       {/if}
+    {/if}
+  {/snippet}
+  {#snippet below()}
+    {#if extension && layers}
+      <div class="pt-2">
+        <LayerEnabledTable
+          name={extension.metadata.name}
+          description="On for every project, or only here."
+          projectName={layers.projectName}
+          user={layers.user}
+          project={layers.project}
+          projectSet={layers.projectSet}
+          projectOnly={layers.projectOnly}
+          locked={layers.locked}
+          onChange={layers.onChange}
+        />
+      </div>
     {/if}
   {/snippet}
 </SettingsPageHeader>

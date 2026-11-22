@@ -13,7 +13,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import {
-  ColumnLabels,
+  LayerEnabledTable,
   LayerSwitches,
   OriginGroup,
   SettingsEmptyState,
@@ -305,14 +305,23 @@ function copyPath(path: string): void {
       parent={{ label: "Suggestions", onBack: onCloseItem }}
       class="mb-1"
     >
-      {#snippet actions()}
+      {#snippet below()}
         {#if open && !open.stale && !awaitsScriptReview(open)}
-          <div class="ml-2 grid justify-items-end gap-0.5">
-            <ColumnLabels
+          {@const values = suggestionSwitches(open)}
+          <div class="pt-2">
+            <LayerEnabledTable
+              name={`${open.label} prompt suggestion`}
+              description="Offer this suggestion in the composer."
+              user={values.user}
+              project={values.project}
+              projectSet={values.projectSet}
               {projectName}
               projectOnly={open.sourceKind === "project"}
+              {locked}
+              inapplicable={open.overriddenBy === "project" &&
+                open.sourceKind !== "project"}
+              onChange={(layer, next) => void change(open, layer, next)}
             />
-            {@render switches(open)}
           </div>
         {/if}
       {/snippet}

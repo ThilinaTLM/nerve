@@ -29,7 +29,6 @@ import {
   openSettingsPane,
 } from "$lib/application/settings";
 import {
-  ColumnLabels,
   LayerSwitches,
   SettingsItem,
   SettingsList,
@@ -374,16 +373,16 @@ function openPage(page: "tools" | "skills"): void {
       title="Features"
       description="The tools, Quick script namespaces and skills the agent gets when this extension is on."
     >
-      {#if layered}
-        <div class="flex justify-end pr-3">
-          <ColumnLabels
-            chevron
-            {projectName}
-            projectOnly={extension.metadata.source === "project"}
-          />
-        </div>
-      {/if}
-      <SettingsList ariaLabel="Features">
+      <SettingsList
+        ariaLabel="Features"
+        columns={layered
+          ? {
+              chevron: true,
+              projectName,
+              projectOnly: extension.metadata.source === "project",
+            }
+          : undefined}
+      >
         {#each layout.features as row (`${row.kind}:${row.id}`)}
           {@const control = row.control}
           {@const item = control.type === "switch" ? control.item : undefined}
@@ -436,8 +435,8 @@ function openPage(page: "tools" | "skills"): void {
               {:else if control.type === "follows"}
                 <span
                   class={[
-                    layered ? "w-40" : "w-20",
-                    "text-right text-caption text-muted-foreground",
+                    layered ? "w-48 text-center" : "w-20 text-right",
+                    "text-caption text-muted-foreground",
                   ]}>Always on</span
                 >
               {/if}

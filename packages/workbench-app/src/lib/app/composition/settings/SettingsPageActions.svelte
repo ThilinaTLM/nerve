@@ -4,6 +4,7 @@ import type { SettingsPageDef } from "$lib/presentation/settings";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import type { Project } from "@nervekit/contracts/core";
+import Plus from "@lucide/svelte/icons/plus";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import { layeredPageIds } from "$lib/features/settings/registry/settings-pages";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -63,6 +64,14 @@ async function resetAll(): Promise<void> {
       disabled={extensionsPage.busy || !extensionsPage.reload}
       onclick={() => void extensionsPage.run()}
       ><RefreshCw class="size-3.5" />Reload</Button
+    >
+  {:else if page.id === "launch"}
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={!project}
+      onclick={() => controllers.openLaunchDialog()}
+      ><Plus class="size-3.5" />New launch</Button
     >
   {:else if page.id === "agents" || page.id === "sub-agents"}
     <ProfilesPageActions pageId={page.id} />
