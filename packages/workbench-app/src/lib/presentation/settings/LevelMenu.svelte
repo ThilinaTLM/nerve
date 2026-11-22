@@ -1,6 +1,6 @@
 <!--
   An action that applies to a layer (New profile, New suggestion): a plain
-  button without a project, a User / <project> dropdown with one. Lives in the
+  button without a project, a User / Project dropdown with one. Lives in the
   page header's actions.
 -->
 <script lang="ts">
@@ -50,7 +50,7 @@ let {
         >User</DropdownMenu.Item
       >
       <DropdownMenu.Item onSelect={() => onSelect("project")}
-        >{projectName}</DropdownMenu.Item
+        >Project</DropdownMenu.Item
       >
     </DropdownMenu.Content>
   </DropdownMenu.Root>

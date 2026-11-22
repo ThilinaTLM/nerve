@@ -190,7 +190,7 @@ const runDuplicate = (row: AccountRowModel, level: AccountLevel) =>
   );
 
 const levelName = (level: AccountLevel) =>
-  level === "user" ? "user level" : (project?.name ?? "this project");
+  level === "user" ? "user level" : "project level";
 </script>
 
 <SettingsSection id="accounts" surface={false}>

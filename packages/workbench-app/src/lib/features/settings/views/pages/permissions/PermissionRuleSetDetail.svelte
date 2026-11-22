@@ -104,9 +104,7 @@ function trustLabel(): string {
     (trust.status === "untrusted" || trust.status === "invalid")}
   <SettingsSection
     id={`${scope}-overrides`}
-    title={scope === "user"
-      ? "User overrides"
-      : `Project overrides · ${projectName}`}
+    title={scope === "user" ? "User overrides" : "Project overrides"}
   >
     {#snippet actions()}
       {#if scope === "project" && trust.status !== "missing"}

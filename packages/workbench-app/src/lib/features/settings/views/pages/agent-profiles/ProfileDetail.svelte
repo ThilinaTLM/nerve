@@ -382,7 +382,7 @@ async function trust() {
     layout="block"
     tone="warning"
     title="Waiting for your review"
-    text={`This profile comes from ${projectName ?? "the project"}'s files. Nerve uses it only after you trust these exact contents.`}
+    text="This profile comes from this project's files. Nerve uses it only after you trust these exact contents."
   >
     {#snippet actions()}
       <Button
@@ -396,7 +396,7 @@ async function trust() {
 {:else if row.replacedBy}
   <Callout
     layout="block"
-    text={`Replaced by the project copy. Changes here have no effect${projectName ? ` in ${projectName}` : ""}.`}
+    text={`Replaced by the project copy. Changes here have no effect${projectName ? " in this project" : ""}.`}
   >
     {#snippet actions()}
       {#if copy}
@@ -447,7 +447,7 @@ async function trust() {
   <Callout
     layout="block"
     tone="warning"
-    text={`Launches use ${launchOverride.own.model?.modelId ?? "the profile model"}${launchOverride.own.reasoningLevel ? ` · ${launchOverride.own.reasoningLevel}` : ""} from an earlier launch setting${launchOverride.layer === "project" ? ` in ${projectName}` : ""}, which outranks this profile's model.`}
+    text={`Launches use ${launchOverride.own.model?.modelId ?? "the profile model"}${launchOverride.own.reasoningLevel ? ` · ${launchOverride.own.reasoningLevel}` : ""} from an earlier launch setting${launchOverride.layer === "project" ? ` in this project` : ""}, which outranks this profile's model.`}
   >
     {#snippet actions()}
       <Button

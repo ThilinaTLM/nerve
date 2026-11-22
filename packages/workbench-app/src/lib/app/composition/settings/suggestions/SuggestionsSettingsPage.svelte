@@ -178,7 +178,7 @@ function copyPath(path: string): void {
   {#if status.overriddenBy}
     <TipBadge
       text={status.overriddenBy === "project"
-        ? `Replaced in ${projectName ?? "the project"}`
+        ? "Replaced in project"
         : "Replaced by your copy"}
       tip="A suggestion with the same name is used instead of this one."
     />
@@ -210,7 +210,7 @@ function copyPath(path: string): void {
       >{status.sourceKind === "builtin"
         ? "Built-in"
         : status.sourceKind === "project"
-          ? (projectName ?? "Project")
+          ? "Project"
           : "User"}</Badge
     >
     {@render statusBadges(status)}
@@ -268,7 +268,7 @@ function copyPath(path: string): void {
 
 {#snippet notices()}
   {#if locked && projectName}
-    <UntrustedProjectCallout {projectName} onReview={() => onReviewTrust?.()} />
+    <UntrustedProjectCallout onReview={() => onReviewTrust?.()} />
   {/if}
   {#if promptSuggestionsState.error || mutationError}
     <Callout

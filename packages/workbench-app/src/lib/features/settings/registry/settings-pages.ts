@@ -113,9 +113,7 @@ function surfaceLayoutFor(surface: SettingsSurface): NavLayout {
   return surfaceLayout
     .filter((group) => group.id !== "project" || surface.projectName)
     .map((group) =>
-      group.id === "project"
-        ? { ...group, title: surface.projectName ?? group.title }
-        : group,
+      group.id === "project" ? { ...group, title: "Project" } : group,
     );
 }
 

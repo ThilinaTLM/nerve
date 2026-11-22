@@ -537,7 +537,7 @@ const python = $derived(status?.runtime.python);
           >
             <ToggleGroup.Item value="user">User</ToggleGroup.Item>
             <ToggleGroup.Item value="project" disabled={locked}
-              >{projectName}</ToggleGroup.Item
+              >Project</ToggleGroup.Item
             >
           </ToggleGroup.Root>
         </div>

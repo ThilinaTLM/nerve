@@ -193,7 +193,7 @@ async function trustProject(): Promise<void> {
     ruleSetName={editingRuleSet.name}
     scopeLabel={editing.scope === "user"
       ? "User overrides"
-      : `Project overrides · ${projectName ?? "project"}`}
+      : "Project overrides"}
     rule={editing.rule}
     {overlayRules}
     onSave={(rule) => {

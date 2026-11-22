@@ -38,9 +38,7 @@ $effect(() => {
 
 <MobileScreen
   title="Project settings"
-  subtitle={project
-    ? `${project.name} · ${tildePath(project.directory, homeDir)}`
-    : undefined}
+  subtitle={project ? tildePath(project.directory, homeDir) : undefined}
   onBack={backFromMobileScreen}
   backLabel="Back to project"
 >

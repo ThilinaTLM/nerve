@@ -414,7 +414,7 @@ const reasoningConflict = $derived(
       {value}
       ariaLabel={layer === "user"
         ? "Start profile"
-        : `Start profile in ${projectName}`}
+        : `Start profile in this project`}
       onValueChange={(next) => setStartProfile(layer, next)}
     />
   </div>
@@ -423,9 +423,7 @@ const reasoningConflict = $derived(
 {#snippet modelPicker(layer: Layer, v: Display, disabled: boolean)}
   <ModelPicker
     disabled={disabled || states[layer].saving}
-    label={layer === "user"
-      ? "Default model"
-      : `Default model in ${projectName}`}
+    label={layer === "user" ? "Default model" : `Default model in this project`}
     class="w-full"
     models={usableModels}
     value={v.defaults.model}
@@ -448,7 +446,7 @@ const reasoningConflict = $derived(
       placeholder={ruleSetText(v.defaults.permissionRuleSetId)}
       ariaLabel={layer === "user"
         ? "Default permission rule set"
-        : `Default permission rule set in ${projectName}`}
+        : `Default permission rule set in this project`}
       onValueChange={(next) => setPermission(layer, next)}
     />
   </div>
@@ -466,7 +464,7 @@ const reasoningConflict = $derived(
       value={v.compaction.profile}
       ariaLabel={layer === "user"
         ? "Compaction strategy"
-        : `Compaction strategy in ${projectName}`}
+        : `Compaction strategy in this project`}
       onValueChange={(profile) =>
         setCompaction(layer, "strategy", {
           profile: profile as Compaction["profile"],
@@ -488,7 +486,7 @@ const reasoningConflict = $derived(
         value={String(v.compaction.customTriggerPercent)}
         aria-label={layer === "user"
           ? "Compact at percent"
-          : `Compact at percent in ${projectName}`}
+          : `Compact at percent in this project`}
         oninput={(event) => setPercent(layer, event.currentTarget.value)}
       />
       <span class="flex-none text-ui text-muted-foreground">%</span>
@@ -514,7 +512,7 @@ const reasoningConflict = $derived(
           variant="outline"
           onclick={() => prefs[layer].reload()}
           >Reload defaults{layered
-            ? ` (${layer === "user" ? "User" : projectName})`
+            ? ` (${layer === "user" ? "User" : "Project"})`
             : ""}</Button
         ><Button
           size="sm"
@@ -643,7 +641,7 @@ const reasoningConflict = $derived(
       {#snippet project()}<Switch
           disabled={locked || projectState.saving}
           checked={pv.compaction.auto}
-          aria-label={`Auto-compact in ${projectName}`}
+          aria-label="Auto-compact in this project"
           onCheckedChange={(auto) => setCompaction("project", "auto", { auto })}
         />{/snippet}
     </LayerRow>

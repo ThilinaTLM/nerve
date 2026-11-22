@@ -59,7 +59,7 @@ let {
   children,
 }: Props = $props();
 
-const label = $derived(originLabel(origin, projectName));
+const label = $derived(originLabel(origin));
 const tip = $derived(note ?? originTip(origin, projectName));
 const showLabels = $derived(layers && origin.kind !== "project" && count !== 0);
 const icon = $derived(

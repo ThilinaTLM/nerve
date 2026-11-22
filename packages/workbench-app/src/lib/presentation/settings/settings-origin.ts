@@ -13,7 +13,7 @@ export const USER_COLUMN_TIP =
   "Your setting. Applies in every project unless the project sets its own.";
 
 export function projectColumnTip(project: string): string {
-  return `Only in ${project}. Follows User until you change it here.`;
+  return `Project: settings for ${project} only. Follows User until set.`;
 }
 
 /** Why a project column is disabled: its settings file is not trusted yet. */
@@ -21,10 +21,10 @@ export function lockedColumnTip(project: string): string {
   return `Not applied until you review ${project}'s settings file`;
 }
 
-export function originLabel(origin: SettingsOrigin, project?: string): string {
+export function originLabel(origin: SettingsOrigin): string {
   switch (origin.kind) {
     case "project":
-      return project ?? "Project";
+      return "Project";
     case "user":
       return "User";
     case "builtin":

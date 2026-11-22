@@ -54,8 +54,8 @@ const onOff = (value: boolean) => (value ? "on" : "off");
 const effectiveProject = $derived(project ?? user);
 const projectTip = $derived(
   projectSet
-    ? `${projectName}: set here. Switch to ${onOff(user)} to follow User again.`
-    : `${projectName}: follows User (${onOff(user)})`,
+    ? `Project: set here. Switch to ${onOff(user)} to follow User again.`
+    : `Project: follows User (${onOff(user)})`,
 );
 </script>
 
@@ -78,17 +78,13 @@ const projectTip = $derived(
     <!-- Empty: the row explains it. -->
   {:else if locked}
     <HoverTip delay={400} tip={lockedColumnTip(projectName ?? "the project")}>
-      <Switch
-        checked={user}
-        disabled
-        aria-label={`${name} in ${projectName}`}
-      />
+      <Switch checked={user} disabled aria-label={`${name} in this project`} />
     </HoverTip>
   {:else}
     <HoverTip delay={400} tip={projectTip}>
       <Switch
         checked={effectiveProject}
-        aria-label={`${name} in ${projectName}`}
+        aria-label={`${name} in this project`}
         onCheckedChange={(value) => onChange("project", value)}
       />
     </HoverTip>

@@ -309,8 +309,8 @@ function onRetry() {
           {#snippet badges()}
             {#if row.replaced}
               <TipBadge
-                text={`Replaced in ${projectName}`}
-                tip={`${projectName} has its own ${entry.skill.name}; this one is not used there.`}
+                text="Replaced in project"
+                tip={`The project has its own ${entry.skill.name}; this one is not used there.`}
               />
             {/if}
           {/snippet}
@@ -362,7 +362,7 @@ function onRetry() {
           <SettingsItem
             title={orphan.name}
             icon={orphan.kind === "agentBrowser" ? Globe : FolderOpen}
-            summary={`Saved ${orphan.layer === "user" ? "for you" : `in ${projectName}`} as ${orphan.enabled ? "enabled" : "disabled"}; no skill with this name is installed.`}
+            summary={`Saved ${orphan.layer === "user" ? "for you" : "in this project"} as ${orphan.enabled ? "enabled" : "disabled"}; no skill with this name is installed.`}
           >
             {#snippet actions()}
               <IconAction

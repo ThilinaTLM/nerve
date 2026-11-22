@@ -257,7 +257,7 @@ const accounts = $derived(
                 {@render radio(
                   (layers.locked ? layers.userValue : choice?.value) ===
                     account.id,
-                  `Use ${account.name} in ${layers.projectName}`,
+                  `Use ${account.name} in this project`,
                   choice?.disabled === true,
                   () => choice?.onSelect(account.id),
                 )}

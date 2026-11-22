@@ -52,7 +52,7 @@ let {
       >{#if locked}<Lock
           class="size-3 flex-none"
           aria-hidden="true"
-        />{/if}<span class="truncate">{projectName}</span></span
+        />{/if}<span class="truncate">Project</span></span
     >
   </HoverTip>
 {/snippet}

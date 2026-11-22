@@ -135,7 +135,7 @@ function problemOf(row: ProfileRow): string | undefined {
           {#if row.replacedBy}
             <TipBadge
               text="Replaced by the project copy"
-              tip={`${projectName ?? "The project"} has a profile with the same ID, which is used instead of this one there.`}
+              tip="The project has a profile with the same ID, which is used instead of this one there."
             />
           {/if}
         {/snippet}

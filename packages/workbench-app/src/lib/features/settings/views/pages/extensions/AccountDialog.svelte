@@ -98,7 +98,7 @@ const levels = $derived([
     ? [
         {
           value: "project",
-          label: `Only ${project.name}`,
+          label: "Project only",
           detail: "Stored with the project’s settings on this machine",
         },
       ]

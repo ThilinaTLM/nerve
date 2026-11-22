@@ -37,7 +37,7 @@ let {
         >{#if locked}<Lock
             class="size-3 flex-none"
             aria-hidden="true"
-          />{/if}{projectName}</span
+          />{/if}Project</span
       >
     </HoverTip>
   </span>

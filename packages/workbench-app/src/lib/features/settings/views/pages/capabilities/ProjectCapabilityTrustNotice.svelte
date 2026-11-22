@@ -52,7 +52,7 @@ async function trust() {
       />{/snippet}
   </Callout>
 {:else if document?.trusted === false && projectName && onReview}
-  <UntrustedProjectCallout {projectName} {onReview} />
+  <UntrustedProjectCallout {onReview} />
 {:else if document?.trusted === false}
   <Callout
     layout="block"

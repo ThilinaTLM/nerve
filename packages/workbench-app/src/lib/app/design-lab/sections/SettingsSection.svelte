@@ -933,7 +933,7 @@ let oauthResponse = $state("");
                 />{/snippet}
               {#snippet project()}<input
                   type="radio"
-                  aria-label={layerProject}
+                  aria-label="Project"
                 />{/snippet}
             </LayerCells>
           {/snippet}
@@ -949,7 +949,7 @@ let oauthResponse = $state("");
               {#snippet project()}<input
                   type="radio"
                   checked
-                  aria-label={layerProject}
+                  aria-label="Project"
                 />{/snippet}
             </LayerCells>
           {/snippet}
@@ -1031,7 +1031,6 @@ let oauthResponse = $state("");
     >
       <ProjectColumnsToggle
         id="lab-project-columns"
-        projectName={layerProject}
         checked={columnsShown}
         count={layerModelProject !== layerModelUser ? 1 : 0}
         onCheckedChange={(next) => (columnsShown = next)}

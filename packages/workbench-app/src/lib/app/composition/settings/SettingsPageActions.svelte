@@ -49,7 +49,6 @@ const columnPage = $derived(
   {#if project && columnPage}
     <ProjectColumnsToggle
       id={`project-columns-${columnPage}`}
-      projectName={project.name}
       checked={projectColumns[columnPage]}
       count={controllers.projectOverrideCount(columnPage)}
       onCheckedChange={(shown) => setProjectColumn(columnPage, shown)}

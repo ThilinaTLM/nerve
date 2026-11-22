@@ -24,7 +24,7 @@ const file = $derived(extensions.view?.file);
 </script>
 
 {#if file?.trusted === false && projectName && onReview}
-  <UntrustedProjectCallout {projectName} {onReview} />
+  <UntrustedProjectCallout {onReview} />
 {:else if file?.trusted === false}
   <Callout
     layout="block"

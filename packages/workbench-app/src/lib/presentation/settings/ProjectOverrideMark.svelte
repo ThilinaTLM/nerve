@@ -9,9 +9,9 @@ import HoverTip from "./HoverTip.svelte";
 let { projectName }: { projectName: string } = $props();
 </script>
 
-<HoverTip tip={`Overridden in ${projectName}`}>
+<HoverTip tip={`Overridden in this project (${projectName})`}>
   <BriefcaseBusiness
     class="size-3 text-primary"
-    aria-label={`Overridden in ${projectName}`}
+    aria-label="Overridden in this project"
   />
 </HoverTip>
