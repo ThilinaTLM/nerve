@@ -9,6 +9,7 @@ import type {
   SettingField as ApiSettingField,
   SettingsSchema as ApiSettingsSchema,
 } from "@nervekit/extension-api";
+import { loopbackRedirectPathSchema } from "../auth/loopback.js";
 
 /** Where a settings entry can live. Profiles act at conversation scope. */
 export const extensionScopeSchema = z.enum(["user", "project", "conversation"]);
@@ -214,6 +215,7 @@ export const accountOAuth2ProviderSchema = z.strictObject({
   clientIdField: fieldKeySchema.optional(),
   clientSecret: secretNameSchema.optional(),
   authorizationParams: z.record(z.string(), z.string()).optional(),
+  redirectPath: loopbackRedirectPathSchema.optional(),
   userinfo: z
     .strictObject({
       url: endpointSchema,

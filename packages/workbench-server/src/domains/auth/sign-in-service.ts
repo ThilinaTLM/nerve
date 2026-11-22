@@ -13,7 +13,7 @@ import type {
 import { ApplicationError } from "../../core/application-error.js";
 import {
   listenForLoopbackRedirect,
-  type LoopbackExpectation,
+  type LoopbackOptions,
   type LoopbackListener,
 } from "./loopback-listener.js";
 import type { AuthManager } from "./auth-manager.js";
@@ -74,7 +74,7 @@ type OAuthEventPort = {
 export type SignInInteraction = AuthInteraction & {
   signal: AbortSignal;
   /** Listens on 127.0.0.1 for the one redirect of an authorization request; the flow closes it. */
-  listenLoopback(expected: LoopbackExpectation): Promise<LoopbackListener>;
+  listenLoopback(options?: LoopbackOptions): Promise<LoopbackListener>;
 };
 
 /** Account sign-ins end without an answer after this long. */
@@ -412,7 +412,7 @@ export class SignInService {
       signal: flow.abortController.signal,
       prompt: (prompt) => this.handlePrompt(flow, prompt),
       notify: (event) => this.enqueueEvent(flow, event),
-      listenLoopback: (expected) => this.listen(flow, expected),
+      listenLoopback: (options) => this.listen(flow, options ?? {}),
     };
 
     await flow.login(interaction);
@@ -434,10 +434,10 @@ export class SignInService {
   /** A loopback listener the flow owns: closed when the flow ends or is cancelled. */
   private async listen(
     flow: FlowRecord,
-    expected: LoopbackExpectation,
+    options: LoopbackOptions,
   ): Promise<LoopbackListener> {
     const listener = await listenForLoopbackRedirect(
-      expected,
+      options,
       flow.abortController.signal,
     );
     flow.listeners.add(listener);

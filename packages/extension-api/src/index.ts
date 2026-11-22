@@ -52,6 +52,7 @@ export type {
   CredentialHttpRequest,
   CredentialHttpResponse,
   CredentialLoopback,
+  CredentialLoopbackOptions,
   CredentialLoopbackResult,
   CredentialNeedsSignIn,
   CredentialProviderDefinition,

@@ -60,8 +60,12 @@ export type CredentialChoice = {
     label: string;
     description?: string;
 };
+export type CredentialLoopbackOptions = {
+    path?: string;
+};
 export type CredentialLoopback = {
     redirectUri: string;
+    state: string;
     wait(): Promise<CredentialLoopbackResult>;
 };
 export type CredentialLoopbackResult = {
@@ -81,7 +85,7 @@ export type CredentialUi = {
         placeholder?: string;
     }): Promise<string>;
     progress(message: string): void;
-    loopback(state: string): Promise<CredentialLoopback>;
+    loopback(options?: CredentialLoopbackOptions): Promise<CredentialLoopback>;
 };
 export type CredentialResult = {
     state: unknown;
@@ -324,7 +328,7 @@ export declare class ExtensionError extends Error {
 export type { Risk, OperationTarget, OperationAuthorization, ToolAuthorization, Authorization, AuthorizeResult, } from "./authorization.js";
 export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountOAuth2Provider, AccountSecretField, AccountInfo, AccountTestResult, AccountKindData, AccountKind, PlatformUse, } from "./settings.js";
 export type { ArtifactRef, ArtifactInfo, FormPart, HttpRequest, HttpArtifactOptions, HttpResponse, ReportEntry, ImageOptions, ImageRequest, ImageResult, VisionRequest, VisionResult, VisionExplainRequest, TextRequest, TextResult, TextCompleteRequest, ExtensionContext, } from "./types.js";
-export type { CredentialAccount, CredentialApplyContext, CredentialApplyResult, CredentialChoice, CredentialContextBase, CredentialCrypto, CredentialHashAlgorithm, CredentialHttp, CredentialHttpRequest, CredentialHttpResponse, CredentialLoopback, CredentialLoopbackResult, CredentialNeedsSignIn, CredentialProviderDefinition, CredentialRefreshContext, CredentialRefreshResult, CredentialRequest, CredentialRequestBody, CredentialResult, CredentialRevokeContext, CredentialSignAlgorithm, CredentialSignInContext, CredentialUi, } from "./credentials.js";
+export type { CredentialAccount, CredentialApplyContext, CredentialApplyResult, CredentialChoice, CredentialContextBase, CredentialCrypto, CredentialHashAlgorithm, CredentialHttp, CredentialHttpRequest, CredentialHttpResponse, CredentialLoopback, CredentialLoopbackOptions, CredentialLoopbackResult, CredentialNeedsSignIn, CredentialProviderDefinition, CredentialRefreshContext, CredentialRefreshResult, CredentialRequest, CredentialRequestBody, CredentialResult, CredentialRevokeContext, CredentialSignAlgorithm, CredentialSignInContext, CredentialUi, } from "./credentials.js";
 export { defineCredentialProvider } from "./credentials.js";
 export { ExtensionError } from "./errors.js";
 export type { ExtensionErrorCode } from "./errors.js";
@@ -450,6 +454,7 @@ export type AccountOAuth2Provider = {
     clientIdField?: string;
     clientSecret?: string;
     authorizationParams?: Record<string, string>;
+    redirectPath?: string;
     userinfo?: {
         url: string;
         identity: Record<string, string>;
@@ -4205,6 +4210,11 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                     "additionalProperties": {
                       "type": "string"
                     }
+                  },
+                  "redirectPath": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "pattern": "^\\/(?:[A-Za-z0-9._~-]+\\/)*[A-Za-z0-9._~-]*$"
                   },
                   "userinfo": {
                     "type": "object",

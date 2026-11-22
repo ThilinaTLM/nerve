@@ -368,16 +368,15 @@ describe("SignInService for accounts", () => {
     const flow = await manager.startAccount(
       target,
       async (interaction) => {
-        const listener = await interaction.listenLoopback({ state: "s" });
-        redirectUri = listener.redirectUri;
+        const listener = await interaction.listenLoopback();
+        redirectUri = `${listener.redirectUri}?state=${listener.state}`;
         await listener.code;
       },
       async () => {},
     );
     await waitFor(() => redirectUri !== "", "listener");
     assert.equal(
-      (await fetch(`${redirectUri}?state=s&code=x`).catch(() => undefined))
-        ?.status,
+      (await fetch(`${redirectUri}&code=x`).catch(() => undefined))?.status,
       200,
     );
     await waitFor(() => manager.get(flow.flowId).state !== "active", "ended");
@@ -386,8 +385,7 @@ describe("SignInService for accounts", () => {
     const second = await manager.startAccount(
       { ...target, id: "acct-3" },
       async (interaction) => {
-        closedUri = (await interaction.listenLoopback({ state: "s" }))
-          .redirectUri;
+        closedUri = (await interaction.listenLoopback()).redirectUri;
         await new Promise(() => {});
       },
       async () => {},

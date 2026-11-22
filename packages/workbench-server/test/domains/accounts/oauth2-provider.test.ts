@@ -93,8 +93,8 @@ function interactionStub(options: {
       events.push(event);
       if (event.type === "auth_url") void options.browser?.(new URL(event.url));
     },
-    listenLoopback: (expected) =>
-      listenForLoopbackRedirect(expected, controller.signal),
+    listenLoopback: (options) =>
+      listenForLoopbackRedirect(options ?? {}, controller.signal),
   };
   return { interaction, events, controller };
 }
@@ -141,6 +141,7 @@ describe("oauth2 provider", () => {
         challenge = url.searchParams.get("code_challenge")!;
         const redirect = new URL(url.searchParams.get("redirect_uri")!);
         assert.equal(redirect.hostname, "127.0.0.1");
+        assert.equal(redirect.pathname, "/callback");
         // The wrong state is refused and does not end the sign-in.
         const bad = await fetch(`${redirect}?code=evil&state=nope`);
         assert.equal(bad.status, 400);
@@ -168,15 +169,16 @@ describe("oauth2 provider", () => {
     assert.equal(exchange.get("client_id"), "shipped-id");
   });
 
-  it("the client id is an account field; the author's default applies only while it is empty", async () => {
+  it("the client id is an account field; the author's default applies only while it is empty; redirectPath sets the redirect path", async () => {
     const fake = await service();
     closers.push(fake.close);
     fake.answers["/token"] = () => ({ json: { access_token: "t" } });
-    const kind = kindFor(fake.base);
+    const kind = kindFor(fake.base, { redirectPath: "/oauth/callback" });
     const { interaction } = interactionStub({
       browser: async (url) => {
         assert.equal(url.searchParams.get("client_id"), "mine");
         const redirect = url.searchParams.get("redirect_uri")!;
+        assert.equal(new URL(redirect).pathname, "/oauth/callback");
         await fetch(
           `${redirect}?code=c&state=${url.searchParams.get("state")}`,
         );

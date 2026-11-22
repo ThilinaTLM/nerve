@@ -363,8 +363,9 @@ export function createOAuth2Provider(
       throw new Error("The authorization endpoint is not known.");
     const config = configOf(account);
     const verifier = base64Url(randomBytes(32));
-    const state = base64Url(randomBytes(16));
-    const listener = await interaction.listenLoopback({ state });
+    const listener = await interaction.listenLoopback(
+      config.redirectPath ? { path: config.redirectPath } : {},
+    );
     const url = new URL(endpoints.authorization);
     for (const [key, value] of Object.entries({
       ...config.authorizationParams,
@@ -372,7 +373,7 @@ export function createOAuth2Provider(
       client_id: clientIdOf(account),
       redirect_uri: listener.redirectUri,
       ...(config.scopes?.length ? { scope: config.scopes.join(" ") } : {}),
-      state,
+      state: listener.state,
       code_challenge: base64Url(createHash("sha256").update(verifier).digest()),
       code_challenge_method: "S256",
     }))

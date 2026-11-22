@@ -295,6 +295,8 @@ export type AccountOAuth2Provider = {
   clientSecret?: string;
   /** Extra query parameters of the authorization request (`{ access_type: "offline" }`). */
   authorizationParams?: Record<string, string>;
+  /** Path of the loopback redirect URI (`http://127.0.0.1:<port><path>`) for services that accept only certain paths, e.g. `/oauth/callback`. Default `/callback`. */
+  redirectPath?: string;
   /** Identity of the account, read after sign-in: `identity` maps a name to a dotted path in the JSON the URL returns. */
   userinfo?: {
     /** The userinfo endpoint, called with the access token (`{<field>}` templates work). */

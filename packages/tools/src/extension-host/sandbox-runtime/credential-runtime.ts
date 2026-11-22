@@ -148,10 +148,11 @@ function buildContext(payload: Envelope, invocation: number): any {
           askText: (message: string, options?: unknown) =>
             call("ui.askText", message, options),
           progress: (message: string) => notify("ui.progress", message),
-          loopback: async (state: string) => {
-            const listener = await call("ui.loopback", state);
+          loopback: async (options?: unknown) => {
+            const listener = await call("ui.loopback", options);
             return {
               redirectUri: listener.redirectUri as string,
+              state: listener.state as string,
               wait: () => call("ui.loopback.wait", listener.id),
             };
           },

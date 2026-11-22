@@ -1,10 +1,13 @@
+import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
+import {
+  LOOPBACK_REDIRECT_PATH_RULE,
+  loopbackRedirectPathSchema,
+} from "@nervekit/contracts/auth";
 
-/** What one authorization redirect must carry. */
-export type LoopbackExpectation = {
-  /** The `state` parameter the authorization request carried. */
-  state: string;
-  /** Path of the redirect URI. Default `/callback`. */
+/** How to listen for one authorization redirect. */
+export type LoopbackOptions = {
+  /** Path of the redirect URI; see `loopbackRedirectPathSchema`. Default `/callback`. */
   path?: string;
 };
 
@@ -12,6 +15,8 @@ export type LoopbackExpectation = {
 export type LoopbackListener = {
   /** The `redirect_uri` to send with the authorization request. */
   redirectUri: string;
+  /** The `state` to send with the authorization request; a redirect without it is refused. */
+  state: string;
   /** The authorization code; rejects with the service's error, or when closed first. */
   code: Promise<string>;
   close(): void;
@@ -21,14 +26,20 @@ const PAGE = (message: string) =>
   `<!doctype html><meta charset="utf-8"><title>Nerve</title><body style="font-family:system-ui;margin:3rem"><p>${message}</p>`;
 
 /**
- * Listens for one request to the redirect path. A request with the wrong `state` is refused and
- * the listener keeps waiting; one with `error`, or the code, ends it. `signal` closes it.
+ * Listens for one request to the redirect path. A request without the listener's random `state` is
+ * refused and the listener keeps waiting; one with `error`, or the code, ends it. `signal` closes it.
  */
 export async function listenForLoopbackRedirect(
-  expected: LoopbackExpectation,
+  options: LoopbackOptions,
   signal?: AbortSignal,
 ): Promise<LoopbackListener> {
-  const path = expected.path ?? "/callback";
+  const path = options.path ?? "/callback";
+  // A path the browser would normalize or encode never matches `url.pathname`: the sign-in would hang.
+  if (!loopbackRedirectPathSchema.safeParse(path).success)
+    throw new Error(
+      `The redirect path must be ${LOOPBACK_REDIRECT_PATH_RULE}; got ${JSON.stringify(path.slice(0, 200))}.`,
+    );
+  const state = randomBytes(16).toString("base64url");
   let settle!: { resolve(code: string): void; reject(error: Error): void };
   const code = new Promise<string>((resolve, reject) => {
     settle = { resolve, reject };
@@ -50,7 +61,7 @@ export async function listenForLoopbackRedirect(
     };
     if (request.method !== "GET" || url.pathname !== path)
       return reply(404, "Not found.");
-    if (url.searchParams.get("state") !== expected.state)
+    if (url.searchParams.get("state") !== state)
       return reply(
         400,
         "This sign-in link does not belong to the active sign-in.",
@@ -81,6 +92,7 @@ export async function listenForLoopbackRedirect(
   signal?.addEventListener("abort", close, { once: true });
   return {
     redirectUri: `http://127.0.0.1:${address.port}${path}`,
+    state,
     code,
     close,
   };
