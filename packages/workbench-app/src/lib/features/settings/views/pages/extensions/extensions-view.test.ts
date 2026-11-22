@@ -329,6 +329,11 @@ describe("schema to controls", () => {
       "select",
     );
     assert.equal(controlFor({ type: "model", label: "m" }), "model");
+    assert.equal(controlFor({ type: "agentProfile", label: "p" }), "profile");
+    assert.equal(
+      controlFor({ type: "permissionRuleSet", label: "r" }),
+      "permission",
+    );
   });
 
   it("groups visible fields by section and splits advanced ones", () => {

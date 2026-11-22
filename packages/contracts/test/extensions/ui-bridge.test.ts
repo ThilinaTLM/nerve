@@ -80,7 +80,7 @@ test("methods are limited by contribution kind and edit mode", () => {
     true,
   );
   assert.equal(isBridgeMethodAllowed("call", { kind: "panel" }), true);
-  assert.equal(bridgeMethodNames.length, 21);
+  assert.equal(bridgeMethodNames.length, 22);
 });
 
 test("requests are validated against the method", () => {

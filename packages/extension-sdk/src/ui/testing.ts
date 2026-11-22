@@ -67,7 +67,7 @@ export type FakeBridgeOptions = {
     /** Default `"/project"`. */
     directory?: string;
   };
-  /** Whether the frame has a recent user gesture; default `true`. `false`: `host.clipboard.*` rejects `not_allowed`, as the host does outside a click. */
+  /** Whether the frame has a recent user gesture; default `true`. `false`: `host.clipboard.*` and `host.conversations.start` reject `not_allowed`, as the host does outside a click. */
   userActivation?: boolean;
   /** Initial content of `host.extensionStore`, by key (each starts at revision 1). */
   store?: Record<string, BridgeJson>;
@@ -116,6 +116,13 @@ export type FakeBridge = {
   };
   /** Texts the frame appended to the composer (`host.composer.insert`). */
   composerText: string[];
+  /** Calls of `host.conversations.start` the fake accepted, in order, with the id it answered. Refused calls (no user gesture) are not recorded. */
+  startedConversations: {
+    /** The id the fake answered with (`conv_test_1`, `conv_test_2`, …). */
+    conversationId: string;
+    /** The options the frame passed (`prompt`, `title`, `send`, …). */
+    options: Record<string, BridgeJson>;
+  }[];
   /** Current `viewState`; the frame's `viewState.set` writes it. */
   viewState: BridgeJson | null;
   /** What the frame copied with `host.clipboard`, in order: `text` for `writeText`, `image` (decoded bytes and media type) for `writeImage`. Refused writes are not recorded. */
@@ -242,6 +249,7 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
     opened: { files: [], pages: [] },
     composerText: [],
     clipboard: [],
+    startedConversations: [],
     store: new Map(
       Object.entries(options.store ?? {}).map(([key, value]) => [
         key,
@@ -411,6 +419,20 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
               },
         );
         return reply({});
+      }
+      case "conversations.start": {
+        if (options.userActivation === false)
+          return fail(
+            id,
+            "not_allowed",
+            "A conversation can be started only right after a user gesture (a click or key press) in the frame.",
+          );
+        const conversationId = `conv_test_${bridge.startedConversations.length + 1}`;
+        bridge.startedConversations.push({
+          conversationId,
+          options: params as Record<string, BridgeJson>,
+        });
+        return reply({ conversationId });
       }
       case "extensionStore.get": {
         const entry = bridge.store.get(params["key"]);

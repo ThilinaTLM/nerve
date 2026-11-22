@@ -272,7 +272,11 @@ export function isMethodTool(
 }
 
 /** A host capability an extension may use: image generation or image explanation. Declare it in `permissions.capabilities`. */
-export type Capability = "models.image" | "models.vision";
+export type Capability =
+  | "models.image"
+  | "models.vision"
+  | "models.text"
+  | "conversations.start";
 
 /** What the extension may reach. The user sees it as one line per grant before allowing the extension. */
 export type ExtensionPermissions = {
@@ -285,7 +289,7 @@ export type ExtensionPermissions = {
    * List each origin by name; use `*` only for a tool that must reach arbitrary sites.
    */
   network?: string[];
-  /** Host capabilities: `models.image` → `ctx.models.image`, `models.vision` → `ctx.models.vision`. */
+  /** Host capabilities: `models.image` → `ctx.models.image`, `models.vision` → `ctx.models.vision`, `models.text` → `ctx.models.text`. */
   capabilities?: Capability[];
 };
 

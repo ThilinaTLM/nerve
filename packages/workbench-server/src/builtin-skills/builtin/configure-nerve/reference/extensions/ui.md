@@ -25,6 +25,7 @@ A frame has no network and no direct file access. Everything goes through `host`
 - Fetch remote data through a backend method with `host.call`.
 - Hidden tabs and panels unload their frame, so save what must survive ("Keeping state" below).
 - Copy with `host.clipboard.writeText` / `writeImage` from a click handler; outside one the host refuses with `not_allowed`.
+- Start a conversation with `host.conversations.start({ prompt, title?, model?, agentProfile?, permissionRuleSet?, send?, open? })` from a click handler. Declare `permissions.capabilities: ["conversations.start"]`; `model`, `agentProfile` and `permissionRuleSet` name this extension's own settings of that type (unset: Nerve's default). `send: false` leaves the prompt unsent in the new conversation's composer.
 - Bytes travel as base64, so prefer text methods and range reads for large files.
 
 ## Keeping state

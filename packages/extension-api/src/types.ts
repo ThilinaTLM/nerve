@@ -191,7 +191,7 @@ export type ImageResult = {
 
 /**
  * An image explained by the vision model the extension's settings select
- * (`model` and `thinkingLevel` fields): the host reads them, so a caller
+ * (a `model` field with `reasoning`): the host reads them, so a caller
  * cannot pick another model.
  */
 export type VisionRequest = {
@@ -224,6 +224,51 @@ export type VisionExplainRequest = {
   image: Uint8Array;
   /** What to focus on. */
   prompt?: string;
+  /** Host-internal: the host wires the request's `progress` sections to this. */
+  onDelta?: (update: { kind: "thinking" | "text"; delta: string }) => void;
+  /** Cancellation of the run. */
+  signal?: AbortSignal;
+};
+
+/** A direct model call without tools or an agent loop (`ctx.models.text`). */
+export type TextRequest = {
+  /** Key of a `model` setting of this extension; absent: Nerve's default model and reasoning level for the project. */
+  model?: string;
+  /** Instructions for the model. */
+  system?: string;
+  /** The user message. */
+  prompt: string;
+  /** Upper bound on the answer's length in tokens. */
+  maxTokens?: number;
+  /** Live sections of the running direct tool the model's thinking and text stream into (same as `VisionRequest.progress`). */
+  progress?: {
+    /** Section id that receives the model's reasoning. */
+    thinking?: string;
+    /** Section id that receives the answer as it is written. */
+    text?: string;
+  };
+};
+
+/** What `ctx.models.text.complete` returns. */
+export type TextResult = {
+  /** The model's answer. */
+  text: string;
+  /** Model that wrote it (`provider/modelId`). */
+  model: string;
+};
+
+/** `TextRequest` as the host receives it. Host-internal; extensions use `TextRequest`. */
+export type TextCompleteRequest = {
+  /** Id of the calling extension. */
+  extensionId: string;
+  /** Value of the named `model` setting; absent: the project's default model. */
+  selection?: unknown;
+  /** Instructions for the model. */
+  system?: string;
+  /** The user message. */
+  prompt: string;
+  /** Upper bound on the answer's length in tokens. */
+  maxTokens?: number;
   /** Host-internal: the host wires the request's `progress` sections to this. */
   onDelta?: (update: { kind: "thinking" | "text"; delta: string }) => void;
   /** Cancellation of the run. */
@@ -365,7 +410,7 @@ export interface ExtensionContext {
     note(text: string): void;
   };
 
-  /** Model services; each exists only when the manifest's `permissions.capabilities` lists it (`models.image`, `models.vision`). */
+  /** Model services; each exists only when the manifest's `permissions.capabilities` lists it (`models.image`, `models.vision`, `models.text`). */
   models: {
     /** Image generation (`models.image`); options come from the extension's settings. */
     image?: {
@@ -378,6 +423,13 @@ export interface ExtensionContext {
       explain(request: VisionRequest): Promise<VisionResult>;
       /** Whether the selected model resolves, with credentials, and accepts images. Use it in `availability`. */
       ready(): Promise<boolean>;
+    };
+    /** Direct text completion (`models.text`): no tools, no agent loop. */
+    text?: {
+      /** Asks the model once; streams into the sections `request.progress` names. Rejects with BAD_REQUEST when `request.model` is not a `model` setting of this extension. */
+      complete(request: TextRequest): Promise<TextResult>;
+      /** Whether the model resolves with credentials. Use it in `availability`. */
+      ready(request?: { model?: string }): Promise<boolean>;
     };
   };
 

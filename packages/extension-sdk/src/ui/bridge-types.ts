@@ -241,6 +241,19 @@ type Methods = {
     params: { dataBase64: string; mediaType: ClipboardImageType };
     result: Record<string, never>;
   };
+  /** Starts a conversation in the open project. Needs `"conversations.start"` in `permissions.capabilities` and a user click in the frame, else `not_allowed`. */
+  "conversations.start": {
+    params: {
+      prompt: string;
+      title?: string | undefined;
+      model?: string | undefined;
+      agentProfile?: string | undefined;
+      permissionRuleSet?: string | undefined;
+      send?: boolean | undefined;
+      open?: boolean | undefined;
+    };
+    result: { conversationId: string };
+  };
   /** One value of the extension's store; `value` and `revision` are `null` when the key does not exist. */
   "extensionStore.get": {
     params: { key: string };

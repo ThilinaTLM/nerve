@@ -8,6 +8,7 @@ import {
   settingsSchemaSchema,
 } from "./settings-schema.js";
 import { extensionToolViewSchema } from "./tool-display.js";
+import { uiContributionIdSchema } from "./ui-contribution-id.js";
 
 /*
  * `dist/manifest.json` of an installed extension: the plain-data part of its definition
@@ -119,12 +120,6 @@ export const extensionUiLimits = {
   maxExtensionsPerPreview: 32,
   maxExtensionLength: 32,
 } as const;
-
-/** Id of a preview, page, panel or theme: kebab-case, unique within its kind. */
-export const uiContributionIdSchema = z
-  .string()
-  .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, "must be kebab-case")
-  .max(64);
 
 const uiLabelSchema = z
   .string()

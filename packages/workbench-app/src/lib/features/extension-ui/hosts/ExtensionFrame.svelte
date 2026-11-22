@@ -346,12 +346,38 @@ async function serverRequest(
       "not_allowed",
       "The file can only be written in edit mode",
     );
+  // Like copying: starting a conversation needs the user's click to still be active.
+  if (method === "conversations.start" && !navigator.userActivation?.isActive)
+    throw new HostFailure(
+      "not_allowed",
+      "Start a conversation only in response to a click",
+    );
   const result = await requestExtensionUiMethod(
     method as Parameters<typeof requestExtensionUiMethod>[0],
     scope,
     params,
     storeOrigin,
   );
+  if (method === "conversations.start") {
+    const start = params as BridgeParams<"conversations.start">;
+    try {
+      await extensionHostActions().conversationStarted(
+        projectId,
+        (result as BridgeResult<"conversations.start">).conversationId,
+        {
+          open: start.open !== false,
+          ...(start.send === false ? { draft: start.prompt } : {}),
+        },
+      );
+    } catch (error) {
+      // The conversation exists; the frame still gets its id.
+      notify.error(
+        error instanceof Error
+          ? error.message
+          : "The conversation could not be opened",
+      );
+    }
+  }
   if (method === "file.write") {
     const size = (result as BridgeResult<"file.write">).size;
     void refreshKnownStat();

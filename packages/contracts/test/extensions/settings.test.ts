@@ -6,6 +6,7 @@ import {
   accountEffectiveAuth,
   accountKindSchema,
   fieldValue,
+  settingFieldSchema,
   resolveExtensions,
   upgradeEntry,
   type ExtensionSettingsDefinition,
@@ -80,6 +81,56 @@ describe("settings validator", () => {
   it("rejects URLs with credentials or queries", () => {
     assert.equal(validate({ site: "https://u:p@x.example/" }).issues.length, 1);
     assert.equal(validate({ site: "https://x.example/?a=1" }).issues.length, 1);
+  });
+});
+
+describe("model, agent profile and permission rule set fields", () => {
+  const validate = compileSettingsValidator({
+    fields: {
+      plain: { type: "model", label: "Plain" },
+      deep: { type: "model", label: "Deep", reasoning: true },
+      profile: { type: "agentProfile", label: "Profile" },
+      rules: { type: "permissionRuleSet", label: "Rules" },
+    },
+  });
+  const model = { provider: "p", modelId: "m" };
+  it("accepts a reasoning level only on a field with `reasoning`", () => {
+    const ok = validate({
+      plain: model,
+      deep: { ...model, reasoningLevel: "high" },
+    });
+    assert.deepEqual(ok.issues, []);
+    assert.deepEqual(ok.value.deep, { ...model, reasoningLevel: "high" });
+    const bad = validate({
+      plain: { ...model, reasoningLevel: "high" },
+      deep: { ...model, reasoningLevel: "loud" },
+    });
+    assert.deepEqual(
+      bad.issues.map((issue) => issue.field),
+      ["plain", "deep"],
+    );
+  });
+  it("takes a profile name and a rule set id", () => {
+    const ok = validate({ profile: " coder ", rules: "read_only" });
+    assert.deepEqual(ok.value, { profile: "coder", rules: "read_only" });
+    assert.equal(validate({ profile: "", rules: 3 }).issues.length, 2);
+  });
+  it("allows no default for a profile or a rule set, and neither in an account kind", () => {
+    for (const type of ["agentProfile", "permissionRuleSet"]) {
+      assert.equal(
+        settingFieldSchema.safeParse({ type, label: "X", default: "a" })
+          .success,
+        false,
+      );
+      const result = accountKindSchema.safeParse({
+        kind: "demo",
+        label: "Demo",
+        secret: { label: "Key" },
+        fields: { x: { type, label: "X" } },
+      });
+      assert.equal(result.success, false);
+      assert.match(result.error!.issues[0]!.message, /cannot have/);
+    }
   });
 });
 

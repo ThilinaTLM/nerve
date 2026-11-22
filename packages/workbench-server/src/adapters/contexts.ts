@@ -4,6 +4,7 @@ import type {
   ConversationCore,
 } from "@nervekit/conversation-core";
 import type { VisionHost } from "../core-host/vision-models.js";
+import type { TextHost } from "../core-host/text-models.js";
 import type { GitOperationService, GitService } from "@nervekit/tools/git";
 import type { UnreadableConversationActivity } from "../domains/activity/unreadable-conversation-activity.js";
 import type { UnifiedCompletionService } from "../domains/completions/unified-completion-service.js";
@@ -100,6 +101,8 @@ export interface AdapterServices {
   extensionSettings: ExtensionSettingsService;
   /** The vision model behind extensions' `ctx.models.vision`. */
   vision: VisionHost;
+  /** The text model behind extensions' `ctx.models.text`. */
+  text: TextHost;
   configurationOperations: ReturnType<typeof agentConfigurationOperations>;
   admissionPolicy: ScopedPermissionPolicySource;
   configurationResources: ConfigurationResourceRegistry;
@@ -140,6 +143,7 @@ export function createServerAdapterContexts(
       services.conversationCore.projects.get(projectId)?.directory,
     accounts: services.accounts,
     vision: services.vision,
+    text: services.text,
     extensionStore: services.extensionStore,
   });
   const extensionUi = new ExtensionUiService({
@@ -147,7 +151,24 @@ export function createServerAdapterContexts(
     extensions: services.extensionSettings,
     accounts: services.accounts,
     vision: services.vision,
+    text: services.text,
     store: services.extensionStore,
+    conversations: {
+      create: (input) => services.conversationCore.createConversation(input),
+      submit: (input) => void services.conversationCore.submitInput(input),
+      profile: async (projectId, name) => {
+        const lookup = await services.agentConfiguration.profiles.get(
+          name,
+          projectId,
+        );
+        return lookup.status === "available"
+          ? {
+              digest: lookup.digest,
+              leadUsable: lookup.definition.usableBy !== "subagent",
+            }
+          : undefined;
+      },
+    },
     errors: services.extensionCatalog.errors,
     project: (id) => services.conversationCore.projects.get(id) ?? undefined,
     warn: (message, data) =>

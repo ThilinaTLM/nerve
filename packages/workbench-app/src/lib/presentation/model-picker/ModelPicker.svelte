@@ -60,6 +60,8 @@ type Props = {
   onInherit?: () => void;
   /** Optional independent reasoning editor, including an unset/inherited level. */
   onThinkingChange?: (level: ThinkingLevel | undefined) => void;
+  /** Name of the unset reasoning choice that `onThinkingChange` offers. */
+  unsetReasoningLabel?: string;
   isModelCompatible?: (model: ModelInfo) => boolean;
 };
 
@@ -82,6 +84,7 @@ let {
   inherit = false,
   onInherit,
   onThinkingChange,
+  unsetReasoningLabel,
   isModelCompatible = () => true,
 }: Props = $props();
 
@@ -233,6 +236,7 @@ function handleOpenChange(next: boolean): void {
     {inherit}
     {onInherit}
     {onThinkingChange}
+    {unsetReasoningLabel}
     {isModelCompatible}
     onChoose={() => {
       open = false;

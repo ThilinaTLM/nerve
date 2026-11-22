@@ -38,6 +38,7 @@ void test("the extension is off by default and asks for a vision model; its tool
   assert.deepEqual(imageExplanationExtension.settings.fields.model, {
     type: "model",
     capability: "vision",
+    reasoning: true,
     label: "Model",
     description: "The image-capable model that explains images.",
   });
@@ -93,4 +94,16 @@ void test("without a usable model the tool is unavailable and a call says how to
       return true;
     },
   );
+});
+
+void test("settings v2 folds the old thinkingLevel into the model's reasoningLevel", () => {
+  const fold = imageExplanationExtension.settings.migrations![2]!;
+  const model = { provider: "p", modelId: "m" };
+  assert.equal(imageExplanationExtension.settings.version, 2);
+  assert.deepEqual(fold({ model, thinkingLevel: "high" }), {
+    model: { ...model, reasoningLevel: "high" },
+  });
+  assert.deepEqual(fold({ model }), { model });
+  // A level without a model at that scope has nothing to attach to.
+  assert.deepEqual(fold({ thinkingLevel: "low" }), {});
 });

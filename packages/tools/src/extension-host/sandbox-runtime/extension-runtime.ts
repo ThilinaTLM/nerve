@@ -89,7 +89,7 @@ type Envelope = {
   op: string;
   token: string;
   settings: Record<string, unknown>;
-  models: { image: boolean; vision: boolean };
+  models: { image: boolean; vision: boolean; text: boolean };
   [field: string]: unknown;
 };
 
@@ -165,6 +165,14 @@ function buildContext(
             vision: {
               explain: (request) => call("models.vision.explain", request),
               ready: () => call("models.vision.ready"),
+            },
+          }
+        : {}),
+      ...(payload.models.text
+        ? {
+            text: {
+              complete: (request) => call("models.text.complete", request),
+              ready: (request) => call("models.text.ready", request),
             },
           }
         : {}),

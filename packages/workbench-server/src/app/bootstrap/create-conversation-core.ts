@@ -70,7 +70,7 @@ import {
 } from "@nervekit/tools/quick-script";
 import { listAvailableSkills } from "../../core-host/resources/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
-import { createVisionHost } from "../../core-host/vision-models.js";
+import { createModelHosts } from "../../core-host/text-models.js";
 import { createPermissionPort } from "../../core-host/permissions/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
 import { createToolHostPort } from "../../core-host/tool-host.adapter.js";
@@ -131,10 +131,10 @@ export function createConversationCore(
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(deps.auth),
   ]);
-  const vision = createVisionHost({
-    resolve: async (selection, configuration) =>
-      await models.resolve(selection, configuration),
+  const { vision, text } = createModelHosts({
+    models,
     configuration: () => deps.storage.configuration.providers,
+    agents: () => agentConfiguration,
   });
   const launchTool = new LaunchTool({
     ...launchServices,
@@ -280,6 +280,7 @@ export function createConversationCore(
           accounts,
           generateImage: (request) => imageGeneration.generate(request),
           vision,
+          text,
           store: deps.extensionStore,
           projectId: resources.projectId,
           warn: (extensionId, message, data) =>
@@ -298,6 +299,7 @@ export function createConversationCore(
           accounts,
           vision,
           { store: deps.extensionStore, projectId: resources.projectId },
+          text,
         );
         if (input.toolName === "python_exec" && (!python || !python.available))
           throw new ToolExecutionError(
@@ -628,6 +630,7 @@ export function createConversationCore(
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
       registry: (projectDir) => extensionCatalog.registryFor(projectDir),
       vision,
+      text,
       extensionStore: deps.extensionStore,
       extensions: async (id, projectId) => ({
         resolution: await conversationExtensionSettings(id, projectId),
@@ -785,6 +788,7 @@ export function createConversationCore(
     agentConfiguration,
     extensionSettings,
     vision,
+    text,
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,

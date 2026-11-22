@@ -10,6 +10,7 @@ import {
 } from "@nervekit/contracts/extensions";
 import type { ExtensionState } from "@nervekit/tools/extension-host";
 import type { VisionHost } from "../vision-models.js";
+import type { TextHost } from "../text-models.js";
 import type { ExtensionStore } from "./extension-store/extension-store.js";
 
 /** What the resolved settings say about each extension: its switch and field values. */
@@ -68,12 +69,13 @@ export function createExtensionPorts(input: {
   accounts: AccountsReader;
   generateImage?: ExtensionHostPorts["generateImage"];
   vision?: VisionHost;
+  text?: TextHost;
   store?: ExtensionStore | undefined;
   projectId?: string | undefined;
   warn?: (extensionId: string, message: string, data?: unknown) => void;
 }): ExtensionHostPorts {
   const states = extensionStates(input.resolution);
-  const { vision } = input;
+  const { vision, text } = input;
   return {
     settings: (id) => states(id)?.settings ?? {},
     accounts: resolvedAccounts(input.resolution, input.accounts),
@@ -90,6 +92,14 @@ export function createExtensionPorts(input: {
             await vision.explain(states(extensionId)?.settings ?? {}, request),
           visionReady: async (extensionId) =>
             await vision.ready(states(extensionId)?.settings ?? {}),
+        }
+      : {}),
+    ...(text
+      ? {
+          completeText: async (request) =>
+            await text.complete({ ...request, projectId: input.projectId }),
+          textReady: async ({ selection }) =>
+            await text.ready({ selection, projectId: input.projectId }),
         }
       : {}),
     ...(input.store && input.projectId

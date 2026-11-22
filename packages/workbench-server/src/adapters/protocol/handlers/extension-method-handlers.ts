@@ -55,6 +55,8 @@ export const extensionMethodHandlers = define({
     state.extensionUi.bridge("project.info", input),
   "extensions.ui.call": (state, input) =>
     state.extensionUi.bridge("call", input),
+  "extensions.ui.conversations.start": (state, input) =>
+    state.extensionUi.bridge("conversations.start", input),
   "extensions.ui.extensionStore.get": (state, input) =>
     state.extensionUi.bridge("extensionStore.get", input),
   "extensions.ui.extensionStore.set": (state, input) =>

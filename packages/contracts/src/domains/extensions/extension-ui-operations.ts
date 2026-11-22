@@ -4,8 +4,8 @@ import { extensionIdSchema } from "./settings-schema.js";
 import {
   previewEditModeSchema,
   previewFileExtensionSchema,
-  uiContributionIdSchema,
 } from "./installed-manifest.js";
+import { uiContributionIdSchema } from "./ui-contribution-id.js";
 import {
   bridgeContributionKindSchema,
   bridgeFrameErrorSchema,
@@ -18,7 +18,7 @@ import { themeFileSchema } from "./theme-file.js";
  * What the workbench app asks of the daemon for installed-extension UI. Only the signed-in
  * user's app sends these; no agent tool, `quick_script` namespace or extension port exposes
  * them. Methods that are pure host UI (dialogs, menus, notifications, openFile, openPage,
- * composer.insert, viewState, mode, clipboard) never reach the server.
+ * composer.insert, viewState, mode, clipboard; `conversations.start` reaches the server after the app's gesture check) never reach the server.
  */
 
 /** Bridge methods the daemon answers: everything that needs files, settings, the project or the backend. */
@@ -29,6 +29,7 @@ export const serverBridgeMethods = [
   "settings.get",
   "project.info",
   "call",
+  "conversations.start",
   "extensionStore.get",
   "extensionStore.set",
   "extensionStore.delete",
@@ -159,6 +160,7 @@ export const extensionUiOperationDefinitions = [
   uiOperation("settings.get", "read"),
   uiOperation("project.info", "read"),
   uiOperation("call", "mutation"),
+  uiOperation("conversations.start", "mutation"),
   uiOperation("extensionStore.get", "read"),
   uiOperation("extensionStore.set", "mutation"),
   uiOperation("extensionStore.delete", "mutation"),

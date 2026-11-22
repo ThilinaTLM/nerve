@@ -5,16 +5,6 @@ import {
 } from "@nervekit/extension-api";
 import { nonEmptyString } from "@nervekit/extension-api/host";
 
-export const THINKING_LEVELS = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-] as const;
-
 export const EXPLAIN_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 
 const FIX =

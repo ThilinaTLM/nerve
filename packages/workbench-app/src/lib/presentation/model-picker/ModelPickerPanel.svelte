@@ -72,6 +72,8 @@ type Props = {
   onInherit?: () => void;
   /** Optional independent reasoning editor, including an unset/inherited level. */
   onThinkingChange?: (level: ThinkingLevel | undefined) => void;
+  /** Name of the unset reasoning choice that `onThinkingChange` offers. */
+  unsetReasoningLabel?: string;
   isModelCompatible?: (model: ModelInfo) => boolean;
 };
 
@@ -92,6 +94,7 @@ let {
   inherit = false,
   onInherit,
   onThinkingChange,
+  unsetReasoningLabel = "Use settings",
   isModelCompatible = () => true,
 }: Props = $props();
 
@@ -379,7 +382,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
     >
       {#if onThinkingChange}
         <ToggleGroup.Item value="inherit" class="flex-none"
-          >Use settings</ToggleGroup.Item
+          >{unsetReasoningLabel}</ToggleGroup.Item
         >
       {/if}
       {#each reasoningLevels as level (level)}
