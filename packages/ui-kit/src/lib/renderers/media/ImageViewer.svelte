@@ -18,7 +18,8 @@ type Props = {
   /** Enables copying and reports the clipboard result. */
   onCopy?: (ok: boolean) => void;
   onOpenStandalone?: () => void;
-  toolbarStart?: Snippet;
+  /** `FloatingNotice`s in the bottom-start corner. */
+  notices?: Snippet;
 };
 
 let {
@@ -29,7 +30,7 @@ let {
   class: className = "",
   onCopy,
   onOpenStandalone,
-  toolbarStart,
+  notices,
 }: Props = $props();
 
 // SVGs without width/height report no intrinsic size; browsers lay them
@@ -84,7 +85,7 @@ async function copy() {
   onCopy={onCopy ? () => void copy() : undefined}
   onDownload={() => downloadUrl(src, fileName)}
   {onOpenStandalone}
-  {toolbarStart}
+  {notices}
 >
   <img
     class="block max-w-none select-none"

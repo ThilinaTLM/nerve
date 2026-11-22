@@ -57,7 +57,7 @@ const lines = $derived(launchLogLines(launchLogs?.events ?? []));
           {onLoadEarlier}
           {onJumpToLatest}
         >
-          {#snippet dock()}
+          {#snippet topEnd()}
             <LaunchRunDock
               {launch}
               runs={siblingRuns}

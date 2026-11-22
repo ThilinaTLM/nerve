@@ -5,6 +5,8 @@ import {
   CodeView,
   type DiffLayout,
 } from "$lib/presentation/code";
+import { FloatingLayer } from "@nervekit/ui-kit/components/composites/floating-toolbar";
+import CodeGoToLinePanel from "$lib/presentation/code/CodeGoToLinePanel.svelte";
 import CodeMirrorFindPanel from "$lib/presentation/code/CodeMirrorFindPanel.svelte";
 import { FilePane } from "$lib/presentation/files";
 import type { FilePaneViewModel } from "$lib/presentation/files";
@@ -369,23 +371,51 @@ let regexp = $state(false);
       <div
         class="relative h-32 w-[900px] max-w-full overflow-hidden rounded-md border bg-background"
       >
-        <CodeMirrorFindPanel
-          query={findQuery}
-          {caseSensitive}
-          {wholeWord}
-          {regexp}
-          status="1 of 3"
-          valid
-          canReplace
-          replaceOpen
-          onQueryChange={(v) => (findQuery = v)}
-          onCaseSensitiveChange={(v) => (caseSensitive = v)}
-          onWholeWordChange={(v) => (wholeWord = v)}
-          onRegexpChange={(v) => (regexp = v)}
-          onPrevious={noop}
-          onNext={noop}
-          onClose={noop}
-        />
+        <FloatingLayer>
+          {#snippet topEnd()}
+            <CodeMirrorFindPanel
+              query={findQuery}
+              {caseSensitive}
+              {wholeWord}
+              {regexp}
+              status="1 of 3"
+              valid
+              canReplace
+              replaceOpen
+              onQueryChange={(v) => (findQuery = v)}
+              onCaseSensitiveChange={(v) => (caseSensitive = v)}
+              onWholeWordChange={(v) => (wholeWord = v)}
+              onRegexpChange={(v) => (regexp = v)}
+              onPrevious={noop}
+              onNext={noop}
+              onClose={noop}
+            />
+          {/snippet}
+        </FloatingLayer>
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="CodeGoToLinePanel"
+      description="Go to line (Ctrl+G): line number or line:column, with range hint."
+      source="presentation/code/CodeGoToLinePanel"
+      usage="1 file · code view"
+      layout="bare"
+    >
+      <div
+        class="relative h-32 w-[900px] max-w-full overflow-hidden rounded-md border bg-background"
+      >
+        <FloatingLayer>
+          {#snippet topEnd()}
+            <CodeGoToLinePanel
+              currentLine={12}
+              firstLine={1}
+              lastLine={240}
+              onGo={noop}
+              onClose={noop}
+            />
+          {/snippet}
+        </FloatingLayer>
       </div>
     </GallerySpecimen>
   </GalleryGroup>

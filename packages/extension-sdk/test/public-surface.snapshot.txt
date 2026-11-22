@@ -1100,6 +1100,22 @@ export const ProgressRing: Part;
 
 export const ScrollRegion: Part;
 
+export const FloatingLayer: Part;
+
+export const FloatingToolbar: Part;
+
+export const FloatingToolbarGroup: Part;
+
+export const FloatingToolbarButton: Part;
+
+export const FloatingToolbarText: Part;
+
+export const FloatingPanel: Part;
+
+export const FloatingNotice: Part;
+
+export const FloatingToolbarMenu: Part;
+
 ===== declarations extension-sdk/src/ui/host.d.ts =====
 import { type Readable } from "svelte/store";
 import { type BridgeClient } from "./client.js";

@@ -515,3 +515,40 @@ void test("icons import through the SDK, stay tree-shaken and one copy is bundle
     assert.ok(bytes < 600 * 1024, `frame is ${bytes} bytes`);
   });
 });
+
+void test("floating toolbars, including the host-menu overflow button, build inside a frame", async () => {
+  await withTemp(async (root) => {
+    const folder = await initExtension({
+      id: "toolbars",
+      kind: "page",
+      cwd: root,
+    });
+    await writeAt(
+      folder,
+      "src/pages/overview/Overview.svelte",
+      `<script lang="ts">
+  import { Copy } from "@nervekit/extension-sdk/icons";
+  import {
+    FloatingLayer,
+    FloatingToolbar,
+    FloatingToolbarButton,
+    FloatingToolbarMenu,
+  } from "@nervekit/extension-sdk/ui";
+</script>
+<div class="relative h-screen">
+  <FloatingLayer>
+    {#snippet topEnd()}
+      <FloatingToolbar label="Actions">
+        <FloatingToolbarButton label="Copy" icon={Copy} />
+        <FloatingToolbarMenu items={[{ id: "a", label: "A" }]} onSelect={() => {}} />
+      </FloatingToolbar>
+    {/snippet}
+  </FloatingLayer>
+</div>
+`,
+    );
+    const { distDir } = await buildExtension({ projectDir: folder });
+    const code = await frameCode(distDir, "overview");
+    assert.ok(code.includes("More actions"), "the menu button is bundled");
+  });
+});

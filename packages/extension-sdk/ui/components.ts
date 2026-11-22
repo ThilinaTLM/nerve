@@ -33,3 +33,15 @@ export { SearchInput } from "@nervekit/ui-kit/components/composites/search-input
 export { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 export { ProgressRing } from "@nervekit/ui-kit/components/composites/progress-ring";
 export { ScrollRegion } from "@nervekit/ui-kit/components/composites/scroll-region";
+// Floating toolbars. `FloatingToolbarMenu` is the SDK's own: the UI kit's dropdown menu cannot draw
+// outside a frame, so it opens `host.ui.showMenu` instead.
+export {
+  FloatingLayer,
+  FloatingToolbar,
+  FloatingToolbarGroup,
+  FloatingToolbarButton,
+  FloatingToolbarText,
+  FloatingPanel,
+  FloatingNotice,
+} from "@nervekit/ui-kit/components/composites/floating-toolbar";
+export { default as FloatingToolbarMenu } from "./floating-toolbar-menu.svelte";

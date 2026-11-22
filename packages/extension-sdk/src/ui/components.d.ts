@@ -88,3 +88,30 @@ export const StatusDot: Part;
 export const ProgressRing: Part;
 /** Vertical scroll area that shows overflow with edge shadows. Props: `surface` (`panel`, `card` or `popover`: the background the shadows fade into; default `card`), `height`, `viewport` (bindable element), `children`. */
 export const ScrollRegion: Part;
+/**
+ * Overlay for the floating chrome of a page, preview or panel. Place it inside a `relative` container that fills the frame (`<div class="relative h-screen">`), next to the content, not around it. Snippet props, one per anchor, each stacking several items: `topStart` (identity, view choice), `topEnd` (actions on the content: find, copy, download, more), `bottomEnd` (spatial navigation: zoom), `bottomStart` (notices). `class` adjusts the insets (`pr-5` clears a scrollbar lane).
+ * Put the actions of a page in a `FloatingToolbar` here; do not build absolutely positioned bars.
+ */
+export const FloatingLayer: Part;
+/**
+ * The bar of a `FloatingLayer` anchor; it positions nothing itself. Props: `label` (required, accessible name), `orientation` (`horizontal` default, or `vertical`: icon-only buttons, for zoom in `bottomEnd`), `reveal` (`always` default, or `hover`: quiet until the pane is hovered or focused). Children: `FloatingToolbarGroup`, `FloatingToolbarButton`, `FloatingToolbarText`.
+ */
+export const FloatingToolbar: Part;
+/** Related controls inside a `FloatingToolbar`; dividers between groups are drawn for you, so do not add separators. Props: `label` (accessible name), `collapse` (hidden in panes narrower than 28rem; only for readouts and actions that `FloatingToolbarMenu` also offers). */
+export const FloatingToolbarGroup: Part;
+/**
+ * Icon button of a floating bar, with a tooltip. Props: `label` (required: tooltip and accessible name; do not add `title`), `icon` (a component from `@nervekit/extension-sdk/icons`), `text` (short visible text such as "100%" instead of the icon; horizontal bars only), `shortcut` (shown in the tooltip, e.g. "Ctrl+F"), `pressed` (toggle state; leave unset for a plain action), `disabled`, `busy` (spinner, blocks clicks), `tone` (`neutral`, `destructive`), `side` (tooltip side), `onclick`. The tooltip is clipped to the frame, so keep buttons off the frame edge it points past.
+ */
+export const FloatingToolbarButton: Part;
+/** Readout inside a `FloatingToolbar` (match count, zoom level, size). Props: `tone` (`muted` default, `destructive`), `live` (announces changes), `title`, `class`, `children`. */
+export const FloatingToolbarText: Part;
+/**
+ * Expanded form of a floating bar for fields (find, filter, go to). Fields (`Input`, `SearchInput`, `Select`) go only here, never on a `FloatingToolbar`. Props: `label` (required), `role` (`search` or `group`), `size` (`sm`, `md`, `lg`), `onClose` (called on Escape unless the event is default-prevented), `ref` (bindable element), `children`. Full width in narrow panes. Place it in a `FloatingLayer` anchor, usually `topEnd`.
+ */
+export const FloatingPanel: Part;
+/** Lasting status of the pane, in the `bottomStart` anchor of a `FloatingLayer` (read-only file, truncated content). Props: `tone` (`info` default, `warning`), `onDismiss` (shows a dismiss button), `action` (snippet with one small `Button`), `children` (the message). */
+export const FloatingNotice: Part;
+/**
+ * Overflow button of a `FloatingToolbar` for secondary actions: keep 4–8 controls on the bar and put the rest here. Opens a menu drawn by the host (`host.ui.showMenu`) below the button. Props: `items` (`MenuItem[]`: `id`, `label`, `disabled`, `destructive`), `onSelect(id)` (not called when the menu is dismissed), `label` (default "More actions"), `icon` (default the ellipsis).
+ */
+export const FloatingToolbarMenu: Part;

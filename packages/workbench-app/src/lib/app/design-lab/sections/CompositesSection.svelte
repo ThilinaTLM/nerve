@@ -9,7 +9,27 @@ import AlertTriangleIcon from "@lucide/svelte/icons/triangle-alert";
 import MinusIcon from "@lucide/svelte/icons/minus";
 import PlusIcon from "@lucide/svelte/icons/plus";
 import { onDestroy } from "svelte";
-import FloatingToolbar from "@nervekit/ui-kit/components/composites/floating-toolbar";
+import {
+  FloatingLayer,
+  FloatingNotice,
+  FloatingPanel,
+  FloatingToolbar,
+  FloatingToolbarButton,
+  FloatingToolbarGroup,
+  FloatingToolbarText,
+} from "@nervekit/ui-kit/components/composites/floating-toolbar";
+import { FloatingToolbarMenu } from "@nervekit/ui-kit/components/composites/floating-toolbar-menu";
+import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
+import Copy from "@lucide/svelte/icons/copy";
+import Download from "@lucide/svelte/icons/download";
+import Maximize2 from "@lucide/svelte/icons/maximize-2";
+import Scan from "@lucide/svelte/icons/scan";
+import Search from "@lucide/svelte/icons/search";
+import WrapText from "@lucide/svelte/icons/wrap-text";
+import X from "@lucide/svelte/icons/x";
+import ZoomIn from "@lucide/svelte/icons/zoom-in";
+import ZoomOut from "@lucide/svelte/icons/zoom-out";
 import { GithubMark } from "@nervekit/ui-kit/components/composites/github-mark";
 import { HeightFollow } from "@nervekit/ui-kit/components/composites/height-follow";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
@@ -24,6 +44,8 @@ import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 
 const noop = () => {};
+let specimenFind = $state(true);
+let specimenWrap = $state(false);
 
 const lines = Array.from(
   { length: 24 },
@@ -232,23 +254,113 @@ const plain =
     <GallerySpecimen
       title="FloatingToolbar"
       source="composites/floating-toolbar"
-      description="Pinned to the top-right of a content pane; content scrolls underneath."
+      description="Floating chrome of a pane: a FloatingLayer with four anchors. Top start: identity; top end: actions, with a find panel stacked below; bottom end: icon-only zoom bar; bottom start: notices. Toggle find to see the motion."
       layout="bare"
     >
       <div
-        class="relative h-32 w-96 max-w-full overflow-hidden rounded-md border bg-well"
+        class="group/pane relative h-72 w-full max-w-2xl overflow-hidden rounded-md border bg-well"
       >
-        <FloatingToolbar label="Diagram controls">
-          <Button variant="ghost" size="icon-sm" aria-label="Zoom out"
-            ><MinusIcon /></Button
-          >
-          <Button variant="ghost" size="icon-sm" aria-label="Zoom in"
-            ><PlusIcon /></Button
-          >
-        </FloatingToolbar>
-        <p class="p-3 text-ui text-muted-foreground">
-          Content under the toolbar.
+        <p class="p-3 pt-14 text-ui text-muted-foreground">
+          Content scrolls under the floating chrome.
         </p>
+        <FloatingLayer>
+          {#snippet topStart()}
+            <FloatingToolbar label="Details">
+              <FloatingToolbarGroup collapse>
+                <FloatingToolbarText>PNG · 180 × 180</FloatingToolbarText>
+              </FloatingToolbarGroup>
+            </FloatingToolbar>
+          {/snippet}
+          {#snippet topEnd()}
+            <FloatingToolbar label="Actions">
+              <FloatingToolbarGroup>
+                <FloatingToolbarButton
+                  label="Find"
+                  shortcut="Ctrl+F"
+                  icon={Search}
+                  pressed={specimenFind}
+                  onclick={() => (specimenFind = !specimenFind)}
+                />
+                <FloatingToolbarButton
+                  label="Wrap lines"
+                  icon={WrapText}
+                  pressed={specimenWrap}
+                  onclick={() => (specimenWrap = !specimenWrap)}
+                />
+              </FloatingToolbarGroup>
+              <FloatingToolbarGroup>
+                <FloatingToolbarButton
+                  label="Copy"
+                  icon={Copy}
+                  onclick={noop}
+                />
+                <FloatingToolbarButton label="Download" icon={Download} busy />
+                <FloatingToolbarButton
+                  label="Full screen"
+                  shortcut="F"
+                  icon={Maximize2}
+                  onclick={noop}
+                />
+                <FloatingToolbarMenu>
+                  <DropdownMenu.Item onSelect={noop}
+                    >Open in tab</DropdownMenu.Item
+                  >
+                </FloatingToolbarMenu>
+              </FloatingToolbarGroup>
+            </FloatingToolbar>
+            {#if specimenFind}
+              <FloatingPanel
+                label="Find"
+                role="search"
+                size="sm"
+                onClose={() => (specimenFind = false)}
+              >
+                <div class="flex min-w-0 items-center gap-0.5">
+                  <Input class="min-w-0 flex-1" placeholder="Find" />
+                  <FloatingToolbarText live>3 of 12</FloatingToolbarText>
+                  <FloatingToolbarButton
+                    label="Close"
+                    shortcut="Esc"
+                    icon={X}
+                    onclick={() => (specimenFind = false)}
+                  />
+                </div>
+              </FloatingPanel>
+            {/if}
+          {/snippet}
+          {#snippet bottomStart()}
+            <FloatingNotice tone="warning" onDismiss={noop}
+              >Preview loaded from a truncated file window.</FloatingNotice
+            >
+          {/snippet}
+          {#snippet bottomEnd()}
+            <FloatingToolbar label="Zoom" orientation="vertical">
+              <FloatingToolbarGroup>
+                <FloatingToolbarButton
+                  label="Zoom in"
+                  shortcut="+"
+                  icon={ZoomIn}
+                  onclick={noop}
+                />
+                <FloatingToolbarButton
+                  label="Zoom out"
+                  shortcut="-"
+                  icon={ZoomOut}
+                  onclick={noop}
+                />
+              </FloatingToolbarGroup>
+              <FloatingToolbarGroup>
+                <FloatingToolbarButton
+                  label="Fit to view"
+                  shortcut="0"
+                  icon={Scan}
+                  pressed
+                  onclick={noop}
+                />
+              </FloatingToolbarGroup>
+            </FloatingToolbar>
+          {/snippet}
+        </FloatingLayer>
       </div>
     </GallerySpecimen>
 

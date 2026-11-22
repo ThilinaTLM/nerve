@@ -3,12 +3,14 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import MermaidDiagram from "@nervekit/ui-kit/renderers/mermaid/MermaidDiagram.svelte";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
+import { FloatingNotice } from "@nervekit/ui-kit/components/composites/floating-toolbar";
 
 let {
   source,
   loading = false,
   error,
   truncated = false,
+  unsaved = false,
   ariaLabel = "Mermaid diagram",
   fileName,
 }: {
@@ -16,6 +18,8 @@ let {
   loading?: boolean;
   error?: string;
   truncated?: boolean;
+  /** The source is an unsaved draft. */
+  unsaved?: boolean;
   ariaLabel?: string;
   /** Download name stem, e.g. the source file's name. */
   fileName?: string;
@@ -47,14 +51,18 @@ let {
       {fileName}
       defaultWheelZoomEnabled
       onCopy={(ok) => notifyCopyResult(ok, "Mermaid source")}
-    />
-    {#if truncated}
-      <p
-        class="absolute bottom-3 left-3 m-0 rounded-md border border-border bg-popover px-3 py-2 text-ui text-muted-foreground shadow-sm backdrop-blur-sm"
-      >
-        Preview loaded from a truncated file window.
-      </p>
-    {/if}
+    >
+      {#snippet notices()}
+        {#if truncated}
+          <FloatingNotice tone="warning"
+            >Preview loaded from a truncated file window.</FloatingNotice
+          >
+        {/if}
+        {#if unsaved}
+          <FloatingNotice>Previewing unsaved changes.</FloatingNotice>
+        {/if}
+      {/snippet}
+    </MermaidDiagram>
   {:else}
     <div
       class="grid min-h-72 place-items-center content-center gap-2 p-4 text-center text-muted-foreground"

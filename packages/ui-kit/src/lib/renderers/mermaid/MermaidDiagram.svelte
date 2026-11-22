@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Snippet } from "svelte";
 import { downloadBlob } from "@nervekit/ui-kit/browser/download";
 import { writeClipboardText } from "@nervekit/ui-kit/browser/clipboard";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
@@ -15,6 +16,8 @@ type Props = {
   onOpenStandalone?: () => void;
   /** Enables "Copy source" and reports the clipboard result. */
   onCopy?: (ok: boolean) => void;
+  /** `FloatingNotice`s in the bottom-start corner. */
+  notices?: Snippet;
 };
 
 let {
@@ -25,6 +28,7 @@ let {
   fileName = "diagram",
   onOpenStandalone,
   onCopy,
+  notices,
 }: Props = $props();
 
 let host = $state<HTMLElement | null>(null);
@@ -119,6 +123,7 @@ $effect(() => {
   onDownload={downloadSvg}
   openLabel="Open diagram in tab"
   {onOpenStandalone}
+  {notices}
 >
   <div class="mermaid-svg-host" bind:this={host}></div>
   {#snippet overlay()}

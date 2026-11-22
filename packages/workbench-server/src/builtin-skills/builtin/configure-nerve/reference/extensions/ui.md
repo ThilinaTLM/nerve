@@ -97,8 +97,59 @@ Use the components from `@nervekit/extension-sdk/ui` (`reference/extensions/api/
 
 - Use theme-token utilities, never fixed colors, so frames follow every theme: `bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-hover`, `text-destructive`, `text-success`, `text-ui`.
 - Fill the frame (`h-screen`, `min-h-0 flex-1 overflow-auto`); the host draws the tab title, close button and panel header.
+- Put the actions of a page, preview or panel in floating toolbars, like Nerve's own viewers. They stay out of the content and keep every extension consistent ("Floating toolbars" below).
 - Show loading, empty and error states. Use mono type only for code and paths.
 - Keep heavy libraries behind dynamic `import()`.
+
+## Floating toolbars
+
+Page-level actions, readouts, find fields and pane notices float over the content in a `FloatingLayer`. Exact props: the `Floating*` entries of `components.d.ts`.
+
+```svelte
+<div class="relative h-screen">
+  <div class="h-full overflow-auto"><!-- content --></div>
+  <FloatingLayer>
+    {#snippet topEnd()}
+      <FloatingToolbar label="Board actions">
+        <FloatingToolbarGroup>
+          <FloatingToolbarButton
+            label="Find"
+            shortcut="Ctrl+F"
+            icon={Search}
+            pressed={findOpen}
+            onclick={() => (findOpen = !findOpen)}
+          />
+          <FloatingToolbarButton
+            label="Export"
+            icon={Download}
+            onclick={exportBoard}
+          />
+          <FloatingToolbarMenu
+            items={[{ id: "reset", label: "Reset board", destructive: true }]}
+            onSelect={runMenu}
+          />
+        </FloatingToolbarGroup>
+      </FloatingToolbar>
+      {#if findOpen}
+        <FloatingPanel
+          label="Find"
+          role="search"
+          size="sm"
+          onClose={() => (findOpen = false)}
+        >
+          <Input placeholder="Find" bind:value={query} />
+        </FloatingPanel>
+      {/if}
+    {/snippet}
+  </FloatingLayer>
+</div>
+```
+
+- Anchors by meaning: `topStart` what the view shows (view choice, size readout); `topEnd` actions on the content, with a `FloatingPanel` stacked under its bar; `bottomEnd` zoom and fit as an icon-only `orientation="vertical"` bar, with a changing zoom level in a separate one-button bar beside it; `bottomStart` `FloatingNotice`s.
+- Every bar button is a `FloatingToolbarButton` with a `label` (its tooltip); toggles use `pressed`; readouts use `FloatingToolbarText`; groups draw the dividers.
+- Keep 4–8 controls per bar and put the rest in `FloatingToolbarMenu`, which opens `host.ui.showMenu`.
+- Fields go only in a `FloatingPanel`.
+- Enter, exit and resize motion is built in; add none.
 
 ## Not allowed in frames
 

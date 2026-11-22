@@ -6,6 +6,7 @@ Read the matching reference before working in these areas:
 - Settings pages: [`docs/ui/settings.md`](../../docs/ui/settings.md)
 - Transcript notices and tool-call cards: [`docs/ui/transcript-notices.md`](../../docs/ui/transcript-notices.md)
 - Dock panel views: [`docs/ui/panels.md`](../../docs/ui/panels.md)
+- Floating toolbars, panels and notices over panes: [`docs/ui/floating-toolbars.md`](../../docs/ui/floating-toolbars.md)
 
 ## Architecture
 

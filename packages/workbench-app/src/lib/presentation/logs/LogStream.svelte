@@ -2,7 +2,11 @@
 import type { Snippet } from "svelte";
 import { tick } from "svelte";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+import {
+  FloatingLayer,
+  FloatingToolbar,
+  FloatingToolbarButton,
+} from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import {
   VirtualScroller,
   type VirtualScrollerController,
@@ -35,8 +39,8 @@ type Props = {
   onJumpToLatest?: () => void | Promise<void>;
   /** Reading the latest output failed; offered as a retry of `onJumpToLatest`. */
   loadError?: string;
-  /** Floating controls pinned to the top-right corner. */
-  dock?: Snippet;
+  /** Floating controls (a `FloatingToolbar`) in the top-end corner. */
+  topEnd?: Snippet;
 };
 
 let {
@@ -51,7 +55,7 @@ let {
   detached = false,
   onJumpToLatest,
   loadError,
-  dock,
+  topEnd,
 }: Props = $props();
 
 let controller = $state<VirtualScrollerController>();
@@ -187,26 +191,18 @@ async function jumpToLatest(): Promise<void> {
     {/snippet}
   </VirtualScroller>
 
-  {#if dock}
-    <!-- Positions the dock clear of the viewport's scrollbar lane; only the
-         dock itself takes pointer input. -->
-    <div
-      class="pointer-events-none absolute inset-y-0 right-2.5 left-0 font-sans *:pointer-events-auto"
-    >
-      {@render dock()}
-    </div>
-  {/if}
-
-  {#if !atEnd || detached}
-    <Button
-      size="icon"
-      variant="outline"
-      class="absolute right-5.5 bottom-3 rounded-full shadow-sm"
-      ariaLabel="Jump to latest output"
-      title="Jump to latest output"
-      onclick={() => void jumpToLatest()}
-    >
-      <ArrowDown class="size-4" strokeWidth={2.2} />
-    </Button>
-  {/if}
+  <!-- `pr-5.5` keeps the controls clear of the viewport's scrollbar lane. -->
+  <FloatingLayer class="pr-5.5" {topEnd}>
+    {#snippet bottomEnd()}
+      {#if !atEnd || detached}
+        <FloatingToolbar label="Output navigation" orientation="vertical">
+          <FloatingToolbarButton
+            label="Jump to latest output"
+            icon={ArrowDown}
+            onclick={() => void jumpToLatest()}
+          />
+        </FloatingToolbar>
+      {/if}
+    {/snippet}
+  </FloatingLayer>
 </div>
