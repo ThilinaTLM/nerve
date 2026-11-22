@@ -22,8 +22,6 @@ export const centerViewLoaders = {
   diff: () => import("$lib/features/git/hosts/GitDiffCenterHost.svelte"),
   settings: () =>
     import("$lib/app/composition/centers/SettingsCenterHost.svelte"),
-  "project-settings": () =>
-    import("$lib/app/composition/centers/ProjectSettingsCenterHost.svelte"),
   logs: () => import("$lib/features/logs/hosts/LogsCenterHost.svelte"),
   discover: () =>
     import("$lib/app/composition/centers/DiscoverCenterHost.svelte"),

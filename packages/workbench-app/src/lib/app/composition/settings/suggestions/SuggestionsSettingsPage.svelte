@@ -11,24 +11,36 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import { Switch } from "@nervekit/ui-kit/components/ui/switch";
+import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import {
+  LayerEnabledTable,
+  LayerSwitches,
+  OriginGroup,
+  SETTINGS_SEARCH_MIN,
   SettingsEmptyState,
   SettingsItem,
   SettingsPageHeader,
   SettingsSection,
-  SettingsList,
-  SettingsToolbar,
+  TipBadge,
+  type SettingsLayer,
+  type SettingsOrigin,
 } from "$lib/presentation/settings";
+import UntrustedProjectCallout from "$lib/features/settings/views/pages/capabilities/UntrustedProjectCallout.svelte";
 import CreatePromptSuggestionDialog from "$lib/features/prompt-suggestions/views/CreatePromptSuggestionDialog.svelte";
 import {
   createPromptSuggestion,
   refreshPromptSuggestionStatuses,
-  setPromptSuggestionEnabled,
+  setPromptSuggestionLayers,
   setPromptSuggestionTrust,
 } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
 import type { SuggestionsPageState } from "./suggestions-page-state.svelte";
+import {
+  awaitsScriptReview,
+  suggestionSwitches,
+  suggestionWrites,
+  trustBadge,
+} from "./suggestions-view";
 
 type Props = {
   pageState: SuggestionsPageState;
@@ -38,6 +50,8 @@ type Props = {
   onOpenItem?: (id: string) => void;
   /** Leaves the open suggestion for the list. */
   onCloseItem?: () => void;
+  /** Opens the Trust page, where the project's settings files are reviewed. */
+  onReviewTrust?: () => void;
 };
 
 let {
@@ -46,9 +60,9 @@ let {
   itemId = "",
   onOpenItem,
   onCloseItem,
+  onReviewTrust,
 }: Props = $props();
 
-let savingKey = $state<string | undefined>(undefined);
 let savingTrustId = $state<string | undefined>(undefined);
 let mutationError = $state<string | undefined>(undefined);
 let query = $state("");
@@ -62,9 +76,36 @@ const open = $derived(
     ? statuses.find((status) => status.definitionKey === itemId)
     : undefined,
 );
-const builtins = $derived(sourceStatuses("builtin"));
-const user = $derived(sourceStatuses("user"));
-const project = $derived(sourceStatuses("project"));
+const projectName = $derived(activeProject?.name);
+/** The project's enablement file is not trusted: the daemon ignores it, so its column is locked. */
+const locked = $derived(
+  activeProject !== undefined &&
+    promptSuggestionsState.projectFile?.status === "untrusted",
+);
+$effect(() => {
+  pageState.projectName = projectName;
+  return () => {
+    pageState.projectName = undefined;
+  };
+});
+const groups = $derived(
+  (
+    [
+      ...(activeProject ? (["project"] as const) : []),
+      "user",
+      "builtin",
+    ] as const
+  ).map((source) => ({
+    source,
+    origin: { kind: source } satisfies SettingsOrigin,
+    rows: sourceStatuses(source),
+  })),
+);
+const emptyCopy = {
+  project: "No suggestions have been created for this project.",
+  user: "No user suggestions have been created.",
+  builtin: "",
+};
 
 $effect(() => {
   void refreshPromptSuggestionStatuses(activeProject?.id);
@@ -90,22 +131,20 @@ function sourceStatuses(
     );
 }
 
-async function toggle(
+async function change(
   status: PromptSuggestionStatus,
-  enabled: boolean,
+  layer: SettingsLayer,
+  next: boolean,
 ): Promise<void> {
-  savingKey = status.definitionKey;
   mutationError = undefined;
   try {
-    await setPromptSuggestionEnabled(
-      { definitionKey: status.definitionKey, enabled },
+    await setPromptSuggestionLayers(
+      await suggestionWrites(status, layer, next, activeProject?.id),
       activeProject?.id,
     );
   } catch (error) {
     mutationError = error instanceof Error ? error.message : String(error);
     await refreshPromptSuggestionStatuses(activeProject?.id);
-  } finally {
-    savingKey = undefined;
   }
 }
 
@@ -130,13 +169,6 @@ async function create(request: CreatePromptSuggestionRequest): Promise<void> {
   await createPromptSuggestion(request, activeProject?.id);
 }
 
-function trustLabel(status: PromptSuggestionStatus): string {
-  if (status.status === "not_required") return "No JS";
-  return (
-    status.status[0]?.toUpperCase() + status.status.slice(1).replace(/_/g, " ")
-  );
-}
-
 function copyPath(path: string): void {
   void navigator.clipboard?.writeText(path);
 }
@@ -144,24 +176,36 @@ function copyPath(path: string): void {
 
 {#snippet statusBadges(status: PromptSuggestionStatus)}
   {#if status.overriddenBy}
-    <Badge variant="neutral">
-      {status.overriddenBy === "project" ? "Project" : "User"} overrides
-    </Badge>
+    <TipBadge
+      text={status.overriddenBy === "project"
+        ? "Replaced in project"
+        : "Replaced by your copy"}
+      tip="A suggestion with the same name is used instead of this one."
+    />
   {/if}
-  {#if status.requiresTrust}
-    <Badge
-      variant={status.status === "allowed"
-        ? "success"
-        : status.status === "denied"
-          ? "destructive"
-          : "neutral"}>{trustLabel(status)}</Badge
-    >
-  {/if}
+  {@const badge = trustBadge(status)}
+  <TipBadge text={badge.text} tip={badge.tip} variant={badge.variant} />
+{/snippet}
+
+{#snippet switches(status: PromptSuggestionStatus)}
+  {@const values = suggestionSwitches(status)}
+  <LayerSwitches
+    name={`${status.label} prompt suggestion`}
+    user={values.user}
+    project={values.project}
+    projectSet={values.projectSet}
+    {projectName}
+    projectOnly={status.sourceKind === "project"}
+    pending={awaitsScriptReview(status)}
+    {locked}
+    inapplicable={status.overriddenBy === "project" &&
+      status.sourceKind !== "project"}
+    onChange={(layer, next) => void change(status, layer, next)}
+  />
 {/snippet}
 
 {#snippet detail(status: PromptSuggestionStatus)}
   <div class="flex flex-wrap items-center gap-2">
-    {@render statusBadges(status)}
     <Badge variant="neutral"
       >{status.sourceKind === "builtin"
         ? "Built-in"
@@ -169,6 +213,7 @@ function copyPath(path: string): void {
           ? "Project"
           : "User"}</Badge
     >
+    {@render statusBadges(status)}
   </div>
   {#if status.conditionSummary}
     <SettingsSection title="Conditions">
@@ -221,38 +266,10 @@ function copyPath(path: string): void {
   {/if}
 {/snippet}
 
-{#snippet suggestionList(items: PromptSuggestionStatus[], emptyMessage: string)}
-  {#if loading}
-    <div class="grid gap-1.5">
-      <Skeleton class="h-9 w-full" />
-      <Skeleton class="h-9 w-full" />
-      <Skeleton class="h-9 w-full" />
-    </div>
-  {:else if items.length === 0}
-    <SettingsEmptyState title={emptyMessage} />
-  {:else}
-    <SettingsList>
-      {#each items as status (status.definitionKey)}
-        <SettingsItem
-          title={status.label}
-          summary={status.description}
-          checked={status.stale ? undefined : status.enabled}
-          disabled={savingKey === status.definitionKey}
-          switchLabel={`Enable ${status.label} prompt suggestion`}
-          onCheckedChange={(checked) => toggle(status, checked)}
-          onOpen={() => onOpenItem?.(status.definitionKey)}
-          openLabel={`Open ${status.label}`}
-        >
-          {#snippet badges()}
-            {@render statusBadges(status)}
-          {/snippet}
-        </SettingsItem>
-      {/each}
-    </SettingsList>
-  {/if}
-{/snippet}
-
 {#snippet notices()}
+  {#if locked && projectName}
+    <UntrustedProjectCallout onReview={() => onReviewTrust?.()} />
+  {/if}
   {#if promptSuggestionsState.error || mutationError}
     <Callout
       layout="block"
@@ -288,14 +305,24 @@ function copyPath(path: string): void {
       parent={{ label: "Suggestions", onBack: onCloseItem }}
       class="mb-1"
     >
-      {#snippet actions()}
-        {#if open && !open.stale}
-          <Switch
-            checked={open.enabled}
-            disabled={savingKey === open.definitionKey}
-            aria-label={`Enable ${open.label} prompt suggestion`}
-            onCheckedChange={(checked) => toggle(open, checked)}
-          />
+      {#snippet below()}
+        {#if open && !open.stale && !awaitsScriptReview(open)}
+          {@const values = suggestionSwitches(open)}
+          <div class="pt-2">
+            <LayerEnabledTable
+              name={`${open.label} prompt suggestion`}
+              description="Offer this suggestion in the composer."
+              user={values.user}
+              project={values.project}
+              projectSet={values.projectSet}
+              {projectName}
+              projectOnly={open.sourceKind === "project"}
+              {locked}
+              inapplicable={open.overriddenBy === "project" &&
+                open.sourceKind !== "project"}
+              onChange={(layer, next) => void change(open, layer, next)}
+            />
+          </div>
         {/if}
       {/snippet}
     </SettingsPageHeader>
@@ -313,39 +340,79 @@ function copyPath(path: string): void {
     />
   {/if}
 {:else}
-  <SettingsToolbar>
-    {#snippet start()}
-      <SearchInput
-        bind:value={query}
-        placeholder="Search suggestions"
-        ariaLabel="Search prompt suggestions"
-        class="max-w-xs"
-      />
-    {/snippet}
-  </SettingsToolbar>
+  {#if statuses.length >= SETTINGS_SEARCH_MIN}
+    <SearchInput
+      bind:value={query}
+      placeholder="Search suggestions"
+      ariaLabel="Search prompt suggestions"
+      class="max-w-xs"
+    />
+  {/if}
 
   {@render notices()}
 
-  <SettingsSection id="suggestions" title="Built-in">
-    {@render suggestionList(builtins, "No built-in suggestions are available.")}
-  </SettingsSection>
-
-  <SettingsSection title="User">
-    {@render suggestionList(user, "No user suggestions have been created.")}
-  </SettingsSection>
-
-  {#if activeProject}
-    <SettingsSection title={`Project · ${activeProject.name}`}>
-      {@render suggestionList(
-        project,
-        "No suggestions have been created for this project.",
-      )}
-    </SettingsSection>
+  {#if loading}
+    <div class="grid gap-1.5">
+      <Skeleton class="h-9 w-full" />
+      <Skeleton class="h-9 w-full" />
+      <Skeleton class="h-9 w-full" />
+    </div>
+  {:else}
+    {#each groups as group (group.source)}
+      <OriginGroup
+        origin={group.origin}
+        count={group.rows.length}
+        {projectName}
+        {locked}
+        emptyText={group.source !== "builtin" && !query.trim()
+          ? emptyCopy[group.source]
+          : undefined}
+        emptyDescription="Create one to offer your own prompt in the composer."
+      >
+        {#snippet emptyAction()}
+          <Button
+            size="sm"
+            variant="outline"
+            onclick={() =>
+              pageState.openCreate(
+                group.source === "project" ? "project" : "user",
+              )}>New suggestion</Button
+          >
+        {/snippet}
+        {#each group.rows as status (status.definitionKey)}
+          <SettingsItem
+            title={status.label}
+            icon={Lightbulb}
+            summary={status.description ?? status.conditionSummary}
+            muted={!!status.overriddenBy}
+            problem={awaitsScriptReview(status)
+              ? "Its script waits for your review"
+              : undefined}
+            problemAction={awaitsScriptReview(status)
+              ? {
+                  label: "Review",
+                  onclick: () => onOpenItem?.(status.definitionKey),
+                }
+              : undefined}
+            onOpen={() => onOpenItem?.(status.definitionKey)}
+            openLabel={`Open ${status.label}`}
+          >
+            {#snippet badges()}
+              {@render statusBadges(status)}
+            {/snippet}
+            {#snippet meta()}
+              {@render switches(status)}
+            {/snippet}
+          </SettingsItem>
+        {/each}
+      </OriginGroup>
+    {/each}
   {/if}
 {/if}
 
 <CreatePromptSuggestionDialog
   bind:open={pageState.createDialogOpen}
   project={activeProject}
+  initialScope={pageState.createScope}
   onCreate={create}
 />

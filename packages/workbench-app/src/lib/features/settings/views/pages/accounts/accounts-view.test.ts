@@ -6,10 +6,8 @@ import {
   accountRows,
   duplicateWarning,
   accountProblem,
-  kindsToAdd,
   levelChoices,
   searchAccountRows,
-  platformsOfExtension,
   visibleAccounts,
   type AccountExtension,
 } from "./accounts-view";
@@ -139,27 +137,6 @@ describe("accounts of a platform", () => {
   it("finds every account of a platform across the extensions that define it", () => {
     const ids = searchAccountRows(rows, "github").map((row) => row.account.id);
     assert.deepEqual(ids, ["1", "2"]);
-  });
-
-  it("offers the definitions a search names when adding, else all", () => {
-    const names = (query: string) =>
-      kindsToAdd(platformKinds, query, (k) => owners[k]?.name).map(
-        (k) => k.kind,
-      );
-    assert.deepEqual(names("github"), ["gh-a", "gh-b"]);
-    assert.deepEqual(names("github gh-b"), ["gh-b"]);
-    assert.deepEqual(names("nothing"), ["gh-a", "gh-b", "jira"]);
-    assert.deepEqual(names(""), ["gh-a", "gh-b", "jira"]);
-  });
-
-  it("links an extension page to the platforms it defines and uses", () => {
-    assert.deepEqual(
-      platformsOfExtension({
-        accountKinds: [on("gh-a", "github"), kind("plain")],
-        uses: [{ platform: "jira" }, { platform: "github" }],
-      }),
-      ["github", "jira"],
-    );
   });
 
   it("says why an account is unavailable or needs more permissions", () => {

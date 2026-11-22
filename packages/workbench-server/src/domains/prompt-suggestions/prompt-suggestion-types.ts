@@ -42,7 +42,12 @@ export type PromptSuggestionDefinition = {
   buildContext?: (input: PromptSuggestionEvaluationInput) => string | undefined;
   order: number;
   defaultEnabled: boolean;
+  /** Effective: project ?? user ?? default. */
   enabled: boolean;
+  /** The user layer's own choice; absent = follows the default. */
+  userEnabled?: boolean;
+  /** The project layer's own choice; absent = follows the user layer. */
+  projectEnabled?: boolean;
   when?: PromptSuggestionWhen;
   matches?: (input: PromptSuggestionEvaluationInput) => boolean;
   enableJs?: string;

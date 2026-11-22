@@ -20,8 +20,6 @@ export type CenterTabIdentity =
   /** Ephemeral in-memory prompt snapshot; id is the conversation source id. */
   | { kind: "system-prompt"; id: string }
   | { kind: "settings"; id: "settings" }
-  /** Project-scoped settings; the id is the project id. */
-  | { kind: "project-settings"; id: string }
   | { kind: "logs"; id: "logs" }
   | { kind: "discover"; id: "discover" }
   /** A page contributed by an installed extension; the id is `<extension-id>/<page-id>[?params]`. */

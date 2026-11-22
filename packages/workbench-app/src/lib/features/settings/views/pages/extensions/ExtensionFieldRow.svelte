@@ -1,33 +1,42 @@
 <!--
   One setting of an extension, generated from its schema field: the control
   follows the field type; fixed values show their value and who fixed them.
+  With a project open the row is a LayerRow: the label and description on the
+  full width, then the User and project controls in two halves.
 -->
+<script lang="ts" module>
+import type { FieldItem } from "./extensions-view";
+
+/** The User layer of a row shown in two cells; `item` is then the project's. */
+export type FieldLayers = {
+  projectName: string;
+  /** Absent when the field cannot be set at User level. */
+  userItem?: FieldItem;
+  /** The project's own value differs from User's. */
+  projectReset?: { label: string; onReset: () => void };
+  userReset?: { label: string; onReset: () => void };
+  onUserChange: (value: unknown) => void;
+  /** The project's settings file is not trusted. */
+  locked?: boolean;
+  /** The extension is defined by the project: no User layer. */
+  projectOnly?: boolean;
+};
+</script>
+
 <script lang="ts">
-import Lock from "@lucide/svelte/icons/lock";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import SelectField from "@nervekit/ui-kit/components/composites/select-field";
-import { Input } from "@nervekit/ui-kit/components/ui/input";
-import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
-import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import type { ModelInfo } from "$lib/api";
-import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
-import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
-import { selectablePermissionRuleSets } from "$lib/domain/permissions/rule-set-options";
-import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
-import { leadAgentProfiles } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import {
+  LayerRow,
   SettingsChangeIndicator,
   SettingsRow,
 } from "$lib/presentation/settings";
+import ExtensionFieldControl from "./ExtensionFieldControl.svelte";
 import {
   controlFor,
-  displayValue,
-  parseNumberInput,
-  accountChoicesFor,
   type AccountChoices,
   type ExtensionChange,
   type ExtensionsScope,
-  type FieldItem,
 } from "./extensions-view";
 
 type Props = {
@@ -44,12 +53,14 @@ type Props = {
   /** Differs from the inherited value. */
   change?: ExtensionChange;
   disabled?: boolean;
+  /** Two cells (User, project) instead of one control. */
+  layers?: FieldLayers;
   /**
    * A namespace row of Features that carries this field as its switch: the
    * namespace names the row, and `problem` is why it cannot be used.
    */
   feature?: { id: string; summary: string; problem?: string };
-  /** `undefined` clears the value at this scope. */
+  /** `undefined` clears the value at this scope (the project's with `layers`). */
   onChange: (value: unknown) => void;
   onReset: () => void;
 };
@@ -64,6 +75,7 @@ let {
   models = [],
   change,
   disabled = false,
+  layers,
   feature,
   onChange,
   onReset,
@@ -71,106 +83,11 @@ let {
 
 const field = $derived(item.field);
 const kind = $derived(controlFor(field));
-const inputId = $derived(`extension-${extensionId}-${item.key}`);
 const locked = $derived(!item.editable);
-const accountItems = $derived(
-  field.type === "account"
-    ? accountChoicesFor(field, accounts, kindLabels).map((account) => ({
-        value: account.id,
-        label: account.name,
-        ...(account.detail ? { detail: account.detail } : {}),
-      }))
-    : [],
+const inputId = $derived(`extension-${extensionId}-${item.key}`);
+const labelFor = $derived(
+  locked || kind === "switch" || kind === "model" ? undefined : inputId,
 );
-const shown = $derived(
-  displayValue(field, item.value, accounts, (selection) => {
-    const value = selection as { provider: string; modelId: string };
-    return models.find(
-      (model) =>
-        model.provider === value.provider && model.modelId === value.modelId,
-    )?.name;
-  }),
-);
-const modelValue = $derived(
-  field.type === "model"
-    ? (item.value as
-        | {
-            provider: string;
-            modelId: string;
-            reasoningLevel?: ThinkingLevel;
-          }
-        | undefined)
-    : undefined,
-);
-
-/** The explicit "unset" choice of the profile and rule set selects. */
-const UNSET = "";
-$effect(() => {
-  if (field.type === "agentProfile") void agentProfileCatalog.ensure(projectId);
-  if (field.type === "permissionRuleSet" && projectId)
-    void permissionRuleSetCatalog.ensure(projectId);
-});
-const profileItems = $derived(
-  field.type === "agentProfile"
-    ? [
-        {
-          value: UNSET,
-          label: "Default",
-          detail: "The project's default profile",
-        },
-        ...leadAgentProfiles(agentProfileCatalog.profiles(projectId)).map(
-          (profile) => ({
-            value: profile.name,
-            label: profile.label,
-            ...(profile.whenToUse ? { detail: profile.whenToUse } : {}),
-          }),
-        ),
-      ]
-    : [],
-);
-const ruleSetItems = $derived(
-  field.type === "permissionRuleSet"
-    ? [
-        { value: UNSET, label: "Default", detail: "Your default rule set" },
-        ...selectablePermissionRuleSets(
-          permissionRuleSetCatalog.summaries(projectId),
-        ).map((summary) => ({
-          value: summary.id,
-          label: summary.name,
-          ...(summary.description ? { detail: summary.description } : {}),
-        })),
-      ]
-    : [],
-);
-
-/** A model pick keeps the reasoning level only once the user chose one. */
-function changeModel(next: {
-  model?: ModelSelection;
-  thinkingLevel: ThinkingLevel;
-}): void {
-  if (!next.model) return;
-  onChange(
-    field.type === "model" && field.reasoning && modelValue?.reasoningLevel
-      ? { ...next.model, reasoningLevel: next.thinkingLevel }
-      : next.model,
-  );
-}
-
-let text = $derived(item.value === undefined ? "" : String(item.value));
-let invalid = $state(false);
-
-function commit(): void {
-  if (kind === "number") {
-    const parsed = parseNumberInput(text);
-    invalid = parsed === "invalid";
-    if (parsed === "invalid" || parsed === item.value) return;
-    onChange(parsed);
-    return;
-  }
-  const next = text.trim() === "" ? undefined : text.trim();
-  if (next === item.value) return;
-  onChange(next);
-}
 </script>
 
 {#snippet problemHint()}
@@ -180,134 +97,72 @@ function commit(): void {
   </span>
 {/snippet}
 
-<SettingsRow
-  hint={feature?.problem ? problemHint : undefined}
-  label={feature?.id ?? field.label}
-  description={feature?.summary ?? field.description}
-  mono={feature !== undefined}
-  htmlFor={locked || kind === "switch" || kind === "model"
-    ? undefined
-    : inputId}
->
-  {#snippet badges()}
-    {#if change}
-      <SettingsChangeIndicator {scope} from={change.from} {onReset} />
-    {/if}
-  {/snippet}
-  {#snippet control()}
-    {#if locked}
-      <span
-        class="flex min-w-0 items-center gap-1.5 text-ui text-muted-foreground"
-        title={item.readOnlyReason}
-      >
-        <span class="truncate">{shown ?? "Not set"}</span>
-        <Lock
-          class="size-3.5 flex-none"
-          aria-label={item.readOnlyReason ?? "Read-only"}
+{#if layers}
+  <LayerRow
+    label={feature?.id ?? field.label}
+    description={feature?.summary ?? field.description}
+    hint={feature?.problem ? problemHint : undefined}
+    projectName={layers.projectName}
+    userAbsent={layers.projectOnly || !layers.userItem}
+    projectNote={item.editable
+      ? undefined
+      : (item.readOnlyReason ?? "Not set here")}
+    userReset={layers.userReset}
+    projectReset={layers.projectReset}
+  >
+    {#snippet user()}
+      {#if layers.userItem}
+        <ExtensionFieldControl
+          {extensionId}
+          {projectId}
+          item={layers.userItem}
+          idSuffix="-user"
+          {accounts}
+          {kindLabels}
+          {models}
+          {disabled}
+          onChange={layers.onUserChange}
         />
-      </span>
-    {:else if field.type === "boolean"}
-      <Switch
-        checked={item.value === true}
-        {disabled}
-        aria-label={field.label}
-        onCheckedChange={(next) => onChange(next)}
+      {/if}
+    {/snippet}
+    {#snippet project()}
+      <ExtensionFieldControl
+        {extensionId}
+        {projectId}
+        {item}
+        idSuffix="-project"
+        {accounts}
+        {kindLabels}
+        {models}
+        disabled={disabled || layers.locked === true}
+        {onChange}
       />
-    {:else if field.type === "enum"}
-      <SelectField
-        items={field.options.map((option) => ({
-          value: option.value,
-          label: option.label,
-          ...(option.description ? { detail: option.description } : {}),
-        }))}
-        value={String(item.value ?? field.default)}
-        {disabled}
-        ariaLabel={field.label}
-        onValueChange={(next) => onChange(next)}
-      />
-    {:else if field.type === "account"}
-      <SelectField
-        items={accountItems}
-        value={typeof item.value === "string" ? item.value : ""}
-        placeholder={accountItems.length > 0
-          ? "Choose account"
-          : "No accounts yet"}
-        disabled={disabled || accountItems.length === 0}
-        ariaLabel={field.label}
-        onValueChange={(next) => onChange(next)}
-      />
-    {:else if field.type === "model"}
-      <ModelPicker
-        label={field.label}
-        class="w-full"
+    {/snippet}
+  </LayerRow>
+{:else}
+  <SettingsRow
+    hint={feature?.problem ? problemHint : undefined}
+    label={feature?.id ?? field.label}
+    description={feature?.summary ?? field.description}
+    mono={feature !== undefined}
+    htmlFor={labelFor}
+  >
+    {#snippet badges()}
+      {#if change}
+        <SettingsChangeIndicator {scope} from={change.from} {onReset} />
+      {/if}
+    {/snippet}
+    {#snippet control()}
+      <ExtensionFieldControl
+        {extensionId}
+        {projectId}
+        {item}
+        {accounts}
+        {kindLabels}
         {models}
         {disabled}
-        showReasoning={field.reasoning === true}
-        requiredCapabilities={field.capability === "vision" ? ["vision"] : []}
-        value={modelValue}
-        thinkingLevel={modelValue?.reasoningLevel}
-        unsetReasoningLabel="Default"
-        onThinkingChange={field.reasoning && modelValue
-          ? (level) =>
-              onChange({
-                provider: modelValue.provider,
-                modelId: modelValue.modelId,
-                ...(level ? { reasoningLevel: level } : {}),
-              })
-          : undefined}
-        emptyMessage="Connect a provider with a suitable model first."
-        onChange={(next) =>
-          field.reasoning && next.model
-            ? changeModel(next)
-            : onChange(next.model)}
+        {onChange}
       />
-    {:else if field.type === "agentProfile"}
-      <SelectField
-        items={profileItems}
-        value={typeof item.value === "string" ? item.value : UNSET}
-        {disabled}
-        ariaLabel={field.label}
-        onValueChange={(next) => onChange(next === UNSET ? undefined : next)}
-      />
-    {:else if field.type === "permissionRuleSet"}
-      <SelectField
-        items={ruleSetItems}
-        value={typeof item.value === "string" ? item.value : UNSET}
-        {disabled}
-        ariaLabel={field.label}
-        onValueChange={(next) => onChange(next === UNSET ? undefined : next)}
-      />
-    {:else if field.type === "number"}
-      <div class="flex w-full items-center gap-2">
-        <Input
-          id={inputId}
-          type="number"
-          min={field.min}
-          max={field.max}
-          step={field.step}
-          {disabled}
-          aria-invalid={invalid ? "true" : undefined}
-          bind:value={text}
-          onblur={commit}
-          onkeydown={(event) => event.key === "Enter" && commit()}
-        />
-        {#if field.unit}
-          <span class="flex-none text-ui text-muted-foreground"
-            >{field.unit}</span
-          >
-        {/if}
-      </div>
-    {:else}
-      <Input
-        id={inputId}
-        type={field.format === "url" ? "url" : "text"}
-        placeholder={field.placeholder ?? field.default}
-        maxlength={field.maxLength}
-        {disabled}
-        bind:value={text}
-        onblur={commit}
-        onkeydown={(event) => event.key === "Enter" && commit()}
-      />
-    {/if}
-  {/snippet}
-</SettingsRow>
+    {/snippet}
+  </SettingsRow>
+{/if}

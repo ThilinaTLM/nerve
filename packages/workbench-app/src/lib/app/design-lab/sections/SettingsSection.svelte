@@ -4,10 +4,20 @@ import SettingsChangeIndicator from "$lib/presentation/settings/SettingsChangeIn
 import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
 import EntityRow from "$lib/presentation/settings/EntityRow.svelte";
 import OAuthInteractionPanel from "$lib/presentation/settings/OAuthInteractionPanel.svelte";
+import ColumnLabels from "$lib/presentation/settings/ColumnLabels.svelte";
+import LayerCells from "$lib/presentation/settings/LayerCells.svelte";
+import LayerEnabledTable from "$lib/presentation/settings/LayerEnabledTable.svelte";
+import LayerRow from "$lib/presentation/settings/LayerRow.svelte";
+import LayerSwitches from "$lib/presentation/settings/LayerSwitches.svelte";
+import LevelMenu from "$lib/presentation/settings/LevelMenu.svelte";
+import OriginGroup from "$lib/presentation/settings/OriginGroup.svelte";
+import ProjectColumnsToggle from "$lib/presentation/settings/ProjectColumnsToggle.svelte";
+import ProjectOverrideMark from "$lib/presentation/settings/ProjectOverrideMark.svelte";
+import SplitColumns from "$lib/presentation/settings/SplitColumns.svelte";
+import TipBadge from "$lib/presentation/settings/TipBadge.svelte";
 import type { OAuthFlowInfo } from "@nervekit/contracts/auth";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
-import FolderGit2Icon from "@lucide/svelte/icons/folder-git-2";
 import KeyRoundIcon from "@lucide/svelte/icons/key-round";
 import KeyboardIcon from "@lucide/svelte/icons/keyboard";
 import MonitorIcon from "@lucide/svelte/icons/monitor";
@@ -15,7 +25,6 @@ import PlusIcon from "@lucide/svelte/icons/plus";
 import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
 import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
 import Trash2Icon from "@lucide/svelte/icons/trash-2";
-import UserIcon from "@lucide/svelte/icons/user";
 import WrenchIcon from "@lucide/svelte/icons/wrench";
 import BookOpenIcon from "@lucide/svelte/icons/book-open";
 import CodeIcon from "@lucide/svelte/icons/code";
@@ -75,6 +84,16 @@ const stats: SettingsStat[] = [
   { label: "Proxy", value: "not configured" },
   { label: "Data directory", value: longText, wide: true, mono: true },
 ];
+
+const layerProject = "TestApp";
+const layered = $state({
+  core: { user: true, project: undefined as boolean | undefined },
+  docs: { user: false, project: true as boolean | undefined },
+  local: { user: true, project: undefined as boolean | undefined },
+});
+let layerModelUser = $state("auto");
+let layerModelProject = $state("auto");
+let columnsShown = $state(false);
 
 let toggleA = $state(true);
 let toggleB = $state(false);
@@ -588,6 +607,14 @@ let oauthResponse = $state("");
           description="Select a project to configure overrides."
           icon={CpuIcon}
         />
+        <SettingsSection title="In a divided section" divided>
+          <SettingsEmptyState
+            variant="card"
+            icon={CpuIcon}
+            title="Pads like a row"
+            description="A divided surface has no padding, so the empty state supplies it."
+          />
+        </SettingsSection>
       </div>
     </GallerySpecimen>
   </GalleryGroup>
@@ -697,25 +724,6 @@ let oauthResponse = $state("");
           },
         ]}
         activeId="appearance"
-        header={{
-          scopes: [
-            {
-              id: "user",
-              label: "Your settings",
-              icon: UserIcon,
-              selected: true,
-              onSelect: () => {},
-            },
-            {
-              id: "project",
-              label: "shop",
-              icon: FolderGit2Icon,
-              badge: { text: "2", tone: "warning" },
-              selected: false,
-              onSelect: () => {},
-            },
-          ],
-        }}
         onSelect={() => {}}
       />
     </GallerySpecimen>
@@ -784,4 +792,266 @@ let oauthResponse = $state("");
       <EntityRow label="Permissions" value="Read-only" />
     </GallerySpecimen>
   </GalleryGroup>
+
+  <GalleryGroup
+    title="Layers and origin groups"
+    description="User and project columns on the unified settings lists."
+  >
+    <GallerySpecimen
+      title="OriginGroup + LayerSwitches + TipBadge"
+      source="presentation/settings/OriginGroup.svelte"
+      layout="stack"
+    >
+      <p class="text-caption text-muted-foreground">
+        The column labels are quiet text on the group's caption line. A
+        project-only group shows none: its caption names the project.
+      </p>
+      <OriginGroup
+        origin={{ kind: "project" }}
+        count={1}
+        projectName={layerProject}
+      >
+        <SettingsItem
+          icon={BookOpenIcon}
+          title="local-conventions"
+          summary="Project skill"
+        >
+          {#snippet meta()}
+            <LayerSwitches
+              name="local-conventions"
+              user={layered.local.user}
+              project={layered.local.project ?? layered.local.user}
+              projectSet={layered.local.project !== undefined}
+              projectName={layerProject}
+              projectOnly
+              onChange={(_, value) => (layered.local.project = value)}
+            />
+          {/snippet}
+        </SettingsItem>
+      </OriginGroup>
+      <OriginGroup
+        origin={{ kind: "builtin" }}
+        count={2}
+        projectName={layerProject}
+      >
+        <SettingsItem icon={WrenchIcon} title="core" summary="Built-in skill">
+          {#snippet badges()}
+            <TipBadge
+              text="Default"
+              variant="brand"
+              tip="Used when nothing else is chosen."
+            />
+          {/snippet}
+          {#snippet meta()}
+            <LayerSwitches
+              name="core"
+              user={layered.core.user}
+              project={layered.core.project ?? layered.core.user}
+              projectSet={layered.core.project !== undefined}
+              projectName={layerProject}
+              onChange={(layer, value) =>
+                layer === "user"
+                  ? (layered.core.user = value)
+                  : (layered.core.project =
+                      value === layered.core.user ? undefined : value)}
+            />
+          {/snippet}
+        </SettingsItem>
+        <SettingsItem
+          icon={BookOpenIcon}
+          title="engineering-docs"
+          summary="Off for User, on in the project"
+        >
+          {#snippet meta()}
+            <LayerSwitches
+              name="engineering-docs"
+              user={layered.docs.user}
+              project={layered.docs.project ?? layered.docs.user}
+              projectSet={layered.docs.project !== undefined}
+              projectName={layerProject}
+              onChange={(layer, value) =>
+                layer === "user"
+                  ? (layered.docs.user = value)
+                  : (layered.docs.project = value)}
+            />
+          {/snippet}
+        </SettingsItem>
+      </OriginGroup>
+      <OriginGroup
+        origin={{ kind: "user" }}
+        count={1}
+        projectName={layerProject}
+        locked
+      >
+        <SettingsItem
+          icon={BookOpenIcon}
+          title="release-notes"
+          summary="Untrusted project file: one lock on the label; the project switch is disabled and shows User's value"
+        >
+          {#snippet meta()}
+            <LayerSwitches
+              name="release-notes"
+              user={layered.core.user}
+              projectName={layerProject}
+              locked
+              onChange={() => {}}
+            />
+          {/snippet}
+        </SettingsItem>
+      </OriginGroup>
+      <OriginGroup
+        origin={{ kind: "agent-browser" }}
+        count={0}
+        projectName={layerProject}
+        emptyText="No agent-browser skills yet."
+      >
+        {null}
+      </OriginGroup>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ColumnLabels + LayerCells"
+      source="presentation/settings/ColumnLabels.svelte"
+      layout="stack"
+    >
+      <p class="text-caption text-muted-foreground">
+        Quiet text above the card, no header row inside it. Labels and controls
+        share the fixed, centered `LayerCells` columns. Project-defined blocks
+        hide the User label; an untrusted file puts one lock on the project
+        label.
+      </p>
+      <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
+        <ColumnLabels projectName={layerProject} chevron />
+      </div>
+      <SettingsList ariaLabel="Column labels">
+        <SettingsItem title="Both layers" summary="Radios in the same cells">
+          {#snippet meta()}
+            <LayerCells projectName={layerProject}>
+              {#snippet user()}<input
+                  type="radio"
+                  checked
+                  aria-label="User"
+                />{/snippet}
+              {#snippet project()}<input
+                  type="radio"
+                  aria-label="Project"
+                />{/snippet}
+            </LayerCells>
+          {/snippet}
+        </SettingsItem>
+      </SettingsList>
+      <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
+        <ColumnLabels projectName={layerProject} projectOnly chevron />
+      </div>
+      <SettingsList ariaLabel="Project-only column labels">
+        <SettingsItem title="Project-only" summary="The User cell stays empty">
+          {#snippet meta()}
+            <LayerCells projectName={layerProject}>
+              {#snippet project()}<input
+                  type="radio"
+                  checked
+                  aria-label="Project"
+                />{/snippet}
+            </LayerCells>
+          {/snippet}
+        </SettingsItem>
+      </SettingsList>
+      <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
+        <ColumnLabels projectName={layerProject} locked chevron />
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="LayerEnabledTable"
+      source="presentation/settings/LayerEnabledTable.svelte"
+      layout="stack"
+    >
+      <LayerEnabledTable
+        name="core"
+        description="Detail pages put layer switches in a card right under the header, with the labels on a short line above it."
+        projectName={layerProject}
+        user={layered.core.user}
+        project={layered.core.project ?? layered.core.user}
+        projectSet={layered.core.project !== undefined}
+        onChange={(layer, value) =>
+          layer === "user"
+            ? (layered.core.user = value)
+            : (layered.core.project = value)}
+      />
+      <LayerEnabledTable
+        name="core"
+        title="Available"
+        description="Without a project there is only the User column and no labels."
+        user={layered.core.user}
+        onChange={(_, value) => (layered.core.user = value)}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="LayerRow + SplitColumns"
+      source="presentation/settings/LayerRow.svelte"
+      layout="stack"
+    >
+      <SettingsSection
+        title="Defaults"
+        divided
+        splitLabels={columnsShown ? splitLabels : undefined}
+      >
+        <LayerRow
+          label="Header style"
+          description="Wide controls: label on the full width, then User and project halves, each [control][↺]."
+          projectName={columnsShown ? layerProject : undefined}
+          overriddenIn={layerModelProject !== layerModelUser
+            ? layerProject
+            : undefined}
+          projectReset={layerModelProject !== layerModelUser
+            ? {
+                label: "Follow User",
+                onReset: () => (layerModelProject = layerModelUser),
+              }
+            : undefined}
+        >
+          {#snippet user()}
+            <SelectField
+              items={headerStyles}
+              bind:value={layerModelUser}
+              ariaLabel="User header style"
+            />
+          {/snippet}
+          {#snippet project()}
+            <SelectField
+              items={headerStyles}
+              bind:value={layerModelProject}
+              ariaLabel="Project header style"
+            />
+          {/snippet}
+        </LayerRow>
+      </SettingsSection>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ProjectColumnsToggle + ProjectOverrideMark"
+      source="presentation/settings/ProjectColumnsToggle.svelte"
+    >
+      <ProjectColumnsToggle
+        id="lab-project-columns"
+        checked={columnsShown}
+        count={layerModelProject !== layerModelUser ? 1 : 0}
+        onCheckedChange={(next) => (columnsShown = next)}
+      />
+      <ProjectOverrideMark projectName={layerProject} />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="LevelMenu"
+      source="presentation/settings/LevelMenu.svelte"
+    >
+      <LevelMenu label="New profile" icon={PlusIcon} onSelect={() => {}} />
+      <LevelMenu
+        label="New profile"
+        icon={PlusIcon}
+        projectName={layerProject}
+        onSelect={() => {}}
+      />
+    </GallerySpecimen>
+  </GalleryGroup>
 </div>
+
+{#snippet splitLabels()}
+  <SplitColumns projectName={layerProject} />
+{/snippet}

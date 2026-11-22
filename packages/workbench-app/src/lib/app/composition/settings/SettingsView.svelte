@@ -16,18 +16,11 @@ import {
   SettingsSidebarStatus,
 } from "$lib/presentation/settings";
 import {
-  resolveSettingsPageId,
+  resolveSurfacePageId,
   settingsNavFor,
   settingsPagesFor,
-  settingsScopeHeader,
 } from "$lib/features/settings/registry/settings-pages";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
-import {
-  skillSourceLabels,
-  skillSourceSectionIds,
-  sourcesForScope,
-} from "$lib/domain/skills/skill-catalog";
-import type { ProjectGuide } from "$lib/application/configuration-attention/project-guides";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import SettingsPageActions from "./SettingsPageActions.svelte";
 import SettingsPageContent from "./SettingsPageContent.svelte";
@@ -60,17 +53,10 @@ type Props = {
   detailItems?: Readonly<Record<string, { id: string; label: string }[]>>;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  /** The project of a project target. */
+  /** The open project. It adds a column and a nav group. */
   project?: Project;
-  /** Switching between your settings and the project's. */
-  scopeLinks?: {
-    onOpenUser: () => void;
-    project?: { id: string; name: string; path?: string; onOpen: () => void };
-  };
-  /** Items that need the user: in the project, and per page of this scope. */
-  attention?: { project: number; pages: Readonly<Record<string, number>> };
-  /** "In this project" rows by user page id. */
-  guides?: Readonly<Record<string, ProjectGuide>>;
+  /** Items that need the user, per page. */
+  attention?: { pages: Readonly<Record<string, number>> };
   skills?: AvailableSkill[];
   skillsLoading?: boolean;
   skillsError?: string;
@@ -100,9 +86,7 @@ let {
   models = [],
   authProviders = [],
   project,
-  scopeLinks,
-  attention = { project: 0, pages: {} },
-  guides = {},
+  attention = { pages: {} },
   skills = [],
   skillsLoading = false,
   skillsError,
@@ -121,53 +105,19 @@ const controllers = createSettingsPageControllers({
   project: () => project,
 });
 
-/** Skills sections mirror the sources the scope actually renders. */
-const skillSections = $derived(
-  sourcesForScope(target.kind)
-    .filter((source) => skills.some((skill) => skill.source === source))
-    .map((source) => ({
-      id: skillSourceSectionIds[source],
-      label: skillSourceLabels[source],
-    })),
-);
-
-/** The Skills page states what the scope writes, instead of a banner. */
-const skillsDescription = $derived(
-  target.kind === "user"
-    ? "Your defaults for every project. Projects and conversations can override them."
-    : `Overrides for ${project?.name ?? "this project"}. Skills without an override follow your user settings.`,
-);
+const surface = $derived({ projectName: project?.name });
 
 const pages = $derived(
-  settingsPagesFor(target).map((page) => {
-    const withDetail =
-      page.detail && detailItems[page.id]
-        ? { ...page, detail: { ...page.detail, items: detailItems[page.id] } }
-        : page;
-    return page.id === "skills"
-      ? {
-          ...withDetail,
-          sections: skillSections.length > 0 ? skillSections : page.sections,
-          description: skillsDescription,
-        }
-      : withDetail;
-  }),
+  settingsPagesFor(surface).map((page) =>
+    page.detail && detailItems[page.id]
+      ? { ...page, detail: { ...page.detail, items: detailItems[page.id] } }
+      : page,
+  ),
 );
 
-/**
- * Pages with items that need the user show their count; project pages that
- * differ from the user's settings show how many differ.
- */
-const badges = $derived({
-  ...Object.fromEntries(
-    Object.entries(target.kind === "project" ? controllers.pageDiffs() : {})
-      .filter(([, count]) => count > 0)
-      .map(([id, count]) => [
-        id,
-        { text: String(count), tone: "info" as const },
-      ]),
-  ),
-  ...Object.fromEntries(
+/** Pages with items that need the user show their count. */
+const badges = $derived(
+  Object.fromEntries(
     Object.entries(attention.pages)
       .filter(([, count]) => count > 0)
       .map(([id, count]) => [
@@ -175,25 +125,12 @@ const badges = $derived({
         { text: String(count), tone: "warning" as const },
       ]),
   ),
-});
-const groups = $derived(settingsNavFor(target, badges));
-const scopeHeader = $derived.by(() => {
-  const open = scopeLinks?.project;
-  const named =
-    open ??
-    (target.kind === "project"
-      ? { name: project?.name ?? "Project", path: project?.directory }
-      : undefined);
-  return settingsScopeHeader(target, {
-    ...(named ? { project: { ...named, pending: attention.project } } : {}),
-    onOpenUser: scopeLinks?.onOpenUser ?? (() => undefined),
-    onOpenProject: open?.onOpen ?? (() => undefined),
-  });
-});
+);
+const groups = $derived(settingsNavFor(surface, badges));
 
-// Stale ids (restored state, old links) land on the scope's default page.
+// Stale ids (restored state, old links) land on the default page.
 $effect(() => {
-  const resolved = resolveSettingsPageId(target.kind, activePageId);
+  const resolved = resolveSurfacePageId(surface, activePageId);
   if (resolved !== activePageId) activePageId = resolved;
 });
 
@@ -210,7 +147,6 @@ function statusText(): string {
 <SettingsShell
   {pages}
   {groups}
-  {scopeHeader}
   bind:activePageId
   bind:activeSectionId
   bind:activeItemId
@@ -228,9 +164,9 @@ function statusText(): string {
   {#snippet pageActions(page)}
     <SettingsPageActions
       {page}
-      {target}
       {controllers}
       {settingsDraft}
+      {project}
       {onSettingsChange}
     />
   {/snippet}
@@ -264,8 +200,10 @@ function statusText(): string {
       {theme}
       {onThemeChange}
       {onSkillsRetry}
-      guide={guides[page.id]}
-      onOpenGuide={scopeLinks?.project?.onOpen}
+      onOpenPage={(pageId) => {
+        activePageId = pageId;
+        activeItemId = "";
+      }}
     />
   {/snippet}
 </SettingsShell>

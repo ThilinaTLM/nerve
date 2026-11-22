@@ -1,7 +1,8 @@
 <!--
-  Settings → Extensions: the built-in extensions as one list, and the detail
-  view of one extension when `itemId` names it. Works on user and project
-  scope; a project shows what differs from the user's settings.
+  Settings → Extensions: the extensions as origin groups (project, user,
+  built-in) with a User and a project switch per row, and the detail view of
+  one extension when `itemId` names it. Opening the page re-reads the installed
+  extensions; Reload in the page header does it again.
 -->
 <script lang="ts">
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
@@ -9,40 +10,49 @@ import { visibleAccounts } from "../accounts/accounts-view";
 import Blocks from "@lucide/svelte/icons/blocks";
 import { tick } from "svelte";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
-import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import type {
+  ExtensionCatalogEntry,
+  ExtensionView,
+} from "@nervekit/contracts/extensions";
 import type { AuthProviderMetadata, ModelInfo } from "$lib/api";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
-  SettingsChangeIndicator,
+  LayerSwitches,
+  OriginGroup,
   SettingsEmptyState,
   SettingsItem,
-  SettingsList,
-  SettingsSection,
+  type SettingsLayer,
 } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import { accountOptions } from "../tools/tool-settings";
+import { applyLayerChange } from "../../shared/layer-change";
+import ExtensionConsentDialog from "./ExtensionConsentDialog.svelte";
 import ExtensionMark from "./ExtensionMark.svelte";
 import ExtensionDetail from "./ExtensionDetail.svelte";
 import ExtensionDetailHeader from "./ExtensionDetailHeader.svelte";
 import ExtensionsTrustNotice from "./ExtensionsTrustNotice.svelte";
-import InstalledExtensionsSection from "./InstalledExtensionsSection.svelte";
+import type { ExtensionsPageController } from "./extensions-page-controller.svelte";
 import {
   entryWithEnabled,
-  extensionChanges,
   extensionFix,
   extensionProblem,
   extensionSummary,
   installedEntries,
+  installedProblem,
+  installedStateBadge,
+  installedSummary,
 } from "./extensions-view";
 
 type Props = {
-  scope: "user" | "project";
+  /** The open project; without one the page has a single (User) column. */
   projectId?: string;
+  projectName?: string;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
   /** The open extension; "" shows the list. */
@@ -55,11 +65,15 @@ type Props = {
   /** Pages an extension contributes to the open project. */
   pagesOf?: (extensionId: string) => { id: string; label: string }[];
   onOpenPage?: (extensionId: string, pageId: string) => void;
+  /** Receives the page's Reload action for the page header. */
+  controller?: ExtensionsPageController;
+  /** Opens the project's Trust page. */
+  onReviewTrust?: () => void;
 };
 
 let {
-  scope,
   projectId,
+  projectName,
   models = [],
   authProviders = [],
   itemId = "",
@@ -68,60 +82,66 @@ let {
   onCloseItem,
   pagesOf,
   onOpenPage,
+  controller,
+  onReviewTrust,
 }: Props = $props();
 
-const extensions = new ScopedExtensionsState();
+const layered = $derived(!!projectId && !!projectName);
+const userExt = new ScopedExtensionsState();
+const projectExt = new ScopedExtensionsState();
+/** The state the page lists: the project's (which also resolves User) or User's. */
+const extensions = $derived(layered ? projectExt : userExt);
 $effect(() => {
-  if (
-    !workbenchStartupState.progressiveActive ||
-    (scope === "project" && !projectId)
-  )
-    return;
-  void extensions.load(
-    scope === "project"
-      ? { scope: "project", projectId: projectId! }
-      : { scope: "user" },
-  );
+  if (!workbenchStartupState.progressiveActive) return;
+  void userExt.load({ scope: "user" });
 });
-$effect(() => extensions.observe());
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || !projectId) return;
+  void projectExt.load({ scope: "project", projectId });
+});
+$effect(() => userExt.observe());
+$effect(() => projectExt.observe());
+function reloadViews() {
+  return Promise.all([userExt.reload(), layered ? projectExt.reload() : null]);
+}
 // Availability follows accounts and their credentials.
 $effect(() => {
   const stop = [
     // Other settings (models, providers) feed availability too.
-    onEvent("settings.updated", () => void extensions.reload()),
-    onEvent("accounts.changed", () => void extensions.reload()),
-    onEvent("accounts.health_changed", () => void extensions.reload()),
+    onEvent("settings.updated", () => void reloadViews()),
+    onEvent("accounts.changed", () => void reloadViews()),
+    onEvent("accounts.health_changed", () => void reloadViews()),
   ];
   return () => stop.forEach((off) => off());
 });
 
+// Opening the page re-reads the installed extensions once; the header's
+// Reload does it again.
+let reloadedOnOpen = false;
+$effect(() => {
+  if (!extensions.view || reloadedOnOpen) return;
+  reloadedOnOpen = true;
+  void extensions.reloadInstalled();
+});
+$effect(() => {
+  if (!controller) return;
+  controller.reload = async () => {
+    await extensions.reloadInstalled();
+    if (layered) await userExt.reload();
+  };
+  return () => (controller.reload = undefined);
+});
+
 const view = $derived(extensions.view);
+const userView = $derived(userExt.view);
 const accounts = $derived(
   accountOptions(
-    // A user-scope setting offers user-level accounts; a project's also its own.
-    visibleAccounts(
-      accountsState.accounts,
-      scope === "project" ? projectId : undefined,
-    ),
+    visibleAccounts(accountsState.accounts, projectId),
     accountsState.kinds,
   ),
 );
 const usableModels = $derived(
   authenticatedRealModelOptions(models, authProviders),
-);
-const rows = $derived(
-  (view?.extensions ?? []).map((extension) => {
-    const inherited = extensions.inherited?.extensions.find(
-      (candidate) => candidate.metadata.id === extension.metadata.id,
-    );
-    return {
-      extension,
-      inherited,
-      changes: extensionChanges(extension, scope, accounts, inherited),
-      problem: extensionProblem(extension),
-      fix: extensionFix(extension, accounts, accountsState.kinds),
-    };
-  }),
 );
 const catalog = $derived(view?.catalog ?? []);
 const registered = $derived(
@@ -132,23 +152,121 @@ const registered = $derived(
     ]),
   ),
 );
-const builtinRows = $derived(
-  rows.filter((row) => row.extension.metadata.source === "builtin"),
-);
-const differing = $derived(
-  scope === "project"
-    ? rows.reduce((total, row) => total + row.changes.length, 0)
-    : 0,
-);
+/** The project's extension settings file is not trusted: its column is locked. */
+const locked = $derived(layered && projectExt.view?.file.trusted === false);
+const busy = $derived(extensions.saving || !view);
 const open = $derived(
   itemId
     ? view?.extensions.find((extension) => extension.metadata.id === itemId)
     : undefined,
 );
-const openRow = $derived(rows.find((row) => row.extension === open));
-const busy = $derived(extensions.saving || !view);
-let confirmReset = $state(false);
+const openInherited = $derived(
+  open
+    ? userView?.extensions.find(
+        (extension) => extension.metadata.id === open.metadata.id,
+      )
+    : undefined,
+);
 let listElement = $state<HTMLElement>();
+let reviewing = $state<ExtensionCatalogEntry>();
+let reviewOpen = $state(false);
+function review(entry: ExtensionCatalogEntry): void {
+  reviewing = entry;
+  reviewOpen = true;
+}
+
+type Origin = "project" | "user" | "builtin";
+type Row = {
+  id: string;
+  name: string;
+  origin: Origin;
+  /** Loaded extensions have a view; the rest wait for consent or failed. */
+  loaded?: ExtensionView;
+  entry?: ExtensionCatalogEntry;
+};
+const origins = $derived<Origin[]>(
+  layered ? ["project", "user", "builtin"] : ["user", "builtin"],
+);
+function rowsOf(origin: Origin): Row[] {
+  if (origin === "builtin")
+    return (view?.extensions ?? [])
+      .filter((extension) => extension.metadata.source === "builtin")
+      .map((extension) => ({
+        id: extension.metadata.id,
+        name: extension.metadata.name,
+        origin,
+        loaded: extension,
+      }));
+  return installedEntries(catalog, origin).map((entry) => ({
+    id: entry.id,
+    name: entry.name ?? entry.id,
+    origin,
+    entry,
+    loaded: entry.state === "enabled" ? registered.get(entry.id) : undefined,
+  }));
+}
+const empty = {
+  project: [
+    "No project extensions",
+    "Add a folder under .nerve/extensions in the project.",
+  ],
+  user: [
+    "No user extensions",
+    "Ask the agent to create one, or add a folder under agent/extensions in your Nerve home.",
+  ],
+} as const;
+
+function layerValue(row: Row) {
+  const user = userView?.extensions.find((e) => e.metadata.id === row.id);
+  const project = layered ? row.loaded : undefined;
+  const userOn =
+    (row.origin === "project" ? undefined : user?.enabled.value) ?? false;
+  return {
+    user: userOn,
+    project: project ? project.enabled.value : userOn,
+    projectSet: project?.stored?.enabled !== undefined && !locked,
+    value: {
+      builtinDefault: row.loaded?.metadata.enabledByDefault ?? false,
+      user: row.origin === "project" ? undefined : user?.stored?.enabled,
+      project: project?.stored?.enabled,
+    },
+  };
+}
+async function writeEnabled(
+  layer: SettingsLayer,
+  id: string,
+  choice: boolean | undefined,
+) {
+  const state = layer === "user" ? userExt : projectExt;
+  const current = state.view?.extensions.find((e) => e.metadata.id === id);
+  if (!current) return;
+  if (choice === undefined) await state.reset(id, ["enabled"]);
+  else await state.save(id, entryWithEnabled(current, choice));
+}
+function toggle(row: Row, layer: SettingsLayer, next: boolean) {
+  void applyLayerChange({
+    value: layerValue(row).value,
+    layer,
+    next,
+    writeUser: (choice) => writeEnabled("user", row.id, choice),
+    writeProject: (choice) => writeEnabled("project", row.id, choice),
+  });
+}
+const openLayers = $derived(
+  open
+    ? layerValue({
+        id: open.metadata.id,
+        name: open.metadata.name,
+        origin:
+          open.metadata.source === "project"
+            ? "project"
+            : open.metadata.source === "user"
+              ? "user"
+              : "builtin",
+        loaded: open,
+      })
+    : undefined,
+);
 
 // The shell scrolls to a deep-linked section when the detail opens, which can
 // be before the extension view has loaded. Scroll again once it has.
@@ -183,14 +301,6 @@ $effect(() => {
       ?.focus({ preventScroll: true }),
   );
 });
-
-function resetAll(): void {
-  void extensions.resetAll(
-    rows
-      .filter((row) => row.changes.length > 0)
-      .map((row) => row.extension.metadata.id),
-  );
-}
 </script>
 
 {#if itemId && onCloseItem}
@@ -203,9 +313,39 @@ function resetAll(): void {
     onBack={onCloseItem}
     onEnabledChange={(next) =>
       open && void extensions.save(itemId, entryWithEnabled(open, next))}
+    layers={open && openLayers && layered
+      ? {
+          projectName: projectName!,
+          user: openLayers.user,
+          project: openLayers.project,
+          projectSet: openLayers.projectSet,
+          projectOnly: open.metadata.source === "project",
+          locked,
+          onChange: (layer, next) =>
+            toggle(
+              {
+                id: open.metadata.id,
+                name: open.metadata.name,
+                origin:
+                  open.metadata.source === "project"
+                    ? "project"
+                    : open.metadata.source === "user"
+                      ? "user"
+                      : "builtin",
+                loaded: open,
+              },
+              layer,
+              next,
+            ),
+        }
+      : undefined}
   />
 {/if}
-{#if scope === "project"}<ExtensionsTrustNotice {extensions} />{/if}
+{#if layered}<ExtensionsTrustNotice
+    {extensions}
+    {projectName}
+    onReview={onReviewTrust}
+  />{/if}
 {#if extensions.error}
   <Callout layout="block" tone="destructive" text={extensions.error}>
     {#snippet actions()}
@@ -224,7 +364,7 @@ function resetAll(): void {
 {#if !view}
   {#if !extensions.error}<Skeleton class="h-10 w-full" />{/if}
 {:else if itemId}
-  {#if open && openRow}
+  {#if open}
     <ExtensionDetail
       extension={open}
       installed={catalog.find(
@@ -232,10 +372,12 @@ function resetAll(): void {
           entry.id === open.metadata.id &&
           entry.source === open.metadata.source,
       )}
-      inherited={openRow.inherited}
-      {scope}
+      inherited={layered ? openInherited : undefined}
+      scope={layered ? "project" : "user"}
       {projectId}
+      {projectName}
       {extensions}
+      userExtensions={userExt}
       {accounts}
       models={usableModels}
       pages={pagesOf?.(open.metadata.id) ?? []}
@@ -253,96 +395,92 @@ function resetAll(): void {
   {/if}
 {:else}
   <div bind:this={listElement} class="grid min-w-0 gap-6">
-    <SettingsSection id="builtin" title="Built-in">
-      {#snippet actions()}
-        {#if differing > 0}
-          <span class="text-ui text-muted-foreground"
-            >{differing} differ from your settings</span
-          >
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onclick={() => (confirmReset = true)}>Reset all</Button
-          >
-        {/if}
-      {/snippet}
-      <SettingsList ariaLabel="Built-in extensions">
-        {#each builtinRows as row (row.extension.metadata.id)}
-          {@const extension = row.extension}
+    {#each origins as origin (origin)}
+      {@const rows = rowsOf(origin)}
+      <OriginGroup
+        origin={{ kind: origin }}
+        count={rows.length}
+        projectName={layered ? projectName : undefined}
+        {locked}
+        emptyText={origin === "builtin" ? undefined : empty[origin][0]}
+        emptyDescription={origin === "builtin" ? undefined : empty[origin][1]}
+      >
+        {#each rows as row (`${origin}/${row.entry?.path ?? row.id}`)}
+          {@const loaded = row.loaded}
+          {@const entry = row.entry}
+          {@const layers = layerValue(row)}
+          {@const waiting = entry?.state === "pending_consent"}
+          {@const badge =
+            entry && !waiting ? installedStateBadge(entry.state) : undefined}
+          {@const fix = loaded
+            ? extensionFix(loaded, accounts, accountsState.kinds)
+            : undefined}
           <SettingsItem
-            title={extension.metadata.name}
-            summary={extensionSummary(extension, accounts)}
-            problem={row.problem}
-            problemAction={row.fix
-              ? {
-                  label: row.fix.label,
-                  onclick: () =>
-                    onOpenItem?.(extension.metadata.id, row.fix?.section),
-                }
-              : undefined}
-            checked={extension.enabled.value}
-            disabled={busy || extension.readOnly}
-            lockedBy={extension.enabled.source.locked
-              ? (extension.enabled.source.profile ?? "profile")
-              : undefined}
-            switchLabel={`Enable ${extension.metadata.name}`}
-            onCheckedChange={(next) =>
-              void extensions.save(
-                extension.metadata.id,
-                entryWithEnabled(extension, next),
-              )}
-            onOpen={onOpenItem
-              ? () => onOpenItem(extension.metadata.id)
-              : undefined}
-            openLabel={`Open ${extension.metadata.name}`}
+            title={row.name}
+            summary={loaded
+              ? extensionSummary(loaded, accounts)
+              : entry
+                ? installedSummary(entry)
+                : undefined}
+            mono={!loaded && !!entry}
+            problem={loaded
+              ? extensionProblem(loaded)
+              : entry && installedProblem(entry)}
+            problemAction={waiting && entry?.consent
+              ? { label: "Review", onclick: () => review(entry) }
+              : fix
+                ? {
+                    label: fix.label,
+                    onclick: () => onOpenItem?.(row.id, fix.section),
+                  }
+                : undefined}
+            muted={!!entry && entry.state !== "enabled"}
+            onOpen={loaded && onOpenItem
+              ? () => onOpenItem(row.id)
+              : waiting && entry?.consent
+                ? () => review(entry)
+                : undefined}
+            openLabel={loaded ? `Open ${row.name}` : `Review ${row.name}`}
           >
             {#snippet leading()}
-              <ExtensionMark
-                icon={extension.metadata.icon}
-                off={!extension.enabled.value}
-              />
-            {/snippet}
-            {#snippet meta()}
-              {#if row.changes.length > 0}
-                <SettingsChangeIndicator
-                  {scope}
-                  from={row.changes
-                    .map((change) => `${change.label} ${change.from}`)
-                    .join(", ")}
-                  onReset={() => void extensions.reset(extension.metadata.id)}
+              {#if loaded}
+                <ExtensionMark
+                  icon={loaded.metadata.icon}
+                  off={!loaded.enabled.value}
+                />
+              {:else}
+                <Blocks
+                  class="size-4 text-muted-foreground"
+                  aria-hidden="true"
                 />
               {/if}
             {/snippet}
+            {#snippet badges()}
+              {#if badge}<Badge variant={badge.variant}>{badge.label}</Badge
+                >{/if}
+            {/snippet}
+            {#snippet meta()}
+              <LayerSwitches
+                name={row.name}
+                user={layers.user}
+                project={layers.project}
+                projectSet={layers.projectSet}
+                projectName={layered ? projectName : undefined}
+                projectOnly={origin === "project"}
+                pending={!loaded}
+                {locked}
+                onChange={(layer, next) => toggle(row, layer, next)}
+              />
+            {/snippet}
           </SettingsItem>
         {/each}
-      </SettingsList>
-    </SettingsSection>
-    <InstalledExtensionsSection
-      source="user"
-      entries={installedEntries(catalog, "user")}
-      {registered}
-      {extensions}
-      {accounts}
-      {onOpenItem}
-    />
-    {#if scope === "project"}
-      <InstalledExtensionsSection
-        source="project"
-        entries={installedEntries(catalog, "project")}
-        {registered}
-        {extensions}
-        {accounts}
-        {onOpenItem}
-      />
-    {/if}
+      </OriginGroup>
+    {/each}
   </div>
-  <ConfirmDialog
-    bind:open={confirmReset}
-    title="Reset Extensions for this project?"
-    description={`Removes ${differing} project ${differing === 1 ? "override" : "overrides"}. Extensions will follow your user settings again.`}
-    confirmLabel="Reset all"
-    destructive
-    onConfirm={resetAll}
+  <ExtensionConsentDialog
+    bind:open={reviewOpen}
+    entry={reviewing}
+    busy={extensions.saving}
+    onAllow={(target) => void extensions.grantConsent(target)}
   />
 {/if}

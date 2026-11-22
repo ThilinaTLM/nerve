@@ -13,15 +13,12 @@ import {
 import type {
   SettingsNavGroup,
   SettingsPageDef,
-  SettingsScopeHeader,
 } from "./settings-component-contracts";
 
 type Props = {
   /** Page headers and content; the nav lists them through `groups`. */
   pages: SettingsPageDef[];
   groups: SettingsNavGroup[];
-  /** Identity block above the nav: "User settings", or a project name. */
-  scopeHeader?: SettingsScopeHeader;
   activePageId?: string;
   activeSectionId?: string;
   /** Open detail item of the active page; "" shows the page's list. */
@@ -43,7 +40,6 @@ type Props = {
 let {
   pages,
   groups,
-  scopeHeader,
   activePageId = $bindable(pages[0]?.id ?? ""),
   activeSectionId = $bindable(firstEnabledSectionId(pages[0])),
   activeItemId = $bindable(""),
@@ -200,13 +196,12 @@ function selectPage(id: string): void {
     >
       <SettingsNav
         {groups}
-        header={scopeHeader}
         {ariaLabel}
         activeId={activePageId}
         onSelect={selectPage}
       />
       {#if sidebarFooter}
-        <div class="flex-none">
+        <div class="flex-none pr-3 @max-[46rem]/settings-page:pr-0">
           {@render sidebarFooter()}
         </div>
       {/if}
@@ -277,7 +272,8 @@ function selectPage(id: string): void {
   background: var(--panel);
   --well: var(--well-on-panel);
   color: var(--foreground);
-  padding: 0.9rem 0.7rem;
+  /* No right padding: the nav's scrollbar sits flush with the panel edge. */
+  padding: 0.9rem 0 0.9rem 0.7rem;
 }
 
 /* ScrollArea renders its own root and viewport (escape-hatch reason 5). */
@@ -308,6 +304,7 @@ function selectPage(id: string): void {
   }
 
   .settings-sidebar {
+    padding-right: 0.7rem;
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }

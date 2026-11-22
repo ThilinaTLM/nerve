@@ -2,8 +2,10 @@ import type {
   CreatePromptSuggestionRequest,
   CreatePromptSuggestionResponse,
   PromptSuggestionListResponse,
+  PromptSuggestionProjectFile,
   PromptSuggestionStatus,
   UpdatePromptSuggestionEnabledRequest,
+  UpdatePromptSuggestionProjectFileTrustRequest,
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts/prompt-suggestions";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
@@ -18,12 +20,19 @@ export async function getPromptSuggestions(
   });
 }
 
-export async function getPromptSuggestionStatuses(
-  projectId?: string,
-): Promise<PromptSuggestionStatus[]> {
-  return (
-    await requestWorkbench("promptSuggestion.statuses.list", { projectId })
-  ).statuses;
+/** The suggestions with their state, and, for a project, its enablement file and whether it is trusted. */
+export async function getPromptSuggestionStatuses(projectId?: string): Promise<{
+  statuses: PromptSuggestionStatus[];
+  projectFile?: PromptSuggestionProjectFile;
+}> {
+  return requestWorkbench("promptSuggestion.statuses.list", { projectId });
+}
+
+export async function trustPromptSuggestionProjectFile(
+  body: UpdatePromptSuggestionProjectFileTrustRequest,
+): Promise<"saved" | "conflict"> {
+  return (await requestWorkbench("promptSuggestion.projectFile.trust", body))
+    .status;
 }
 
 export async function requestPromptSuggestionCreation(
@@ -49,6 +58,7 @@ export type {
   CreatePromptSuggestionResponse,
   PromptSuggestion,
   PromptSuggestionListResponse,
+  PromptSuggestionProjectFile,
   PromptSuggestionSourceKind,
   PromptSuggestionStatus,
   PromptSuggestionTrustRequest,

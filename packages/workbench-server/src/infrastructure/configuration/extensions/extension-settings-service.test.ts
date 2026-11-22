@@ -324,3 +324,34 @@ void test("newer entries are read-only and never overwritten; unknown extensions
     "unknown-extension",
   ]);
 });
+
+void test("a project can re-enable what the user turned off, and reset follows the user again", async (t) => {
+  const f = await fixture(t);
+  f.trust(true);
+  const off = await f.service.save(f.user, await f.expected(f.user), {
+    id: "web-search",
+    entry: { enabled: false },
+  });
+  assert.equal(off.status, "saved");
+  const on = await f.service.save(
+    f.projectScope,
+    await f.expected(f.projectScope),
+    { id: "web-search", entry: { enabled: true } },
+  );
+  assert.equal(on.status, "saved");
+  let resolved = await f.service.resolve({ projectId: "p" }, "project");
+  assert.equal(resolved.extensions["web-search"].enabled.value, true);
+  assert.equal(
+    resolved.extensions["web-search"].enabled.source.layer,
+    "project",
+  );
+  const cleared = await f.service.reset(
+    f.projectScope,
+    await f.expected(f.projectScope),
+    "web-search",
+  );
+  assert.equal(cleared.status, "saved");
+  resolved = await f.service.resolve({ projectId: "p" }, "project");
+  assert.equal(resolved.extensions["web-search"].enabled.value, false);
+  assert.equal(resolved.extensions["web-search"].enabled.source.layer, "user");
+});

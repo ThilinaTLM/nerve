@@ -5,10 +5,7 @@ import type { Project } from "@nervekit/contracts/core";
 import Monitor from "@lucide/svelte/icons/monitor";
 import { MobileScreen } from "$lib/presentation/shell";
 import { SettingsEmptyState } from "$lib/presentation/settings";
-import {
-  resolveSettingsPageId,
-  settingsPageFor,
-} from "$lib/features/settings/registry/settings-pages";
+import { settingsPageFor } from "$lib/features/settings/registry/settings-pages";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { settingsSelectors } from "$lib/features/settings";
@@ -21,7 +18,10 @@ import {
   setTheme,
 } from "$lib/application/settings/settings-actions.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
-import { backFromMobileScreen } from "$lib/app/shell/mobile/mobile-shell.svelte";
+import {
+  backFromMobileScreen,
+  pushMobileScreen,
+} from "$lib/app/shell/mobile/mobile-shell.svelte";
 import SettingsPageActions from "../settings/SettingsPageActions.svelte";
 import SettingsPageContent from "../settings/SettingsPageContent.svelte";
 import { createSettingsPageControllers } from "../settings/settings-page-controllers.svelte";
@@ -45,9 +45,7 @@ let {
 } = $props();
 
 // Routes can outlive the registry (restored state); unknown pages show the default.
-const page = $derived(
-  settingsPageFor(target, resolveSettingsPageId(target.kind, pageId)),
-);
+const page = $derived(settingsPageFor({ projectName: project?.name }, pageId));
 /** Open detail item of pages with a detail view; "" shows the list. */
 let itemId = $state("");
 let sectionId = $state<string>();
@@ -62,9 +60,7 @@ const controllers = createSettingsPageControllers({
   target: () => target,
   project: () => project,
 });
-const skillsProjectId = $derived(
-  target.kind === "project" ? target.projectId : undefined,
-);
+const skillsProjectId = $derived(project?.id);
 const saveLabel = $derived.by(() => {
   const message = settingsSelectors.settingsMessage;
   if (message) return message;
@@ -103,9 +99,9 @@ $effect(() => {
   {#snippet actions()}
     {#if !desktopOnly}<SettingsPageActions
         {page}
-        {target}
         {controllers}
         settingsDraft={settingsState.settingsDraft}
+        {project}
         onSettingsChange={queueSettingsSave}
       />{/if}
   {/snippet}
@@ -129,6 +125,14 @@ $effect(() => {
           sectionId = section;
         }}
         onCloseItem={() => (itemId = "")}
+        onOpenPage={project
+          ? (nextPageId) =>
+              pushMobileScreen({
+                kind: "project-settings-page",
+                projectId: project.id,
+                pageId: nextPageId,
+              })
+          : undefined}
         {status}
         settingsDraft={settingsState.settingsDraft}
         applicationConfiguration={settingsState.applicationConfiguration}

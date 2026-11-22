@@ -2,8 +2,10 @@ import {
   createPromptSuggestionRequestSchema,
   createPromptSuggestionResponseSchema,
   promptSuggestionListResponseSchema,
+  promptSuggestionProjectFileSchema,
   promptSuggestionStatusSchema,
   updatePromptSuggestionEnabledRequestSchema,
+  updatePromptSuggestionProjectFileTrustRequestSchema,
   updatePromptSuggestionTrustRequestSchema,
 } from "./prompt-suggestion.js";
 import { z } from "zod";
@@ -33,7 +35,11 @@ export const promptSuggestionsOperationDefinitions = [
   defineOperation(
     "promptSuggestion.statuses.list",
     promptSuggestionStatusesParamsSchema,
-    z.object({ statuses: z.array(promptSuggestionStatusSchema) }),
+    z.object({
+      statuses: z.array(promptSuggestionStatusSchema),
+      /** With a project: its enablement file and whether it is trusted. */
+      projectFile: promptSuggestionProjectFileSchema.optional(),
+    }),
     "read",
     "none",
     ["workbench_server"] as const,
@@ -47,6 +53,15 @@ export const promptSuggestionsOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.promptSuggestion.trust.update",
+  ),
+  defineOperation(
+    "promptSuggestion.projectFile.trust",
+    updatePromptSuggestionProjectFileTrustRequestSchema,
+    z.object({ status: z.enum(["saved", "conflict"]) }),
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.promptSuggestion.projectFile.trust",
   ),
   defineOperation(
     "promptSuggestion.enabled.update",

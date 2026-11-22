@@ -32,6 +32,18 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
       state.promptSuggestions.listForProject(params.projectId, params),
     "promptSuggestion.statuses.list": async (state, params) => ({
       statuses: await state.promptSuggestions.listStatuses(params?.projectId),
+      ...(params?.projectId
+        ? {
+            projectFile: await state.promptSuggestions.projectFile(
+              params.projectId,
+            ),
+          }
+        : {}),
+    }),
+    "promptSuggestion.projectFile.trust": async (state, params) => ({
+      status: (await state.promptSuggestions.decideProjectFile(params))
+        ? ("saved" as const)
+        : ("conflict" as const),
     }),
     "promptSuggestion.create": async (state, params) => ({
       suggestion: await state.promptSuggestions.create(params),

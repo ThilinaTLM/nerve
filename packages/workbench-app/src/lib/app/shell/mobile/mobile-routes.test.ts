@@ -152,17 +152,6 @@ describe("mobile routes", () => {
     );
   });
 
-  it("maps project settings tabs onto project settings routes", () => {
-    assert.deepEqual(
-      mobileRouteForCenterTab({ kind: "project-settings", id: "p1" }),
-      { kind: "project-settings", projectId: "p1" },
-    );
-    assert.deepEqual(
-      mobileRouteForCenterTab({ kind: "project-settings", id: "p1" }, "tools"),
-      { kind: "project-settings-page", projectId: "p1", pageId: "tools" },
-    );
-  });
-
   it("keys launch output routes by run so switching runs replaces the screen", () => {
     let state = pushMobileRoute(initialMobileNavState(), project);
     state = pushMobileRoute(state, {

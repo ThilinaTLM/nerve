@@ -66,11 +66,7 @@ async function confirmRemove(): Promise<void> {
     />
   {/snippet}
   {#if apiKeys.length === 0}
-    <SettingsEmptyState
-      variant="card"
-      title="No API keys configured"
-      description="Add a provider API key to authenticate models."
-    />
+    <SettingsEmptyState variant="card" title="None added." />
   {:else}
     <SettingsList ariaLabel="Configured API keys">
       {#each apiKeys as provider (provider.provider)}

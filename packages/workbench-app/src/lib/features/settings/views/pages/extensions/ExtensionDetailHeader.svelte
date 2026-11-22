@@ -1,6 +1,8 @@
 <!--
   The page header of an open extension, in the settings page-header slot:
-  `Extensions › [mark] Name`, its description and the enable switch. It
+  `Extensions › [mark] Name`, its description and, with no project open, the
+  enable switch. With one, the User and project switches are an "Enabled" table
+  row under the header (`below`), never in the title row. It
   stays valid while the extension view loads or when the id is unknown, so the
   heading never jumps.
 -->
@@ -8,7 +10,11 @@
 import Lock from "@lucide/svelte/icons/lock";
 import type { ExtensionView } from "@nervekit/contracts/extensions";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import { SettingsPageHeader } from "$lib/presentation/settings";
+import {
+  LayerEnabledTable,
+  SettingsPageHeader,
+  type SettingsLayer,
+} from "$lib/presentation/settings";
 import ExtensionMark from "./ExtensionMark.svelte";
 
 type Props = {
@@ -21,6 +27,16 @@ type Props = {
   busy?: boolean;
   onBack: () => void;
   onEnabledChange: (enabled: boolean) => void;
+  /** With a project open: the User and project switches replace the single one. */
+  layers?: {
+    projectName: string;
+    user: boolean;
+    project: boolean;
+    projectSet: boolean;
+    projectOnly: boolean;
+    locked: boolean;
+    onChange: (layer: SettingsLayer, value: boolean) => void;
+  };
 };
 
 let {
@@ -30,6 +46,7 @@ let {
   busy = false,
   onBack,
   onEnabledChange,
+  layers,
 }: Props = $props();
 
 const source = $derived(extension?.enabled.source);
@@ -63,12 +80,31 @@ const source = $derived(extension?.enabled.source);
           />
         </span>
       {/if}
-      <Switch
-        checked={extension.enabled.value}
-        disabled={busy || extension.readOnly || source?.locked === true}
-        aria-label={`Enable ${extension.metadata.name}`}
-        onCheckedChange={onEnabledChange}
-      />
+      {#if !layers}
+        <Switch
+          checked={extension.enabled.value}
+          disabled={busy || extension.readOnly || source?.locked === true}
+          aria-label={`Enable ${extension.metadata.name}`}
+          onCheckedChange={onEnabledChange}
+        />
+      {/if}
+    {/if}
+  {/snippet}
+  {#snippet below()}
+    {#if extension && layers}
+      <div class="pt-2">
+        <LayerEnabledTable
+          name={extension.metadata.name}
+          description="On for every project, or only here."
+          projectName={layers.projectName}
+          user={layers.user}
+          project={layers.project}
+          projectSet={layers.projectSet}
+          projectOnly={layers.projectOnly}
+          locked={layers.locked}
+          onChange={layers.onChange}
+        />
+      </div>
     {/if}
   {/snippet}
 </SettingsPageHeader>

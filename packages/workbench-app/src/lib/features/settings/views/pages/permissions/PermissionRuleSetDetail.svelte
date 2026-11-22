@@ -69,6 +69,9 @@ function trustLabel(): string {
 </script>
 
 <div class="flex flex-wrap items-center gap-2 text-ui text-muted-foreground">
+  <Badge variant="neutral"
+    >{ruleSet.source === "builtin" ? "Built-in" : "User"}</Badge
+  >
   <PermissionRuleSetBadges {ruleSet} {isDefault} />
   <span>{roleNote}</span>
 </div>
@@ -101,9 +104,7 @@ function trustLabel(): string {
     (trust.status === "untrusted" || trust.status === "invalid")}
   <SettingsSection
     id={`${scope}-overrides`}
-    title={scope === "user"
-      ? "User overrides"
-      : `Project overrides · ${projectName}`}
+    title={scope === "user" ? "User overrides" : "Project overrides"}
   >
     {#snippet actions()}
       {#if scope === "project" && trust.status !== "missing"}

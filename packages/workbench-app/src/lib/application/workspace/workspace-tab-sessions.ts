@@ -256,7 +256,6 @@ function isIdentity(value: unknown): value is CenterTabIdentity {
       (tab.command === undefined || typeof tab.command === "string")
     );
   if (tab.kind === "settings") return tab.id === "settings";
-  if (tab.kind === "project-settings") return tab.id.length > 0;
   if (tab.kind === "logs") return tab.id === "logs";
   if (tab.kind === "discover") return tab.id === "discover";
   return [
@@ -284,11 +283,20 @@ function isMermaidBlockLocator(value: unknown): value is MermaidBlockLocator {
   );
 }
 
+/** Per-project settings tabs were merged into the one settings tab. */
+function migrateLegacyIdentity(value: unknown): unknown {
+  return value &&
+    typeof value === "object" &&
+    (value as { kind?: unknown }).kind === "project-settings"
+    ? { kind: "settings", id: "settings" }
+    : value;
+}
+
 function parseSession(value: unknown): ProjectTabSession | undefined {
   if (!value || typeof value !== "object") return undefined;
   const raw = value as { tabs?: unknown; active?: unknown; mru?: unknown };
   const storedTabs = Array.isArray(raw.tabs)
-    ? (raw.tabs.filter(isIdentity) as StoredTab[])
+    ? (raw.tabs.map(migrateLegacyIdentity).filter(isIdentity) as StoredTab[])
     : [];
   const tabs: CenterTabIdentity[] = [];
   for (const stored of storedTabs) {
@@ -396,7 +404,8 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
       });
     } else tabs.push({ kind: stored.kind, id: stored.id } as CenterTabIdentity);
   }
-  const active = isIdentity(raw.active) ? raw.active : undefined;
+  const migratedActive = migrateLegacyIdentity(raw.active);
+  const active = isIdentity(migratedActive) ? migratedActive : undefined;
   const mru = Array.isArray(raw.mru)
     ? raw.mru.filter((item): item is string => typeof item === "string")
     : [];
@@ -453,11 +462,6 @@ export function hydrateWorkspaceTabSessions(
           workspaceFeaturePorts().git.read.diffViews[diffViewKey(tab.id)],
         );
       if (tab.kind === "conversation") return true;
-      if (tab.kind === "project-settings")
-        return input.projects.some(
-          (candidate) =>
-            candidate.id === tab.id && projectKey(candidate) === key,
-        );
       if (tab.kind === "launch") {
         const project = input.projects.find(
           (candidate) => projectKey(candidate) === key,

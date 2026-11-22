@@ -55,11 +55,7 @@ async function confirmLogout(): Promise<void> {
     />
   {/snippet}
   {#if subscriptions.length === 0}
-    <SettingsEmptyState
-      variant="card"
-      title="No subscriptions connected"
-      description="Connect a subscription to authenticate models."
-    />
+    <SettingsEmptyState variant="card" title="None connected." />
   {:else}
     <SettingsList ariaLabel="Connected subscriptions">
       {#each subscriptions as provider (provider.provider)}

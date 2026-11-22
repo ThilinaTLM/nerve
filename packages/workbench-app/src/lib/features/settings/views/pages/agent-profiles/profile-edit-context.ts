@@ -30,3 +30,22 @@ export type ChangeDraft = {
   mode: import("./profile-changes").ChangeMode;
   value: unknown;
 };
+
+/** The editor's starting value for a change that is not stored yet. */
+export function seedChange(
+  key: ChangeDraft["key"],
+  context: ProfileEditContext,
+): ChangeDraft {
+  return {
+    key,
+    mode: "recommend",
+    value:
+      key === "compaction"
+        ? { auto: true, profile: "balanced", customTriggerPercent: 80 }
+        : key === "instructions"
+          ? ""
+          : key.startsWith("tool:")
+            ? context.seedTool(key.slice(5) as ToolId)
+            : undefined,
+  };
+}

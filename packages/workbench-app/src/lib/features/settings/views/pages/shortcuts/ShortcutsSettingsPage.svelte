@@ -1,6 +1,7 @@
 <script lang="ts">
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import {
+  SETTINGS_SEARCH_MIN,
   SettingsEmptyState,
   SettingsSection,
   SettingsList,
@@ -50,16 +51,18 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
 });
 </script>
 
-<SettingsToolbar>
-  {#snippet start()}
-    <SearchInput
-      bind:value={query}
-      placeholder="Search shortcuts"
-      ariaLabel="Search shortcuts"
-      class="max-w-xs"
-    />
-  {/snippet}
-</SettingsToolbar>
+{#if DEFAULT_SHORTCUTS.length >= SETTINGS_SEARCH_MIN}
+  <SettingsToolbar>
+    {#snippet start()}
+      <SearchInput
+        bind:value={query}
+        placeholder="Search shortcuts"
+        ariaLabel="Search shortcuts"
+        class="max-w-xs"
+      />
+    {/snippet}
+  </SettingsToolbar>
+{/if}
 
 {#each filteredGroups as group (group.category)}
   <SettingsSection surface={false} title={group.category}>

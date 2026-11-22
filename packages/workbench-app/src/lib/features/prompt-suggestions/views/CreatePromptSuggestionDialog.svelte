@@ -18,10 +18,17 @@ import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 type Props = {
   open?: boolean;
   project?: ProjectRecord;
+  /** The level chosen where the dialog was opened; defaults to User. */
+  initialScope?: "user" | "project";
   onCreate?: (request: CreatePromptSuggestionRequest) => Promise<void>;
 };
 
-let { open = $bindable(false), project, onCreate }: Props = $props();
+let {
+  open = $bindable(false),
+  project,
+  initialScope = "user",
+  onCreate,
+}: Props = $props();
 
 let scope = $state<"user" | "project">("user");
 let name = $state("");
@@ -63,7 +70,7 @@ const destination = $derived(
 
 $effect(() => {
   if (!open) return;
-  scope = "user";
+  scope = initialScope === "project" && project ? "project" : "user";
   name = "";
   label = "";
   description = "";

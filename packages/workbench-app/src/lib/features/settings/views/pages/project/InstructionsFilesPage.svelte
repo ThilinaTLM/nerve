@@ -4,11 +4,11 @@
   .nerve/APPEND_SYSTEM.md. Nothing is read from the user folder.
 -->
 <script lang="ts">
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+import FileText from "@lucide/svelte/icons/file-text";
 import {
   SettingsEmptyState,
-  SettingsRow,
+  SettingsItem,
+  SettingsList,
   SettingsSection,
 } from "$lib/presentation/settings";
 
@@ -29,43 +29,40 @@ const agents = $derived(files.filter((file) => file.kind === "agents"));
 const append = $derived(files.filter((file) => file.kind === "append"));
 </script>
 
-{#snippet list(items: InstructionsFile[], emptyTitle: string)}
-  {#each items as file (file.path)}
-    <SettingsRow label={file.path} mono description={file.description}>
-      {#snippet badges()}<Badge variant="success">Read</Badge>{/snippet}
-      {#snippet control()}
-        {#if onOpen}<Button
-            size="sm"
-            variant="outline"
-            onclick={() => onOpen?.(file.path)}>Open</Button
-          >{/if}
-      {/snippet}
-    </SettingsRow>
-  {:else}
+{#snippet list(items: InstructionsFile[])}
+  {#if items.length === 0}
     <SettingsEmptyState
       variant="card"
-      title={emptyTitle}
-      description={loading
-        ? "Looking for files…"
-        : "Nothing found for this project."}
+      title={loading ? "Looking for files…" : "Not found."}
     />
-  {/each}
+  {:else}
+    <SettingsList>
+      {#each items as file (file.path)}
+        <SettingsItem
+          title={file.path}
+          icon={FileText}
+          summary={file.description}
+          onOpen={onOpen ? () => onOpen?.(file.path) : undefined}
+          openLabel={`Open ${file.path}`}
+        />
+      {/each}
+    </SettingsList>
+  {/if}
 {/snippet}
 
 <SettingsSection
   id="agents-md"
   title="AGENTS.md"
-  description="The project root file plus any in parent directories of the working directory."
-  divided
+  description="From the project root and the parent directories of the working directory."
+  surface={false}
 >
-  {@render list(agents, "No AGENTS.md")}
+  {@render list(agents)}
 </SettingsSection>
 
 <SettingsSection
   id="append-system"
   title="Append to system prompt"
-  description="Added to the end of the system prompt."
-  divided
+  surface={false}
 >
-  {@render list(append, "No .nerve/APPEND_SYSTEM.md")}
+  {@render list(append)}
 </SettingsSection>

@@ -50,8 +50,9 @@ export async function refreshPromptSuggestionStatuses(
   promptSuggestionsState.loading = true;
   promptSuggestionsState.error = undefined;
   try {
-    promptSuggestionsState.statuses =
-      await getPromptSuggestionStatuses(projectId);
+    const result = await getPromptSuggestionStatuses(projectId);
+    promptSuggestionsState.statuses = result.statuses;
+    promptSuggestionsState.projectFile = result.projectFile;
   } catch (error) {
     promptSuggestionsState.error = errorMessage(error);
   } finally {
@@ -59,18 +60,16 @@ export async function refreshPromptSuggestionStatuses(
   }
 }
 
-export async function setPromptSuggestionEnabled(
-  request: UpdatePromptSuggestionEnabledRequest,
+/** Applies layer writes in order, then reloads the statuses once. */
+export async function setPromptSuggestionLayers(
+  writes: UpdatePromptSuggestionEnabledRequest[],
   projectId?: string,
 ): Promise<void> {
-  await updatePromptSuggestionEnabled(request);
-  await refreshPromptSuggestionStatuses(projectId);
-  notify.success(
-    request.enabled
-      ? "Prompt suggestion enabled"
-      : "Prompt suggestion disabled",
-    { activity: true },
-  );
+  try {
+    for (const write of writes) await updatePromptSuggestionEnabled(write);
+  } finally {
+    await refreshPromptSuggestionStatuses(projectId);
+  }
 }
 
 export async function createPromptSuggestion(

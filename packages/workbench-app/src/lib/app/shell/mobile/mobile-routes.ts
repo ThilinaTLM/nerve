@@ -189,7 +189,7 @@ export function mobileHistoryDepth(state: MobileNavState): number {
 /**
  * The route a center-tab activation lands on. Settings and logs have native
  * phone screens; everything else renders its registered center host.
- * `settingsPageId` is the page the settings tab (user or project) is showing.
+ * `settingsPageId` is the page the settings tab is showing.
  */
 export function mobileRouteForCenterTab(
   identity: CenterTabIdentity,
@@ -199,15 +199,6 @@ export function mobileRouteForCenterTab(
     return settingsPageId
       ? { kind: "settings-page", pageId: settingsPageId }
       : { kind: "settings" };
-  }
-  if (identity.kind === "project-settings") {
-    return settingsPageId
-      ? {
-          kind: "project-settings-page",
-          projectId: identity.id,
-          pageId: settingsPageId,
-        }
-      : { kind: "project-settings", projectId: identity.id };
   }
   if (identity.kind === "logs") return { kind: "logs" };
   return { kind: "center", identity: { kind: identity.kind, id: identity.id } };

@@ -753,6 +753,12 @@ describe("installed extension detail", () => {
     ...patch,
   });
 
+  it("names built-in extensions as built-in", () => {
+    assert.deepEqual(installedSourceRows(entry({ source: "builtin" })), [
+      { label: "Installed for", value: "Built-in" },
+    ]);
+  });
+
   it("lists source rows only for what is known", () => {
     assert.deepEqual(installedSourceRows(entry({})), [
       { label: "Installed for", value: "User" },

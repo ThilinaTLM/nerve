@@ -57,21 +57,3 @@ export type SettingsNavGroup = {
   title?: string;
   items: SettingsNavItem[];
 };
-
-/** One scope in the header above the nav: "Your settings" or the open project. */
-export type SettingsScopeRow = {
-  id: "user" | "project";
-  label: string;
-  icon: Component;
-  /** Count of items in this scope that need the user. */
-  badge?: SettingsNavBadge;
-  selected: boolean;
-  /** Tooltip, e.g. the project's path. */
-  title?: string;
-  onSelect: () => void;
-};
-
-/** The scopes the user can switch between, above the nav. */
-export type SettingsScopeHeader = {
-  scopes: SettingsScopeRow[];
-};

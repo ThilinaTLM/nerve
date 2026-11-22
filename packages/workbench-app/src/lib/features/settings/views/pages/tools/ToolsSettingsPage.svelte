@@ -4,8 +4,8 @@ import { visibleAccounts } from "../accounts/accounts-view";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { toolSettingsMutation } from "./tool-settings-mutation";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
-import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
+import ArrowUpRight from "@lucide/svelte/icons/arrow-up-right";
 import Blocks from "@lucide/svelte/icons/blocks";
 import Bot from "@lucide/svelte/icons/bot";
 import Globe from "@lucide/svelte/icons/globe";
@@ -15,8 +15,11 @@ import Wrench from "@lucide/svelte/icons/wrench";
 import Code from "@lucide/svelte/icons/code";
 import Zap from "@lucide/svelte/icons/zap";
 import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
+import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
 import { listTools, type ModelInfo, type StatusResponse } from "$lib/api";
 import { capabilityToggleToolNameSchema } from "@nervekit/contracts/capabilities";
 import type { ExtensionIcon } from "@nervekit/contracts/extensions";
@@ -34,17 +37,22 @@ import {
 } from "$lib/application/settings";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
-  SettingsChangeIndicator,
+  LayerSwitches,
+  OriginGroup,
+  ProjectOverrideMark,
+  SETTINGS_SEARCH_MIN,
   SettingsItem,
-  SettingsList,
-  SettingsSection,
+  type SettingsLayer,
 } from "$lib/presentation/settings";
+import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
+import { projectColumns } from "../../../state/project-columns.svelte";
 import { modelKey } from "$lib/presentation/utils/model";
 import {
   ensureProfilesFor,
   leadProfileOptions,
   profileLabelFor,
 } from "../../shared/profile-options.svelte";
+import { applyLayerChange } from "../../shared/layer-change";
 import ToolConfigDialog from "./ToolConfigDialog.svelte";
 import {
   extensionToolState,
@@ -55,37 +63,47 @@ import {
   accountOptions,
   toolRows,
   toolSettingsSummary,
-  toolSummary,
   type ToolId,
   type ToolPayload,
   type ToolRowDef,
 } from "./tool-settings";
 let {
-  scope,
   projectId,
+  projectName,
   status,
   models = [],
+  onReviewTrust,
 }: {
-  scope: "user" | "project";
+  /** The open project; without one the page has a single (User) column. */
   projectId?: string;
+  projectName?: string;
   status?: StatusResponse;
   models?: ModelInfo[];
+  /** Opens the project's Trust page. */
+  onReviewTrust?: () => void;
 } = $props();
-const project = $derived(scope === "project");
-const editor = new ScopedAgentState((model, level) => {
+const layered = $derived(!!projectId && !!projectName);
+/** The project's column is shown next to User (header switch); otherwise the page is User-only. */
+const columns = $derived(layered && projectColumns.tools);
+const clamp = (model: ModelSelection, level: ThinkingLevel) => {
   const known = models.find((m) => modelKey(m) === modelKey(model));
   return known ? clampThinkingLevelForModel(level, known) : level;
+};
+const userEditor = new ScopedAgentState(clamp);
+const projectEditor = new ScopedAgentState(clamp);
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive) return;
+  void models;
+  void userEditor.load({ scope: "user" });
+  ensureProfilesFor(projectId ? "project" : "user", projectId);
 });
 $effect(() => {
-  if (!workbenchStartupState.progressiveActive || (project && !projectId))
-    return;
+  if (!workbenchStartupState.progressiveActive || !projectId) return;
   void models;
-  void editor.load(
-    project ? { scope: "project", projectId: projectId! } : { scope: "user" },
-  );
-  ensureProfilesFor(scope, projectId);
+  void projectEditor.load({ scope: "project", projectId });
 });
-$effect(() => editor.observe());
+$effect(() => userEditor.observe());
+$effect(() => projectEditor.observe());
 // The direct tools of enabled extensions, grouped under their extension below the core tools.
 let toolDescriptors = $state<ToolDescriptor[]>([]);
 $effect(() => {
@@ -100,20 +118,15 @@ $effect(() => {
 // Web fetch and Quick script rows, and the extension groups, reflect the extensions they depend on.
 const extensions = new ScopedExtensionsState();
 $effect(() => {
-  if (!workbenchStartupState.progressiveActive || (project && !projectId))
-    return;
+  if (!workbenchStartupState.progressiveActive) return;
   void extensions.load(
-    project ? { scope: "project", projectId: projectId! } : { scope: "user" },
+    projectId ? { scope: "project", projectId } : { scope: "user" },
   );
 });
 $effect(() => extensions.observe());
 const accounts = $derived(
   accountOptions(
-    // A user-scope setting offers user-level accounts; a project's also its own.
-    visibleAccounts(
-      accountsState.accounts,
-      scope === "project" ? projectId : undefined,
-    ),
+    visibleAccounts(accountsState.accounts, projectId),
     accountsState.kinds,
   ),
 );
@@ -155,6 +168,33 @@ const extensionGroups = $derived.by(() => {
   }
   return groups;
 });
+const total = $derived(
+  toolRows.length +
+    extensionGroups.reduce((sum, group) => sum + group.tools.length, 0),
+);
+let query = $state("");
+const needle = $derived(
+  total >= SETTINGS_SEARCH_MIN ? query.trim().toLowerCase() : "",
+);
+const matches = (text: string) =>
+  !needle || text.toLowerCase().includes(needle);
+const shownRows = $derived(
+  toolRows.filter((row) => matches(`${row.label} ${row.description}`)),
+);
+const shownGroups = $derived(
+  extensionGroups
+    .map((group) => ({
+      ...group,
+      tools: group.tools.filter((tool) =>
+        matches(`${toolLabel(tool.name)} ${tool.description}`),
+      ),
+    }))
+    .filter((group) => group.tools.length > 0),
+);
+const shownTotal = $derived(
+  shownRows.length +
+    shownGroups.reduce((sum, group) => sum + group.tools.length, 0),
+);
 /** An extension tool's row label: its name as words (`web_search` → Web search). */
 function toolLabel(name: string): string {
   const words = name.replaceAll("_", " ");
@@ -174,48 +214,88 @@ function openExtension(item?: string, section?: string) {
   if (projectId) void openProjectSettingsPane(projectId, "extensions", options);
   else void openSettingsPane("extensions", options);
 }
-const error = $derived(editor.error);
-const loading = $derived(!editor.resolution && !error);
-const locked = $derived(editor.saving || !editor.resolution);
-function payload(id: ToolId): ToolPayload {
-  return editor.resolution?.settings.tools?.[id] ?? {};
-}
-function inheritedPayload(id: ToolId): ToolPayload {
-  return editor.inherited?.settings.tools?.[id] ?? {};
-}
-function changed(id: ToolId) {
-  return editor.overrides.tools?.[id] !== undefined;
+const error = $derived(
+  userEditor.error ?? (layered ? projectEditor.error : undefined),
+);
+const ready = $derived(
+  !!userEditor.resolution && (!layered || !!projectEditor.resolution),
+);
+const loading = $derived(!ready && !error);
+/** The project's settings file is not trusted: its column is locked. */
+const locked = $derived(
+  layered &&
+    projectEditor.document?.status === "available" &&
+    projectEditor.document.trusted === false,
+);
+
+const editors = { user: userEditor, project: projectEditor } as const;
+function payload(layer: SettingsLayer, id: ToolId): ToolPayload {
+  return editors[layer].resolution?.settings.tools?.[id] ?? {};
 }
 const displayContext = $derived({ profileLabel: profileLabelFor });
-/** On/off plus settings: what the change indicator compares. */
-function summary(id: ToolId, value: ToolPayload) {
-  return toolSummary(id, value, displayContext);
-}
 /** The row's status line: settings only, or what the tool does. */
-function rowSummary(row: ToolRowDef, value: ToolPayload) {
-  return toolSettingsSummary(row.id, value, displayContext) ?? row.description;
-}
-function save(id: ToolId, next: ToolPayload) {
-  try {
-    const mutation = toolSettingsMutation(id, next, editor.overrides);
-    void editor.save(mutation.changes, mutation.resets);
-  } catch {
-    editor.error = "Invalid tool settings. Review the fields and try again.";
-  }
-}
-function toggle(id: ToolId, enabled: boolean) {
-  void editor.save(
-    leadSettingsOverridesSchema.parse({ tools: { [id]: { enabled } } }),
+function rowSummary(row: ToolRowDef) {
+  return (
+    toolSettingsSummary(
+      row.id,
+      payload(columns && !locked ? "project" : "user", row.id),
+      displayContext,
+    ) ?? row.description
   );
 }
-function reset(id: ToolId) {
-  void editor.save({}, [`/overrides/tools/${id}`]);
+const enabledOf = (
+  tools: Record<string, unknown> | undefined,
+  id: ToolId,
+): boolean | undefined => (tools?.[id] as ToolPayload | undefined)?.enabled;
+/** The switch state of a tool at both layers, with the stored choices. */
+function layersOf(id: ToolId) {
+  const user = payload("user", id).enabled === true;
+  const storedProject = layered
+    ? enabledOf(projectEditor.overrides.tools, id)
+    : undefined;
+  return {
+    user,
+    project:
+      layered && !locked ? payload("project", id).enabled === true : user,
+    projectSet: storedProject !== undefined && !locked,
+    value: {
+      builtinDefault:
+        enabledOf(userEditor.inherited?.settings.tools, id) === true,
+      user: enabledOf(userEditor.overrides.tools, id),
+      project: storedProject,
+    },
+  };
+}
+async function writeEnabled(
+  layer: SettingsLayer,
+  id: ToolId,
+  choice: boolean | undefined,
+) {
+  if (choice === undefined)
+    await editors[layer].save({}, [`/overrides/tools/${id}/enabled`]);
+  else
+    await editors[layer].save(
+      leadSettingsOverridesSchema.parse({
+        tools: { [id]: { enabled: choice } },
+      }),
+    );
+}
+function toggle(id: ToolId, layer: SettingsLayer, next: boolean) {
+  void applyLayerChange({
+    value: layersOf(id).value,
+    layer,
+    next,
+    writeUser: (choice) => writeEnabled("user", id, choice),
+    writeProject: (choice) => writeEnabled("project", id, choice),
+  });
 }
 function onRetry() {
-  return editor.reload();
+  return Promise.all([
+    userEditor.reload(),
+    layered ? projectEditor.reload() : undefined,
+  ]);
 }
-let dialogOpen = $state(false);
-let dialogTool = $state<ToolRowDef>(toolRows[0]);
+
 const toolIcons: Partial<Record<ToolId, typeof Wrench>> = {
   bash: SquareTerminal,
   python_exec: Code,
@@ -224,19 +304,40 @@ const toolIcons: Partial<Record<ToolId, typeof Wrench>> = {
   plan_present: ListChecks,
   subagents: Bot,
 };
+
+// Configure edits one layer's settings; with a project open the dialog asks which.
+let dialogOpen = $state(false);
+let dialogTool = $state<ToolRowDef>(toolRows[0]);
+let dialogLayer = $state<SettingsLayer>("user");
 function configure(row: ToolRowDef) {
-  if (locked) return;
+  if (userEditor.saving || !userEditor.resolution) return;
   dialogTool = row;
+  dialogLayer = "user";
   dialogOpen = true;
 }
-const dialogValue = $derived(payload(dialogTool.id));
+const dialogValue = $derived(payload(dialogLayer, dialogTool.id));
+function save(next: ToolPayload) {
+  const editor = editors[dialogLayer];
+  try {
+    const mutation = toolSettingsMutation(
+      dialogTool.id,
+      next,
+      editor.overrides,
+    );
+    void editor.save(mutation.changes, mutation.resets);
+  } catch {
+    editor.error = "Invalid tool settings. Review the fields and try again.";
+  }
+}
 const python = $derived(status?.runtime.python);
 </script>
 
-{#if scope === "project"}<ProjectCapabilityTrustNotice
-    document={editor.document}
-    scope={editor.scope}
-    onReload={onRetry}
+{#if layered}<ProjectCapabilityTrustNotice
+    document={projectEditor.document}
+    scope={projectEditor.scope}
+    onReload={() => projectEditor.reload()}
+    {projectName}
+    onReview={onReviewTrust}
   />{/if}
 {#if error}
   <Callout layout="block" tone="destructive" text={error}>
@@ -245,26 +346,133 @@ const python = $derived(status?.runtime.python);
       >{/snippet}
   </Callout>
 {/if}
+
+{#snippet overrideMark(id: ToolId)}
+  {#if layered && !columns && projectName && enabledOf(projectEditor.overrides.tools, id) !== undefined}
+    <ProjectOverrideMark {projectName} />
+  {/if}
+{/snippet}
+
+{#snippet switches(id: ToolId, name: string, pending: boolean)}
+  {@const l = layersOf(id)}
+  <LayerSwitches
+    {name}
+    user={l.user}
+    project={l.project}
+    projectSet={l.projectSet}
+    projectName={columns ? projectName : undefined}
+    {pending}
+    {locked}
+    onChange={(layer, next) => toggle(id, layer, next)}
+  />
+{/snippet}
+
 {#if loading}<Skeleton class="h-10 w-full" />
-{:else if editor.resolution}
-  <SettingsSection
-    id="tools"
-    description="Read, edit, ask_user and process tools are always on. Permissions govern them."
+{:else if ready}
+  {#if total >= SETTINGS_SEARCH_MIN}
+    <SearchInput
+      bind:value={query}
+      placeholder="Search tools"
+      ariaLabel="Search tools"
+      class="max-w-xs"
+    >
+      {#snippet trailing()}
+        {#if needle}<span class="flex-none text-ui text-muted-foreground"
+            >{shownTotal} of {total}</span
+          >{/if}
+      {/snippet}
+    </SearchInput>
+  {/if}
+
+  <OriginGroup
+    origin={{ kind: "builtin" }}
+    count={shownRows.length}
+    projectName={columns ? projectName : undefined}
+    {locked}
+    note="Read, edit, ask_user and process tools are always on. Permissions govern them."
   >
-    {#snippet actions()}{#if project}<ProjectCapabilityTrustAction
-          document={editor.document}
-          scope={editor.scope}
-          onReload={onRetry}
-        />{/if}{/snippet}
-    <SettingsList>
-      {#each toolRows as row (row.id)}
-        {@const value = payload(row.id)}
-        {@const fromExtension = extensionState(row.id)}
-        {@const link = toolSettingsLink(row.id)}
+    {#each shownRows as row (row.id)}
+      {@const fromExtension = extensionState(row.id)}
+      {@const link = toolSettingsLink(row.id)}
+      <SettingsItem
+        title={row.label}
+        icon={toolIcons[row.id] ?? Wrench}
+        summary={fromExtension?.summary ?? rowSummary(row)}
+        problem={fromExtension?.problem}
+        problemAction={fromExtension?.fix
+          ? {
+              label: fromExtension.fix.label,
+              onclick: () =>
+                openExtension(
+                  fromExtension.fix?.extensionId,
+                  fromExtension.fix?.section,
+                ),
+            }
+          : undefined}
+        onOpen={row.configurable
+          ? () => configure(row)
+          : link?.item
+            ? () => openExtension(link.item)
+            : undefined}
+        openLabel={row.configurable
+          ? `Configure ${row.label}`
+          : `Open ${row.label} extension settings`}
+      >
+        {#snippet badges()}{#if !row.always}{@render overrideMark(
+              row.id,
+            )}{/if}{/snippet}
+        {#snippet meta()}
+          {#if row.always}
+            <span
+              class={[
+                columns ? "w-48" : "w-24",
+                "text-center text-caption text-muted-foreground",
+              ]}>Always on</span
+            >
+          {:else}
+            {@render switches(
+              row.id,
+              row.label,
+              fromExtension?.disabled === true,
+            )}
+          {/if}
+        {/snippet}
+      </SettingsItem>
+    {/each}
+  </OriginGroup>
+
+  {#each shownGroups as group (group.extensionId)}
+    <OriginGroup
+      origin={{ kind: "extension", name: group.name }}
+      count={group.tools.length}
+      projectName={columns ? projectName : undefined}
+      {locked}
+      note={`Tools from the ${group.name} extension.`}
+    >
+      {#snippet actions()}
+        <IconAction
+          icon={ArrowUpRight}
+          label={`Open ${group.name} extension settings`}
+          onclick={() => openExtension(group.extensionId)}
+        />
+      {/snippet}
+      {#each group.tools as tool (tool.name)}
+        {@const switchId = toolSwitch(tool.name)}
+        {@const fromExtension = extensionToolState(
+          tool.name,
+          group.extensionId,
+          extensions.view?.extensions,
+          accounts,
+          accountsState.kinds,
+        )}
+        {#snippet mark()}
+          {#if group.icon}<ExtensionMark icon={group.icon} />{/if}
+        {/snippet}
         <SettingsItem
-          title={row.label}
-          icon={toolIcons[row.id] ?? Wrench}
-          summary={fromExtension?.summary ?? rowSummary(row, value)}
+          title={toolLabel(tool.name)}
+          icon={group.icon ? undefined : Blocks}
+          leading={group.icon ? mark : undefined}
+          summary={fromExtension?.summary ?? tool.description}
           problem={fromExtension?.problem}
           problemAction={fromExtension?.fix
             ? {
@@ -276,100 +484,64 @@ const python = $derived(status?.runtime.python);
                   ),
               }
             : undefined}
-          always={row.always}
-          checked={row.always ? undefined : value.enabled === true}
-          disabled={locked || fromExtension?.disabled === true}
-          onCheckedChange={(next) => toggle(row.id, next)}
-          onOpen={row.configurable
-            ? () => configure(row)
-            : link?.item
-              ? () => openExtension(link.item)
-              : undefined}
-          openLabel={row.configurable
-            ? `Configure ${row.label}`
-            : `Open ${row.label} extension settings`}
+          onOpen={() => openExtension(group.extensionId)}
+          openLabel={`Open ${group.name} extension settings`}
         >
+          {#snippet badges()}{#if switchId}{@render overrideMark(
+                switchId,
+              )}{/if}{/snippet}
           {#snippet meta()}
-            {#if changed(row.id)}
-              <SettingsChangeIndicator
-                {scope}
-                from={summary(row.id, inheritedPayload(row.id))}
-                onReset={() => reset(row.id)}
-              />
+            {#if switchId}
+              {@render switches(
+                switchId,
+                toolLabel(tool.name),
+                fromExtension?.disabled === true,
+              )}
+            {:else}
+              <span
+                class={[
+                  columns ? "w-48" : "w-24",
+                  "text-center text-caption text-muted-foreground",
+                ]}>Always on</span
+              >
             {/if}
           {/snippet}
         </SettingsItem>
       {/each}
-    </SettingsList>
-  </SettingsSection>
-
-  {#each extensionGroups as group (group.extensionId)}
-    <SettingsSection
-      title={group.name}
-      description={`Tools from the ${group.name} extension.`}
-    >
-      <SettingsList ariaLabel={`${group.name} tools`}>
-        {#each group.tools as tool (tool.name)}
-          {@const switchId = toolSwitch(tool.name)}
-          {@const fromExtension = extensionToolState(
-            tool.name,
-            group.extensionId,
-            extensions.view?.extensions,
-            accounts,
-            accountsState.kinds,
-          )}
-          {#snippet mark()}
-            {#if group.icon}<ExtensionMark icon={group.icon} />{/if}
-          {/snippet}
-          <SettingsItem
-            title={toolLabel(tool.name)}
-            icon={group.icon ? undefined : Blocks}
-            leading={group.icon ? mark : undefined}
-            summary={fromExtension?.summary ?? tool.description}
-            problem={fromExtension?.problem}
-            problemAction={fromExtension?.fix
-              ? {
-                  label: fromExtension.fix.label,
-                  onclick: () =>
-                    openExtension(
-                      fromExtension.fix?.extensionId,
-                      fromExtension.fix?.section,
-                    ),
-                }
-              : undefined}
-            always={switchId === undefined}
-            checked={switchId ? payload(switchId).enabled === true : undefined}
-            disabled={locked || fromExtension?.disabled === true}
-            onCheckedChange={(next) => {
-              if (switchId) toggle(switchId, next);
-            }}
-            onOpen={() => openExtension(group.extensionId)}
-            openLabel={`Open ${group.name} extension settings`}
-          >
-            {#snippet meta()}
-              {#if switchId && changed(switchId)}
-                <SettingsChangeIndicator
-                  {scope}
-                  from={summary(switchId, inheritedPayload(switchId))}
-                  onReset={() => reset(switchId)}
-                />
-              {/if}
-            {/snippet}
-          </SettingsItem>
-        {/each}
-      </SettingsList>
-    </SettingsSection>
+    </OriginGroup>
   {/each}
 
   <ToolConfigDialog
     bind:open={dialogOpen}
+    source={dialogLayer}
     name={dialogTool.id}
     value={dialogValue}
-    description={project
-      ? "Changes apply to this project only."
+    description={layered
+      ? undefined
       : "Applies to every project unless it changes this."}
     leadProfiles={leadProfileOptions()}
     resolvedPython={python?.executable}
-    onSave={(next) => save(dialogTool.id, next)}
-  />
+    onSave={save}
+  >
+    {#snippet header()}
+      {#if layered}
+        <div class="flex items-center gap-2 text-ui text-muted-foreground">
+          Applies to
+          <ToggleGroup.Root
+            type="single"
+            size="sm"
+            value={dialogLayer}
+            onValueChange={(next) => {
+              if (next === "user" || next === "project") dialogLayer = next;
+            }}
+          >
+            <ToggleGroup.Item value="user">User</ToggleGroup.Item>
+            <ToggleGroup.Item value="project" disabled={locked}
+              >Project</ToggleGroup.Item
+            >
+          </ToggleGroup.Root>
+        </div>
+      {/if}
+    {/snippet}
+  </ToolConfigDialog>
 {/if}

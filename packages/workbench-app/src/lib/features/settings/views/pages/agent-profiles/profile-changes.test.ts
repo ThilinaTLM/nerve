@@ -6,9 +6,10 @@ import {
   changeRows,
   changeSections,
   unifyChangeMode,
-  buildAddChangeItems,
+  addableChanges,
   normalizeProfileName,
   duplicateProfileName,
+  uniqueProfileName,
 } from "./profile-changes";
 const model = { provider: "test", modelId: "one" };
 const base = profileDefinitionSchema.parse({
@@ -197,10 +198,10 @@ test("a single model policy unifies existing fields but does not invent absent r
   assert.equal(removed.requirements?.reasoningLevel, undefined);
 });
 
-test("add list omits its opening baseline, keeps newly changed flips, and supplies search aliases", () => {
-  const items = buildAddChangeItems({
-    baseline: ["model", "tool:web_search"],
+test("add menu leaves out what the profile already changes and flips tools and skills from their state", () => {
+  const groups = addableChanges({
     rows: [
+      { key: "model", label: "Model", mode: "recommend", value: {} },
       {
         key: "skill:file:review",
         label: "Review",
@@ -209,50 +210,26 @@ test("add list omits its opening baseline, keeps newly changed flips, and suppli
       },
     ],
     tools: [
-      {
-        key: "tool:jira",
-        label: "Jira",
-        description: "Issues",
-        account: true,
-        defaultOn: false,
-      },
-      {
-        key: "tool:web_search",
-        label: "Search",
-        description: "Web",
-        defaultOn: true,
-      },
+      { key: "tool:bash", label: "Bash" },
+      { key: "tool:web_search", label: "Web search", defaultOn: true },
     ],
-    skills: [{ key: "skill:file:review", label: "Review", defaultOn: true }],
+    skills: [
+      { key: "skill:file:review", label: "Review", defaultOn: true },
+      { key: "skill:nerve:research", label: "Research", defaultOn: false },
+    ],
   });
-  assert.ok(
-    !items.some(
-      (item) => item.key === "model" || item.key === "tool:web_search",
-    ),
-  );
   assert.deepEqual(
-    items.find((item) => item.key === "skill:file:review")?.flip,
-    { from: "On", to: "Off", applied: true },
+    groups.map((group) => [group.group, group.items.map((i) => i.key)]),
+    [
+      ["Basics", ["permission", "compaction", "instructions"]],
+      ["Tools", ["tool:bash", "tool:web_search"]],
+      ["Skills", ["skill:nerve:research"]],
+    ],
   );
-  assert.equal(
-    items.find((item) => item.key === "tool:jira")?.group,
-    "Account tools",
-  );
-  assert.deepEqual(items.find((item) => item.key === "tool:jira")?.flip, {
-    from: "Off",
-    to: "On",
-    applied: false,
-  });
-  assert.ok(
-    items
-      .find((item) => item.key === "compaction")
-      ?.keywords?.includes("compression"),
-  );
-  assert.ok(
-    items
-      .find((item) => item.key === "instructions")
-      ?.keywords?.includes("prompt"),
-  );
+  const tools = groups.find((group) => group.group === "Tools")!.items;
+  assert.equal(tools[0]?.opensEditor, true);
+  assert.equal(tools[1]?.turnsTo, "Off");
+  assert.equal(groups[2]?.items[0]?.turnsTo, "On");
 });
 
 test("legacy skill source defaults never become editable changes", () => {
@@ -272,30 +249,6 @@ test("legacy skill source defaults never become editable changes", () => {
         value: true,
       },
     ],
-  );
-});
-
-test("add menu offers individual skills using their inherited on/off state, not source buckets", () => {
-  const items = buildAddChangeItems({
-    baseline: [],
-    rows: [],
-    tools: [],
-    skills: [
-      { key: "skill:file:review", label: "Review", defaultOn: false },
-      { key: "skill:nerve:research", label: "Research", defaultOn: true },
-    ],
-  });
-  assert.deepEqual(
-    items.filter((item) => item.group === "Settings").map((item) => item.key),
-    ["model", "permission", "compaction", "instructions"],
-  );
-  assert.deepEqual(
-    items.find((item) => item.key === "skill:file:review")?.flip,
-    { from: "Off", to: "On", applied: false },
-  );
-  assert.deepEqual(
-    items.find((item) => item.key === "skill:nerve:research")?.flip,
-    { from: "On", to: "Off", applied: false },
   );
 });
 
@@ -331,4 +284,14 @@ test("change sections group rows in a fixed order and drop empty sections", () =
       ["Skills", ["skill:file:review"]],
     ],
   );
+});
+
+test("a taken profile name gets the next free number within the length limit", () => {
+  assert.equal(uniqueProfileName("new-profile", []), "new-profile");
+  assert.equal(
+    uniqueProfileName("new-profile", ["new-profile", "new-profile-2"]),
+    "new-profile-3",
+  );
+  const long = "a".repeat(32);
+  assert.equal(uniqueProfileName(long, [long]).length, 32);
 });
