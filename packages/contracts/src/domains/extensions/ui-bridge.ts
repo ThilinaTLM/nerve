@@ -1,8 +1,6 @@
 import { z } from "zod";
-import {
-  uiContributionIdSchema,
-  previewEditModeSchema,
-} from "./installed-manifest.js";
+import { previewEditModeSchema } from "./installed-manifest.js";
+import { uiContributionIdSchema } from "./ui-contribution-id.js";
 
 /*
  * The bridge between the host (workbench-app) and an extension frame, over `postMessage`.

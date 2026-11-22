@@ -4,8 +4,8 @@ import { extensionIdSchema } from "./settings-schema.js";
 import {
   previewEditModeSchema,
   previewFileExtensionSchema,
-  uiContributionIdSchema,
 } from "./installed-manifest.js";
+import { uiContributionIdSchema } from "./ui-contribution-id.js";
 import {
   bridgeContributionKindSchema,
   bridgeFrameErrorSchema,

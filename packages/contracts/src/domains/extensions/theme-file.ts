@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uiContributionIdSchema } from "./installed-manifest.js";
+import { uiContributionIdSchema } from "./ui-contribution-id.js";
 
 /*
  * Theme files of extensions: data only, never CSS. A theme sets the colour inputs of one theme
