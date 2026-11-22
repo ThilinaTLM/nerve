@@ -30,10 +30,7 @@ import {
 } from "$lib/application/workspace/center-tabs.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { selectProject } from "$lib/application/workspace/workspace-actions.svelte";
-import {
-  resolveSettingsPageId,
-  resolveSettingsTarget,
-} from "$lib/features/settings/registry/settings-pages";
+import { resolveSettingsTarget } from "$lib/features/settings/registry/settings-pages";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 export type SettingsSaveOptions = {
   immediate?: boolean;
@@ -56,11 +53,15 @@ function targetSettingsPage(
   pageId?: string,
   options: SettingsPaneOptions = {},
 ) {
-  const target = resolveSettingsTarget("user", {
-    pageId,
-    item: options.item,
-    section: options.section,
-  });
+  // Project-only pages (Launch, Trust) exist only while a project is open.
+  const target = resolveSettingsTarget(
+    workspaceState.selectedProjectId ? "project" : "user",
+    {
+      pageId,
+      item: options.item,
+      section: options.section,
+    },
+  );
   if (target.pageId) {
     settingsState.activePageId = target.pageId;
     settingsState.activeItemId = target.item ?? "";
@@ -68,7 +69,7 @@ function targetSettingsPage(
   if (target.section) settingsState.activeSectionId = target.section;
 }
 
-/** Opens (or focuses) one project's settings tab, in that project's session. */
+/** Opens (or focuses) the settings tab with this project open. */
 export async function openProjectSettingsPane(
   projectId: string,
   pageId?: string,
@@ -77,27 +78,7 @@ export async function openProjectSettingsPane(
   if (!workspaceState.projects.some((project) => project.id === projectId))
     return;
   await selectProject(projectId, { deferTabActivation: true });
-  const view = settingsState.projectViews[projectId];
-  const target = resolveSettingsTarget("project", {
-    pageId,
-    item: options.item,
-    section: options.section,
-  });
-  settingsState.projectViews[projectId] = target.pageId
-    ? {
-        pageId: target.pageId,
-        sectionId: target.section ?? "",
-        itemId: target.item ?? "",
-      }
-    : {
-        pageId: view?.pageId ?? resolveSettingsPageId("project", undefined),
-        sectionId: target.section ?? view?.sectionId ?? "",
-        itemId: view?.itemId ?? "",
-      };
-  const tab = { kind: "project-settings" as const, id: projectId };
-  addCenterTab(tab);
-  setActiveCenterTab(tab);
-  await loadSettingsPanel();
+  await openSettingsPane(pageId, options);
 }
 
 export async function openSettingsPane(

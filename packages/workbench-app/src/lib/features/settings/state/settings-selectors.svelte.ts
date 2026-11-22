@@ -1,9 +1,6 @@
 import { settingsState } from "./settings-state.svelte";
 
 export const settingsSelectors = {
-  projectPageId(projectId: string): string | undefined {
-    return settingsState.projectViews[projectId]?.pageId;
-  },
   get settingsDraft() {
     return settingsState.settingsDraft;
   },

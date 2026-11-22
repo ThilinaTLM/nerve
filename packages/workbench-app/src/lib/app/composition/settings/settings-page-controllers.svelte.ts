@@ -22,7 +22,24 @@ import type { TrustEntry } from "$lib/features/settings/views/pages/project/Trus
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import { observeConversationChannel } from "$lib/application/startup/conversation-connection";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
+import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
+import { refreshPromptSuggestionStatuses } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
+import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
+import {
+  trustPromptSuggestionProjectFile,
+  updatePromptSuggestionEnabled,
+} from "$lib/features/prompt-suggestions/api/prompt-suggestions.api";
+import {
+  agentOverridePointers,
+  agentOverrideResets,
+  differingExtensionCount,
+  differingSuggestionCount,
+  mergeDiffCounts,
+  type AgentOverridePageId,
+} from "$lib/features/settings/state/project-page-diffs";
 import { PermissionsPageController } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
+import { ExtensionsPageController } from "$lib/features/settings/views/pages/extensions/extensions-page-controller.svelte";
 import { StoragePageController } from "$lib/features/settings/views/pages/storage/storage-page-state.svelte";
 export function createSettingsPageControllers(deps: {
   /** The immutable target of the view these controllers serve. */
@@ -30,9 +47,10 @@ export function createSettingsPageControllers(deps: {
   /** The target's project, when it is one and is still known. */
   project: () => Project | undefined;
 }) {
+  /** The project the unified surface shows: the tab's own, or the open project in a user tab. */
   const targetProjectId = () => {
     const target = deps.target();
-    return target.kind === "project" ? target.projectId : undefined;
+    return target.kind === "project" ? target.projectId : deps.project()?.id;
   };
   /** What the project stores outside capabilities; see `pageDiffs`. */
   let profileFiles = $state.raw<
@@ -43,6 +61,12 @@ export function createSettingsPageControllers(deps: {
     }[]
   >([]);
   let diffRequest = 0;
+  /** The project's own agent settings, extension entries and suggestion choices. */
+  const agentState = new ScopedAgentState();
+  const extensionsState = new ScopedExtensionsState();
+  /** The suggestions' state is shared with the Suggestions page, which refreshes it. */
+  const suggestionStatuses = () => promptSuggestionsState.statuses;
+  const suggestionFile = () => promptSuggestionsState.projectFile;
 
   async function loadProjectDiff(): Promise<void> {
     const projectId = targetProjectId();
@@ -51,6 +75,9 @@ export function createSettingsPageControllers(deps: {
       profileFiles = [];
       return;
     }
+    void agentState.load({ scope: "project", projectId });
+    void extensionsState.load({ scope: "project", projectId });
+    void refreshPromptSuggestionStatuses(projectId);
     try {
       const profiles = await readAgentProfiles({ scope: "project", projectId });
       if (request !== diffRequest) return;
@@ -141,11 +168,36 @@ export function createSettingsPageControllers(deps: {
     await loadLaunchCatalog();
   }
 
-  /** Capabilities and permissions files; profile files list themselves. */
+  async function decideSuggestionFile(trusted: boolean): Promise<void> {
+    const projectId = targetProjectId();
+    const file = suggestionFile();
+    if (!projectId || !file?.digest) return;
+    await trustPromptSuggestionProjectFile({
+      projectId,
+      expectedDigest: file.digest,
+      trusted,
+    });
+    await refreshPromptSuggestionStatuses(projectId);
+  }
+
+  /** Capabilities, permissions and suggestion settings files; profile files list themselves. */
   function trustEntries(): TrustEntry[] {
     const projectId = targetProjectId();
-    const permissions = permissionsController.configuration?.projectTrust;
+    const permissions = projectPermissions.configuration?.projectTrust;
     return [
+      ...(projectId && suggestionFile()
+        ? [
+            {
+              id: "suggestions",
+              path: ".nerve/config/prompt-suggestions.json",
+              description:
+                "Which prompt suggestions this project turns on or off.",
+              status: suggestionFile()!.status,
+              onTrust: () => void decideSuggestionFile(true),
+              onRevoke: () => void decideSuggestionFile(false),
+            } satisfies TrustEntry,
+          ]
+        : []),
       ...(permissions && projectId
         ? [
             {
@@ -154,7 +206,7 @@ export function createSettingsPageControllers(deps: {
               description: "Permission rule overrides for this project.",
               status: permissions.status,
               detail: "reason" in permissions ? permissions.reason : undefined,
-              onTrust: () => void permissionsController.trustProject(projectId),
+              onTrust: () => void projectPermissions.trustProject(projectId),
             } satisfies TrustEntry,
           ]
         : []),
@@ -167,16 +219,48 @@ export function createSettingsPageControllers(deps: {
       void loadProjectDiff();
       void loadInstructionsFiles();
       void loadLaunchCatalog();
-      void permissionsController.load(projectId);
+      void projectPermissions.load(projectId);
+      // The Permission rules page of a project tab reads its own controller.
+      if (deps.target().kind === "project")
+        void permissionsController.load(projectId);
     }
   });
 
   /** Pages where this project differs from the user's settings, with counts. */
   function pageDiffs(): Readonly<Record<string, number>> {
-    return {
+    // A page whose project file is not trusted shows User's values and no differences.
+    const agentLocked =
+      agentState.document?.status === "available" &&
+      agentState.document.trusted === false;
+    const overrides = agentState.overrides;
+    const agentCounts = Object.fromEntries(
+      (["general", "tools", "skills", "sub-agents"] as const).map((page) => [
+        page,
+        agentLocked ? 0 : agentOverridePointers(overrides, page).length,
+      ]),
+    );
+    return mergeDiffCounts(agentCounts, {
       agents: profileFileCount(profileFiles, "lead"),
       "sub-agents": profileFileCount(profileFiles, "subagent"),
-    };
+      extensions:
+        extensionsState.view?.file.trusted === false
+          ? 0
+          : differingExtensionCount(
+              extensionsState.view,
+              extensionsState.inherited,
+            ),
+      suggestions:
+        suggestionFile()?.status === "untrusted"
+          ? 0
+          : differingSuggestionCount(suggestionStatuses()),
+    });
+  }
+
+  async function resetAgentOverrides(page: AgentOverridePageId): Promise<void> {
+    const resets = agentOverrideResets(agentState.overrides, page);
+    if (!resets.length) return;
+    await agentState.save({}, resets);
+    if (agentState.error) throw new Error(agentState.error);
   }
 
   /** Removes every project override on one page, so it follows user settings again. */
@@ -184,8 +268,33 @@ export function createSettingsPageControllers(deps: {
     const projectId = targetProjectId();
     if (!projectId) return;
     switch (pageId) {
+      case "general":
+      case "tools":
+      case "skills":
+        await resetAgentOverrides(pageId);
+        break;
+      case "extensions": {
+        const ids = (extensionsState.view?.extensions ?? [])
+          .filter((entry) => entry.stored)
+          .map((entry) => entry.metadata.id);
+        await extensionsState.resetAll(ids);
+        if (extensionsState.error) throw new Error(extensionsState.error);
+        break;
+      }
+      case "suggestions":
+        for (const { definitionKey } of suggestionStatuses().filter(
+          (status) => status.projectEnabled !== undefined,
+        ))
+          await updatePromptSuggestionEnabled({
+            definitionKey,
+            enabled: null,
+            scope: "project",
+            projectId,
+          });
+        break;
       case "agents":
       case "sub-agents":
+        if (pageId === "sub-agents") await resetAgentOverrides(pageId);
         for (const file of profileFiles.filter(
           (candidate) =>
             profileFileCount([candidate], profileKindForPage(pageId)) > 0,
@@ -226,6 +335,7 @@ export function createSettingsPageControllers(deps: {
     const stopSettings = [
       onEvent("settings.updated", () => void refresh()),
       onEvent("agentProfiles.changed", () => void refresh()),
+      onEvent("prompt_suggestions.enabled_updated", () => void refresh()),
     ];
     return () => {
       stop();
@@ -234,6 +344,9 @@ export function createSettingsPageControllers(deps: {
   });
   const storageController = new StoragePageController();
   const permissionsController = new PermissionsPageController();
+  /** The project's permission file trust, for the Trust page in any tab. */
+  const projectPermissions = new PermissionsPageController();
+  const extensionsPageController = new ExtensionsPageController();
   const suggestionsPageState = new SuggestionsPageState();
   return {
     get instructionsFiles() {
@@ -250,6 +363,7 @@ export function createSettingsPageControllers(deps: {
     suggestionsPageState,
     storageController,
     permissionsController,
+    extensionsPageController,
   };
 }
 export type SettingsPageControllers = ReturnType<

@@ -7,7 +7,6 @@ import OAuthInteractionPanel from "$lib/presentation/settings/OAuthInteractionPa
 import type { OAuthFlowInfo } from "@nervekit/contracts/auth";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
-import FolderGit2Icon from "@lucide/svelte/icons/folder-git-2";
 import KeyRoundIcon from "@lucide/svelte/icons/key-round";
 import KeyboardIcon from "@lucide/svelte/icons/keyboard";
 import MonitorIcon from "@lucide/svelte/icons/monitor";
@@ -15,7 +14,6 @@ import PlusIcon from "@lucide/svelte/icons/plus";
 import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
 import SlidersHorizontalIcon from "@lucide/svelte/icons/sliders-horizontal";
 import Trash2Icon from "@lucide/svelte/icons/trash-2";
-import UserIcon from "@lucide/svelte/icons/user";
 import WrenchIcon from "@lucide/svelte/icons/wrench";
 import BookOpenIcon from "@lucide/svelte/icons/book-open";
 import CodeIcon from "@lucide/svelte/icons/code";
@@ -697,25 +695,6 @@ let oauthResponse = $state("");
           },
         ]}
         activeId="appearance"
-        header={{
-          scopes: [
-            {
-              id: "user",
-              label: "Your settings",
-              icon: UserIcon,
-              selected: true,
-              onSelect: () => {},
-            },
-            {
-              id: "project",
-              label: "shop",
-              icon: FolderGit2Icon,
-              badge: { text: "2", tone: "warning" },
-              selected: false,
-              onSelect: () => {},
-            },
-          ],
-        }}
         onSelect={() => {}}
       />
     </GallerySpecimen>

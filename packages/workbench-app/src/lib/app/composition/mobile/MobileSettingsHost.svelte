@@ -10,7 +10,6 @@ import {
   settingsNavFor,
   settingsPageFor,
 } from "$lib/features/settings/registry/settings-pages";
-import { userSettingsScope } from "$lib/features/settings/registry/settings-scope";
 import { loadSettingsPanel } from "$lib/application/settings/settings-actions.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
 import { discoverTitlebarBadge, openDiscoverPane } from "$lib/app/discover";
@@ -28,7 +27,7 @@ import { mobileSettingsGroups } from "./mobile-settings";
  */
 const discoverBadge = $derived(discoverTitlebarBadge());
 const status = $derived(workspaceSelectors.status);
-const groups = mobileSettingsGroups(settingsNavFor(userSettingsScope));
+const groups = mobileSettingsGroups(settingsNavFor({}));
 
 $effect(() => {
   untrack(() => void loadSettingsPanel());
@@ -50,7 +49,7 @@ $effect(() => {
       {#each group.items as item (item.id)}
         <MobileListRow
           title={item.label}
-          detail={settingsPageFor(userSettingsScope, item.id).description}
+          detail={settingsPageFor({}, item.id).description}
           icon={item.icon}
           onclick={() =>
             pushMobileScreen({ kind: "settings-page", pageId: item.id })}

@@ -18,8 +18,6 @@ import type {
 } from "$lib/api";
 import { projectView } from "$lib/features/conversations/adapters/core-context.adapter";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
-import ProjectGuideSection from "./ProjectGuideSection.svelte";
-import type { ProjectGuide } from "$lib/application/configuration-attention/project-guides";
 import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
 import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
@@ -83,8 +81,7 @@ let {
   onRestartDaemon,
   theme,
   onThemeChange,
-  guide,
-  onOpenGuide,
+  onOpenPage,
 }: {
   page: SettingsPageDef;
   /** Fixed for the lifetime of the view; every save goes to this target. */
@@ -121,14 +118,19 @@ let {
   theme: ColorTheme;
   onThemeChange?: (theme: ColorTheme) => void;
   onSkillsRetry?: () => void;
-  /** "In this project" row at the end of a user page, and where it opens. */
-  guide?: ProjectGuide;
-  onOpenGuide?: () => void;
+  /** Opens another page of the surface (the Trust page from a trust warning). */
+  onOpenPage?: (pageId: string) => void;
 } = $props();
 
 const scope = $derived(target.kind);
 const projectId = $derived(
   target.kind === "project" ? target.projectId : undefined,
+);
+// Layered pages show the open project (the tab's own, or the open one in a user tab) as a column.
+const layerProjectId = $derived(project?.id);
+const projectName = $derived(project?.name);
+const reviewTrust = $derived(
+  onOpenPage ? () => onOpenPage("trust") : undefined,
 );
 // Extension pages belong to a project: this one's, or the open project's in user settings.
 const pagesProjectId = $derived(projectId ?? workspaceState.selectedProjectId);
@@ -150,8 +152,11 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {models}
       {authProviders}
       {skills}
-      {scope}
       {projectId}
+      {projectName}
+      {itemId}
+      {onOpenItem}
+      {onCloseItem}
     />
   {:else if page.id === "permission-rules"}
     <PermissionsSettingsPage
@@ -185,7 +190,13 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
   {:else if page.id === "shortcuts"}
     <ShortcutsSettingsPage />
   {:else if page.id === "general"}
-    <GeneralSettingsPage {scope} {projectId} {models} {authProviders} />
+    <GeneralSettingsPage
+      projectId={layerProjectId}
+      {projectName}
+      {models}
+      {authProviders}
+      onReviewTrust={reviewTrust}
+    />
   {:else if page.id === "suggestions"}
     <SuggestionsSettingsPage
       pageState={controllers.suggestionsPageState}
@@ -193,13 +204,16 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {itemId}
       {onOpenItem}
       {onCloseItem}
+      onReviewTrust={reviewTrust}
     />
   {:else if page.id === "models"}
     <ModelsSettingsPage {models} {authProviders} />
   {:else if page.id === "extensions"}
     <ExtensionsSettingsPage
-      {scope}
-      {projectId}
+      projectId={layerProjectId}
+      {projectName}
+      controller={controllers.extensionsPageController}
+      onReviewTrust={reviewTrust}
       {models}
       {authProviders}
       {itemId}
@@ -223,14 +237,23 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
         : undefined}
     />
   {:else if page.id === "trust"}
-    <TrustSettingsPage {projectId} entries={controllers.trustEntries()} />
+    <TrustSettingsPage
+      projectId={layerProjectId}
+      entries={controllers.trustEntries()}
+    />
   {:else if page.id === "providers"}
     <ProvidersSettingsPage {models} {authProviders} />
   {:else if page.id === "tools"}
-    <ToolsSettingsPage {scope} {projectId} {models} {status} />
-  {:else if page.id === "skills" && projectId && itemId}
+    <ToolsSettingsPage
+      projectId={layerProjectId}
+      {projectName}
+      {models}
+      {status}
+      onReviewTrust={reviewTrust}
+    />
+  {:else if page.id === "skills" && layerProjectId && itemId}
     <SkillReviewPage
-      {projectId}
+      projectId={layerProjectId}
       name={itemId}
       onBack={() => onCloseItem?.()}
       onOpenFile={project
@@ -239,8 +262,9 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
     />
   {:else if page.id === "skills"}
     <SkillsSettingsPage
-      {scope}
-      {projectId}
+      projectId={layerProjectId}
+      {projectName}
+      onReviewTrust={reviewTrust}
       {skills}
       loading={skillsLoading}
       error={skillsError}
@@ -248,14 +272,14 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
     />
   {:else if page.id === "storage"}
     <StorageSettingsPage controller={controllers.storageController} />
-  {:else if scope === "user" && page.id === "accounts"}
+  {:else if page.id === "accounts"}
     <AccountsSettingsPage signIn={accountSignIn.signIn} />
     <AccountSignInDialog flow={accountSignIn} />
-  {:else if scope === "user" && page.id === "background-jobs"}
+  {:else if page.id === "background-jobs"}
     <BackgroundJobsSettingsPage />
-  {:else if scope === "user" && page.id === "devices"}
+  {:else if page.id === "devices"}
     <DevicesSettingsPage />
-  {:else if scope === "user" && page.id === "system"}
+  {:else if page.id === "system"}
     <SystemSettingsPage
       configuration={applicationConfiguration}
       {status}
@@ -271,9 +295,6 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       title={page.label}
       description="This page is being rebuilt."
     />
-  {/if}
-  {#if guide && onOpenGuide && !itemId}
-    <ProjectGuideSection {guide} onOpen={onOpenGuide} />
   {/if}
 {:else}
   <div class="grid gap-1 py-12 text-center">

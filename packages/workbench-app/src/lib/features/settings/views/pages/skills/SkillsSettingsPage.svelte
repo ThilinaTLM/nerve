@@ -1,10 +1,8 @@
 <script lang="ts">
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
-import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
-import Copy from "@lucide/svelte/icons/copy";
-import FolderGit2 from "@lucide/svelte/icons/folder-git-2";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
+import FolderGit2 from "@lucide/svelte/icons/folder-git-2";
 import Globe from "@lucide/svelte/icons/globe";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -12,155 +10,257 @@ import type { AvailableSkill } from "@nervekit/contracts/skills";
 import { skillOverrideKind } from "@nervekit/contracts/skills";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { skillApprovalProblem } from "$lib/application/skills/skill-review";
-import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
-  SettingsChangeIndicator,
-  SettingsEmptyState,
+  LayerSwitches,
+  OriginGroup,
   SettingsItem,
   SettingsList,
   SettingsSection,
-  SettingsToolbar,
+  TipBadge,
+  type SettingsLayer,
+  type SettingsOrigin,
 } from "$lib/presentation/settings";
 import {
   filterSkills,
-  shadowNote,
-  skillSourceLabels,
-  skillSourceSectionIds,
-  sourcesForScope,
-  summarizeSkills,
   type SkillEntry,
 } from "$lib/domain/skills/skill-catalog";
-import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
+import type { Layered } from "../../../state/layered";
+import { applyLayerChange } from "../../shared/layer-change";
+
+/** Lists with at least this many entries get a search field. */
+const SEARCH_MIN = 12;
+
 let {
-  scope,
   projectId,
+  projectName,
   skills = [],
   error: catalogError,
   onOpenItem,
+  onReviewTrust,
 }: {
-  scope: "user" | "project";
+  /** The open project; without one the page has a single (User) column. */
   projectId?: string;
+  projectName?: string;
   skills?: AvailableSkill[];
   loading?: boolean;
   error?: string;
   /** Opens a project skill's review page. */
   onOpenItem?: (name: string) => void;
+  /** Opens the project's Trust page. */
+  onReviewTrust?: () => void;
 } = $props();
-const editor = new ScopedAgentState();
+
+const userEditor = new ScopedAgentState();
+const projectEditor = new ScopedAgentState();
 $effect(() => {
-  if (
-    !workbenchStartupState.progressiveActive ||
-    (scope === "project" && !projectId)
-  )
-    return;
-  void editor.load(
-    scope === "project" ? { scope, projectId: projectId! } : { scope },
-  );
+  if (!workbenchStartupState.progressiveActive) return;
+  void userEditor.load({ scope: "user" });
 });
-$effect(() => editor.observe());
-const locked = $derived(editor.saving || !editor.resolution);
-const error = $derived(editor.error ?? catalogError);
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || !projectId) return;
+  void projectEditor.load({ scope: "project", projectId });
+});
+$effect(() => userEditor.observe());
+$effect(() => projectEditor.observe());
+
+const layered = $derived(!!projectId && !!projectName);
+const ready = $derived(
+  !!userEditor.resolution && (!layered || !!projectEditor.resolution),
+);
+const error = $derived(
+  userEditor.error ??
+    (layered ? projectEditor.error : undefined) ??
+    catalogError,
+);
+/** The project's settings file is not trusted: its column is locked. */
+const locked = $derived(
+  layered &&
+    projectEditor.document?.status === "available" &&
+    projectEditor.document.trusted === false,
+);
 let query = $state("");
-const skillSourceIcons = {
-  user: FolderOpen,
-  project: FolderGit2,
-  nerve: Sparkles,
-  agentBrowser: Globe,
-};
+
 const escape = (value: string) =>
   value.replaceAll("~", "~0").replaceAll("/", "~1");
-function pointer(entry: SkillEntry) {
-  return `/skills/${entry.kind}/${escape(entry.skill.name)}`;
+const pointer = (kind: string, name: string) =>
+  `/overrides/skills/${kind}/${escape(name)}`;
+
+type Row = {
+  entry: SkillEntry;
+  value: Layered<boolean>;
+  user: boolean;
+  project: boolean;
+  projectSet: boolean;
+  /** A project skill with this name replaces this one in the project. */
+  replaced: boolean;
+};
+
+function stored(editor: ScopedAgentState, entry: SkillEntry) {
+  return editor.overrides.skills?.[entry.kind]?.[entry.skill.name];
 }
-const entries = $derived<SkillEntry[]>(
+function resolved(editor: ScopedAgentState, entry: SkillEntry): boolean {
+  const settings = editor.resolution?.settings.skills;
+  return (
+    settings?.[entry.kind]?.[entry.skill.name] ??
+    settings?.defaults?.[entry.kind] ??
+    false
+  );
+}
+function builtinDefault(entry: SkillEntry): boolean {
+  const inherited = userEditor.inherited?.settings.skills;
+  return (
+    inherited?.[entry.kind]?.[entry.skill.name] ??
+    inherited?.defaults?.[entry.kind] ??
+    false
+  );
+}
+
+const projectNames = $derived(
+  new Set(skills.filter((s) => s.source === "project").map((s) => s.name)),
+);
+const rows = $derived<Row[]>(
   skills
-    .filter((s) => sourcesForScope(scope).includes(s.source))
+    .filter((skill) => layered || skill.source !== "project")
     .map((skill) => {
-      const kind = skillOverrideKind(skill.source);
-      const settings = editor.resolution?.settings.skills;
-      const inherited = editor.inherited?.settings.skills;
-      return {
+      const entry: SkillEntry = {
         skill,
-        kind,
+        kind: skillOverrideKind(skill.source),
         source: skill.source,
-        enabled:
-          settings?.[kind]?.[skill.name] ?? settings?.defaults?.[kind] ?? false,
-        inherited:
-          inherited?.[kind]?.[skill.name] ??
-          inherited?.defaults?.[kind] ??
-          false,
-        overridden: editor.overrides.skills?.[kind]?.[skill.name] !== undefined,
+        enabled: false,
+        inherited: false,
+        overridden: false,
+      };
+      const projectOwned = skill.source === "project";
+      const user = resolved(userEditor, entry);
+      const projectStored = layered ? stored(projectEditor, entry) : undefined;
+      return {
+        entry,
+        // A project skill has no User layer: its default is what it inherits.
+        value: {
+          builtinDefault: projectOwned ? user : builtinDefault(entry),
+          user: projectOwned ? undefined : stored(userEditor, entry),
+          project: projectStored,
+        },
+        user,
+        project: layered ? resolved(projectEditor, entry) : user,
+        projectSet: projectStored !== undefined,
+        replaced:
+          layered && skill.source === "user" && projectNames.has(skill.name),
       };
     }),
 );
-const visibleEntries = $derived(filterSkills({ entries, query }));
-const summary = $derived(summarizeSkills(visibleEntries));
-const groupedEntries = $derived(
-  sourcesForScope(scope)
-    .map((source) => ({
-      source,
-      entries: visibleEntries.filter((e) => e.source === source),
-    }))
-    .filter((g) => g.entries.length),
+
+const total = $derived(rows.length);
+const visible = $derived(
+  total >= SEARCH_MIN
+    ? filterSkills({
+        entries: rows.map((r) => r.entry),
+        query,
+      })
+    : rows.map((r) => r.entry),
 );
+const visibleKeys = $derived(new Set(visible.map((e) => e.skill.filePath)));
+
+/** Project → User → other sources → Built-in. */
+const groups = $derived(
+  (
+    [
+      ["project", { kind: "project" }, FolderGit2],
+      ["user", { kind: "user" }, FolderOpen],
+      ["agentBrowser", { kind: "agent-browser" }, Globe],
+      ["nerve", { kind: "builtin" }, Sparkles],
+    ] as const
+  ).map(([source, origin, icon]) => ({
+    source,
+    origin: origin as SettingsOrigin,
+    icon,
+    rows: rows.filter(
+      (r) =>
+        r.entry.source === source && visibleKeys.has(r.entry.skill.filePath),
+    ),
+  })),
+);
+
+async function write(
+  editor: ScopedAgentState,
+  entry: SkillEntry,
+  choice: boolean | undefined,
+) {
+  if (choice === undefined)
+    await editor.save({}, [pointer(entry.kind, entry.skill.name)]);
+  else
+    await editor.save({
+      skills: { [entry.kind]: { [entry.skill.name]: choice } },
+    });
+}
+
+function change(row: Row, layer: SettingsLayer, next: boolean) {
+  void applyLayerChange({
+    value: row.value,
+    layer,
+    next,
+    writeUser: (choice) => write(userEditor, row.entry, choice),
+    writeProject: (choice) => write(projectEditor, row.entry, choice),
+  });
+}
+
 const orphans = $derived.by(() => {
   const result: {
+    layer: SettingsLayer;
     kind: "file" | "nerve" | "agentBrowser";
     name: string;
     enabled: boolean;
   }[] = [];
-  for (const kind of ["file", "nerve", "agentBrowser"] as const)
-    for (const [name, enabled] of Object.entries(
-      editor.overrides.skills?.[kind] ?? {},
-    ))
-      if (!entries.some((e) => e.kind === kind && e.skill.name === name))
-        result.push({ kind, name, enabled });
+  const editors: [SettingsLayer, ScopedAgentState][] = [["user", userEditor]];
+  if (layered) editors.push(["project", projectEditor]);
+  for (const [layer, editor] of editors)
+    for (const kind of ["file", "nerve", "agentBrowser"] as const)
+      for (const [name, enabled] of Object.entries(
+        editor.overrides.skills?.[kind] ?? {},
+      ))
+        if (
+          !rows.some(
+            (r) => r.entry.kind === kind && r.entry.skill.name === name,
+          )
+        )
+          result.push({ layer, kind, name, enabled });
   return result;
 });
-function toggleEntry(entry: SkillEntry, enabled: boolean) {
-  void editor.save({
-    skills: { [entry.kind]: { [entry.skill.name]: enabled } },
-  });
-}
-function resetEntry(entry: SkillEntry) {
-  void editor.save({}, [`/overrides${pointer(entry)}`]);
-}
-function applyBulk(enabled: boolean) {
-  const skills: NonNullable<LeadSettingsOverrides["skills"]> = {};
-  for (const e of visibleEntries)
-    skills[e.kind] = { ...skills[e.kind], [e.skill.name]: enabled };
-  void editor.save({ skills });
-}
 function clearOrphans(values: typeof orphans) {
-  void editor.save(
-    {},
-    values.map((v) => `/overrides/skills/${v.kind}/${escape(v.name)}`),
-  );
+  void (async () => {
+    for (const layer of ["user", "project"] as const) {
+      const own = values.filter((v) => v.layer === layer);
+      if (own.length)
+        await (layer === "user" ? userEditor : projectEditor).save(
+          {},
+          own.map((v) => pointer(v.kind, v.name)),
+        );
+    }
+  })();
 }
-function clearAllOrphans() {
-  clearOrphans(orphans);
-}
-function copyPath(path: string) {
-  void writeClipboardText(path);
-}
+
 /** A project skill opens its review page; user and built-in skills have none. */
 const reviewable = (entry: SkillEntry) =>
-  scope === "project" && entry.source === "project" && !!onOpenItem;
+  entry.source === "project" && !!onOpenItem;
 function onRetry() {
-  return editor.reload();
+  return Promise.all([
+    userEditor.reload(),
+    layered ? projectEditor.reload() : undefined,
+  ]);
 }
 </script>
 
-{#if scope === "project"}<ProjectCapabilityTrustNotice
-    document={editor.document}
-    scope={editor.scope}
-    onReload={onRetry}
+{#if layered}<ProjectCapabilityTrustNotice
+    document={projectEditor.document}
+    scope={projectEditor.scope}
+    onReload={() => projectEditor.reload()}
+    {projectName}
+    onReview={onReviewTrust}
   />{/if}
 {#if error}
   <Callout layout="block" tone="destructive" text={error}>
@@ -170,146 +270,100 @@ function onRetry() {
   </Callout>
 {/if}
 
-{#if !editor.resolution && !error}
+{#if !ready && !error}
   <Skeleton class="h-8 w-full" />
-{:else if editor.resolution}
-  <SettingsToolbar>
-    {#snippet start()}
-      <SearchInput
-        bind:value={query}
-        placeholder="Search skills"
-        ariaLabel="Search skills"
-        class="max-w-xs"
-      >
-        {#snippet trailing()}
-          <span class="flex-none text-ui text-muted-foreground"
-            >{summary.enabled} of {summary.total} enabled</span
-          >
-        {/snippet}
-      </SearchInput>
-    {/snippet}
-    {#snippet end()}
-      {#if scope === "project"}<ProjectCapabilityTrustAction
-          document={editor.document}
-          scope={editor.scope}
-          onReload={onRetry}
-        />{/if}
-      <Button
-        size="sm"
-        variant="ghost"
-        class="text-muted-foreground"
-        disabled={visibleEntries.length === 0 || locked}
-        title={`Enable ${visibleEntries.length} skills`}
-        onclick={() => applyBulk(true)}
-      >
-        {query ? "Enable shown" : "Enable all"}
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        class="text-muted-foreground"
-        disabled={visibleEntries.length === 0 || locked}
-        title={`Disable ${visibleEntries.length} skills`}
-        onclick={() => applyBulk(false)}
-      >
-        {query ? "Disable shown" : "Disable all"}
-      </Button>
-    {/snippet}
-  </SettingsToolbar>
-
-  {#if groupedEntries.length === 0 && orphans.length === 0 && !error}
-    <SettingsEmptyState
-      title="No matching skills"
-      description={scope === "user"
-        ? "Skills come from your skills directory, Nerve, and the agent-browser CLI."
-        : "Skills come from your skills directory, this project, Nerve, and the agent-browser CLI."}
+{:else if ready}
+  {#if total >= SEARCH_MIN}
+    <SearchInput
+      bind:value={query}
+      placeholder="Search skills"
+      ariaLabel="Search skills"
+      class="max-w-xs"
     />
   {/if}
 
-  {#each groupedEntries as group (group.source)}
-    <SettingsSection
-      id={skillSourceSectionIds[group.source]}
-      title={skillSourceLabels[group.source]}
-      info={scope === "project"
-        ? "Skills without a project override follow your user settings."
-        : undefined}
+  {#each groups as group (group.source)}
+    <OriginGroup
+      origin={group.origin}
+      count={group.rows.length}
+      projectName={layered ? projectName : undefined}
     >
-      <SettingsList ariaLabel={skillSourceLabels[group.source]}>
-        {#each group.entries as entry (entry.skill.filePath)}
-          <SettingsItem
-            title={entry.skill.name}
-            icon={skillSourceIcons[entry.source]}
-            summary={entry.skill.description || entry.skill.filePath}
-            mono={!entry.skill.description}
-            problem={skillApprovalProblem(entry.skill.approval)}
-            problemAction={entry.skill.approval
-              ? {
-                  label: "Review",
-                  onclick: () => onOpenItem?.(entry.skill.name),
-                }
-              : undefined}
-            onOpen={reviewable(entry)
-              ? () => onOpenItem?.(entry.skill.name)
-              : undefined}
-            openLabel={`Review ${entry.skill.name}`}
-            checked={entry.skill.approval ? undefined : entry.enabled}
-            disabled={locked}
-            switchLabel={scope === "user"
-              ? `Enable ${entry.skill.name} skill`
-              : `Enable ${entry.skill.name} skill for this project`}
-            onCheckedChange={(checked) => toggleEntry(entry, checked)}
-          >
-            {#snippet badges()}
-              {#if shadowNote(entry)}
-                <Badge variant="neutral">{shadowNote(entry)}</Badge>
-              {/if}
-            {/snippet}
-            {#snippet meta()}
-              {#if entry.overridden}
-                <SettingsChangeIndicator
-                  {scope}
-                  from={entry.inherited ? "On" : "Off"}
-                  onReset={() => resetEntry(entry)}
-                />
-              {/if}
-            {/snippet}
-            {#snippet actions()}
-              <IconAction
-                icon={Copy}
-                label="Copy skill path"
-                onclick={() => copyPath(entry.skill.filePath)}
+      {#each group.rows as row (row.entry.skill.filePath)}
+        {@const entry = row.entry}
+        <SettingsItem
+          title={entry.skill.name}
+          icon={group.icon}
+          summary={entry.skill.description || entry.skill.filePath}
+          mono={!entry.skill.description}
+          problem={skillApprovalProblem(entry.skill.approval)}
+          problemAction={entry.skill.approval
+            ? {
+                label: "Review",
+                onclick: () => onOpenItem?.(entry.skill.name),
+              }
+            : undefined}
+          onOpen={reviewable(entry)
+            ? () => onOpenItem?.(entry.skill.name)
+            : undefined}
+          openLabel={`Review ${entry.skill.name}`}
+        >
+          {#snippet badges()}
+            {#if row.replaced}
+              <TipBadge
+                text={`Replaced in ${projectName}`}
+                tip={`${projectName} has its own ${entry.skill.name}; this one is not used there.`}
               />
-            {/snippet}
-          </SettingsItem>
-        {/each}
-      </SettingsList>
-    </SettingsSection>
+            {/if}
+          {/snippet}
+          {#snippet meta()}
+            <LayerSwitches
+              name={entry.skill.name}
+              user={row.user}
+              project={row.project}
+              projectSet={row.projectSet}
+              projectName={layered ? projectName : undefined}
+              projectOnly={entry.source === "project"}
+              pending={!!entry.skill.approval}
+              inapplicable={row.replaced}
+              {locked}
+              onChange={(layer, next) => change(row, layer, next)}
+            />
+          {/snippet}
+        </SettingsItem>
+      {/each}
+    </OriginGroup>
   {/each}
+
+  {#if total === 0 && !error}
+    <p class="text-ui text-muted-foreground">
+      Skills come from your skills directory, {layered
+        ? "this project, "
+        : ""}Nerve, and the agent-browser CLI.
+    </p>
+  {/if}
 
   {#if orphans.length > 0}
     <SettingsSection
       id="unused-entries"
       title="Unused entries"
-      info={scope === "user"
-        ? "Saved on/off decisions for skill names that are not installed for you, usually a project's own skill or a leftover from an earlier version. They do nothing today, but would apply to any future skill taking that name."
-        : "Project overrides for skill names that are no longer installed. They do nothing today, but would apply to any future skill taking that name."}
+      info="Saved on/off decisions for skill names that are not installed. They do nothing today, but would apply to any future skill taking that name."
     >
       {#snippet actions()}
         <Button
           size="sm"
           variant="ghost"
           class="text-muted-foreground"
-          onclick={clearAllOrphans}
+          onclick={() => clearOrphans(orphans)}
         >
           Remove all
         </Button>
       {/snippet}
       <SettingsList ariaLabel="Unused skill entries">
-        {#each orphans as orphan (`${orphan.kind}:${orphan.name}`)}
+        {#each orphans as orphan (`${orphan.layer}:${orphan.kind}:${orphan.name}`)}
           <SettingsItem
             title={orphan.name}
             icon={orphan.kind === "agentBrowser" ? Globe : FolderOpen}
-            summary={`Saved as ${orphan.enabled ? "enabled" : "disabled"}; no skill with this name is installed.`}
+            summary={`Saved ${orphan.layer === "user" ? "for you" : `in ${projectName}`} as ${orphan.enabled ? "enabled" : "disabled"}; no skill with this name is installed.`}
           >
             {#snippet actions()}
               <IconAction

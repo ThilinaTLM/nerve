@@ -45,7 +45,6 @@ export function createCenterTabRefresh(
         dependencies.refreshDiff(tab.id);
         return;
       case "settings":
-      case "project-settings":
         dependencies.loadSettings();
         return;
       case "logs":

@@ -748,7 +748,12 @@ export function installedSourceRows(entry: ExtensionCatalogEntry): SourceRow[] {
   const rows: SourceRow[] = [
     {
       label: "Installed for",
-      value: entry.source === "user" ? "User" : "Project",
+      value:
+        entry.source === "user"
+          ? "User"
+          : entry.source === "builtin"
+            ? "Built-in"
+            : "Project",
     },
   ];
   if (entry.path) rows.push({ label: "Folder", value: entry.path, mono: true });

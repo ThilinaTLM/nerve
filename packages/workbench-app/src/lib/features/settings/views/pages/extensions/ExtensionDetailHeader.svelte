@@ -8,7 +8,12 @@
 import Lock from "@lucide/svelte/icons/lock";
 import type { ExtensionView } from "@nervekit/contracts/extensions";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import { SettingsPageHeader } from "$lib/presentation/settings";
+import {
+  ColumnLabels,
+  LayerSwitches,
+  SettingsPageHeader,
+  type SettingsLayer,
+} from "$lib/presentation/settings";
 import ExtensionMark from "./ExtensionMark.svelte";
 
 type Props = {
@@ -21,6 +26,16 @@ type Props = {
   busy?: boolean;
   onBack: () => void;
   onEnabledChange: (enabled: boolean) => void;
+  /** With a project open: the User and project switches replace the single one. */
+  layers?: {
+    projectName: string;
+    user: boolean;
+    project: boolean;
+    projectSet: boolean;
+    projectOnly: boolean;
+    locked: boolean;
+    onChange: (layer: SettingsLayer, value: boolean) => void;
+  };
 };
 
 let {
@@ -30,6 +45,7 @@ let {
   busy = false,
   onBack,
   onEnabledChange,
+  layers,
 }: Props = $props();
 
 const source = $derived(extension?.enabled.source);
@@ -63,12 +79,31 @@ const source = $derived(extension?.enabled.source);
           />
         </span>
       {/if}
-      <Switch
-        checked={extension.enabled.value}
-        disabled={busy || extension.readOnly || source?.locked === true}
-        aria-label={`Enable ${extension.metadata.name}`}
-        onCheckedChange={onEnabledChange}
-      />
+      {#if layers}
+        <div class="grid justify-items-end gap-0.5">
+          <ColumnLabels
+            projectName={layers.projectName}
+            projectOnly={layers.projectOnly}
+          />
+          <LayerSwitches
+            name={extension.metadata.name}
+            user={layers.user}
+            project={layers.project}
+            projectSet={layers.projectSet}
+            projectName={layers.projectName}
+            projectOnly={layers.projectOnly}
+            locked={layers.locked}
+            onChange={layers.onChange}
+          />
+        </div>
+      {:else}
+        <Switch
+          checked={extension.enabled.value}
+          disabled={busy || extension.readOnly || source?.locked === true}
+          aria-label={`Enable ${extension.metadata.name}`}
+          onCheckedChange={onEnabledChange}
+        />
+      {/if}
     {/if}
   {/snippet}
 </SettingsPageHeader>

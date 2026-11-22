@@ -29,27 +29,32 @@ import {
   openSettingsPane,
 } from "$lib/application/settings";
 import {
-  SettingsChangeIndicator,
+  ColumnLabels,
+  LayerSwitches,
   SettingsItem,
   SettingsList,
-  SettingsRow,
   SettingsSection,
+  SplitColumns,
+  type SettingsLayer,
 } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
-import { showAccounts } from "../accounts/accounts-page-state.svelte";
-import { platformsOfExtension } from "../accounts/accounts-view";
 import AccountsSection from "./AccountsSection.svelte";
-import ExtensionFieldRow from "./ExtensionFieldRow.svelte";
+import ExtensionFieldRow, {
+  type FieldLayers,
+} from "./ExtensionFieldRow.svelte";
+import { applyLayerChange } from "../../shared/layer-change";
 import ExtensionInstalledSections from "./ExtensionInstalledSections.svelte";
 import {
   detailLayout,
   entryWithSetting,
   eligibleKindLabels,
+  displayValue,
   extensionChanges,
   extensionProblem,
   helperNote,
   lockOwner,
   type FeatureRow,
+  type FieldItem,
   type AccountChoices,
   type ExtensionsScope,
 } from "./extensions-view";
@@ -62,6 +67,10 @@ type Props = {
   inherited?: ExtensionView;
   scope: ExtensionsScope;
   projectId?: string;
+  /** The open project's name: settings fields get a User and a project cell. */
+  projectName?: string;
+  /** The User scope's state, which saves the User cells while `extensions` is the project's. */
+  userExtensions?: ScopedExtensionsState;
   extensions: ScopedExtensionsState;
   accounts: AccountChoices;
   models?: ModelInfo[];
@@ -76,6 +85,8 @@ let {
   inherited,
   scope,
   projectId,
+  projectName,
+  userExtensions,
   extensions,
   accounts,
   models = [],
@@ -90,6 +101,114 @@ const changes = $derived(
   extensionChanges(extension, scope, accounts, inherited),
 );
 const problem = $derived(extensionProblem(extension));
+const layered = $derived(scope === "project" && !!projectName && !!inherited);
+const userLayout = $derived(
+  layered && inherited ? detailLayout(inherited, "user") : undefined,
+);
+const userItems = $derived(
+  new Map(
+    (userLayout?.sections ?? []).flatMap((section) =>
+      [...section.fields, ...section.advanced].map(
+        (item) => [item.key, item] as const,
+      ),
+    ),
+  ),
+);
+const projectLocked = $derived(
+  layered && extensions.view?.file.trusted === false,
+);
+const sameValue = (a: unknown, b: unknown) =>
+  JSON.stringify(a) === JSON.stringify(b);
+/** A field's value changed at one layer; equal-to-inherited choices are dropped. */
+async function changeField(
+  item: FieldItem,
+  layer: SettingsLayer,
+  value: unknown,
+): Promise<void> {
+  if (!layered || !inherited || !userExtensions) {
+    await (value === undefined
+      ? extensions.reset(id, [item.key])
+      : extensions.save(id, entryWithSetting(extension, item.key, value)));
+    return;
+  }
+  const field = extension.settingsSchema.fields[item.key]!;
+  const current = {
+    builtinDefault: "default" in field ? field.default : undefined,
+    user: inherited.stored?.settings[item.key],
+    project: extension.stored?.settings[item.key],
+  };
+  await applyLayerChange({
+    value: current,
+    layer,
+    next: value,
+    equals: sameValue,
+    writeUser: (choice) =>
+      choice === undefined
+        ? userExtensions.reset(id, [item.key])
+        : userExtensions.save(
+            id,
+            entryWithSetting(
+              userExtensions.view?.extensions.find(
+                (e) => e.metadata.id === id,
+              ) ?? inherited,
+              item.key,
+              choice,
+            ),
+          ),
+    writeProject: (choice) =>
+      choice === undefined
+        ? extensions.reset(id, [item.key])
+        : extensions.save(id, entryWithSetting(extension, item.key, choice)),
+  });
+}
+/** The two cells of a settings field, or undefined without a project. */
+function layersFor(item: FieldItem): FieldLayers | undefined {
+  if (!layered || !inherited) return undefined;
+  const userItem = userItems.get(item.key);
+  const base = userItem ?? item;
+  const field = item.field;
+  const projectOnly = extension.metadata.source === "project";
+  const userStored = inherited.stored?.settings[item.key];
+  const projectStored = extension.stored?.settings[item.key];
+  const text = (value: unknown) =>
+    displayValue(field, value, accounts) ?? "Not set";
+  const defaultValue = "default" in field ? field.default : undefined;
+  return {
+    projectName: projectName!,
+    userItem: projectOnly ? undefined : userItem,
+    locked: projectLocked,
+    projectOnly,
+    onUserChange: (value) => void changeField(item, "user", value),
+    userReset:
+      userStored !== undefined && userItem?.editable
+        ? {
+            label: `Reset to default (${text(defaultValue)})`,
+            onReset: () => void changeField(item, "user", undefined),
+          }
+        : undefined,
+    projectReset:
+      projectStored !== undefined && !projectLocked
+        ? {
+            label: `Use the User value (${text(base.value)})`,
+            onReset: () => void changeField(item, "project", undefined),
+          }
+        : undefined,
+  };
+}
+/** The User and project radio slots of an account setting, or undefined without a project. */
+function accountLayers(item: FieldItem) {
+  if (!layered || !inherited) return undefined;
+  const userItem = userLayout?.accounts.find(
+    (entry) => entry.item.key === item.key,
+  )?.item;
+  const userValue = userItem?.value;
+  return {
+    projectName: projectName!,
+    userValue: typeof userValue === "string" ? userValue : undefined,
+    userDisabled: busy || projectLocked || !userItem?.editable,
+    onSelectUser: (account: string) => void changeField(item, "user", account),
+  };
+}
 // The callout above already gives this reason; the row only marks itself.
 const rowProblem = (reason: string | undefined) =>
   reason !== undefined && reason === problem ? "Unavailable" : reason;
@@ -101,7 +220,6 @@ const mergedKinds = $derived(
 );
 // The kinds the extension's account settings may select: its own and, for platforms it uses, every definition covering what it declared.
 const kindLabels = $derived(eligibleKindLabels(extension, accountsState.kinds));
-const platforms = $derived(platformsOfExtension(extension));
 const listKinds = $derived(
   extension.accountKinds.filter((kind) => !mergedKinds.has(kind.kind)),
 );
@@ -119,11 +237,6 @@ function featureSummary(row: FeatureRow): string {
 
 let advancedOpen = $state<Record<string, boolean>>({});
 
-/** Opens the Accounts page filtered to this extension, or to a platform it is for or uses. */
-function openAccounts(platform?: string): void {
-  showAccounts(platform ?? extension.metadata.name);
-  void openSettingsPane("accounts");
-}
 function revealSection(section: string): void {
   document
     .getElementById(settingsSectionDomId(section))
@@ -171,22 +284,20 @@ function openPage(page: "tools" | "skills"): void {
         {kind}
         icon={extension.metadata.icon}
         {projectId}
-        onManage={() => openAccounts()}
+        projectOnly={extension.metadata.source === "project"}
         choice={{
           title: entry.item.field.label,
           description: entry.item.field.description,
           scope,
           value:
             typeof entry.item.value === "string" ? entry.item.value : undefined,
-          disabled: busy || !entry.item.editable,
+          disabled: busy || projectLocked || !entry.item.editable,
           lockedReason: entry.item.readOnlyReason,
           change: changes.find((change) => change.key === entry.item.key),
           onSelect: (account) =>
-            void extensions.save(
-              id,
-              entryWithSetting(extension, entry.item.key, account),
-            ),
+            void changeField(entry.item, "project", account),
           onReset: () => void extensions.reset(id, [entry.item.key]),
+          layers: accountLayers(entry.item),
         }}
       />
     {/if}
@@ -199,6 +310,10 @@ function openPage(page: "tools" | "skills"): void {
       description={section.description}
       divided
     >
+      {#if layered}<SplitColumns
+          {projectName}
+          projectOnly={extension.metadata.source === "project"}
+        />{/if}
       {#each section.fields as item (item.key)}
         <ExtensionFieldRow
           extensionId={id}
@@ -210,12 +325,9 @@ function openPage(page: "tools" | "skills"): void {
           {models}
           change={changes.find((change) => change.key === item.key)}
           disabled={busy}
-          onChange={(value) =>
-            void extensions.save(
-              id,
-              entryWithSetting(extension, item.key, value),
-            )}
-          onReset={() => void extensions.reset(id, [item.key])}
+          layers={layersFor(item)}
+          onChange={(value) => void changeField(item, "project", value)}
+          onReset={() => void changeField(item, "project", undefined)}
         />
       {/each}
       {#if section.advanced.length > 0}
@@ -244,12 +356,9 @@ function openPage(page: "tools" | "skills"): void {
                 {models}
                 change={changes.find((change) => change.key === item.key)}
                 disabled={busy}
-                onChange={(value) =>
-                  void extensions.save(
-                    id,
-                    entryWithSetting(extension, item.key, value),
-                  )}
-                onReset={() => void extensions.reset(id, [item.key])}
+                layers={layersFor(item)}
+                onChange={(value) => void changeField(item, "project", value)}
+                onReset={() => void changeField(item, "project", undefined)}
               />
             {/each}
           </Collapsible.Content>
@@ -265,6 +374,15 @@ function openPage(page: "tools" | "skills"): void {
       title="Features"
       description="The tools, Quick script namespaces and skills the agent gets when this extension is on."
     >
+      {#if layered}
+        <div class="flex justify-end pr-3">
+          <ColumnLabels
+            chevron
+            {projectName}
+            projectOnly={extension.metadata.source === "project"}
+          />
+        </div>
+      {/if}
       <SettingsList ariaLabel="Features">
         {#each layout.features as row (`${row.kind}:${row.id}`)}
           {@const control = row.control}
@@ -282,30 +400,30 @@ function openPage(page: "tools" | "skills"): void {
             openLabel={control.type === "opens"
               ? `Open ${row.title} in ${control.page === "tools" ? "Tools" : "Skills"}`
               : undefined}
-            checked={item ? item.value === true : undefined}
+            checked={item && !layered ? item.value === true : undefined}
             switchLabel={item?.field.label}
             disabled={busy || (item ? !item.editable : false)}
             lockedBy={item ? lockOwner(item) : undefined}
-            onCheckedChange={item
-              ? (next) =>
-                  void extensions.save(
-                    id,
-                    entryWithSetting(extension, item.key, next),
-                  )
+            onCheckedChange={item && !layered
+              ? (next) => void changeField(item, "project", next)
               : undefined}
           >
             {#snippet meta()}
-              {#if item}
-                {@const change = changes.find(
-                  (entry) => entry.key === item.key,
-                )}
-                {#if change}
-                  <SettingsChangeIndicator
-                    {scope}
-                    from={change.from}
-                    onReset={() => void extensions.reset(id, [item.key])}
-                  />
-                {/if}
+              {#if item && layered}
+                {@const userItem = userItems.get(item.key)}
+                <LayerSwitches
+                  name={row.title}
+                  user={userItem
+                    ? userItem.value === true
+                    : item.value === true}
+                  project={item.value === true}
+                  projectSet={item.set && !projectLocked}
+                  {projectName}
+                  projectOnly={extension.metadata.source === "project"}
+                  locked={projectLocked}
+                  onChange={(layer, next) =>
+                    void changeField(item, layer, next)}
+                />
               {:else if control.type === "setting"}
                 <Button
                   size="sm"
@@ -316,7 +434,11 @@ function openPage(page: "tools" | "skills"): void {
                   >{control.on ? "On" : "Off"} · set in Settings</Button
                 >
               {:else if control.type === "follows"}
-                <span class="text-caption text-muted-foreground">Always on</span
+                <span
+                  class={[
+                    layered ? "w-40" : "w-20",
+                    "text-right text-caption text-muted-foreground",
+                  ]}>Always on</span
                 >
               {/if}
             {/snippet}
@@ -345,41 +467,14 @@ function openPage(page: "tools" | "skills"): void {
       </SettingsList>
     </SettingsSection>
   {/if}
-  {#if listKinds.length > 0 || platforms.length > 0}
-    <SettingsSection id="accounts" title="Accounts" divided>
-      {#each platforms as platform (platform)}
-        <SettingsRow
-          label={`${platform} accounts`}
-          description={extension.uses?.some((use) => use.platform === platform)
-            ? "Accounts of every extension that defines this platform; this extension uses them."
-            : "Accounts of every extension that defines this platform."}
-        >
-          {#snippet control()}
-            <Button
-              size="sm"
-              variant="outline"
-              onclick={() => openAccounts(platform)}>Manage accounts</Button
-            >
-          {/snippet}
-        </SettingsRow>
-      {/each}
-      {#if listKinds.some((kind) => !kind.platform)}
-        <SettingsRow
-          label={listKinds
-            .filter((kind) => !kind.platform)
-            .map((kind) => `${kind.label}s`)
-            .join(", ")}
-          description="Add, sign in, test and move accounts on the Accounts page."
-        >
-          {#snippet control()}
-            <Button size="sm" variant="outline" onclick={() => openAccounts()}
-              >Manage accounts</Button
-            >
-          {/snippet}
-        </SettingsRow>
-      {/if}
-    </SettingsSection>
-  {/if}
+  {#each listKinds as kind (kind.kind)}
+    <AccountsSection
+      {kind}
+      icon={extension.metadata.icon}
+      {projectId}
+      projectOnly={extension.metadata.source === "project"}
+    />
+  {/each}
   {#if installed}
     <ExtensionInstalledSections entry={installed} {extensions} />
   {/if}

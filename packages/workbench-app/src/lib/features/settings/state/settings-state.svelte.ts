@@ -29,14 +29,9 @@ export const settingsState = $state({
   settingsSaveStatus: "idle" as "idle" | "dirty" | "saving" | "saved" | "error",
   settingsMessage: undefined as string | undefined,
   settingsTabOpen: false,
-  /** User settings view; project settings tabs keep theirs in `projectViews`. */
+  /** The settings tab's view: page, detail item and section. */
   activePageId: "providers",
   activeSectionId: "subscriptions",
   /** Open detail item of the active page (`Page › Item`); "" shows the list. */
   activeItemId: "",
-  /** Page, detail item and section last shown by each project's settings tab. */
-  projectViews: {} as Record<
-    string,
-    { pageId: string; sectionId: string; itemId?: string }
-  >,
 });

@@ -6,14 +6,26 @@
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import UntrustedProjectCallout from "../capabilities/UntrustedProjectCallout.svelte";
 import type { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 
-let { extensions }: { extensions: ScopedExtensionsState } = $props();
+let {
+  extensions,
+  projectName,
+  onReview,
+}: {
+  extensions: ScopedExtensionsState;
+  /** With `onReview`: the unified pages' warning, which opens the Trust page. */
+  projectName?: string;
+  onReview?: () => void;
+} = $props();
 
 const file = $derived(extensions.view?.file);
 </script>
 
-{#if file?.trusted === false}
+{#if file?.trusted === false && projectName && onReview}
+  <UntrustedProjectCallout {projectName} {onReview} />
+{:else if file?.trusted === false}
   <Callout
     layout="block"
     tone="warning"

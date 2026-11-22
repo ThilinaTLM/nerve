@@ -11,27 +11,6 @@ export { skillOverrideKind, sortBySkillSource };
 /** Where an enable/disable decision is written. */
 export type SkillScope = "user" | "project" | "conversation";
 
-export const skillSourceLabels: Record<SkillSource, string> = {
-  user: "Your skills",
-  project: "Project skills",
-  nerve: "Built-in Nerve skills",
-  agentBrowser: "Agent Browser skills",
-};
-
-export const skillSourceItemLabels: Record<SkillSource, string> = {
-  user: "Your skill",
-  project: "Project skill",
-  nerve: "Built-in Nerve skill",
-  agentBrowser: "Agent Browser skill",
-};
-
-export const skillSourceSectionIds: Record<SkillSource, string> = {
-  user: "user",
-  project: "project",
-  nerve: "nerve",
-  agentBrowser: "agent-browser",
-};
-
 /**
  * User settings are name-keyed and machine-wide, so they never govern
  * project-directory skills; those belong to project and conversation scope.
@@ -55,13 +34,6 @@ export type SkillEntry = {
   /** Set when another definition wins at runtime. */
   shadowedBy?: SkillSource;
 };
-
-export function shadowNote(entry: SkillEntry): string | undefined {
-  if (!entry.shadowedBy) return undefined;
-  return entry.source === "user"
-    ? "The project skill with this name takes precedence"
-    : `${skillSourceItemLabels[entry.shadowedBy]} with this name takes precedence`;
-}
 
 export function filterSkills(input: {
   entries: SkillEntry[];

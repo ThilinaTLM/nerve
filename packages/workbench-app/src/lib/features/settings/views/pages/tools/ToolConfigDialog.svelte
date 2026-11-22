@@ -1,6 +1,7 @@
 <!-- Configure one tool at the current level, with the shared canonical form. -->
 <script lang="ts">
 import { canonicalSettingRequired } from "$lib/presentation/composer/capability-tool-locks";
+import type { Snippet } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import ToolConfigForm from "./ToolConfigForm.svelte";
@@ -16,6 +17,8 @@ type Props = {
   leadProfiles?: { name: string; label: string }[];
   resolvedPython?: string;
   onSave: (value: ToolPayload) => void;
+  /** Above the form, e.g. the layer the change applies to. */
+  header?: Snippet;
 };
 
 let {
@@ -27,6 +30,7 @@ let {
   leadProfiles,
   resolvedPython,
   onSave,
+  header,
 }: Props = $props();
 
 let draft = $state<ToolPayload>({});
@@ -53,6 +57,7 @@ function save(): void {
   submitDisabled={!valid}
   onSubmit={save}
 >
+  {#if header}{@render header()}{/if}
   <ToolConfigForm
     {name}
     {requiredPointers}

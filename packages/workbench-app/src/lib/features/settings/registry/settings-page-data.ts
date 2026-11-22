@@ -65,12 +65,14 @@ const agents: PageData = {
   description:
     "Main agent profiles that apply settings, instructions and locks to a conversation. Later edits don't change conversations that already applied one.",
   sections: [{ id: "agents", label: "Agents" }],
+  detail: { param: "profile" },
 };
 const subAgents: PageData = {
   label: "Sub-Agents",
   description:
     "Profiles the lead agent can delegate work to. Later edits don't change sub-agents that already started.",
   sections: [{ id: "sub-agents", label: "Sub-Agents" }],
+  detail: { param: "profile" },
 };
 const permissionRules: PageData = {
   label: "Permission rules",

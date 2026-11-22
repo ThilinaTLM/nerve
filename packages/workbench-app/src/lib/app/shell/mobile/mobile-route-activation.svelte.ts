@@ -178,9 +178,7 @@ export function followMobileCenterTab(): void {
             active,
             active.kind === "settings"
               ? settingsSelectors.activePageId
-              : active.kind === "project-settings"
-                ? settingsSelectors.projectPageId(active.id)
-                : undefined,
+              : undefined,
           );
       const top = mobileNav.top;
       if (mobileRoutesEqual(top, route)) return;

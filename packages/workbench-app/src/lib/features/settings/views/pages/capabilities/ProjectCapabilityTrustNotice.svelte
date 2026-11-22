@@ -7,15 +7,21 @@ import type {
   GetAgentConfigurationResult,
 } from "@nervekit/contracts/agent-configuration";
 import ProjectCapabilityTrustAction from "./ProjectCapabilityTrustAction.svelte";
+import UntrustedProjectCallout from "./UntrustedProjectCallout.svelte";
 import { setProjectAgentTrust } from "./project-agent-trust";
 let {
   document,
   scope,
   onReload,
+  projectName,
+  onReview,
 }: {
   document?: GetAgentConfigurationResult;
   scope?: AgentScope;
   onReload: () => void | Promise<void>;
+  /** With `onReview`: the unified pages' warning, which opens the Trust page. */
+  projectName?: string;
+  onReview?: () => void;
 } = $props();
 let busy = $state(false);
 let error = $state<string>();
@@ -45,6 +51,8 @@ async function trust() {
         {onReload}
       />{/snippet}
   </Callout>
+{:else if document?.trusted === false && projectName && onReview}
+  <UntrustedProjectCallout {projectName} {onReview} />
 {:else if document?.trusted === false}
   <Callout
     layout="block"

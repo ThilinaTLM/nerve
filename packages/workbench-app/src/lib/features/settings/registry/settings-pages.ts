@@ -22,25 +22,20 @@ import Users from "@lucide/svelte/icons/users";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Smartphone from "@lucide/svelte/icons/smartphone";
 import Boxes from "@lucide/svelte/icons/boxes";
-import FolderGit2 from "@lucide/svelte/icons/folder-git-2";
-import User from "@lucide/svelte/icons/user";
 import type {
   SettingsNavBadge,
   SettingsNavGroup,
   SettingsNavItem,
   SettingsPageDef,
-  SettingsScopeHeader,
 } from "$lib/presentation/settings";
-import type { SettingsScopeTarget } from "./settings-scope";
 import {
-  layoutByScope,
   resolveSettingsTarget,
   pagesByScope,
-  resolveSettingsPageId,
-  settingsPageIds,
+  type NavLayout,
+  type PageData,
 } from "./settings-page-data";
 
-export { resolveSettingsPageId, resolveSettingsTarget, settingsPageIds };
+export { resolveSettingsTarget };
 
 const icons: Record<string, Component> = {
   providers: CloudCog,
@@ -68,87 +63,129 @@ const icons: Record<string, Component> = {
   trust: Boxes,
 };
 
-function pageDef(target: SettingsScopeTarget, id: string): SettingsPageDef {
-  return { id, icon: icons[id]!, ...pagesByScope[target.kind][id]! };
+/**
+ * The open project, when there is one. One surface serves both tab kinds: the
+ * project only adds a column on layered pages and a nav group of its own.
+ */
+export type SettingsSurface = { projectName?: string };
+
+/** Pages that have a User and a project layer. */
+export const layeredPageIds: readonly string[] = [
+  "general",
+  "tools",
+  "skills",
+  "extensions",
+];
+
+/** Pages that are only about the open project. */
+export const projectOnlyPageIds: readonly string[] = [
+  "launch",
+  "instructions-files",
+  "trust",
+];
+
+const surfaceLayout: NavLayout = [
+  { id: "agent", title: "Agent", pages: layeredPageIds.slice() },
+  {
+    id: "catalog",
+    title: "Profiles and rules",
+    pages: ["agents", "sub-agents", "permission-rules", "suggestions"],
+  },
+  {
+    id: "connections",
+    title: "Models and accounts",
+    pages: ["providers", "models", "accounts"],
+  },
+  { id: "project", title: "Project", pages: projectOnlyPageIds.slice() },
+  {
+    id: "app",
+    title: "App",
+    pages: ["workbench", "notifications", "shortcuts", "voice", "titles"],
+  },
+  {
+    id: "system",
+    title: "System",
+    pages: ["storage", "background-jobs", "devices", "system"],
+  },
+];
+
+const layeredDescriptions: Record<string, string> = {
+  tools: "Grouped by where each tool comes from.",
+  skills:
+    "Grouped by where each skill comes from. A project skill replaces one of yours with the same name.",
+  extensions: "Open an extension to set it up and add the accounts it uses.",
+};
+
+function surfaceLayoutFor(surface: SettingsSurface): NavLayout {
+  return surfaceLayout
+    .filter((group) => group.id !== "project" || surface.projectName)
+    .map((group) =>
+      group.id === "project"
+        ? { ...group, title: surface.projectName ?? group.title }
+        : group,
+    );
 }
 
-/** Page definitions (with sections) for the scope, in nav order. */
-export function settingsPagesFor(
-  target: SettingsScopeTarget,
-): SettingsPageDef[] {
-  return settingsPageIds(target.kind).map((id) => pageDef(target, id));
+/** Page ids of the surface in nav order. */
+export function surfacePageIds(surface: SettingsSurface): string[] {
+  return surfaceLayoutFor(surface).flatMap((group) => group.pages);
+}
+
+/** Stale or foreign ids (restored state, links) fall back to General. */
+export function resolveSurfacePageId(
+  surface: SettingsSurface,
+  pageId: string | undefined,
+): string {
+  return pageId && surfacePageIds(surface).includes(pageId)
+    ? pageId
+    : "general";
+}
+
+function pageData(id: string, surface: SettingsSurface): PageData {
+  const base = pagesByScope.user[id] ?? pagesByScope.project[id]!;
+  const description = layeredDescriptions[id] ?? base.description;
+  return {
+    ...base,
+    ...(description ? { description } : {}),
+    // A project's own skills open a review page.
+    ...(id === "skills" && surface.projectName
+      ? { detail: { param: "skill" } }
+      : {}),
+  };
+}
+
+function pageDef(id: string, surface: SettingsSurface): SettingsPageDef {
+  return { id, icon: icons[id]!, ...pageData(id, surface) };
+}
+
+/** Page definitions (with sections) of the surface, in nav order. */
+export function settingsPagesFor(surface: SettingsSurface): SettingsPageDef[] {
+  return surfacePageIds(surface).map((id) => pageDef(id, surface));
 }
 
 /** The page for an id; stale or foreign ids resolve to the default page. */
 export function settingsPageFor(
-  target: SettingsScopeTarget,
+  surface: SettingsSurface,
   pageId: string | undefined,
 ): SettingsPageDef {
-  return pageDef(target, resolveSettingsPageId(target.kind, pageId));
+  return pageDef(resolveSurfacePageId(surface, pageId), surface);
 }
 
-/** The grouped nav; `badges` marks pages with project differences or problems. */
+/** The grouped nav; `badges` marks pages with items that need the user. */
 export function settingsNavFor(
-  target: SettingsScopeTarget,
+  surface: SettingsSurface,
   badges: Readonly<Record<string, SettingsNavBadge>> = {},
 ): SettingsNavGroup[] {
-  const pages = pagesByScope[target.kind];
-  return layoutByScope[target.kind].map(({ id, title, pages: ids }) => ({
+  return surfaceLayoutFor(surface).map(({ id, title, pages: ids }) => ({
     id,
     title,
     items: ids.map(
       (pageId): SettingsNavItem => ({
         id: pageId,
-        label: pages[pageId]!.label,
+        label: pageData(pageId, surface).label,
         icon: icons[pageId]!,
         ...(badges[pageId] ? { badge: badges[pageId] } : {}),
       }),
     ),
   }));
-}
-
-/**
- * The scopes above the nav: your settings and, with a project, that project.
- * The project row carries the count of its items that need the user.
- */
-export function settingsScopeHeader(
-  target: SettingsScopeTarget,
-  scopes: {
-    project?: { name: string; path?: string; pending: number };
-    onOpenUser: () => void;
-    onOpenProject: () => void;
-  },
-): SettingsScopeHeader {
-  const { project } = scopes;
-  return {
-    scopes: [
-      {
-        id: "user",
-        label: "Your settings",
-        icon: User,
-        selected: target.kind === "user",
-        onSelect: scopes.onOpenUser,
-      },
-      ...(project
-        ? [
-            {
-              id: "project" as const,
-              label: project.name,
-              icon: FolderGit2,
-              selected: target.kind === "project",
-              ...(project.path ? { title: project.path } : {}),
-              ...(project.pending > 0
-                ? {
-                    badge: {
-                      text: String(project.pending),
-                      tone: "warning" as const,
-                    },
-                  }
-                : {}),
-              onSelect: scopes.onOpenProject,
-            },
-          ]
-        : []),
-    ],
-  };
 }

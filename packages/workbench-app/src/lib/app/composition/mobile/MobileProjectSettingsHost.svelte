@@ -9,7 +9,6 @@ import {
   settingsNavFor,
   settingsPageFor,
 } from "$lib/features/settings/registry/settings-pages";
-import { projectSettingsScope } from "$lib/features/settings/registry/settings-scope";
 import { loadSettingsPanel } from "$lib/application/settings/settings-actions.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
 import { tildePath } from "$lib/domain/filesystem/project-path";
@@ -28,8 +27,8 @@ const project = $derived(
     (candidate) => candidate.id === route.projectId,
   ),
 );
-const target = $derived(projectSettingsScope(route.projectId));
-const groups = $derived(mobileSettingsGroups(settingsNavFor(target)));
+const surface = $derived({ projectName: project?.name });
+const groups = $derived(mobileSettingsGroups(settingsNavFor(surface)));
 const homeDir = $derived(workspaceSelectors.status?.storage.userHome);
 
 $effect(() => {
@@ -50,7 +49,7 @@ $effect(() => {
       {#each group.items as item (item.id)}
         <MobileListRow
           title={item.label}
-          detail={settingsPageFor(target, item.id).description}
+          detail={settingsPageFor(surface, item.id).description}
           icon={item.icon}
           onclick={() =>
             pushMobileScreen({

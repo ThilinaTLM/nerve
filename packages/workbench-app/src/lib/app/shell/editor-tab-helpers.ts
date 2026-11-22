@@ -61,7 +61,6 @@ export function tabLabel(tab: CenterTabModel): string {
   }
   if (tab.kind === "system-prompt") return "System prompt";
   if (tab.kind === "settings") return "Settings";
-  if (tab.kind === "project-settings") return `${tab.project.name} settings`;
   if (tab.kind === "logs") return "Nerve Logs";
   if (tab.kind === "discover") return "Discover";
   // The strip shows the page's own label once its contribution has loaded.
@@ -91,8 +90,6 @@ export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
       : `Pull request #${tab.number}`;
   if (tab.kind === "system-prompt") return "System prompt for the next request";
   if (tab.kind === "settings") return "Workbench settings";
-  if (tab.kind === "project-settings")
-    return `Project settings · ${tab.project.directory}`;
   if (tab.kind === "logs") return "Nerve application logs";
   if (tab.kind === "discover") return "Discover Nerve";
   if (tab.kind === "extension-page")
