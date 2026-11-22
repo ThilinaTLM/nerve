@@ -4,6 +4,13 @@ import SettingsChangeIndicator from "$lib/presentation/settings/SettingsChangeIn
 import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
 import EntityRow from "$lib/presentation/settings/EntityRow.svelte";
 import OAuthInteractionPanel from "$lib/presentation/settings/OAuthInteractionPanel.svelte";
+import ColumnLabels from "$lib/presentation/settings/ColumnLabels.svelte";
+import LayerRow from "$lib/presentation/settings/LayerRow.svelte";
+import LayerSwitches from "$lib/presentation/settings/LayerSwitches.svelte";
+import LevelMenu from "$lib/presentation/settings/LevelMenu.svelte";
+import OriginGroup from "$lib/presentation/settings/OriginGroup.svelte";
+import SplitColumns from "$lib/presentation/settings/SplitColumns.svelte";
+import TipBadge from "$lib/presentation/settings/TipBadge.svelte";
 import type { OAuthFlowInfo } from "@nervekit/contracts/auth";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
@@ -73,6 +80,15 @@ const stats: SettingsStat[] = [
   { label: "Proxy", value: "not configured" },
   { label: "Data directory", value: longText, wide: true, mono: true },
 ];
+
+const layerProject = "TestApp";
+const layered = $state({
+  core: { user: true, project: undefined as boolean | undefined },
+  docs: { user: false, project: true as boolean | undefined },
+  local: { user: true, project: undefined as boolean | undefined },
+});
+let layerModelUser = $state("auto");
+let layerModelProject = $state("auto");
 
 let toggleA = $state(true);
 let toggleB = $state(false);
@@ -761,6 +777,146 @@ let oauthResponse = $state("");
         onRemove={() => {}}
       />
       <EntityRow label="Permissions" value="Read-only" />
+    </GallerySpecimen>
+  </GalleryGroup>
+
+  <GalleryGroup
+    title="Layers and origin groups"
+    description="User and project columns on the unified settings lists."
+  >
+    <GallerySpecimen
+      title="OriginGroup + LayerSwitches + TipBadge"
+      source="presentation/settings/OriginGroup.svelte"
+      layout="stack"
+    >
+      <OriginGroup
+        origin={{ kind: "project" }}
+        count={1}
+        projectName={layerProject}
+      >
+        <SettingsItem
+          icon={BookOpenIcon}
+          title="local-conventions"
+          summary="Project skill"
+        >
+          {#snippet meta()}
+            <LayerSwitches
+              name="local-conventions"
+              user={layered.local.user}
+              project={layered.local.project ?? layered.local.user}
+              projectSet={layered.local.project !== undefined}
+              projectName={layerProject}
+              projectOnly
+              onChange={(_, value) => (layered.local.project = value)}
+            />
+          {/snippet}
+        </SettingsItem>
+      </OriginGroup>
+      <OriginGroup
+        origin={{ kind: "builtin" }}
+        count={2}
+        projectName={layerProject}
+      >
+        <SettingsItem icon={WrenchIcon} title="core" summary="Built-in skill">
+          {#snippet badges()}
+            <TipBadge
+              text="Default"
+              variant="brand"
+              tip="Used when nothing else is chosen."
+            />
+          {/snippet}
+          {#snippet meta()}
+            <LayerSwitches
+              name="core"
+              user={layered.core.user}
+              project={layered.core.project ?? layered.core.user}
+              projectSet={layered.core.project !== undefined}
+              projectName={layerProject}
+              onChange={(layer, value) =>
+                layer === "user"
+                  ? (layered.core.user = value)
+                  : (layered.core.project =
+                      value === layered.core.user ? undefined : value)}
+            />
+          {/snippet}
+        </SettingsItem>
+        <SettingsItem
+          icon={BookOpenIcon}
+          title="engineering-docs"
+          summary="Off for User, on in the project"
+        >
+          {#snippet meta()}
+            <LayerSwitches
+              name="engineering-docs"
+              user={layered.docs.user}
+              project={layered.docs.project ?? layered.docs.user}
+              projectSet={layered.docs.project !== undefined}
+              projectName={layerProject}
+              locked
+              onChange={() => {}}
+            />
+          {/snippet}
+        </SettingsItem>
+      </OriginGroup>
+      <OriginGroup
+        origin={{ kind: "user" }}
+        count={0}
+        projectName={layerProject}
+        emptyText="No user skills yet."
+      >
+        {null}
+      </OriginGroup>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ColumnLabels"
+      source="presentation/settings/ColumnLabels.svelte"
+      layout="stack"
+    >
+      <ColumnLabels projectName={layerProject} />
+      <ColumnLabels projectName={layerProject} projectOnly />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="LayerRow + SplitColumns"
+      source="presentation/settings/LayerRow.svelte"
+      layout="stack"
+    >
+      <SplitColumns projectName={layerProject} />
+      <LayerRow
+        label="Header style"
+        description="Wide controls: label on the full width, User and project halves below."
+        projectName={layerProject}
+        projectReset={{
+          label: "Follow User",
+          onReset: () => (layerModelProject = layerModelUser),
+        }}
+      >
+        {#snippet user()}
+          <SelectField
+            items={headerStyles}
+            bind:value={layerModelUser}
+            ariaLabel="User header style"
+          />
+        {/snippet}
+        {#snippet project()}
+          <SelectField
+            items={headerStyles}
+            bind:value={layerModelProject}
+            ariaLabel="Project header style"
+          />
+        {/snippet}
+      </LayerRow>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="LevelMenu"
+      source="presentation/settings/LevelMenu.svelte"
+    >
+      <LevelMenu label="New profile" icon={PlusIcon} onSelect={() => {}} />
+      <LevelMenu
+        label="New profile"
+        icon={PlusIcon}
+        projectName={layerProject}
+        onSelect={() => {}}
+      />
     </GallerySpecimen>
   </GalleryGroup>
 </div>
