@@ -260,7 +260,6 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
     <TrustSettingsPage
       projectId={layerProjectId}
       projectDirectory={project?.directory}
-      {onOpenPage}
       entries={controllers.trustEntries()}
     />
   {:else if page.id === "providers"}

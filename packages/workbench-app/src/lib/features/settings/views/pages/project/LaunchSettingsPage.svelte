@@ -42,8 +42,7 @@ let deleting = $state<LaunchDefinitionRow>();
     <SettingsEmptyState
       variant="card"
       icon={Play}
-      title="No launch definitions"
-      description="Saved commands such as a dev server, started from the Launches panel. They are stored in .nerve/launches/definitions.json."
+      title="No launch definitions yet."
     >
       {#snippet actions()}
         {#if onAdd}

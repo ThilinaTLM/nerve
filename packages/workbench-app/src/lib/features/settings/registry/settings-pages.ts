@@ -109,13 +109,6 @@ const surfaceLayout: NavLayout = [
   },
 ];
 
-const layeredDescriptions: Record<string, string> = {
-  tools: "Grouped by where each tool comes from.",
-  skills:
-    "Grouped by where each skill comes from. A project skill replaces one of yours with the same name.",
-  extensions: "Open an extension to set it up and add the accounts it uses.",
-};
-
 function surfaceLayoutFor(surface: SettingsSurface): NavLayout {
   return surfaceLayout
     .filter((group) => group.id !== "project" || surface.projectName)
@@ -143,10 +136,8 @@ export function resolveSurfacePageId(
 
 function pageData(id: string, surface: SettingsSurface): PageData {
   const base = pagesByScope.user[id] ?? pagesByScope.project[id]!;
-  const description = layeredDescriptions[id] ?? base.description;
   return {
     ...base,
-    ...(description ? { description } : {}),
     // A project's own skills open a review page.
     ...(id === "skills" && surface.projectName
       ? { detail: { param: "skill" } }

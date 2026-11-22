@@ -12,6 +12,10 @@ Settings has three heading levels:
 
 Row titles are `text-ui` regular foreground and all supporting text is `text-caption` muted, so weight and colour carry the hierarchy. Headings are sentence case, never uppercase eyebrows. Longer detail goes in a `SettingsInfoHint` tooltip, not a paragraph. Use `SettingsSection` for every group of rows; an entity such as a profile gets an `EntityCard`, never a muted group heading above it.
 
+## Copy: say it once
+
+Every page has a title and ONE short sentence under it (the registry `description`, or the item's own for a detail page): plain words, no repeat of the title, no mechanics that a section or tooltip already carries. Say each thing once, at the highest level it holds for: the page description covers its sections, a section description only adds what the heading does not say, and a row never restates its section. An empty state inside a titled section is one short line ("Not found.", "None.") with its action if there is one, never a title plus a description that repeats the section. Longer detail goes in a `SettingsInfoHint` tooltip.
+
 ## Navigation
 
 `SettingsNav` takes `SettingsNavGroup[]` (optional `GroupLabel` caption: `text-caption text-muted-foreground`, no hover or icon; items `text-ui` with a lucide icon, muted until active). Never reuse a group title as an item name. The active item is `bg-selected`, a persistent state that should not depend on the quiet fills. The sidebar has no right padding: the nav pads its own content so the thin scrollbar sits flush with the panel's edge. Groups never collapse (collapsing hides destinations).

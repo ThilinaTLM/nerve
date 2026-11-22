@@ -20,6 +20,8 @@ export type PageData = {
 
 const providers: PageData = {
   label: "Providers",
+  description:
+    "Where Nerve gets its models: subscriptions, API keys and custom endpoints.",
   sections: [
     { id: "subscriptions", label: "Subscriptions" },
     { id: "api-keys", label: "API keys" },
@@ -29,21 +31,18 @@ const providers: PageData = {
 };
 const extensions: PageData = {
   label: "Extensions",
-  description:
-    "Add capabilities to the agent: tools, Quick script namespaces and skills. Open one to set it up and manage its accounts.",
+  description: "Open an extension to set it up and add the accounts it uses.",
   sections: [{ id: "builtin", label: "Built-in" }],
   detail: { param: "extension" },
 };
 const accounts: PageData = {
   label: "Accounts",
-  description:
-    "Credentials extensions use to reach other services. User accounts are available in every project; project accounts only in their project.",
+  description: "Credentials extensions use to reach other services.",
   sections: [{ id: "accounts", label: "Accounts" }],
 };
 const general: PageData = {
   label: "General",
-  description:
-    "Defaults for new conversations. Projects and conversations can override them.",
+  description: "Defaults for new conversations. Projects can override them.",
   sections: [
     { id: "new-conversations", label: "New conversations" },
     { id: "model", label: "Model" },
@@ -52,25 +51,26 @@ const general: PageData = {
 };
 const tools: PageData = {
   label: "Tools",
+  description: "What the agent can use, grouped by where each tool comes from.",
   sections: [{ id: "tools", label: "Tools" }],
 };
 const skills: PageData = {
   label: "Skills",
   description:
-    "Skills apply from the next agent turn. Project definitions take precedence over your skills with the same name.",
+    "Grouped by where each skill comes from. A project skill replaces one of yours with the same name.",
   sections: [{ id: "skills", label: "Skills" }],
 };
 const agents: PageData = {
   label: "Agents",
   description:
-    "Main agent profiles that apply settings, instructions and locks to a conversation. Later edits don't change conversations that already applied one.",
+    "Profiles that set a conversation's model, tools and instructions. Edits don't change conversations already started.",
   sections: [{ id: "agents", label: "Agents" }],
   detail: { param: "profile" },
 };
 const subAgents: PageData = {
   label: "Sub-Agents",
   description:
-    "Profiles the lead agent can delegate work to. Later edits don't change sub-agents that already started.",
+    "Profiles the lead agent can delegate to. Edits don't change sub-agents already started.",
   sections: [{ id: "sub-agents", label: "Sub-Agents" }],
   detail: { param: "profile" },
 };
@@ -83,13 +83,13 @@ const permissionRules: PageData = {
 };
 const models: PageData = {
   label: "Models",
-  description: "Limit which models the composer offers.",
+  description: "Choose which models the composer offers.",
   sections: [{ id: "models", label: "Models" }],
 };
 const suggestions: PageData = {
   label: "Suggestions",
   description:
-    "Project suggestions override user and built-in suggestions with the same name.",
+    "Prompts offered in the composer. A project suggestion replaces one with the same name.",
   sections: [{ id: "suggestions", label: "Suggestions" }],
   detail: { param: "suggestion" },
 };
@@ -107,6 +107,7 @@ const userPages: Record<string, PageData> = {
   models,
   workbench: {
     label: "Workbench",
+    description: "How Nerve looks and behaves on this computer.",
     sections: [
       { id: "appearance", label: "Appearance" },
       { id: "desktop", label: "Desktop" },
@@ -114,6 +115,7 @@ const userPages: Record<string, PageData> = {
   },
   notifications: {
     label: "Notifications",
+    description: "When and how Nerve alerts you.",
     sections: [
       { id: "general", label: "General" },
       { id: "sounds", label: "Sounds" },
@@ -121,13 +123,12 @@ const userPages: Record<string, PageData> = {
   },
   shortcuts: {
     label: "Shortcuts",
-    description:
-      "Shortcuts are fixed and use the primary modifier for your platform.",
+    description: "Fixed keys; the primary modifier follows your platform.",
     sections: [{ id: "shortcuts", label: "Shortcuts" }],
   },
   titles: {
     label: "Titles",
-    description: "Name new conversations with a small AI model.",
+    description: "Name new conversations with a small model.",
     sections: [
       { id: "ai-titles", label: "AI titles" },
       { id: "test", label: "Test" },
@@ -135,8 +136,7 @@ const userPages: Record<string, PageData> = {
   },
   voice: {
     label: "Voice",
-    description:
-      "Configure the OpenAI model and context hints used for voice input.",
+    description: "The OpenAI model and context hints used for voice input.",
     sections: [
       { id: "model", label: "Model" },
       { id: "context", label: "Context" },
@@ -145,20 +145,19 @@ const userPages: Record<string, PageData> = {
   suggestions,
   storage: {
     label: "Storage",
-    description:
-      "Understand what Nerve keeps locally and safely reclaim space.",
+    description: "What Nerve keeps on this computer, and how to free space.",
     sections: [{ id: "storage", label: "Storage" }],
   },
   "background-jobs": {
     label: "Background jobs",
     description:
-      "Work Nerve does on its own while it runs. A job that keeps failing shows in the notification bell.",
+      "Work Nerve does on its own. A job that keeps failing shows in the notification bell.",
     sections: [{ id: "jobs", label: "Jobs" }],
   },
   devices: {
     label: "Devices",
     description:
-      "Control which browsers and phones can open this Nerve, and how they sign in.",
+      "Browsers and phones that can open this Nerve, and how they sign in.",
     sections: [
       { id: "devices", label: "Devices" },
       { id: "passkeys", label: "Passkeys" },
@@ -167,6 +166,7 @@ const userPages: Record<string, PageData> = {
   },
   system: {
     label: "System",
+    description: "Network, diagnostics and daemon controls.",
     sections: [
       { id: "network", label: "Network" },
       { id: "diagnostics", label: "Diagnostics" },
@@ -183,7 +183,7 @@ const projectPages: Record<string, PageData> = {
   general: {
     ...general,
     description:
-      "Overrides for this project. Anything left unset follows your user settings.",
+      "Overrides for this project; anything unset follows your user settings.",
   },
   tools,
   // A project skill opens its review page; user skills have none.
@@ -191,28 +191,28 @@ const projectPages: Record<string, PageData> = {
   extensions: {
     ...extensions,
     description:
-      "Overrides for this project. Anything left unset follows your user settings.",
+      "Overrides for this project; anything unset follows your user settings.",
   },
   agents: {
     ...agents,
     description:
-      "Agent profiles stored in this project. They are shared with everyone who opens the repo.",
+      "Profiles stored in this project, shared with everyone who opens the repo.",
   },
   "sub-agents": {
     ...subAgents,
     description:
-      "Sub-agent profiles stored in this project. They are shared with everyone who opens the repo.",
+      "Sub-agent profiles stored in this project, shared with everyone who opens the repo.",
   },
   "permission-rules": permissionRules,
   launch: {
     label: "Launch",
-    description: "Launch definitions for this project.",
+    description:
+      "Saved commands, such as a dev server, started from the Launches panel.",
     sections: [{ id: "launch", label: "Launch" }],
   },
   "instructions-files": {
     label: "Instructions files",
-    description:
-      "AGENTS.md files and .nerve/APPEND_SYSTEM.md that join the system prompt.",
+    description: "Files Nerve adds to the system prompt in this project.",
     sections: [
       { id: "agents-md", label: "AGENTS.md" },
       { id: "append-system", label: "Append system" },
@@ -221,11 +221,11 @@ const projectPages: Record<string, PageData> = {
   suggestions,
   trust: {
     label: "Trust",
-    description: "Project files Nerve only reads after you review them.",
+    description:
+      "Project files Nerve uses only after you review them. Trust covers the exact content you reviewed.",
     sections: [
       { id: "trust", label: "Trust" },
       { id: "profile-files", label: "Profile files" },
-      { id: "suggestion-scripts", label: "Suggestion scripts" },
     ],
   },
 };

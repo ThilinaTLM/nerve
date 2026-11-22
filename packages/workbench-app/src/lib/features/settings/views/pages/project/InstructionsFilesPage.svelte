@@ -29,17 +29,11 @@ const agents = $derived(files.filter((file) => file.kind === "agents"));
 const append = $derived(files.filter((file) => file.kind === "append"));
 </script>
 
-{#snippet list(
-  items: InstructionsFile[],
-  emptyTitle: string,
-  emptyHint: string,
-)}
+{#snippet list(items: InstructionsFile[])}
   {#if items.length === 0}
     <SettingsEmptyState
       variant="card"
-      icon={FileText}
-      title={emptyTitle}
-      description={loading ? "Looking for files…" : emptyHint}
+      title={loading ? "Looking for files…" : "Not found."}
     />
   {:else}
     <SettingsList>
@@ -59,25 +53,16 @@ const append = $derived(files.filter((file) => file.kind === "append"));
 <SettingsSection
   id="agents-md"
   title="AGENTS.md"
-  description="The project root file plus any in parent directories of the working directory."
+  description="From the project root and the parent directories of the working directory."
   surface={false}
 >
-  {@render list(
-    agents,
-    "No AGENTS.md",
-    "Add an AGENTS.md to the project root to give agents standing instructions.",
-  )}
+  {@render list(agents)}
 </SettingsSection>
 
 <SettingsSection
   id="append-system"
   title="Append to system prompt"
-  description="Added to the end of the system prompt."
   surface={false}
 >
-  {@render list(
-    append,
-    "No .nerve/APPEND_SYSTEM.md",
-    "Add .nerve/APPEND_SYSTEM.md to append text to every system prompt in this project.",
-  )}
+  {@render list(append)}
 </SettingsSection>

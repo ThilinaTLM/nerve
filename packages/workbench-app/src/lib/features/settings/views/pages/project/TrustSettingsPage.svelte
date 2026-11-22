@@ -1,8 +1,7 @@
 <!--
   Project files that change how agents behave. Each trust domain is reviewed on
   its own, per machine: capabilities, permissions, each profile file and each
-  project extension. Prompt-suggestion JavaScript is allowed or denied by you
-  in Suggestions.
+  project extension.
 -->
 <script lang="ts">
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
@@ -10,7 +9,6 @@ import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrust
 import Blocks from "@lucide/svelte/icons/blocks";
 import Bot from "@lucide/svelte/icons/bot";
 import FileText from "@lucide/svelte/icons/file-text";
-import Sparkles from "@lucide/svelte/icons/sparkles";
 import type { BadgeVariant } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
@@ -52,12 +50,10 @@ type Props = {
   projectId?: string;
   /** The project's directory; paths show relative to it, the full path in a tooltip. */
   projectDirectory?: string;
-  /** Opens another settings page (Suggestions). */
-  onOpenPage?: (pageId: string) => void;
   /** Capabilities and permissions files, from their controllers. */
   entries: TrustEntry[];
 };
-let { projectId, projectDirectory, onOpenPage, entries }: Props = $props();
+let { projectId, projectDirectory, entries }: Props = $props();
 
 const root = $derived(
   projectDirectory?.replaceAll("\\", "/").replace(/\/$/, ""),
@@ -175,12 +171,7 @@ async function trustProfile(): Promise<void> {
   <TipBadge text={labels[value]} tip={tips[value]} variant={tones[value]} />
 {/snippet}
 
-<SettingsSection
-  id="trust"
-  title="Configuration files"
-  description="Each file is reviewed on its own, per machine. Trust applies only to the exact reviewed content."
-  surface={false}
->
+<SettingsSection id="trust" title="Configuration files" surface={false}>
   <SettingsList ariaLabel="Configuration files">
     {#if projectId}
       <SettingsItem
@@ -235,19 +226,9 @@ async function trustProfile(): Promise<void> {
   </SettingsList>
 </SettingsSection>
 
-<SettingsSection
-  id="profile-files"
-  title="Agent profile files"
-  description="One file per profile. Trust applies to the exact version reviewed."
-  surface={false}
->
+<SettingsSection id="profile-files" title="Agent profile files" surface={false}>
   {#if profileFiles.length === 0}
-    <SettingsEmptyState
-      variant="card"
-      icon={Bot}
-      title="No project profile files"
-      description="Profiles in .nerve/agent-profiles appear here to be reviewed."
-    />
+    <SettingsEmptyState variant="card" icon={Bot} title="None." />
   {:else}
     <SettingsList ariaLabel="Agent profile files">
       {#each profileFiles as profile (profile.name)}
@@ -294,16 +275,10 @@ async function trustProfile(): Promise<void> {
 <SettingsSection
   id="project-extensions"
   title="Project extensions"
-  description="Extensions installed in this project's .nerve/extensions. Any change to one asks again."
   surface={false}
 >
   {#if projectExtensions.length === 0}
-    <SettingsEmptyState
-      variant="card"
-      icon={Blocks}
-      title="No project extensions"
-      description="Extensions installed in .nerve/extensions appear here to be reviewed."
-    />
+    <SettingsEmptyState variant="card" icon={Blocks} title="None." />
   {:else}
     <SettingsList ariaLabel="Project extensions">
       {#each projectExtensions as entry (entry.path ?? entry.id)}
@@ -342,22 +317,6 @@ async function trustProfile(): Promise<void> {
       {/each}
     </SettingsList>
   {/if}
-</SettingsSection>
-
-<SettingsSection
-  id="suggestion-scripts"
-  title="Prompt suggestions"
-  surface={false}
->
-  <SettingsList>
-    <SettingsItem
-      title="Suggestion JavaScript"
-      icon={Sparkles}
-      summary="You allow or deny it per suggestion, not the project."
-      onOpen={onOpenPage ? () => onOpenPage?.("suggestions") : undefined}
-      openLabel="Open Suggestions"
-    />
-  </SettingsList>
 </SettingsSection>
 
 <ExtensionConsentDialog
