@@ -111,10 +111,22 @@ export type CredentialChoice = {
   description?: string;
 };
 
+/** Options of `CredentialUi.loopback`. */
+export type CredentialLoopbackOptions = {
+  /**
+   * Path of the redirect URI, for services that accept only certain paths (AWS IAM Identity
+   * Center: `/oauth/callback`). Default `/callback`. Segments of letters, digits and `._~-`
+   * between single slashes; no `.` or `..` segments, query or fragment; at most 200 characters.
+   */
+  path?: string;
+};
+
 /** A loopback listener for one authorization redirect. */
 export type CredentialLoopback = {
-  /** The `redirect_uri` to send with the authorization request (`http://127.0.0.1:<port>/callback`). */
+  /** The `redirect_uri` to send with the authorization request (`http://127.0.0.1:<port><path>`). */
   redirectUri: string;
+  /** A random `state` the host made: send it with the authorization request; redirects without it are refused. */
+  state: string;
   /** Resolves with the authorization `code` of the redirect; rejects when the user refuses, the sign-in is cancelled or times out. */
   wait(): Promise<CredentialLoopbackResult>;
 };
@@ -146,10 +158,10 @@ export type CredentialUi = {
   /** Shows progress. */
   progress(message: string): void;
   /**
-   * Listens on a loopback address for one redirect carrying `state`. Put `redirectUri` in your
-   * authorization URL, show it with `showLink`, then `wait()` for the authorization `code`.
+   * Listens on a loopback address for one authorization redirect. Put `redirectUri` and `state`
+   * in your authorization URL, show it with `showLink`, then `wait()` for the authorization `code`.
    */
-  loopback(state: string): Promise<CredentialLoopback>;
+  loopback(options?: CredentialLoopbackOptions): Promise<CredentialLoopback>;
 };
 
 /** The credential a provider obtained, in `signIn` and `refresh`. */

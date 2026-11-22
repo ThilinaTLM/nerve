@@ -312,9 +312,13 @@ function signInUi(interaction: SignInInteraction): CredentialHostUi {
         type: "progress",
         message: String(message).slice(0, 500),
       }),
-    loopback: async (state) => {
-      const listener = await interaction.listenLoopback({ state });
-      return { redirectUri: listener.redirectUri, code: listener.code };
+    loopback: async (options) => {
+      const listener = await interaction.listenLoopback(options);
+      return {
+        redirectUri: listener.redirectUri,
+        state: listener.state,
+        code: listener.code,
+      };
     },
   };
 }

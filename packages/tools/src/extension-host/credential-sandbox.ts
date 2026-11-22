@@ -1,3 +1,7 @@
+import {
+  LOOPBACK_REDIRECT_PATH_RULE,
+  loopbackRedirectPathSchema,
+} from "@nervekit/contracts/auth";
 import { ExtensionError } from "@nervekit/extension-api";
 import { EXTENSION_ERROR_CODES } from "@nervekit/extension-api/host";
 import { sandbox } from "@nervekit/native";
@@ -48,8 +52,10 @@ export type CredentialHostUi = {
     options?: { secret?: boolean; placeholder?: string },
   ): Promise<string>;
   progress(message: string): void;
-  loopback(state: string): Promise<{
+  /** `path` is validated against `loopbackRedirectPathSchema`. */
+  loopback(options: { path?: string }): Promise<{
     redirectUri: string;
+    state: string;
     code: Promise<string>;
   }>;
 };
@@ -183,6 +189,18 @@ const text = (value: unknown, what: string) => {
   return value;
 };
 
+/** The options of `ui.loopback`, from the sandbox: only a valid `path`. */
+function loopbackOptions(value: unknown): { path?: string } {
+  if (value === undefined) return {};
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw bad("loopback options must be an object.");
+  const { path } = value as { path?: unknown };
+  if (path === undefined) return {};
+  if (!loopbackRedirectPathSchema.safeParse(path).success)
+    throw bad(`loopback path must be ${LOOPBACK_REDIRECT_PATH_RULE}.`);
+  return { path: path as string };
+}
+
 /** The host side of one operation: the methods its sandbox may call. */
 class Session {
   readonly #loopbacks = new Map<
@@ -239,10 +257,14 @@ class Session {
       case "ui.progress":
         return ui.progress(text(args[0], "message"));
       case "ui.loopback": {
-        const listener = await ui.loopback(text(args[0], "state"));
+        const listener = await ui.loopback(loopbackOptions(args[0]));
         const id = String(++this.#nextLoopback);
         this.#loopbacks.set(id, { code: listener.code, settled: false });
-        return { id, redirectUri: listener.redirectUri };
+        return {
+          id,
+          redirectUri: listener.redirectUri,
+          state: listener.state,
+        };
       }
       case "ui.loopback.wait": {
         const entry = this.#loopbacks.get(text(args[0], "id"));

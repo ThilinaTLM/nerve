@@ -6,6 +6,7 @@ import {
   verify,
 } from "node:crypto";
 import { test } from "node:test";
+import { ExtensionError } from "@nervekit/extension-api";
 import { sandbox } from "@nervekit/native";
 import {
   CREDENTIAL_NEEDS_USER_MESSAGE,
@@ -274,10 +275,10 @@ void test(
           ctx.ui.showDeviceCode({ userCode: "ABCD", verificationUri: "https://login.test/device" });
           const choice = await ctx.ui.choose("Which?", [{ id: "a", label: "A" }]);
           const text = await ctx.ui.askText("Name?", { secret: true });
-          const listener = await ctx.ui.loopback("st");
+          const listener = await ctx.ui.loopback({ path: "/oauth/callback" });
           const code = await listener.wait();
           const reply = await ctx.http.request({ url: "https://login.test/token", method: "POST", body: { form: { a: "1" } } });
-          return { choice, text, redirect: listener.redirectUri, code, reply };
+          return { choice, text, redirect: listener.redirectUri, state: listener.state, code, reply };
         }, apply: () => ({}) }`,
       "signIn",
       {
@@ -299,8 +300,9 @@ void test(
             askText: async (_message, options) =>
               options?.secret ? "typed" : "?",
             progress: (message) => void shown.push(["progress", message]),
-            loopback: async (state) => ({
-              redirectUri: `http://127.0.0.1:1/cb?${state}`,
+            loopback: async (options) => ({
+              redirectUri: `http://127.0.0.1:1${options.path}`,
+              state: "st",
               code: Promise.resolve("the-code"),
             }),
           },
@@ -310,7 +312,8 @@ void test(
     assert.deepEqual(out, {
       choice: "a",
       text: "typed",
-      redirect: "http://127.0.0.1:1/cb?st",
+      redirect: "http://127.0.0.1:1/oauth/callback",
+      state: "st",
       code: { code: "the-code" },
       reply: { status: 200, ok: true, headers: {}, body: { access: "t" } },
     });
@@ -319,6 +322,37 @@ void test(
       ["link", "https://login.test/", "Open it"],
       ["device", "ABCD"],
     ]);
+  },
+);
+
+void test(
+  "a loopback path the browser would rewrite is refused before the host listens",
+  { skip },
+  async () => {
+    let listened = false;
+    const ui = {
+      link: () => {},
+      deviceCode: () => {},
+      choose: async () => "",
+      askText: async () => "",
+      progress: () => {},
+      loopback: async () => {
+        listened = true;
+        return { redirectUri: "", state: "", code: Promise.resolve("") };
+      },
+    };
+    for (const path of ["/a/../b", "/cb?x=1", "//cb", "cb", "/a b"])
+      await assert.rejects(
+        run(
+          `{ signIn: (ctx) => ctx.ui.loopback({ path: ${JSON.stringify(path)} }), apply: () => ({}) }`,
+          "signIn",
+          { services: { ui } },
+        ),
+        (error: unknown) =>
+          error instanceof ExtensionError && error.code === "BAD_REQUEST",
+        path,
+      );
+    assert.equal(listened, false);
   },
 );
 
