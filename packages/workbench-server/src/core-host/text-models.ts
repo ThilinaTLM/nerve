@@ -1,18 +1,16 @@
 import {
-  modelSelectionSchema,
   thinkingLevelSchema,
-  type ModelSelection,
+  type ModelSelection as ResolvableModel,
   type ThinkingLevel,
 } from "@nervekit/contracts/models";
-import { ExtensionError } from "@nervekit/extension-api";
+import { ExtensionError, type ModelSelection } from "@nervekit/extension-api";
 import { streamSimpleWithModel } from "@nervekit/harness/models";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
-import { createVisionHost } from "./vision-models.js";
 import type { ModelConfiguration } from "./model.adapter.js";
 
 type Resolve = (
-  selection: ModelSelection,
+  selection: ResolvableModel,
   configuration: ModelConfiguration,
 ) => Promise<{
   model: Parameters<typeof streamSimpleWithModel>[0];
@@ -22,26 +20,29 @@ type Resolve = (
   env?: Record<string, string>;
 }>;
 
-/** What a request runs on: the selection and its reasoning level. */
-type Target = { selection: ModelSelection; reasoningLevel: ThinkingLevel };
+/** What a project's default resolves to: the selection and its reasoning level. */
+type Target = { selection: ResolvableModel; reasoningLevel: ThinkingLevel };
 
 /**
- * The host side of `ctx.models.text`: one direct model call without tools. The model
- * and reasoning level come from the extension's `model` setting (`selection`, its
- * value) or, when the setting is absent, from Nerve's default for the project.
+ * The host side of `ctx.models.text`: one direct model call without tools, on the
+ * model of the request. The extension runtime has already checked the selection;
+ * this host reads no settings.
  */
 export type TextHost = {
   /** Whether the model resolves with credentials. */
-  ready(input: { selection?: unknown; projectId?: string }): Promise<boolean>;
-  complete(input: {
-    selection?: unknown;
-    projectId?: string;
-    system?: string;
+  ready(model: ModelSelection): Promise<boolean>;
+  complete(request: {
+    model: ModelSelection;
+    system?: string | undefined;
     prompt: string;
-    maxTokens?: number;
-    onDelta?: (update: { kind: "thinking" | "text"; delta: string }) => void;
-    signal?: AbortSignal;
+    maxTokens?: number | undefined;
+    onDelta?:
+      | ((update: { kind: "thinking" | "text"; delta: string }) => void)
+      | undefined;
+    signal?: AbortSignal | undefined;
   }): Promise<{ text: string; model: string }>;
+  /** Nerve's default lead model and reasoning level for the project. */
+  defaultModel(projectId: string): Promise<ModelSelection | undefined>;
 };
 
 export function createTextHost(input: {
@@ -51,50 +52,34 @@ export function createTextHost(input: {
   agents: () => Pick<AgentConfigurationService, "captureDefaults">;
   stream?: typeof streamSimpleWithModel;
 }): TextHost {
-  const target = async (
-    selection: unknown,
-    projectId: string | undefined,
-  ): Promise<Target | undefined> => {
-    if (selection === undefined)
-      return projectId
-        ? await projectDefaultModel(input.agents(), projectId)
-        : undefined;
-    const parsed = modelSelectionSchema.safeParse(selection);
-    if (!parsed.success) return undefined;
-    const level = thinkingLevelSchema.safeParse(
-      (selection as { reasoningLevel?: unknown }).reasoningLevel,
-    );
-    return {
-      selection: parsed.data,
-      reasoningLevel: level.success ? level.data : "off",
-    };
-  };
-  const resolve = async (selection: unknown, projectId: string | undefined) => {
-    const chosen = await target(selection, projectId);
-    if (!chosen) return undefined;
+  const resolve = async (model: ModelSelection) => {
     const resolved = await input.models
-      .resolve(chosen.selection, structuredClone(input.configuration()))
+      .resolve(model, structuredClone(input.configuration()))
       .catch(() => undefined);
-    if (!resolved) return undefined;
-    return { ...chosen, resolved };
+    return resolved;
   };
   return {
-    ready: async (request) =>
-      (await resolve(request.selection, request.projectId)) !== undefined,
+    ready: async (model) => (await resolve(model)) !== undefined,
+    async defaultModel(projectId) {
+      const target = await projectDefaultModel(input.agents(), projectId);
+      return target
+        ? { ...target.selection, reasoningLevel: target.reasoningLevel }
+        : undefined;
+    },
     async complete(request) {
-      const chosen = await resolve(request.selection, request.projectId);
-      if (!chosen)
+      const resolved = await resolve(request.model);
+      if (!resolved)
         throw new ExtensionError(
           "DENIED",
           "No usable text model is selected.",
           {
-            fix:
-              request.selection === undefined
-                ? "Ask the user to choose a default model in Nerve's settings."
-                : "Ask the user to choose a model in the extension's settings (Settings → Extensions).",
+            fix: "Ask the user to choose a model in the extension's settings (Settings → Extensions).",
           },
         );
-      const { resolved } = chosen;
+      const reasoningLevel = thinkingLevelSchema.safeParse(
+        request.model.reasoningLevel,
+      );
+      const level = reasoningLevel.success ? reasoningLevel.data : "off";
       const model = resolved.baseUrl
         ? { ...resolved.model, baseUrl: resolved.baseUrl }
         : resolved.model;
@@ -110,9 +95,7 @@ export function createTextHost(input: {
           apiKey: resolved.apiKey,
           headers: resolved.headers,
           env: resolved.env,
-          ...(model.reasoning && chosen.reasoningLevel !== "off"
-            ? { reasoning: chosen.reasoningLevel }
-            : {}),
+          ...(model.reasoning && level !== "off" ? { reasoning: level } : {}),
           ...(request.maxTokens ? { maxTokens: request.maxTokens } : {}),
           ...(request.signal ? { signal: request.signal } : {}),
         },
@@ -144,7 +127,7 @@ export function createTextHost(input: {
         throw new ExtensionError("SERVER_ERROR", "The model returned no text.");
       return {
         text,
-        model: `${chosen.selection.provider}/${chosen.selection.modelId}`,
+        model: `${request.model.provider}/${request.model.modelId}`,
       };
     },
   };
@@ -162,20 +145,4 @@ export async function projectDefaultModel(
   return settings.model && settings.reasoningLevel
     ? { selection: settings.model, reasoningLevel: settings.reasoningLevel }
     : undefined;
-}
-
-/** The model hosts behind `ctx.models.vision` and `ctx.models.text`. */
-export function createModelHosts(input: {
-  models: { resolve: Resolve };
-  configuration: () => ModelConfiguration;
-  agents: () => Pick<AgentConfigurationService, "captureDefaults">;
-}) {
-  return {
-    vision: createVisionHost({
-      resolve: async (selection, configuration) =>
-        await input.models.resolve(selection, configuration),
-      configuration: input.configuration,
-    }),
-    text: createTextHost(input),
-  };
 }

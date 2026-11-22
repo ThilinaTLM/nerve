@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createContext, runInContext } from "node:vm";
 import { build as esbuild, type Message, type Plugin } from "esbuild";
+import ts from "typescript";
 import * as api from "@nervekit/extension-api";
 import {
   type ExtensionUi,
@@ -259,9 +260,19 @@ function evaluateCredentialProvider(
       where: "src/credentials.ts",
       fix: 'Export the provider: `export default defineCredentialProvider({ signIn, apply, ... });` with defineCredentialProvider imported from "@nervekit/extension-sdk".',
     });
-  return credentialOperations(
+  const operations = credentialOperations(
     provider as Parameters<typeof credentialOperations>[0],
   );
+  const missing = (["signIn", "apply"] as const).filter(
+    (name) => !operations.includes(name),
+  );
+  if (missing.length > 0)
+    throw new ExtensionProjectError({
+      what: `The credential provider has no ${missing.join(" or ")} function.`,
+      where: "src/credentials.ts",
+      fix: "Pass both signIn and apply to defineCredentialProvider({ signIn, apply, ... }).",
+    });
+  return operations;
 }
 
 /** What to change for a problem in the built `ui` section, by the field the path ends in. */
@@ -319,6 +330,46 @@ function manifestProblems(
           : "Change the value in the definition so it matches the field's type."),
     };
   });
+}
+
+/**
+ * Syntax errors of a TypeScript snippet: `sdk.describe` serves `types` and method `signature`s to
+ * the agent as declarations, so they must parse. Names are not resolved.
+ */
+function declarationErrors(source: string): string[] {
+  const { diagnostics = [] } = ts.transpileModule(source, {
+    reportDiagnostics: true,
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  });
+  return diagnostics.map((diagnostic) =>
+    ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"),
+  );
+}
+
+/** The namespaces' `types` and method `signature`s that are not valid TypeScript. */
+function declarationProblems(definition: ExtensionDefinition): Problem[] {
+  const problems: Problem[] = [];
+  for (const [index, namespace] of definition.namespaces.entries()) {
+    const [typesError] = declarationErrors(namespace.types);
+    if (typesError)
+      problems.push({
+        what: `The types of namespace '${namespace.id}' are not valid TypeScript: ${typesError}`,
+        where: `src/extension.ts: namespaces[${index}].types`,
+        fix: "Write TypeScript declarations (type aliases, interfaces); the agent reads them through sdk.describe.",
+      });
+    for (const [name, method] of Object.entries(namespace.methods)) {
+      const [error] = declarationErrors(
+        `interface Methods {\n${method.signature}\n}`,
+      );
+      if (error)
+        problems.push({
+          what: `The signature of ${namespace.id}.${name} is not a valid TypeScript method declaration: ${error}`,
+          where: `src/extension.ts: namespaces[${index}].methods.${name}.signature`,
+          fix: "Write one method declaration, optionally led by a JSDoc comment: `/** What it does. */ name(options: { ... }): Promise<Result>`.",
+        });
+    }
+  }
+  return problems;
 }
 
 /** Checks the files the manifest points at and copies them into `dist/`. */
@@ -469,6 +520,7 @@ export async function buildExtension(
   const problems: Problem[] = parsed.success
     ? []
     : manifestProblems(parsed.error.issues as never);
+  if (parsed.success) problems.push(...declarationProblems(definition));
   if (parsed.success)
     for (const diagnostic of installedNamingDiagnostics(parsed.data))
       problems.push({

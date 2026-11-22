@@ -28,6 +28,11 @@ globalThis.__nerveExtension = defineExtension({
     types: "",
     session: () => ({ id: ++sessionsOpened }),
     configuration: (ctx) => "greeting " + ctx.settings.get("greeting"),
+    availability: async (ctx) => {
+      // Hooks get a narrowed ctx: no http, artifacts or store.
+      const leaked = ["http", "artifacts", "extensionStore", "report"].filter((key) => key in ctx);
+      return leaked.length ? { available: false, reason: leaked.join(), fix: "" } : { available: true };
+    },
     methods: {
       echo: method({
         risk: "external_read",
@@ -160,10 +165,15 @@ const call = (path: string): CodeCall => ({
   risk: "external_read",
 });
 
-function open(options: Parameters<typeof createFakeContext>[0] = {}) {
+function open(
+  options: Parameters<typeof createFakeContext>[0] & {
+    signal?: AbortSignal;
+  } = {},
+) {
+  const { signal, ...fakeOptions } = options;
   const fake = createFakeContext({
     settings: { greeting: "hello" },
-    ...options,
+    ...fakeOptions,
   });
   const contexts: { call?: CodeCall }[] = [];
   const code = sandboxExtensionCode({
@@ -174,6 +184,7 @@ function open(options: Parameters<typeof createFakeContext>[0] = {}) {
       contexts.push({ call: bound });
       return fake.ctx;
     },
+    signal: signal ?? new AbortController().signal,
   }) as ExtensionCode;
   return { code, fake, contexts };
 }
@@ -418,11 +429,29 @@ void test(
         context: () => {
           throw new Error("Extensions are not available in this context.");
         },
+        signal: new AbortController().signal,
       },
     );
     const input = await code.parse(method("echo"), ["x"]);
     assert.deepEqual(input, { text: "x" });
     assert.equal((await code.authorize(method("echo"), input)).length, 1);
     // No dispose: the runtime must not keep the process alive once idle.
+  },
+);
+
+void test(
+  "availability and configuration get the narrowed ctx",
+  { skip: !available },
+  async () => {
+    const { code } = open();
+    try {
+      assert.deepEqual(
+        await code.availability({ kind: "namespace", id: "probe" }),
+        { available: true },
+      );
+      assert.equal(await code.configuration("probe"), "greeting hello");
+    } finally {
+      await code.dispose();
+    }
   },
 );

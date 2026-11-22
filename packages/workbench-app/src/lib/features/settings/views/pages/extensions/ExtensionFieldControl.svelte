@@ -3,6 +3,7 @@
   follows the field type; fixed values show their value and who fixed them.
 -->
 <script lang="ts">
+import type { ExtensionsView } from "@nervekit/contracts/extensions";
 import Lock from "@lucide/svelte/icons/lock";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
@@ -35,6 +36,8 @@ type Props = {
   kindLabels?: Readonly<Record<string, string>>;
   /** Authenticated models for `model` fields. */
   models?: ModelInfo[];
+  /** The host's image generation models for `imageModel` fields. */
+  imageModels?: ExtensionsView["imageModels"];
   disabled?: boolean;
   /** `undefined` clears the value at this layer. */
   onChange: (value: unknown) => void;
@@ -48,6 +51,7 @@ let {
   accounts,
   kindLabels,
   models = [],
+  imageModels = [],
   disabled = false,
   onChange,
 }: Props = $props();
@@ -65,15 +69,43 @@ const accountItems = $derived(
       }))
     : [],
 );
+/** The explicit "unset" choice of the profile, rule set and image model selects. */
+const UNSET = "";
 const shown = $derived(
   displayValue(field, item.value, accounts, (selection) => {
     const value = selection as { provider: string; modelId: string };
-    return models.find(
-      (model) =>
-        model.provider === value.provider && model.modelId === value.modelId,
-    )?.name;
+    const same = (model: { provider: string; modelId: string }) =>
+      model.provider === value.provider && model.modelId === value.modelId;
+    return field.type === "imageModel"
+      ? imageModels.find(same)?.label
+      : models.find(same)?.name;
   }),
 );
+/** `provider/modelId`: one select value per image model. */
+const imageModelKey = (model: { provider: string; modelId: string }) =>
+  `${model.provider}/${model.modelId}`;
+const imageModelItems = $derived(
+  field.type === "imageModel"
+    ? [
+        { value: UNSET, label: "None", detail: "No image model" },
+        ...imageModels.map((model) => ({
+          value: imageModelKey(model),
+          label: model.label,
+          detail: model.ready
+            ? model.provider
+            : `${model.provider} · not signed in`,
+        })),
+      ]
+    : [],
+);
+const imageModelValue = $derived.by(() => {
+  const value = item.value as { provider?: unknown; modelId?: unknown };
+  return field.type === "imageModel" &&
+    typeof value?.provider === "string" &&
+    typeof value.modelId === "string"
+    ? imageModelKey(value as { provider: string; modelId: string })
+    : UNSET;
+});
 const modelValue = $derived(
   field.type === "model"
     ? (item.value as
@@ -86,8 +118,6 @@ const modelValue = $derived(
     : undefined,
 );
 
-/** The explicit "unset" choice of the profile and rule set selects. */
-const UNSET = "";
 $effect(() => {
   if (field.type === "agentProfile") void agentProfileCatalog.ensure(projectId);
   if (field.type === "permissionRuleSet" && projectId)
@@ -217,6 +247,23 @@ function commit(): void {
     emptyMessage="Connect a provider with a suitable model first."
     onChange={(next) =>
       field.reasoning && next.model ? changeModel(next) : onChange(next.model)}
+  />
+{:else if field.type === "imageModel"}
+  <SelectField
+    items={imageModelItems}
+    value={imageModelValue}
+    {disabled}
+    ariaLabel={field.label}
+    onValueChange={(next) => {
+      const model = imageModels.find(
+        (choice) => imageModelKey(choice) === next,
+      );
+      onChange(
+        model
+          ? { provider: model.provider, modelId: model.modelId }
+          : undefined,
+      );
+    }}
   />
 {:else if field.type === "agentProfile"}
   <SelectField

@@ -75,7 +75,9 @@ async function run(
       webFetchPolicy: { allowPrivateNetwork: true },
       authorizeNested: async (request) => void authorized.push(request),
       extensionPorts: {
-        generateImage,
+        ...(generateImage
+          ? { generateImage, imageReady: async () => true }
+          : {}),
         settings: (id) => settings[id] ?? {},
         accounts: {
           get: async (kind, id) =>
@@ -169,7 +171,7 @@ void test("search.web without a selected account is DENIED before any request", 
   assert.equal(seen.length, before);
 });
 
-void test("imagegen.generate calls the host's image capability with the call's options over the settings", async () => {
+void test("imagegen.generate calls the host's image capability with the selected model and the call's options over the settings", async () => {
   const requests: Parameters<
     NonNullable<ExtensionHostPorts["generateImage"]>
   >[0][] = [];
@@ -177,8 +179,7 @@ void test("imagegen.generate calls the host's image capability with the call's o
     `console.log(await imagegen.generate({ prompt: "A cell", size: "1536x1024", name: "hero" }));`,
     {
       imagegen: {
-        backend: "openai-codex",
-        model: "gpt-image-2.5-flare",
+        model: { provider: "openai-codex", modelId: "gpt-image-2.5-flare" },
         quality: "high",
         size: "auto",
         background: "auto",
@@ -187,8 +188,7 @@ void test("imagegen.generate calls the host's image capability with the call's o
     async (request) => {
       requests.push(request);
       return {
-        provider: "openai-codex",
-        model: request.options.model,
+        model: "openai-codex/gpt-image-2.5-flare",
         images: [{ data: PNG }],
       };
     },
@@ -198,9 +198,11 @@ void test("imagegen.generate calls the host's image capability with the call's o
     "diagram-1.png",
     "hero.png",
   ]);
+  assert.deepEqual(requests[0]?.model, {
+    provider: "openai-codex",
+    modelId: "gpt-image-2.5-flare",
+  });
   assert.deepEqual(requests[0]?.options, {
-    backend: "openai-codex",
-    model: "gpt-image-2.5-flare",
     quality: "high",
     size: "1536x1024",
     background: "auto",

@@ -9,8 +9,7 @@ import {
   kindsForUse,
 } from "@nervekit/contracts/extensions";
 import type { ExtensionState } from "@nervekit/tools/extension-host";
-import type { VisionHost } from "../vision-models.js";
-import type { TextHost } from "../text-models.js";
+import type { ModelHosts } from "../model-hosts.js";
 import type { ExtensionStore } from "./extension-store/extension-store.js";
 
 /** What the resolved settings say about each extension: its switch and field values. */
@@ -67,15 +66,13 @@ export function resolvedAccounts(
 export function createExtensionPorts(input: {
   resolution: ExtensionResolution;
   accounts: AccountsReader;
-  generateImage?: ExtensionHostPorts["generateImage"];
-  vision?: VisionHost;
-  text?: TextHost;
+  models?: ModelHosts | undefined;
   store?: ExtensionStore | undefined;
   projectId?: string | undefined;
   warn?: (extensionId: string, message: string, data?: unknown) => void;
 }): ExtensionHostPorts {
   const states = extensionStates(input.resolution);
-  const { vision, text } = input;
+  const { vision, text, images } = input.models ?? {};
   return {
     settings: (id) => states(id)?.settings ?? {},
     accounts: resolvedAccounts(input.resolution, input.accounts),
@@ -85,21 +82,26 @@ export function createExtensionPorts(input: {
             input.accounts.platformKinds!(platform),
         }
       : {}),
-    ...(input.generateImage ? { generateImage: input.generateImage } : {}),
+    ...(images
+      ? {
+          generateImage: (request) => images.generate(request),
+          imageReady: (model) => images.ready(model),
+        }
+      : {}),
     ...(vision
       ? {
-          explainImage: async ({ extensionId, ...request }) =>
-            await vision.explain(states(extensionId)?.settings ?? {}, request),
-          visionReady: async (extensionId) =>
-            await vision.ready(states(extensionId)?.settings ?? {}),
+          explainImage: (request) => vision.explain(request),
+          visionReady: (model) => vision.ready(model),
         }
       : {}),
     ...(text
       ? {
-          completeText: async (request) =>
-            await text.complete({ ...request, projectId: input.projectId }),
-          textReady: async ({ selection }) =>
-            await text.ready({ selection, projectId: input.projectId }),
+          completeText: (request) => text.complete(request),
+          textReady: (model) => text.ready(model),
+          defaultModel: async () =>
+            input.projectId
+              ? await text.defaultModel(input.projectId)
+              : undefined,
         }
       : {}),
     ...(input.store && input.projectId

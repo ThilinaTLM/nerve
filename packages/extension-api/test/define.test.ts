@@ -50,8 +50,15 @@ void test("the fake context records reports, artifacts and requests", async () =
   const artifact = await ctx.artifacts.write("a.txt", "x", "text/plain");
   assert.equal((await ctx.artifacts.read(artifact.handle)).bytes.byteLength, 1);
   await ctx.http.request({ url: "https://x.test" });
+  // `body` follows the response mode at compile time.
+  const text = (
+    await ctx.http.request({ url: "https://x.test", response: "text" })
+  ).body satisfies string;
+  const bytes = (await ctx.http.request({ url: "u", response: "bytes" }))
+    .body satisfies Uint8Array;
+  void [text, bytes];
   assert.deepEqual(record.created, ["ISSUE-1"]);
-  assert.equal(record.requests.length, 1);
+  assert.equal(record.requests.length, 3);
   assert.equal(ctx.models.image, undefined);
 });
 

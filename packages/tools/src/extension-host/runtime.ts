@@ -31,6 +31,7 @@ import type { SdkEnvironment } from "../quick-script/runtime/sdk-types.js";
 import { assertDeclaredRisk } from "../quick-script/runtime/script-risk.js";
 import { inProcessExtensionCode, type ExtensionCode } from "./code-adapter.js";
 import { createHttp } from "./http.js";
+import { createModelServices, imageArtifactName } from "./models.js";
 import type { ExtensionHostPorts } from "./ports.js";
 
 /**
@@ -66,6 +67,7 @@ export class ExtensionRuntime {
       code = Promise.resolve(
         adapter.open(definition, {
           context: (call) => this.context(definition, call),
+          signal: this.env.context.signal ?? new AbortController().signal,
         }),
       );
       this.#code.set(definition.id, code);
@@ -104,7 +106,14 @@ export class ExtensionRuntime {
     if (!call) return ctx;
     return {
       ...ctx,
-      authorize: async (check) => {
+      authorize: async (given) => {
+        const check = {
+          operation: given.operation ?? call.name,
+          targets: given.targets.map((target) =>
+            typeof target === "string" ? target : target.value,
+          ),
+          risk: given.risk ?? call.risk,
+        };
         // The invariant of the script scan: a call never checks above its declared risk.
         try {
           assertDeclaredRisk(call.name, call.risk, [
@@ -263,25 +272,6 @@ export class ExtensionRuntime {
           reported(await commitArtifact(env, path, name)),
       }),
     });
-    const generateImage = ports.generateImage;
-    const explainImage = ports.explainImage;
-    const visionReady = ports.visionReady;
-    const completeText = ports.completeText;
-    const textReady = ports.textReady;
-    /** The named `model` setting's value (absent when unset); any other key is a bad request. */
-    const textSelection = (key: string | undefined) => {
-      if (key === undefined) return {};
-      if (definition.settings.fields[key]?.type !== "model")
-        throw new ExtensionError(
-          "BAD_REQUEST",
-          `'${key}' is not a model setting of this extension.`,
-          {
-            fix: "Pass the key of a field with type 'model' from the manifest's settings, or omit `model` to use Nerve's default model.",
-          },
-        );
-      const selection = settings[key];
-      return selection === undefined ? {} : { selection };
-    };
     const store = storeFor(ports, definition.id);
     const progress = (section: string, chunk: string) => {
       if (!env.context.toolProgress?.(section, chunk))
@@ -291,19 +281,54 @@ export class ExtensionRuntime {
           `ctx.progress: '${section}' is not a live section of the running tool; ignored.`,
         );
     };
+    const writeArtifactWith = async (
+      name: string,
+      bytes: Uint8Array,
+      mediaType: string | undefined,
+    ): Promise<ArtifactRef> => {
+      const handle = await writeArtifact(env, name, bytes);
+      if (mediaType) env.report.artifacts.get(handle)!.mediaType = mediaType;
+      return reported(handle);
+    };
+    const models = createModelServices({
+      definition,
+      settings,
+      ports,
+      readImage: async (handle, maxBytes) =>
+        new Uint8Array(
+          await readFileRef(
+            await readWorkspaceOrArtifact(handle),
+            maxBytes,
+            "Use a smaller image.",
+          ),
+        ),
+      writeImage: async (image, naming) =>
+        await writeArtifactWith(
+          naming.name !== undefined
+            ? imageArtifactName(
+                naming.name.startsWith("artifact:")
+                  ? naming.name.slice("artifact:".length)
+                  : naming.name,
+                image.extension,
+              )
+            : await freshArtifactName(env, naming.baseName, image.extension),
+          image.bytes,
+          image.mediaType,
+        ),
+      progress,
+      signal,
+    });
     return {
       settings: { get: <T>(key: string) => settings[key] as T | undefined },
       accounts: { selected },
-      http,
+      http: http as ExtensionContext["http"],
       artifacts: {
-        write: async (name, data, mediaType) => {
-          const bytes =
-            typeof data === "string" ? new TextEncoder().encode(data) : data;
-          const handle = await writeArtifact(env, name, bytes);
-          if (mediaType)
-            env.report.artifacts.get(handle)!.mediaType = mediaType;
-          return reported(handle);
-        },
+        write: async (name, data, mediaType) =>
+          await writeArtifactWith(
+            name,
+            typeof data === "string" ? new TextEncoder().encode(data) : data,
+            mediaType,
+          ),
         read: async (handle) => {
           const ref = await readWorkspaceOrArtifact(handle);
           const bytes = await readFileRef(ref);
@@ -358,82 +383,8 @@ export class ExtensionRuntime {
         deleted: (entry) => void env.report.deleted.push(entry),
         note: (text) => void env.report.notes.push(text),
       },
-      models: {
-        ...(generateImage &&
-        definition.permissions?.capabilities?.includes("models.image")
-          ? {
-              image: {
-                generate: async (request) =>
-                  await generateImage({
-                    prompt: request.prompt,
-                    inputs: [...request.inputs],
-                    options: request.options,
-                    signal,
-                  }),
-              },
-            }
-          : {}),
-        ...(explainImage &&
-        visionReady &&
-        definition.permissions?.capabilities?.includes("models.vision")
-          ? {
-              vision: {
-                explain: async (request) =>
-                  await explainImage({
-                    extensionId: definition.id,
-                    image: request.image,
-                    ...(request.prompt !== undefined
-                      ? { prompt: request.prompt }
-                      : {}),
-                    onDelta: ({ kind, delta }) => {
-                      const section =
-                        kind === "thinking"
-                          ? request.progress?.thinking
-                          : request.progress?.text;
-                      if (section) progress(section, delta);
-                    },
-                    signal,
-                  }),
-                ready: async () => await visionReady(definition.id),
-              },
-            }
-          : {}),
-        ...(completeText &&
-        textReady &&
-        definition.permissions?.capabilities?.includes("models.text")
-          ? {
-              text: {
-                complete: async (request) =>
-                  await completeText({
-                    extensionId: definition.id,
-                    ...textSelection(request.model),
-                    ...(request.system !== undefined
-                      ? { system: request.system }
-                      : {}),
-                    prompt: request.prompt,
-                    ...(request.maxTokens !== undefined
-                      ? { maxTokens: request.maxTokens }
-                      : {}),
-                    onDelta: ({ kind, delta }) => {
-                      const section =
-                        kind === "thinking"
-                          ? request.progress?.thinking
-                          : request.progress?.text;
-                      if (section) progress(section, delta);
-                    },
-                    signal,
-                  }),
-                ready: async (request) =>
-                  await textReady({
-                    extensionId: definition.id,
-                    ...textSelection(request?.model),
-                  }),
-              },
-            }
-          : {}),
-      },
+      models,
       progress,
-      signal,
       log: {
         debug: (message, data) =>
           ports.log?.("debug", definition.id, message, data),

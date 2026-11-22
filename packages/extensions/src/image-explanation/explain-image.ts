@@ -2,10 +2,10 @@ import {
   defineTool,
   ExtensionError,
   type ExtensionContext,
+  type ExtensionHookContext,
+  type ModelSelection,
 } from "@nervekit/extension-api";
 import { nonEmptyString } from "@nervekit/extension-api/host";
-
-export const EXPLAIN_IMAGE_MAX_BYTES = 20 * 1024 * 1024;
 
 const FIX =
   "Ask the user to choose an image-capable model in Settings → Extensions → Image explanation.";
@@ -18,23 +18,23 @@ function parse(args: Record<string, unknown>): Input {
   return { path, prompt: nonEmptyString(args.prompt, "prompt") };
 }
 
+/** The `model` setting: the image-capable model the user chose. */
+const selectedModel = (ctx: Pick<ExtensionHookContext, "settings">) =>
+  ctx.settings.get<ModelSelection>("model");
+
 async function run(input: Input, ctx: ExtensionContext): Promise<string> {
   const vision = ctx.models.vision;
-  if (!vision || !(await vision.ready()))
+  const model = selectedModel(ctx);
+  if (!vision || !model)
     throw new ExtensionError(
       "DENIED",
-      "explain_image: no usable image model is configured.",
+      "explain_image: no image-capable model is selected.",
       { fix: FIX },
     );
-  const info = await ctx.artifacts.info(input.path);
-  if (info.bytes > EXPLAIN_IMAGE_MAX_BYTES)
-    throw new ExtensionError(
-      "BAD_REQUEST",
-      `Image is too large for explain_image (${info.bytes} bytes; maximum ${EXPLAIN_IMAGE_MAX_BYTES} bytes).`,
-    );
-  const { bytes } = await ctx.artifacts.read(input.path);
+  // The host reads the file under the `read` rules declared in `authorize`, up to 20 MiB.
   const { text } = await vision.explain({
-    image: bytes,
+    model,
+    image: input.path,
     ...(input.prompt ? { prompt: input.prompt } : {}),
     progress: { thinking: "thinking", text: "explanation" },
   });
@@ -81,7 +81,7 @@ export const explainImageTool = defineTool({
     sections: { explanation },
   }),
   availability: async (ctx) =>
-    (await ctx.models.vision?.ready())
+    (await ctx.models.vision?.ready({ model: selectedModel(ctx) }))
       ? { available: true }
       : {
           available: false,

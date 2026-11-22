@@ -1,6 +1,6 @@
 # Image generation
 
-`imagegen.generate` creates one new image and returns an artifact handle; the extension (`.png`, `.jpg`, `.webp`) follows what the backend returned. It spends the user's credit at the backend: generate once, check the result, and do not loop. `sdk.describe("imagegen")` shows the configured backend, its defaults and its `backendOptions`.
+`imagegen.generate` creates one new image with the image model the user selected and returns an artifact handle; the extension (`.png`, `.jpg`, `.webp`) follows what the backend returned. It spends the user's credit at the backend: generate once, check the result, and do not loop. `sdk.describe("imagegen")` shows the selected model, its defaults and its `backendOptions`.
 
 ```ts
 const hero = await imagegen.generate({
@@ -12,6 +12,6 @@ await image(hero).resize({ width: 760 }).save("hero-760.png");
 ```
 
 - `size`: `"auto"` or `"<width>x<height>"`; the limits are in the error when a size is refused.
-- `inputs`: reference images as file handles, for backends that take them. The error names the backend when it does not.
-- `backendOptions`: options only the configured backend has; unknown ones are rejected with the valid names.
+- `inputs`: reference images as file handles, for models that take them. The error says so when the model does not.
+- `backendOptions`: `quality` and `background` for this call; unknown ones are rejected with the valid names.
 - To look at the result, `read` the artifact path or, when enabled, use `explain_image`. Image rules for pages: `sdk.docs("confluence/writing")`.

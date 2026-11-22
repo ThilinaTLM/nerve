@@ -32,6 +32,7 @@ delete g.host;
 g.__nerveExtensionApi = api;
 
 import { decode, encode } from "./wire.js";
+import { accountTestContext, hookContext } from "../hook-context.js";
 
 type WireError = {
   name: string;
@@ -89,18 +90,13 @@ type Envelope = {
   op: string;
   token: string;
   settings: Record<string, unknown>;
-  models: { image: boolean; vision: boolean; text: boolean };
+  models: {
+    image: boolean;
+    vision: boolean;
+    text: boolean;
+    defaultModel: boolean;
+  };
   [field: string]: unknown;
-};
-
-const neverAborted: AbortSignal = {
-  aborted: false,
-  reason: undefined,
-  onabort: null,
-  addEventListener() {},
-  removeEventListener() {},
-  dispatchEvent: () => false,
-  throwIfAborted() {},
 };
 
 function buildContext(
@@ -128,7 +124,10 @@ function buildContext(
       get: <T>(key: string) => payload.settings[key] as T | undefined,
     },
     accounts: { selected: (field) => call("accounts.selected", field) },
-    http: { request: (request) => call("http.request", request) },
+    http: {
+      request: ((request: unknown) =>
+        call("http.request", request)) as ExtensionContext["http"]["request"],
+    },
     artifacts: {
       write: (name, data, mediaType) =>
         call("artifacts.write", name, data, mediaType),
@@ -157,6 +156,7 @@ function buildContext(
         ? {
             image: {
               generate: (request) => call("models.image.generate", request),
+              ready: (request) => call("models.image.ready", request),
             },
           }
         : {}),
@@ -164,7 +164,7 @@ function buildContext(
         ? {
             vision: {
               explain: (request) => call("models.vision.explain", request),
-              ready: () => call("models.vision.ready"),
+              ready: (request) => call("models.vision.ready", request),
             },
           }
         : {}),
@@ -176,10 +176,11 @@ function buildContext(
             },
           }
         : {}),
+      ...(payload.models.defaultModel
+        ? { defaultModel: () => call("models.defaultModel") }
+        : {}),
     },
     progress: (section, chunk) => notify("progress", section, chunk),
-    // Cancellation is the host's native cancel of the invocation.
-    signal: neverAborted,
     log: {
       debug: (message, data) => notify("log.debug", message, data),
       warn: (message, data) => notify("log.warn", message, data),
@@ -284,7 +285,9 @@ async function perform(
     case "present":
       return toolOf(payload.tool as string).present?.(payload.output);
     case "configuration":
-      return namespaceOf(payload.namespace as string).configuration?.(ctx);
+      return namespaceOf(payload.namespace as string).configuration?.(
+        hookContext(ctx),
+      );
     case "availability": {
       const available = payload.availabilityTarget as
         | { kind: "namespace"; id: string }
@@ -294,7 +297,7 @@ async function perform(
           ? namespaceOf(available.id).availability
           : definitionOf().tools?.find((tool) => tool.name === available.name)
               ?.availability;
-      return await hook?.(ctx);
+      return await hook?.(hookContext(ctx));
     }
     case "testAccount": {
       const kind = payload.kind as string;
@@ -303,7 +306,10 @@ async function perform(
         throw new Error(
           `${definitionOf().id}: account kind ${kind} has no test.`,
         );
-      return await test(payload.account as AccountInfo, ctx);
+      return await test(
+        payload.account as AccountInfo,
+        accountTestContext(ctx),
+      );
     }
     default:
       throw new Error(`Unknown extension operation ${String(payload.op)}.`);

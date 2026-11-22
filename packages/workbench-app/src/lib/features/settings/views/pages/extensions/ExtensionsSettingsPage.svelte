@@ -380,6 +380,7 @@ $effect(() => {
       userExtensions={userExt}
       {accounts}
       models={usableModels}
+      imageModels={view?.imageModels ?? []}
       pages={pagesOf?.(open.metadata.id) ?? []}
       onOpenPage={onOpenPage
         ? (pageId) => onOpenPage(open.metadata.id, pageId)

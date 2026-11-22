@@ -176,24 +176,36 @@ void test("ctx.extensionStore maps store errors and rejects without a project", 
   );
 });
 
-void test("ctx.models.text passes the named model setting's value, and rejects a key that is not a model field", async () => {
+void test("ctx.models accept only the extension's own model settings and Nerve's default", async () => {
   const requests: unknown[] = [];
-  const selection = { provider: "p", modelId: "m", reasoningLevel: "low" };
+  const chosen = {
+    provider: "p",
+    modelId: "m",
+    reasoningLevel: "low" as const,
+  };
+  const fallback = {
+    provider: "d",
+    modelId: "default",
+    reasoningLevel: "off" as const,
+  };
   const env = {
     context: {
       cwd: "/work",
       conversationDir: "/nonexistent",
       extensionPorts: {
-        settings: () => ({ summaryModel: selection, prefix: "x" }),
+        settings: () => ({
+          summaryModel: chosen,
+          image: { provider: "openai-codex", modelId: "gpt-image" },
+        }),
         accounts: { get: async () => undefined, secret: async () => undefined },
         completeText: async (request: unknown) => {
           requests.push(request);
           return { text: "done", model: "p/m" };
         },
-        textReady: async (request: unknown) => {
-          requests.push(request);
-          return true;
-        },
+        textReady: async () => true,
+        explainImage: async () => ({ text: "", model: "" }),
+        visionReady: async () => true,
+        defaultModel: async () => fallback,
       },
     },
     report: { artifacts: new Map() },
@@ -206,28 +218,40 @@ void test("ctx.models.text passes the named model setting's value, and rejects a
         ...demoExtension.settings.fields,
         summaryModel: { type: "model", label: "Model", reasoning: true },
         otherModel: { type: "model", label: "Other" },
+        image: { type: "imageModel", label: "Image" },
       },
     },
     permissions: { capabilities: ["models.text" as const] },
   } as typeof demoExtension;
-  const { text } = new ExtensionRuntime(env).context(extension).models;
-  await text!.complete({ model: "summaryModel", prompt: "hi" });
-  await text!.complete({ model: "otherModel", prompt: "hi" });
-  await text!.complete({ prompt: "hi" });
+  const { models } = new ExtensionRuntime(env).context(extension);
+  // Only the declared capability: no vision although the host offers it.
+  assert.equal(models.vision, undefined);
+  assert.deepEqual(await models.defaultModel!(), fallback);
+  await models.text!.complete({ model: chosen, prompt: "hi" });
+  // A sandbox round trip leaves `reasoningLevel` absent rather than undefined; both sides normalize.
+  await models.text!.complete({ model: { ...fallback }, prompt: "hi" });
   assert.deepEqual(
-    requests.map((request) => (request as { selection?: unknown }).selection),
-    [selection, undefined, undefined],
+    requests.map((request) => (request as { model: unknown }).model),
+    [chosen, fallback],
   );
-  for (const key of ["prefix", "missing"]) {
+  for (const model of [
+    { ...chosen, reasoningLevel: "high" },
+    { provider: "p", modelId: "other" },
+    // The value of an `imageModel` field is not a chat model choice.
+    { provider: "openai-codex", modelId: "gpt-image" },
+  ] as const) {
     await assert.rejects(
-      text!.complete({ model: key, prompt: "hi" }),
+      models.text!.complete({ model: model, prompt: "hi" }),
       (error: unknown) =>
-        error instanceof ExtensionError && error.code === "BAD_REQUEST",
+        error instanceof ExtensionError && error.code === "DENIED",
     );
-    await assert.rejects(
-      text!.ready({ model: key }),
-      (error: unknown) =>
-        error instanceof ExtensionError && error.code === "BAD_REQUEST",
-    );
+    assert.equal(await models.text!.ready({ model: model }), false);
   }
+  await assert.rejects(
+    models.text!.complete({ model: "summaryModel" as never, prompt: "hi" }),
+    (error: unknown) =>
+      error instanceof ExtensionError && error.code === "BAD_REQUEST",
+  );
+  assert.equal(await models.text!.ready({ model: chosen }), true);
+  assert.equal(await models.text!.ready(), false);
 });

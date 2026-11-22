@@ -24,14 +24,18 @@ export type OperationTarget = {
   value: string;
 };
 
-/** What the permission policy checks for a call: an operation on targets. Use it for everything the arguments already name; use `ExtensionContext.authorize` for targets known only after a lookup. */
-export type OperationAuthorization = {
+/** An operation on targets, as the permission policy checks it; what `ExtensionContext.authorize` takes. */
+export type OperationCheck = {
   /** Operation name rules match on. Defaults to `<namespace>.<method>`; for an own direct tool `<extension id>.<tool name>`. */
   operation?: string;
   /** Resources the call acts on; empty when it acts on none (the policy then checks the operation alone). */
   targets: readonly (OperationTarget | string)[];
-  /** Defaults to the method's declared `risk`. Lower it only with `riskFromArgs: true`; it is never above the declared `risk`. */
+  /** Defaults to the method's declared `risk`. It is never above the declared `risk`; in `authorize`, lower it only with `riskFromArgs: true`. */
   risk?: Risk;
+};
+
+/** What the permission policy checks for a call: an operation on targets. Use it for everything the arguments already name; use `ExtensionContext.authorize` for targets known only after a lookup. */
+export type OperationAuthorization = OperationCheck & {
   /** Short label for approval prompts and records (the JQL, the issue key, the path). */
   summary: string;
 };

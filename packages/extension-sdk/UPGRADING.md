@@ -34,13 +34,19 @@ Mechanical steps, if the change cannot be read from the code above (renamed file
 
 Nothing existing breaks; this section tells an agent what is new. Declare `permissions.capabilities: ["conversations.start"]` to call `host.conversations.start({ prompt, title?, model?, agentProfile?, permissionRuleSet?, send?, open? })` from a UI frame; it resolves with `{ conversationId }`. Call it from a click or key handler (else `not_allowed`). `model`, `agentProfile` and `permissionRuleSet` are keys of your own settings of type `model`, `agentProfile` and `permissionRuleSet` (a missing key or another type rejects with `invalid_request`); an unset setting means Nerve's default. `send: false` leaves the prompt unsent in the new conversation's composer; `open: false` keeps the user where they are. the test fake records calls in `bridge.startedConversations`.
 
-## Next release: direct text completion (surface `manifest` and `backend`)
+## Next release: model calls (surfaces `manifest` and `backend`)
 
-Nothing existing breaks; this section tells an agent what is new. Declare `permissions.capabilities: ["models.text"]` to get `ctx.models.text`: `complete({ model?, system?, prompt, maxTokens?, progress? })` makes one model call without tools and returns `{ text, model }`; `ready({ model? })` says whether the model resolves (use it in `availability`). `model` is the key of a `model` setting of your extension (an unknown or non-`model` key rejects with `BAD_REQUEST`); omit it, or leave the setting unset, to use Nerve's default model and reasoning level for the project. The extension never names a model id. `progress` streams only inside a running direct tool.
+Nothing released breaks; this section tells an agent what is new. Every `ctx.models` call names its model, and the host accepts only the value of one of your own settings (or, for text and vision, `ctx.models.defaultModel()`); anything else rejects with `DENIED`. The host never picks a model.
+
+- `models.text` (capability `models.text`): `complete({ model, system?, prompt, maxTokens?, progress? })` makes one model call without tools and returns `{ text, model }`. `model` is `ctx.settings.get(<key of a model setting>)` or `await ctx.models.defaultModel()` (Nerve's default model and reasoning level for the project).
+- `models.vision` (capability `models.vision`): `explain({ model, image, prompt?, progress? })`, where `image` is a file handle (`artifact:<name>` or a workspace path your `authorize` declared as a read).
+- `models.image` (capability `models.image`): `generate({ model, prompt, inputs?, size?, quality?, background?, artifact? })` with the value of an `imageModel` setting (a new field type: the user picks one of the host's image models). Images come back as artifacts (`images[].artifact`).
+- `ready({ model })` of each service says whether the model is usable; use it in `availability`. In `run`, throw `ExtensionError("DENIED", …, { fix })` when the setting is unset.
+- `availability` and `configuration` receive an `ExtensionHookContext` (settings, accounts, model `ready`/`defaultModel`, log); an account kind's `test` receives an `AccountTestContext` (accounts, http, log). `ctx.signal` does not exist. `ctx.authorize` takes `{ operation?, targets, risk? }`, defaulting to the running method's operation and risk. `progress` streams only inside a running direct tool.
 
 ## Next release: model, agent profile and permission rule set settings (surface `manifest`)
 
-Nothing existing breaks; this section tells an agent what is new. A `model` setting gains `reasoning: true`, which lets the user also pick a reasoning level; its value is then `{ provider, modelId, reasoningLevel? }` (unset: Nerve's default level). Two new setting types: `agentProfile` (value: the profile name; unset: the project's default profile) and `permissionRuleSet` (value: the rule set id; unset: the user's default). Neither takes a `default`, and neither is allowed in an account kind's `fields`.
+Nothing existing breaks; this section tells an agent what is new. A `model` setting gains `reasoning: true`, which lets the user also pick a reasoning level; its value is then `{ provider, modelId, reasoningLevel? }` (unset: the model's default level). Two new setting types: `agentProfile` (value: the profile name; unset: the project's default profile) and `permissionRuleSet` (value: the rule set id; unset: the user's default). Neither takes a `default`, and neither is allowed in an account kind's `fields`.
 
 ## Next release: accounts (surfaces `manifest` and `backend`)
 

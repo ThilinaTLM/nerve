@@ -1,5 +1,5 @@
 /* Settings and account kinds of an extension. */
-import type { ExtensionContext } from "./types.js";
+import type { AccountTestContext } from "./types.js";
 
 // ── Settings and accounts ────────────────────────────────────────────────────
 
@@ -31,12 +31,8 @@ type FieldBase = {
   advanced?: boolean;
 };
 
-/**
- * One setting of an extension, by `type`. Field keys (the names in `SettingsSchema.fields`)
- * are lower camelCase (`^[a-z][A-Za-z0-9]*$`, at most 64). Settings are not secret: a credential
- * belongs in an account kind.
- */
-export type SettingField =
+/** A field of an account kind: a `boolean`, `string`, `number` or `enum` setting field. */
+export type AccountField =
   | (FieldBase & {
       /** An on/off switch. */
       type: "boolean";
@@ -83,10 +79,18 @@ export type SettingField =
         /** Help text of this option. */
         description?: string;
       }[];
-    })
+    });
+
+/**
+ * One setting of an extension, by `type`. Field keys (the names in `SettingsSchema.fields`)
+ * are lower camelCase (`^[a-z][A-Za-z0-9]*$`, at most 64). Settings are not secret: a credential
+ * belongs in an account kind.
+ */
+export type SettingField =
+  | AccountField
   | (FieldBase & {
       /**
-       * Id of a user account of the given kind, or of any of several kinds (one
+       * Id of an account (user- or project-level) of the given kind, or of any of several kinds (one
        * provider each; read `AccountInfo.kind` to tell them apart). Read it with
        * `ctx.accounts.selected(<field key>)`; `ctx.http` takes `auth: { account: <field key> }`.
        * Not allowed inside an account kind's own `fields`.
@@ -111,19 +115,30 @@ export type SettingField =
     })
   | (FieldBase & {
       /**
-       * A model the user picks (the host's model list). The value is
-       * `{ provider, modelId, reasoningLevel? }`; unset means Nerve's default
-       * model. Not allowed inside an account kind's `fields`.
+       * A chat model the user picks (the host's model list). The value is a `ModelSelection`
+       * (`{ provider, modelId, reasoningLevel? }`) to pass to `ctx.models.text`/`vision`; unset
+       * is `undefined` (use `ctx.models.defaultModel()` for Nerve's default). Not allowed inside
+       * an account kind's `fields`.
        */
       type: "model";
-      /** Offer only models with this ability. Absent: any model. */
-      capability?: "image" | "vision";
+      /** Offer only models that accept images. Absent: any model. */
+      capability?: "vision";
       /**
        * Let the user also pick a reasoning level, stored as `reasoningLevel` in the value
        * (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`). Without it the value never has one.
-       * Unset: Nerve's default level.
+       * Unset: the model's default level.
        */
       reasoning?: boolean;
+    })
+  | (FieldBase & {
+      /**
+       * An image generation model the user picks (the host's image backends). The value is an
+       * `ImageModelSelection` (`{ provider, modelId }`) to pass to `ctx.models.image`; unset is
+       * `undefined`. Not allowed inside an account kind's `fields`.
+       */
+      type: "imageModel";
+      /** Not allowed: the user decides; the host never picks an image model. */
+      default?: never;
     })
   | (FieldBase & {
       /**
@@ -319,8 +334,8 @@ export type AccountKindData = {
    * an account's credential only ever goes to the definition that created it.
    */
   platform?: string;
-  /** Non-secret fields stored with the account. Types `string`, `number`, `boolean` and `enum` only (not `account` or `model`). */
-  fields: Record<string, SettingField>;
+  /** Non-secret fields stored with the account. */
+  fields: Record<string, AccountField>;
   /** The one secret of an account (token, password), kept encrypted by the host. Shorthand for a single entry of `secrets`; set at most one of the two (a kind with an `oauth2` provider may have neither; with `provider: "extension"` they are inputs to the provider). */
   secret?: AccountSecretField;
   /** The typed-in secrets of an account by name (`{ keyId: {...}, keySecret: {...} }`), kept encrypted by the host. */
@@ -363,12 +378,11 @@ export type AccountKind = AccountKindData & {
   /**
    * Hook behind the "Test" button in Settings; written as `true` in the manifest. `ctx` is bound to
    * the tested account: every `account` setting of this kind selects it, so a `ctx.http.request`
-   * with `auth: { account: <that setting key> }` signs in with its credential. Settings, artifacts
-   * and `ctx.report` are not available. Throw `ExtensionError("BAD_REQUEST")` when the account
+   * with `auth: { account: <that setting key> }` signs in with its credential. Throw `ExtensionError("BAD_REQUEST")` when the account
    * lacks a field the test needs.
    */
   test?: (
     account: AccountInfo,
-    ctx: ExtensionContext,
+    ctx: AccountTestContext,
   ) => Promise<AccountTestResult>;
 };

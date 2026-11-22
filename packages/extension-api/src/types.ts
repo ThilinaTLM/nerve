@@ -8,7 +8,7 @@
  * `ctx.http` requests.
  */
 
-import type { Risk } from "./authorization.js";
+import type { OperationCheck } from "./authorization.js";
 import type { AccountInfo } from "./settings.js";
 
 // ── Context ──────────────────────────────────────────────────────────────────
@@ -128,8 +128,17 @@ export type HttpArtifactOptions = {
   inlineText?: boolean;
 };
 
-/** What `ctx.http.request` returns. */
-export type HttpResponse = {
+/** The type of `HttpResponse.body` for a `HttpRequest.response` mode: an `ArtifactRef` (absent on an error status), bytes, text, or `unknown` for JSON and the default. */
+export type HttpBody<Mode> = Mode extends "artifact"
+  ? ArtifactRef | undefined
+  : Mode extends "bytes"
+    ? Uint8Array
+    : Mode extends "text"
+      ? string
+      : unknown;
+
+/** What `ctx.http.request` returns. `Body` follows `HttpRequest.response` (see `ExtensionContext.http`). */
+export type HttpResponse<Body = unknown> = {
   /** HTTP status code. */
   status: number;
   /** `true` for 2xx. */
@@ -139,114 +148,122 @@ export type HttpResponse = {
   /** Final URL after redirects. */
   url: string;
   /** Parsed JSON (undefined when empty), text, bytes, or the artifact written; see `HttpRequest.response`. */
-  body: unknown;
+  body: Body;
 };
 
-/** The label of an entity in the run footer (`ctx.report`): a name or key such as `PROJ-12`. */
-export type ReportEntry = string;
+// ── Models ───────────────────────────────────────────────────────────────────
 
-/** Image generation the host provides when the manifest declares `models.image`: every option is final (call overrides applied). */
-export type ImageOptions = {
-  /** Backend that runs the request; the host validates the name. */
-  backend: string;
+/** A reasoning level of a `model` selection; `off` disables reasoning. */
+export type ReasoningLevel =
+  | "off"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
+
+/**
+ * A chat model: the value of a `model` setting (`ctx.settings.get(<key>)`) or
+ * `ctx.models.defaultModel()`. The host accepts only these two sources, so an
+ * extension cannot use a model the user did not choose.
+ */
+export type ModelSelection = {
+  /** Provider id (`anthropic`). */
+  provider: string;
+  /** Model id on that provider. */
+  modelId: string;
+  /** Reasoning level; absent: the model's default. */
+  reasoningLevel?: ReasoningLevel;
+};
+
+/** An image generation model: the value of an `imageModel` setting. The host accepts no other value. */
+export type ImageModelSelection = {
+  /** Image backend id (`openai-codex`). */
+  provider: string;
   /** Model id on that backend. */
-  model: string;
-  /** Quality level; the values the backend accepts, `auto` lets it choose. */
-  quality: string;
-  /** `auto` or `<width>x<height>` (`1536x1024`); the backend sets the valid sizes. */
-  size: string;
-  /** `auto`, `opaque` or `transparent`, as the backend supports. */
-  background: string;
+  modelId: string;
 };
 
-/** One `ctx.models.image.generate` call. */
+/** Live sections of the running direct tool the model's thinking and text stream into (`ToolView` section ids with `live`). */
+export type ModelProgress = {
+  /** Section id that receives the model's reasoning. */
+  thinking?: string;
+  /** Section id that receives the answer as it is written. */
+  text?: string;
+};
+
+/**
+ * One `ctx.models.image.generate` call. The host validates the options against the
+ * selected backend (`BAD_REQUEST` names the valid values) and writes each image as an artifact.
+ */
 export type ImageRequest = {
+  /** The value of one of this extension's `imageModel` settings. */
+  model: ImageModelSelection;
   /** What to draw. */
   prompt: string;
-  /** Reference images; only backends that accept them get any. */
-  inputs: readonly {
-    /** Image bytes. */
-    data: Uint8Array;
-    /** MIME type (`image/png`). */
-    mimeType: string;
-  }[];
-  /** Final options. */
-  options: ImageOptions;
+  /** Reference images: `artifact:<name>` or workspace paths the call was authorized to read. A backend that takes none rejects them. */
+  inputs?: readonly string[];
+  /** `auto` or `<width>x<height>`; the backend sets the valid sizes. Absent: `auto`. */
+  size?: string;
+  /** Quality level the backend accepts. Absent: `auto`. */
+  quality?: string;
+  /** `auto`, `opaque` or `transparent`, as the backend supports. Absent: `auto`. */
+  background?: string;
+  /** Naming of the artifacts written. */
+  artifact?: {
+    /** Exact name of the first image; its extension is corrected to the image's type. */
+    name?: string;
+    /** Start of a host-picked name `<baseName>-<n><ext>`; `image` by default. */
+    baseName?: string;
+  };
 };
 
 /** What `ctx.models.image.generate` returns. */
 export type ImageResult = {
-  /** Provider name. */
-  provider: string;
-  /** Model that produced the images. */
+  /** Model that produced the images (`provider/modelId`). */
   model: string;
-  /** The images in order. */
+  /** The images in order, written as artifacts. */
   images: readonly {
-    /** Image bytes; write them with `ctx.artifacts.write`. */
-    data: Uint8Array;
+    /** The artifact the image was written to. */
+    artifact: ArtifactRef;
     /** The prompt as the model rewrote it, when it reports one. */
     revisedPrompt?: string;
   }[];
 };
 
-/**
- * An image explained by the vision model the extension's settings select
- * (a `model` field with `reasoning`): the host reads them, so a caller
- * cannot pick another model.
- */
+/** One `ctx.models.vision.explain` call. */
 export type VisionRequest = {
-  /** JPEG, PNG, GIF or WebP; the host detects the format from the bytes. */
-  image: Uint8Array;
+  /** The value of one of this extension's `model` settings, or `ctx.models.defaultModel()`. */
+  model: ModelSelection;
+  /** `artifact:<name>` or a workspace path the call was authorized to read: JPEG, PNG, GIF or WebP up to 20 MiB, detected from the bytes. */
+  image: string;
   /** What to focus on. */
   prompt?: string;
-  /** Live sections of the running direct tool the model's thinking and text stream into (`ToolView` section ids with `live`). */
-  progress?: {
-    /** Section id that receives the model's reasoning. */
-    thinking?: string;
-    /** Section id that receives the answer as it is written. */
-    text?: string;
-  };
+  /** Live sections the thinking and answer stream into. */
+  progress?: ModelProgress;
 };
 
 /** What `ctx.models.vision.explain` returns. */
 export type VisionResult = {
   /** The explanation. */
   text: string;
-  /** Model that wrote it. */
+  /** Model that wrote it (`provider/modelId`). */
   model: string;
-};
-
-/** `VisionRequest` as the host receives it. Host-internal; extensions use `VisionRequest`. */
-export type VisionExplainRequest = {
-  /** Id of the calling extension. */
-  extensionId: string;
-  /** Image bytes. */
-  image: Uint8Array;
-  /** What to focus on. */
-  prompt?: string;
-  /** Host-internal: the host wires the request's `progress` sections to this. */
-  onDelta?: (update: { kind: "thinking" | "text"; delta: string }) => void;
-  /** Cancellation of the run. */
-  signal?: AbortSignal;
 };
 
 /** A direct model call without tools or an agent loop (`ctx.models.text`). */
 export type TextRequest = {
-  /** Key of a `model` setting of this extension; absent: Nerve's default model and reasoning level for the project. */
-  model?: string;
+  /** The value of one of this extension's `model` settings, or `ctx.models.defaultModel()`. */
+  model: ModelSelection;
   /** Instructions for the model. */
   system?: string;
   /** The user message. */
   prompt: string;
   /** Upper bound on the answer's length in tokens. */
   maxTokens?: number;
-  /** Live sections of the running direct tool the model's thinking and text stream into (same as `VisionRequest.progress`). */
-  progress?: {
-    /** Section id that receives the model's reasoning. */
-    thinking?: string;
-    /** Section id that receives the answer as it is written. */
-    text?: string;
-  };
+  /** Live sections the thinking and answer stream into. */
+  progress?: ModelProgress;
 };
 
 /** What `ctx.models.text.complete` returns. */
@@ -257,30 +274,45 @@ export type TextResult = {
   model: string;
 };
 
-/** `TextRequest` as the host receives it. Host-internal; extensions use `TextRequest`. */
-export type TextCompleteRequest = {
-  /** Id of the calling extension. */
-  extensionId: string;
-  /** Value of the named `model` setting; absent: the project's default model. */
-  selection?: unknown;
-  /** Instructions for the model. */
-  system?: string;
-  /** The user message. */
-  prompt: string;
-  /** Upper bound on the answer's length in tokens. */
-  maxTokens?: number;
-  /** Host-internal: the host wires the request's `progress` sections to this. */
-  onDelta?: (update: { kind: "thinking" | "text"; delta: string }) => void;
-  /** Cancellation of the run. */
-  signal?: AbortSignal;
+/**
+ * Model services; each exists only when the manifest's `permissions.capabilities` lists it.
+ * The host never picks a model: every call names one, and it must be the value of one of this
+ * extension's settings (or `defaultModel()` for text and vision), else `DENIED`. Use `ready` in
+ * `availability`; in `run`, throw `ExtensionError("DENIED", …, { fix })` when the setting is unset.
+ */
+export type ExtensionModels = {
+  /** Image generation (`models.image`). */
+  image?: {
+    /** Generates images and writes them as artifacts; rejects when the backend fails or is not signed in. */
+    generate(request: ImageRequest): Promise<ImageResult>;
+    /** Whether `model` is set, known and signed in. */
+    ready(request?: { model?: ImageModelSelection }): Promise<boolean>;
+  };
+  /** Image explanation (`models.vision`). */
+  vision?: {
+    /** Explains an image; streams into the sections `request.progress` names. */
+    explain(request: VisionRequest): Promise<VisionResult>;
+    /** Whether `model` is set, resolves with credentials and accepts images. */
+    ready(request?: { model?: ModelSelection }): Promise<boolean>;
+  };
+  /** Direct text completion (`models.text`): no tools, no agent loop. */
+  text?: {
+    /** Asks the model once; streams into the sections `request.progress` names. */
+    complete(request: TextRequest): Promise<TextResult>;
+    /** Whether `model` is set and resolves with credentials. */
+    ready(request?: { model?: ModelSelection }): Promise<boolean>;
+  };
+  /** Nerve's default model and reasoning level for the project, for an extension without its own `model` setting. Exists with `models.text` or `models.vision`. */
+  defaultModel?(): Promise<ModelSelection>;
 };
 
 /**
- * The host services of extension code, passed to every hook as `ctx`. Every call is async
+ * The host services of extension code, passed to `session` and `run` as `ctx`. Every call is async
  * (except `settings.get`, `report`, `progress` and `log`) and exchanges plain data, because the
  * backend of an installed extension runs in a sandbox (QuickJS) with no Node.js built-ins,
  * filesystem, network or timers. Take `ctx` from the hook's own arguments every time: a `ctx`
- * kept in a `session` belongs to the call that opened it and is not valid later.
+ * kept in a `session` belongs to the call that opened it and is not valid later. Cancellation is
+ * the host's: it stops the call; there is no signal to watch.
  */
 export interface ExtensionContext {
   /** Resolved values of this extension's own settings (manifest default → user → project → conversation). */
@@ -297,8 +329,10 @@ export interface ExtensionContext {
 
   /** The only network access. */
   http: {
-    /** Sends a request; see `HttpRequest` for limits and errors. Rejects with an `ExtensionError`. */
-    request(request: HttpRequest): Promise<HttpResponse>;
+    /** Sends a request; see `HttpRequest` for limits and errors. Rejects with an `ExtensionError`. `body` is typed by `response` (`HttpBody`). */
+    request<Request extends HttpRequest>(
+      request: Request,
+    ): Promise<HttpResponse<HttpBody<Request["response"]>>>;
   };
 
   /** Files of the conversation (`artifact:<name>`). Pass handles on instead of bytes: bytes cross the sandbox boundary as base64. */
@@ -383,68 +417,36 @@ export interface ExtensionContext {
   /**
    * Checks an operation whose targets are known only after a lookup (the page
    * a comment belongs to) against the conversation's permission policy, before
-   * the first write. Rejects with `DENIED` when the policy refuses. Everything
-   * known from the arguments belongs in the method's `authorize` instead.
+   * the first write. `operation` defaults to the running method's, `risk` to its
+   * declared risk and may not exceed it (`BAD_REQUEST`). Rejects with `DENIED`
+   * when the policy refuses. Everything known from the arguments belongs in the
+   * method's `authorize` instead.
    */
-  authorize(check: {
-    /** Operation name rules match on (`confluence.updatePage`). */
-    operation: string;
-    /** Resources as `<system>:<type>/<id>`. */
-    targets: readonly string[];
-    /** Risk of the operation; not above the method's declared `risk`. */
-    risk: Risk;
-  }): Promise<void>;
+  authorize(check: OperationCheck): Promise<void>;
 
   /**
-   * Entities the run changed, listed in the run footer. Use one label per entity across
-   * created/updated/deleted so the footer can merge them.
+   * Entities the run changed, listed in the run footer: a name or key such as `PROJ-12`. Use one
+   * label per entity across created/updated/deleted so the footer can merge them.
    */
   report: {
     /** The run created `entry`. */
-    created(entry: ReportEntry): void;
+    created(entry: string): void;
     /** The run changed `entry`. */
-    updated(entry: ReportEntry): void;
+    updated(entry: string): void;
     /** The run deleted `entry`. */
-    deleted(entry: ReportEntry): void;
+    deleted(entry: string): void;
     /** A free-text line for the footer. */
     note(text: string): void;
   };
 
-  /** Model services; each exists only when the manifest's `permissions.capabilities` lists it (`models.image`, `models.vision`, `models.text`). */
-  models: {
-    /** Image generation (`models.image`); options come from the extension's settings. */
-    image?: {
-      /** Generates images; rejects when the backend fails or no credentials are set up. */
-      generate(request: ImageRequest): Promise<ImageResult>;
-    };
-    /** Image explanation (`models.vision`) with the model chosen in the extension's settings. */
-    vision?: {
-      /** Explains an image; streams into the sections `request.progress` names. */
-      explain(request: VisionRequest): Promise<VisionResult>;
-      /** Whether the selected model resolves, with credentials, and accepts images. Use it in `availability`. */
-      ready(): Promise<boolean>;
-    };
-    /** Direct text completion (`models.text`): no tools, no agent loop. */
-    text?: {
-      /** Asks the model once; streams into the sections `request.progress` names. Rejects with BAD_REQUEST when `request.model` is not a `model` setting of this extension. */
-      complete(request: TextRequest): Promise<TextResult>;
-      /** Whether the model resolves with credentials. Use it in `availability`. */
-      ready(request?: { model?: string }): Promise<boolean>;
-    };
-  };
+  /** Model services; see `ExtensionModels`. */
+  models: ExtensionModels;
 
   /**
    * Streams text into a `live` section of the running direct tool's card
    * (`ToolView`). Ignored outside a direct tool call and for other sections.
    */
   progress(section: string, chunk: string): void;
-
-  /**
-   * The run's cancellation, for in-process code. Sandboxed extension code
-   * cannot hold a signal across the host boundary; the host cancels its
-   * invocation natively. Do not build new code on it.
-   */
-  signal: AbortSignal;
 
   /** Writes to the host log (not shown to the agent). Never log secrets. */
   log: {
@@ -454,3 +456,33 @@ export interface ExtensionContext {
     warn(message: string, data?: unknown): void;
   };
 }
+
+/**
+ * `ctx` of `availability` and `configuration`: they decide what is offered and run often, so
+ * they read settings and accounts and may ask whether a model is ready, nothing more.
+ */
+export type ExtensionHookContext = Pick<
+  ExtensionContext,
+  "settings" | "accounts" | "log"
+> & {
+  /** `ready` and `defaultModel` of the declared model services. */
+  models: {
+    /** `ready` of image generation (`models.image`). */
+    image?: Pick<NonNullable<ExtensionModels["image"]>, "ready">;
+    /** `ready` of image explanation (`models.vision`). */
+    vision?: Pick<NonNullable<ExtensionModels["vision"]>, "ready">;
+    /** `ready` of text completion (`models.text`). */
+    text?: Pick<NonNullable<ExtensionModels["text"]>, "ready">;
+    /** Nerve's default model for the project; see `ExtensionModels.defaultModel`. */
+    defaultModel?: ExtensionModels["defaultModel"];
+  };
+};
+
+/**
+ * `ctx` of an account kind's `test` hook: outside any conversation, so no settings, artifacts,
+ * store, models or report. `accounts.selected` and `ctx.http` `auth` resolve to the tested account.
+ */
+export type AccountTestContext = Pick<
+  ExtensionContext,
+  "accounts" | "http" | "log"
+>;

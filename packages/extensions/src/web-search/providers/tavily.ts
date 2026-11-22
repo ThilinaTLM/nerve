@@ -1,6 +1,7 @@
 import {
   ExtensionError,
   type AccountInfo,
+  type AccountTestContext,
   type AccountTestResult,
   type ExtensionContext,
   type HttpResponse,
@@ -115,7 +116,7 @@ const failure = (status: number): Extract<AccountTestResult, { ok: false }> => {
 /** The kind's `test` hook: reads `/usage` with the account's key. */
 async function test(
   _account: AccountInfo,
-  ctx: ExtensionContext,
+  ctx: AccountTestContext,
 ): Promise<AccountTestResult> {
   let response: HttpResponse;
   try {

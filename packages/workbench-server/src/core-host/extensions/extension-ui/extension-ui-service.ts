@@ -29,8 +29,7 @@ import { createExtensionPorts } from "../extension-ports.js";
 import type { ExtensionStore } from "../extension-store/extension-store.js";
 import { ExtensionStoreError } from "../extension-store/extension-store.js";
 import type { ExtensionErrorLog } from "../extension-catalog/extension-errors.js";
-import type { VisionHost } from "../../vision-models.js";
-import type { TextHost } from "../../text-models.js";
+import type { ModelHosts } from "../../model-hosts.js";
 import {
   modelSelectionSchema,
   thinkingLevelSchema,
@@ -60,8 +59,7 @@ export type ExtensionUiOptions = {
   catalog: ExtensionRegistryProvider & ExtensionUiSource;
   extensions: Pick<ExtensionSettingsService, "resolve">;
   accounts: AccountScopes;
-  vision?: VisionHost;
-  text?: TextHost;
+  models?: ModelHosts;
   store: ExtensionStore;
   /** The server's conversation creation and input submission, for `conversations.start`. */
   conversations: {
@@ -581,8 +579,7 @@ export class ExtensionUiService {
     const ports = createExtensionPorts({
       resolution: active.resolution,
       accounts: this.#options.accounts.reader(projectId),
-      ...(this.#options.vision ? { vision: this.#options.vision } : {}),
-      ...(this.#options.text ? { text: this.#options.text } : {}),
+      models: this.#options.models,
       store: this.#options.store,
       projectId,
       warn: (id, message, data) =>

@@ -290,15 +290,12 @@ export type CredentialProviderDefinition = {
 /**
  * Defines the credential provider of an extension: `export default defineCredentialProvider({...})`
  * in `src/credentials.ts`. Account kinds that name `provider: "extension"` use it. The host runs it
- * in a separate sandbox, per operation, with the fixed `ctx` above.
+ * in a separate sandbox, per operation, with the fixed `ctx` above. Returns the definition
+ * unchanged; `nerve-ext build` and the host check that `signIn` and `apply` exist.
  */
 export function defineCredentialProvider(
   definition: CredentialProviderDefinition,
 ): CredentialProviderDefinition {
-  if (typeof definition?.signIn !== "function")
-    throw new Error("defineCredentialProvider needs a signIn function.");
-  if (typeof definition.apply !== "function")
-    throw new Error("defineCredentialProvider needs an apply function.");
   return definition;
 }
 

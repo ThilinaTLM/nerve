@@ -87,6 +87,7 @@ export type FieldControl =
   | "select"
   | "account"
   | "model"
+  | "imageModel"
   | "profile"
   | "permission";
 
@@ -105,6 +106,8 @@ export function controlFor(field: SettingField): FieldControl {
       return "account";
     case "model":
       return "model";
+    case "imageModel":
+      return "imageModel";
     case "agentProfile":
       return "profile";
     case "permissionRuleSet":
@@ -226,7 +229,8 @@ export function displayValue(
           (account) => account.id === value,
         )?.name ?? undefined
       );
-    case "model": {
+    case "model":
+    case "imageModel": {
       const selection = value as {
         provider?: string;
         modelId?: string;

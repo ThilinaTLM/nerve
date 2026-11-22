@@ -280,7 +280,11 @@ void test("availability is derived from switches, the selected account, its secr
                 context: () =>
                   ({
                     settings: { get: (key: string) => state.settings[key] },
+                    accounts: {},
+                    log: {},
+                    models: {},
                   }) as never,
+                signal: new AbortController().signal,
               })
             ).availability({ kind: "namespace", id: "demo" }),
           dispose: async () => undefined,

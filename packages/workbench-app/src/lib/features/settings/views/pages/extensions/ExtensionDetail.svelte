@@ -7,6 +7,7 @@
   the list of accounts with a radio each, before Settings.
 -->
 <script lang="ts">
+import type { ExtensionsView } from "@nervekit/contracts/extensions";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import Library from "@lucide/svelte/icons/library";
 import PanelTop from "@lucide/svelte/icons/panel-top";
@@ -74,6 +75,8 @@ type Props = {
   extensions: ScopedExtensionsState;
   accounts: AccountChoices;
   models?: ModelInfo[];
+  /** The host's image generation models for `imageModel` fields. */
+  imageModels?: ExtensionsView["imageModels"];
   /** Pages this extension contributes to the open project. */
   pages?: { id: string; label: string }[];
   onOpenPage?: (pageId: string) => void;
@@ -90,6 +93,7 @@ let {
   extensions,
   accounts,
   models = [],
+  imageModels = [],
   pages = [],
   onOpenPage,
 }: Props = $props();
@@ -342,6 +346,7 @@ function openPage(page: "tools" | "skills"): void {
           {accounts}
           {kindLabels}
           {models}
+          {imageModels}
           change={changes.find((change) => change.key === item.key)}
           disabled={busy}
           layers={layersFor(item)}
@@ -373,6 +378,7 @@ function openPage(page: "tools" | "skills"): void {
                 {accounts}
                 {kindLabels}
                 {models}
+                {imageModels}
                 change={changes.find((change) => change.key === item.key)}
                 disabled={busy}
                 layers={layersFor(item)}

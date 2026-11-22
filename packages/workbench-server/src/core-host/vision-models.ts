@@ -1,15 +1,14 @@
 import {
-  modelSelectionSchema,
   thinkingLevelSchema,
-  type ModelSelection,
+  type ModelSelection as ResolvableModel,
 } from "@nervekit/contracts/models";
-import { ExtensionError } from "@nervekit/extension-api";
+import { ExtensionError, type ModelSelection } from "@nervekit/extension-api";
 import { explainImageWithModel } from "@nervekit/harness/models";
 import { detectSupportedImageMimeType } from "@nervekit/tools/execution";
 import type { ModelConfiguration } from "./model.adapter.js";
 
 type Resolve = (
-  selection: ModelSelection,
+  selection: ResolvableModel,
   configuration: ModelConfiguration,
 ) => Promise<{
   model: Parameters<typeof explainImageWithModel>[0]["model"];
@@ -20,43 +19,41 @@ type Resolve = (
 }>;
 
 /**
- * The host side of `ctx.models.vision`: explains an image with the model an
- * extension's `model` setting (with its reasoning level) selects. The extension never
- * names the model itself.
+ * The host side of `ctx.models.vision`: explains an image with the model of the
+ * request (and its reasoning level). The extension runtime has already checked the
+ * selection; this host reads no settings.
  */
 export type VisionHost = {
-  /** Whether the selected model resolves with credentials and accepts images. */
-  ready(settings: Record<string, unknown>): Promise<boolean>;
-  explain(
-    settings: Record<string, unknown>,
-    request: {
-      image: Uint8Array;
-      prompt?: string;
-      onDelta?: (update: { kind: "thinking" | "text"; delta: string }) => void;
-      signal?: AbortSignal;
-    },
-  ): Promise<{ text: string; model: string }>;
+  /** Whether the model resolves with credentials and accepts images. */
+  ready(model: ModelSelection): Promise<boolean>;
+  explain(request: {
+    model: ModelSelection;
+    image: Uint8Array;
+    prompt?: string | undefined;
+    onDelta?:
+      | ((update: { kind: "thinking" | "text"; delta: string }) => void)
+      | undefined;
+    signal?: AbortSignal | undefined;
+  }): Promise<{ text: string; model: string }>;
 };
 
 export function createVisionHost(input: {
   resolve: Resolve;
   configuration: () => ModelConfiguration;
 }): VisionHost {
-  const resolve = async (settings: Record<string, unknown>) => {
-    const selection = modelSelectionSchema.safeParse(settings.model);
-    if (!selection.success) return undefined;
+  const resolve = async (selection: ModelSelection) => {
     const resolved = await input
-      .resolve(selection.data, structuredClone(input.configuration()))
+      .resolve(selection, structuredClone(input.configuration()))
       .catch(() => undefined);
     if (!resolved || !(resolved.model.input ?? ["text"]).includes("image"))
       return undefined;
-    return { selection: selection.data, resolved };
+    return resolved;
   };
   return {
-    ready: async (settings) => (await resolve(settings)) !== undefined,
-    async explain(settings, request) {
-      const target = await resolve(settings);
-      if (!target)
+    ready: async (model) => (await resolve(model)) !== undefined,
+    async explain(request) {
+      const resolved = await resolve(request.model);
+      if (!resolved)
         throw new ExtensionError(
           "DENIED",
           "No usable image-capable model is selected.",
@@ -72,12 +69,11 @@ export function createVisionHost(input: {
           "Unsupported image format: only JPEG, PNG, GIF and WebP are accepted, detected from the file's contents.",
         );
       const thinking = thinkingLevelSchema.safeParse(
-        (settings.model as { reasoningLevel?: unknown } | undefined)
-          ?.reasoningLevel,
+        request.model.reasoningLevel,
       );
       const text = await explainImageWithModel({
-        model: target.resolved.model,
-        auth: target.resolved,
+        model: resolved.model,
+        auth: resolved,
         image: { type: "image", data: data.toString("base64"), mimeType },
         ...(request.prompt ? { prompt: request.prompt } : {}),
         thinkingLevel: thinking.success ? thinking.data : "off",
@@ -86,7 +82,7 @@ export function createVisionHost(input: {
       });
       return {
         text,
-        model: `${target.selection.provider}/${target.selection.modelId}`,
+        model: `${request.model.provider}/${request.model.modelId}`,
       };
     },
   };
