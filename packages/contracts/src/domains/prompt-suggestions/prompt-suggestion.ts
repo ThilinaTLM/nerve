@@ -86,8 +86,13 @@ export const promptSuggestionStatusSchema = z.object({
   projectId: z.string().startsWith("proj_").optional(),
   requiresTrust: z.boolean(),
   status: promptSuggestionTrustStatusSchema,
+  /** Effective for the listed project (or user level): project ?? user ?? default. */
   enabled: z.boolean(),
   defaultEnabled: z.boolean(),
+  /** The user layer's own choice; absent = follows the built-in default. */
+  userEnabled: z.boolean().optional(),
+  /** The listed project's own choice; absent = follows the user layer. */
+  projectEnabled: z.boolean().optional(),
   overriddenBy: promptSuggestionSourceKindSchema.optional(),
   predicateHash: z.string().min(1).optional(),
   stale: z.boolean().optional(),
@@ -121,10 +126,20 @@ export type UpdatePromptSuggestionTrustRequest = z.infer<
   typeof updatePromptSuggestionTrustRequestSchema
 >;
 
-export const updatePromptSuggestionEnabledRequestSchema = z.object({
-  definitionKey: z.string().min(1),
-  enabled: z.boolean(),
-});
+/**
+ * Sets one layer's choice; `enabled: null` clears it so the layer inherits
+ * (project from user, user from the built-in default). `scope` defaults to user.
+ */
+export const updatePromptSuggestionEnabledRequestSchema = z
+  .object({
+    definitionKey: z.string().min(1),
+    enabled: z.boolean().nullable(),
+    scope: z.enum(["user", "project"]).optional(),
+    projectId: z.string().startsWith("proj_").optional(),
+  })
+  .refine((value) => (value.scope === "project") === Boolean(value.projectId), {
+    message: "A project scope needs a projectId, and only it takes one.",
+  });
 export type UpdatePromptSuggestionEnabledRequest = z.infer<
   typeof updatePromptSuggestionEnabledRequestSchema
 >;
@@ -180,3 +195,23 @@ export const promptSuggestionWhenSchema = z.object({
   permissionRuleSets: z.array(z.string().min(1)).optional(),
 });
 export type PromptSuggestionWhen = z.infer<typeof promptSuggestionWhenSchema>;
+
+/** A project's enablement file (`.nerve/config/prompt-suggestions.json`); used only while its exact content is trusted. */
+export const promptSuggestionProjectFileSchema = z.object({
+  path: z.string().min(1),
+  /** Hex sha-256 of the reviewed bytes; absent while there is no file. */
+  digest: z.string().min(1).optional(),
+  status: z.enum(["missing", "trusted", "untrusted", "invalid"]),
+});
+export type PromptSuggestionProjectFile = z.infer<
+  typeof promptSuggestionProjectFileSchema
+>;
+
+export const updatePromptSuggestionProjectFileTrustRequestSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
+  expectedDigest: z.string().min(1),
+  trusted: z.boolean(),
+});
+export type UpdatePromptSuggestionProjectFileTrustRequest = z.infer<
+  typeof updatePromptSuggestionProjectFileTrustRequestSchema
+>;

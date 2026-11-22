@@ -372,8 +372,31 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     },
   );
   backgroundFetch.start();
+  const suggestionFileTrust = projectMigrationTrust(
+    () => coreStorage,
+    projectConfigurationTrustKinds,
+  );
   const promptSuggestionEnablement = new PromptSuggestionEnablementService(
     storage.paths.configPath,
+    {
+      isTrusted: (projectId, path, digest) =>
+        conversationCore.trust.isTrusted(
+          "project_capabilities",
+          projectId,
+          path,
+          digest,
+        ),
+      decide: ({ projectId, path, digest, trusted }) =>
+        conversationCore.trust.decide({
+          kind: "project_capabilities",
+          projectId,
+          name: "Prompt suggestion settings",
+          resourceKey: path,
+          contentDigest: digest,
+          status: trusted ? "trusted" : "rejected",
+        }),
+      capture: suggestionFileTrust.capture,
+    },
   );
   const promptSuggestions = new PromptSuggestionService({
     projectMigration,

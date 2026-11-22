@@ -79,7 +79,7 @@ export class PromptSuggestionService {
   ): Promise<PromptSuggestionListResponse> {
     const project = this.deps.getProject(projectId);
     const loaded = await this.discoverDefinitions(project);
-    const definitions = await this.applyEnablement(loaded.definitions);
+    const definitions = await this.applyEnablement(loaded.definitions, project);
     const effective = effectiveDefinitions(definitions);
     const trustRecords = this.deps.trustRepository.list(projectId);
     const git = await this.gitContext(projectId);
@@ -126,7 +126,7 @@ export class PromptSuggestionService {
   async listStatuses(projectId?: string): Promise<PromptSuggestionStatus[]> {
     const project = projectId ? this.deps.getProject(projectId) : undefined;
     const loaded = await this.discoverDefinitions(project);
-    const definitions = await this.applyEnablement(loaded.definitions);
+    const definitions = await this.applyEnablement(loaded.definitions, project);
     const trustRecords = this.deps.trustRepository.list(projectId);
     return mergeStatuses(
       statusesFor(definitions, trustRecords),
@@ -134,15 +134,48 @@ export class PromptSuggestionService {
     );
   }
 
+  /** The project's choices file and whether its exact content is trusted. */
+  async projectFile(projectId: string) {
+    const project = this.deps.getProject(projectId);
+    const { path, digest, status } =
+      await this.deps.enablementRepository.projectFile(project.id, project.dir);
+    return { path, digest, status };
+  }
+
+  /** Trusts or rejects the project's choices file, bound to the bytes the user reviewed. */
+  async decideProjectFile(request: {
+    projectId: string;
+    expectedDigest: string;
+    trusted: boolean;
+  }): Promise<boolean> {
+    const project = this.deps.getProject(request.projectId);
+    const saved = await this.deps.enablementRepository.decideProjectFile({
+      projectId: project.id,
+      projectDir: project.dir,
+      expectedDigest: request.expectedDigest,
+      trusted: request.trusted,
+    });
+    return saved;
+  }
+
   async updateEnabled(
     request: UpdatePromptSuggestionEnabledRequest,
   ): Promise<void> {
     const definition = await this.findDefinitionByKey(request.definitionKey);
     if (!definition) throw new Error("Prompt suggestion was not found.");
-    await this.deps.enablementRepository.set(
-      request.definitionKey,
-      request.enabled,
-    );
+    if (request.scope === "project") {
+      const project = this.deps.getProject(request.projectId!);
+      await this.deps.enablementRepository.setProject(
+        project.id,
+        project.dir,
+        request.definitionKey,
+        request.enabled,
+      );
+    } else
+      await this.deps.enablementRepository.set(
+        request.definitionKey,
+        request.enabled,
+      );
     await this.deps.events.publish(
       "prompt_suggestions.enabled_updated",
       request,
@@ -333,14 +366,31 @@ export class PromptSuggestionService {
     ).definitions;
   }
 
+  /** Effective enablement is project ?? user ?? default; absent layers inherit. */
   private async applyEnablement(
     definitions: PromptSuggestionDefinition[],
+    project?: SuggestionProject,
   ): Promise<PromptSuggestionDefinition[]> {
-    const overrides = await this.deps.enablementRepository.list();
-    return definitions.map((definition) => ({
-      ...definition,
-      enabled: overrides[definition.definitionKey] ?? definition.defaultEnabled,
-    }));
+    const user = await this.deps.enablementRepository.list();
+    const projectChoices = project
+      ? (
+          await this.deps.enablementRepository.projectFile(
+            project.id,
+            project.dir,
+          )
+        ).choices
+      : {};
+    return definitions.map((definition) => {
+      const key = definition.definitionKey;
+      const userEnabled = user[key];
+      const projectEnabled = project ? projectChoices[key] : undefined;
+      return {
+        ...definition,
+        userEnabled,
+        projectEnabled,
+        enabled: projectEnabled ?? userEnabled ?? definition.defaultEnabled,
+      };
+    });
   }
 
   private userSuggestionsDir(): string {

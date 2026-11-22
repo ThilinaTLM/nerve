@@ -71,8 +71,17 @@ export function summarizeWhen(
 
 export function suggestionStatusDetails(
   definition: PromptSuggestionDefinition,
-): Pick<PromptSuggestionStatus, "conditionSummary" | "promptPreview"> {
+): Pick<
+  PromptSuggestionStatus,
+  "conditionSummary" | "promptPreview" | "userEnabled" | "projectEnabled"
+> {
   return {
+    ...(definition.userEnabled !== undefined
+      ? { userEnabled: definition.userEnabled }
+      : {}),
+    ...(definition.projectEnabled !== undefined
+      ? { projectEnabled: definition.projectEnabled }
+      : {}),
     conditionSummary:
       definition.conditionSummary ??
       summarizeWhen(definition.when, Boolean(definition.enableJs)),

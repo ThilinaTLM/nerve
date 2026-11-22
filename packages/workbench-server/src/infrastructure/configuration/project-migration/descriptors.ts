@@ -29,6 +29,8 @@ export const projectConfigurationTrustKinds: Readonly<
 > = {
   "agent-profile": "agent_profile",
   "prompt-suggestion": "prompt_suggestion",
+  /** The project's suggestion enablement file; trusted by exact content like the other settings files. */
+  "prompt-suggestions": "project_capabilities",
   ...Object.fromEntries(
     projectConfigurationDescriptors.flatMap(({ type, trustKind }) =>
       trustKind ? [[type.id, trustKind]] : [],
