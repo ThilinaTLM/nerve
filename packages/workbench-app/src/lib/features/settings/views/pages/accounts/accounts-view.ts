@@ -29,6 +29,9 @@ export type AccountRowModel = {
   extension?: AccountExtension;
 };
 
+/** The Accounts page offers its search from this many accounts. */
+export const ACCOUNT_SEARCH_MIN = 12;
+
 const levelLabels: Record<AccountLevel, string> = {
   user: "User",
   project: "Project",
@@ -186,43 +189,3 @@ export type AccountSignIn = {
   supports: (kind: AccountKind) => boolean;
   start: (account: AccountView) => void | Promise<void>;
 };
-
-/**
- * The kinds to offer when adding an account while searching: those whose label, platform or
- * defining extension match the query; all of them when none does.
- */
-export function kindsToAdd(
-  kinds: readonly AccountKind[],
-  query: string,
-  extensionName: (kind: string) => string | undefined,
-): AccountKind[] {
-  const terms = words(query);
-  const matching = kinds.filter((kind) => {
-    const text = [
-      kind.label,
-      kind.kind,
-      kind.platform,
-      extensionName(kind.kind),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return terms.every((term) => text.includes(term));
-  });
-  return terms.length > 0 && matching.length > 0 ? matching : [...kinds];
-}
-
-/** The platforms an extension's page links to: those its definitions are for and those it uses. */
-export function platformsOfExtension(extension: {
-  accountKinds: readonly Pick<AccountKind, "platform">[];
-  uses?: readonly { platform: string }[] | undefined;
-}): string[] {
-  return [
-    ...new Set([
-      ...extension.accountKinds.flatMap((kind) =>
-        kind.platform ? [kind.platform] : [],
-      ),
-      ...(extension.uses ?? []).map((use) => use.platform),
-    ]),
-  ];
-}

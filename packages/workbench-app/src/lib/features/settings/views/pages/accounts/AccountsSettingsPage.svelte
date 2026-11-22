@@ -1,15 +1,15 @@
 <!--
-  Settings → Accounts: every account in one list, with a search, and the place
-  accounts are added, tested, moved, duplicated, signed in, cleared and
-  deleted. Lists user-level accounts and those of the open project. Extension
-  pages keep their account selectors and link here.
+  Settings → Accounts: an index of every account, grouped by level (the open
+  project first, then User), where accounts are tested, moved, duplicated,
+  signed in, cleared and deleted. Accounts are added and edited on the page of
+  the extension that uses them; opening a row goes there. A search appears
+  once there are many accounts.
 -->
 <script lang="ts">
 import Copy from "@lucide/svelte/icons/copy";
 import Ellipsis from "@lucide/svelte/icons/ellipsis";
 import KeyRound from "@lucide/svelte/icons/key-round";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import type { AccountKind } from "@nervekit/contracts/extensions";
 import type { ExtensionsView } from "@nervekit/contracts/extensions";
 import type { AccountLevel } from "@nervekit/contracts/settings";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
@@ -17,7 +17,7 @@ import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { Button, buttonVariants } from "@nervekit/ui-kit/components/ui/button";
+import { buttonVariants } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import type { AccountView } from "$lib/api";
 import { deleteAccount, testAccount } from "$lib/api";
@@ -27,6 +27,10 @@ import { requestWorkbench } from "$lib/application/startup/workbench-connection"
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import {
+  openProjectSettingsPane,
+  openSettingsPane,
+} from "$lib/application/settings";
+import {
   clearAccountCredentials,
   duplicateAccount,
   moveAccount,
@@ -35,25 +39,22 @@ import AccountHealthIcon from "$lib/presentation/integrations/AccountHealthIcon.
 import { accountHealthBadge } from "$lib/presentation/integrations/account-health";
 import {
   SettingsEmptyState,
+  OriginGroup,
   SettingsItem,
-  SettingsList,
   SettingsSection,
   SettingsToolbar,
 } from "$lib/presentation/settings";
-import AccountDialog from "../extensions/AccountDialog.svelte";
 import ExtensionMark from "../extensions/ExtensionMark.svelte";
 import { accountCanTest } from "../extensions/account-form";
-import AddAccountDialog from "./AddAccountDialog.svelte";
-import { accountsSearch } from "./accounts-page-state.svelte";
 import {
   accountProblem,
   accountRows,
   accountStateLabel,
   accountSummary,
   duplicateWarning,
-  kindsToAdd,
   searchAccountRows,
   levelChoices,
+  ACCOUNT_SEARCH_MIN,
   visibleAccounts,
   type AccountExtension,
   type AccountRowModel,
@@ -70,9 +71,7 @@ const projectId = $derived(selection.projectId);
 const project = $derived(
   workspaceState.projects.find((candidate) => candidate.id === projectId),
 );
-const projectInfo = $derived(
-  project ? { id: project.id, name: project.name } : undefined,
-);
+let query = $state("");
 
 // The extensions as the open project sees them: who defines each kind.
 let extensionsView = $state.raw<ExtensionsView>();
@@ -112,29 +111,23 @@ const rows = $derived(
     (kind) => extensionsByKind[kind],
   ),
 );
+const searchable = $derived(rows.length >= ACCOUNT_SEARCH_MIN);
 const shown = $derived(
-  searchAccountRows(rows, accountsSearch.query, project?.name),
+  searchAccountRows(rows, searchable ? query : "", project?.name),
 );
-const kindsOffered = $derived(
-  accountsState.kinds.filter((kind) => kind.kind in extensionsByKind),
-);
-// While searching, the kinds the search names are offered first.
-const kindsToChoose = $derived(
-  kindsToAdd(
-    kindsOffered,
-    accountsSearch.query,
-    (kind) => extensionsByKind[kind]?.name,
-  ),
+// Project accounts first, then User, as on the other lists.
+const groups = $derived(
+  (projectId ? (["project", "user"] as const) : (["user"] as const))
+    .map((level) => ({
+      level,
+      rows: shown.filter((row) => row.account.level === level),
+    }))
+    .filter((group) => group.rows.length > 0),
 );
 
 let error = $state<string | undefined>();
 let checking = $state<Record<string, boolean>>({});
 let checkErrors = $state<Record<string, string>>({});
-let editing = $state<AccountRowModel | undefined>();
-let editOpen = $state(false);
-let addChooserOpen = $state(false);
-let adding = $state<{ kind: AccountKind; projectId?: string } | undefined>();
-let addOpen = $state(false);
 let pendingDelete = $state<AccountView | undefined>();
 let pendingClear = $state<AccountView | undefined>();
 let pendingDuplicate = $state<
@@ -171,18 +164,13 @@ async function test(account: AccountView): Promise<void> {
   }
 }
 
-function openEdit(row: AccountRowModel): void {
-  if (!row.kind) return;
-  editing = row;
-  editOpen = true;
-}
-function startAdd(): void {
-  if (kindsOffered.length === 0) return;
-  addChooserOpen = true;
-}
-async function saved(account: AccountView, kind: AccountKind): Promise<void> {
-  await accountsState.load();
-  if (accountCanTest(kind, account)) await test(account);
+/** Opens the page of the extension that defines the account, where it is edited. */
+function openExtension(row: AccountRowModel): void {
+  if (!row.extension) return;
+  const options = { item: row.extension.id };
+  if (row.account.level === "project" && row.account.projectId)
+    void openProjectSettingsPane(row.account.projectId, "extensions", options);
+  else void openSettingsPane("extensions", options);
 }
 
 function duplicate(row: AccountRowModel, level: AccountLevel): void {
@@ -203,13 +191,6 @@ const runDuplicate = (row: AccountRowModel, level: AccountLevel) =>
 
 const levelName = (level: AccountLevel) =>
   level === "user" ? "user level" : (project?.name ?? "this project");
-
-/** Where the account lives; shown beside the row's actions so a problem line does not hide it. */
-function levelText(row: AccountRowModel): string {
-  return row.account.level === "project"
-    ? (project?.name ?? "Project")
-    : "User";
-}
 </script>
 
 <SettingsSection id="accounts" surface={false}>
@@ -217,37 +198,31 @@ function levelText(row: AccountRowModel): string {
     <Callout layout="block" tone="destructive" text={error} />
   {/if}
 
-  <SettingsToolbar>
-    {#snippet start()}
-      <SearchInput
-        bind:value={accountsSearch.query}
-        placeholder="Search accounts"
-        ariaLabel="Search accounts"
-        class="max-w-xs"
-      >
-        {#snippet trailing()}
-          <span class="flex-none text-ui text-muted-foreground"
-            >{shown.length} of {rows.length}</span
-          >
-        {/snippet}
-      </SearchInput>
-    {/snippet}
-    {#snippet end()}
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={kindsOffered.length === 0}
-        onclick={startAdd}>Add account</Button
-      >
-    {/snippet}
-  </SettingsToolbar>
+  {#if searchable}
+    <SettingsToolbar>
+      {#snippet start()}
+        <SearchInput
+          bind:value={query}
+          placeholder="Search accounts"
+          ariaLabel="Search accounts"
+          class="max-w-xs"
+        >
+          {#snippet trailing()}
+            <span class="flex-none text-ui text-muted-foreground"
+              >{shown.length} of {rows.length}</span
+            >
+          {/snippet}
+        </SearchInput>
+      {/snippet}
+    </SettingsToolbar>
+  {/if}
 
   {#if rows.length === 0}
     <SettingsEmptyState
       variant="card"
       icon={KeyRound}
       title="No accounts"
-      description="Add an account for an extension to sign in with."
+      description="Add an account from the page of the extension that uses it."
     />
   {:else if shown.length === 0}
     <SettingsEmptyState
@@ -256,11 +231,18 @@ function levelText(row: AccountRowModel): string {
       description="Try a different search term."
     />
   {:else}
-    <SettingsList ariaLabel="Accounts">
-      {#each shown as row (row.account.id)}
-        {@render accountRow(row)}
-      {/each}
-    </SettingsList>
+    {#each groups as group (group.level)}
+      <OriginGroup
+        origin={{ kind: group.level }}
+        count={group.rows.length}
+        projectName={project?.name}
+        layers={false}
+      >
+        {#each group.rows as row (row.account.id)}
+          {@render accountRow(row)}
+        {/each}
+      </OriginGroup>
+    {/each}
   {/if}
 </SettingsSection>
 
@@ -288,9 +270,6 @@ function levelText(row: AccountRowModel): string {
     {#if account.state === "needs_sign_in"}
       <Badge variant="warning">{accountStateLabel(account.state)}</Badge>
     {/if}
-  {/snippet}
-  {#snippet levelMeta()}
-    <span class="text-caption text-muted-foreground">{levelText(row)}</span>
   {/snippet}
   {#snippet rowActions()}
     {#if testable}
@@ -348,7 +327,9 @@ function levelText(row: AccountRowModel): string {
   {/snippet}
   <SettingsItem
     title={account.name}
-    summary={accountSummary(row)}
+    summary={[row.extension?.name, accountSummary(row)]
+      .filter(Boolean)
+      .join(" · ") || undefined}
     problem={problem ??
       (checkErrors[account.id]
         ? "Couldn’t test the connection"
@@ -357,50 +338,16 @@ function levelText(row: AccountRowModel): string {
           : undefined)}
     problemAction={account.state === "needs_sign_in" && canSignIn
       ? { label: "Sign in", onclick: () => void signIn?.start(account) }
-      : row.kind
-        ? checkErrors[account.id]
-          ? { label: "Retry", onclick: () => void test(account) }
-          : { label: "Edit", onclick: () => openEdit(row) }
+      : row.kind && (checkErrors[account.id] || account.state === "failed")
+        ? { label: "Retry", onclick: () => void test(account) }
         : undefined}
-    onOpen={row.kind ? () => openEdit(row) : undefined}
-    openLabel={`Edit ${account.name}`}
+    onOpen={row.extension ? () => openExtension(row) : undefined}
+    openLabel={`Open ${row.extension?.name ?? account.name}`}
     leading={mark}
     {badges}
-    meta={levelMeta}
     actions={rowActions}
   ></SettingsItem>
 {/snippet}
-
-<AddAccountDialog
-  bind:open={addChooserOpen}
-  kinds={kindsToChoose}
-  extensionName={(kind) => extensionsByKind[kind]?.name}
-  project={projectInfo}
-  projectOnly={(kind) => extensionsByKind[kind]?.projectOnly === true}
-  onChoose={(kind, chosenProject) => {
-    adding = {
-      kind,
-      ...(chosenProject ? { projectId: chosenProject } : {}),
-    };
-    addOpen = true;
-  }}
-/>
-{#if adding}
-  <AccountDialog
-    bind:open={addOpen}
-    kind={adding.kind}
-    projectId={adding.projectId}
-    onSaved={(account) => void saved(account, adding!.kind)}
-  />
-{/if}
-{#if editing?.kind}
-  <AccountDialog
-    bind:open={editOpen}
-    kind={editing.kind}
-    account={editing.account}
-    onSaved={(account) => void saved(account, editing!.kind!)}
-  />
-{/if}
 
 <ConfirmDialog
   open={!!pendingDelete}

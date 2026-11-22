@@ -17,6 +17,16 @@ export class AccountSignInFlow extends OAuthFlowSession {
     );
   }
 
+  /** The prompt needs the user's answer sent with Submit. */
+  get needsSubmit(): boolean {
+    const interaction =
+      this.flow?.state === "active" ? this.flow.interaction : undefined;
+    return (
+      interaction?.type === "text_input" ||
+      (interaction?.type === "browser" && interaction.manualEntry !== undefined)
+    );
+  }
+
   /** Closing cancels a flow that still waits for the user. */
   async close(): Promise<void> {
     this.open = false;
