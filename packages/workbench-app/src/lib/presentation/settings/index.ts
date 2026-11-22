@@ -1,6 +1,5 @@
 export { default as SettingsShell } from "./SettingsShell.svelte";
 export { default as SettingsChangeIndicator } from "./SettingsChangeIndicator.svelte";
-export { default as EntityCard } from "./EntityCard.svelte";
 export { default as EntityRow } from "./EntityRow.svelte";
 export { default as SettingsSidebarStatus } from "./SettingsSidebarStatus.svelte";
 
@@ -23,6 +22,13 @@ export type {
   SettingsNavBadge,
   SettingsNavGroup,
   SettingsNavItem,
-  SettingsScopeHeader,
   SettingsPageDef,
 } from "./settings-component-contracts";
+export { default as OriginGroup } from "./OriginGroup.svelte";
+export { default as ColumnLabels } from "./ColumnLabels.svelte";
+export { default as SplitColumns } from "./SplitColumns.svelte";
+export { default as LayerSwitches } from "./LayerSwitches.svelte";
+export { default as LayerRow } from "./LayerRow.svelte";
+export { default as LevelMenu } from "./LevelMenu.svelte";
+export { default as TipBadge } from "./TipBadge.svelte";
+export type { SettingsLayer, SettingsOrigin } from "./settings-origin";

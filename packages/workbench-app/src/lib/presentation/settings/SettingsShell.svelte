@@ -13,15 +13,12 @@ import {
 import type {
   SettingsNavGroup,
   SettingsPageDef,
-  SettingsScopeHeader,
 } from "./settings-component-contracts";
 
 type Props = {
   /** Page headers and content; the nav lists them through `groups`. */
   pages: SettingsPageDef[];
   groups: SettingsNavGroup[];
-  /** Identity block above the nav: "User settings", or a project name. */
-  scopeHeader?: SettingsScopeHeader;
   activePageId?: string;
   activeSectionId?: string;
   /** Open detail item of the active page; "" shows the page's list. */
@@ -43,7 +40,6 @@ type Props = {
 let {
   pages,
   groups,
-  scopeHeader,
   activePageId = $bindable(pages[0]?.id ?? ""),
   activeSectionId = $bindable(firstEnabledSectionId(pages[0])),
   activeItemId = $bindable(""),
@@ -200,7 +196,6 @@ function selectPage(id: string): void {
     >
       <SettingsNav
         {groups}
-        header={scopeHeader}
         {ariaLabel}
         activeId={activePageId}
         onSelect={selectPage}
