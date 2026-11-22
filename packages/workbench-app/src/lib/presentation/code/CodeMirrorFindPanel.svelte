@@ -8,7 +8,13 @@ import Replace from "@lucide/svelte/icons/replace";
 import ReplaceAll from "@lucide/svelte/icons/replace-all";
 import WholeWord from "@lucide/svelte/icons/whole-word";
 import X from "@lucide/svelte/icons/x";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+import {
+  FloatingPanel,
+  FloatingToolbarButton,
+  FloatingToolbarText,
+  rowIn,
+  rowOut,
+} from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { tick } from "svelte";
 
@@ -58,7 +64,6 @@ let {
   onReplaceAll?: () => void;
 } = $props();
 
-let panel: HTMLFormElement | null = $state(null);
 let input: HTMLInputElement | null = $state(null);
 const showReplace = $derived(canReplace && replaceOpen);
 const canSearch = $derived(Boolean(query) && valid);
@@ -83,64 +88,35 @@ function handleFieldKeydown(event: KeyboardEvent, field: "find" | "replace") {
   } else if (event.shiftKey) onPrevious();
   else onNext();
 }
-
-function handleKeydown(event: KeyboardEvent) {
-  if (
-    !panel ||
-    !(event.target instanceof Node) ||
-    !panel.contains(event.target)
-  )
-    return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    onClose();
-  }
-}
 </script>
-
-<svelte:window onkeydown={handleKeydown} />
 
 {#snippet option(
   label: string,
   pressed: boolean,
   onToggle: (value: boolean) => void,
-  Icon: typeof CaseSensitive,
+  icon: typeof CaseSensitive,
 )}
-  <Button
-    variant="ghost"
-    size="icon-sm"
+  <FloatingToolbarButton
+    {label}
+    {icon}
     {pressed}
-    active={pressed}
-    ariaLabel={label}
-    title={label}
     onclick={() => onToggle(!pressed)}
-  >
-    <Icon class="size-3.5" />
-  </Button>
+  />
 {/snippet}
 
-<form
-  bind:this={panel}
-  class="floating-surface absolute top-2 right-3 left-3 z-10 grid gap-1 p-1 sm:left-auto sm:w-112"
+<FloatingPanel
+  label={canReplace ? "Find and replace" : "Find in file"}
   role="search"
-  aria-label={canReplace ? "Find and replace" : "Find in file"}
-  onsubmit={(event) => event.preventDefault()}
+  size="lg"
+  {onClose}
 >
   <div class="flex min-w-0 items-center gap-1">
     {#if canReplace}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel={showReplace ? "Hide replace" : "Show replace"}
-        title={showReplace ? "Hide replace" : "Show replace"}
+      <FloatingToolbarButton
+        label={showReplace ? "Hide replace" : "Show replace"}
+        icon={showReplace ? ChevronDown : ChevronRight}
         onclick={() => onReplaceOpenChange?.(!replaceOpen)}
-      >
-        {#if showReplace}
-          <ChevronDown class="size-3.5" />
-        {:else}
-          <ChevronRight class="size-3.5" />
-        {/if}
-      </Button>
+      />
     {/if}
     <div class="relative min-w-0 flex-1">
       <Input
@@ -181,44 +157,36 @@ function handleKeydown(event: KeyboardEvent) {
         )}
       </div>
     </div>
-    <span
-      class={`w-20 shrink-0 truncate text-center text-ui tabular-nums ${valid && !noMatches ? "text-muted-foreground" : "text-destructive"}`}
-      aria-live="polite"
+    <FloatingToolbarText
+      class="w-20 justify-center"
+      tone={valid && !noMatches ? "muted" : "destructive"}
+      live
     >
       {valid ? (query ? status : "") : "Invalid regex"}
-    </span>
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      ariaLabel="Previous match"
-      title="Previous match (Shift+Enter)"
+    </FloatingToolbarText>
+    <FloatingToolbarButton
+      label="Previous match"
+      icon={ChevronUp}
+      shortcut="Shift+Enter"
       disabled={!canSearch}
       onclick={onPrevious}
-    >
-      <ChevronUp class="size-3.5" />
-    </Button>
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      ariaLabel="Next match"
-      title="Next match (Enter)"
+    />
+    <FloatingToolbarButton
+      label="Next match"
+      icon={ChevronDown}
+      shortcut="Enter"
       disabled={!canSearch}
       onclick={onNext}
-    >
-      <ChevronDown class="size-3.5" />
-    </Button>
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      ariaLabel="Close find"
-      title="Close (Escape)"
+    />
+    <FloatingToolbarButton
+      label="Close"
+      icon={X}
+      shortcut="Esc"
       onclick={onClose}
-    >
-      <X class="size-3.5" />
-    </Button>
+    />
   </div>
   {#if showReplace}
-    <div class="flex min-w-0 items-center gap-1">
+    <div class="flex min-w-0 items-center gap-1" in:rowIn out:rowOut>
       <span class="size-control-sm shrink-0" aria-hidden="true"></span>
       <Input
         class="min-w-0 flex-1 font-mono placeholder:font-sans"
@@ -230,28 +198,22 @@ function handleKeydown(event: KeyboardEvent) {
         oninput={(event) => onReplacementChange?.(event.currentTarget.value)}
         onkeydown={(event) => handleFieldKeydown(event, "replace")}
       />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel="Replace"
-        title="Replace (Enter)"
+      <FloatingToolbarButton
+        label="Replace"
+        icon={Replace}
+        shortcut="Enter"
         disabled={!canSearch}
         onclick={onReplace}
-      >
-        <Replace class="size-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel="Replace all"
-        title="Replace all (Alt+Enter)"
+      />
+      <FloatingToolbarButton
+        label="Replace all"
+        icon={ReplaceAll}
+        shortcut="Alt+Enter"
         disabled={!canSearch}
         onclick={onReplaceAll}
-      >
-        <ReplaceAll class="size-3.5" />
-      </Button>
+      />
       <!-- Aligns the replace actions with prev/next above. -->
       <span class="size-control-sm shrink-0" aria-hidden="true"></span>
     </div>
   {/if}
-</form>
+</FloatingPanel>

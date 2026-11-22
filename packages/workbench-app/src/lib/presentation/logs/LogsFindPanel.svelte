@@ -1,7 +1,11 @@
 <script lang="ts">
 import { tick } from "svelte";
 import X from "@lucide/svelte/icons/x";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+import {
+  FloatingPanel,
+  FloatingToolbarButton,
+  FloatingToolbarText,
+} from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 
 type Props = {
@@ -32,11 +36,7 @@ $effect(() => {
 });
 </script>
 
-<div
-  class="floating-surface absolute top-3 right-3 left-3 z-20 grid gap-1 p-1 sm:left-auto sm:w-96"
-  role="search"
-  aria-label="Find in logs"
->
+<FloatingPanel label="Find in logs" role="search" {onClose}>
   <SearchInput
     bind:ref={input}
     value={contains}
@@ -48,24 +48,18 @@ $effect(() => {
   />
 
   <div class="flex min-w-0 items-center justify-between gap-2">
-    <span
-      class="min-w-0 truncate px-1 text-ui tabular-nums text-muted-foreground"
-      aria-live="polite"
-    >
+    <FloatingToolbarText live>
       {loading
         ? "Searching…"
         : contains.trim()
           ? `${rowCount} matching`
           : `${rowCount} loaded`}
-    </span>
-    <Button
-      size="icon-sm"
-      variant="ghost"
-      ariaLabel="Close find"
-      title="Close find"
+    </FloatingToolbarText>
+    <FloatingToolbarButton
+      label="Close find"
+      icon={X}
+      shortcut="Esc"
       onclick={onClose}
-    >
-      <X class="size-3.5" aria-hidden="true" />
-    </Button>
+    />
   </div>
-</div>
+</FloatingPanel>

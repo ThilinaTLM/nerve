@@ -10,8 +10,13 @@ import Mouse from "@lucide/svelte/icons/mouse";
 import Scan from "@lucide/svelte/icons/scan";
 import ZoomIn from "@lucide/svelte/icons/zoom-in";
 import ZoomOut from "@lucide/svelte/icons/zoom-out";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { FloatingToolbar } from "@nervekit/ui-kit/components/composites/floating-toolbar";
+import {
+  FloatingLayer,
+  FloatingToolbar,
+  FloatingToolbarButton,
+  FloatingToolbarGroup,
+  FloatingToolbarText,
+} from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import {
   centeredTransform,
   fitTransform,
@@ -36,7 +41,7 @@ type Props = {
   defaultWheelZoomEnabled?: boolean;
   /** Offers a transparency checkerboard toggle (raster images, SVG). */
   transparencyToggle?: boolean;
-  /** Short muted text in the toolbar, e.g. pixel dimensions. */
+  /** Short readout in the top-start corner, e.g. pixel dimensions. */
   info?: string;
   copyLabel?: string;
   onCopy?: () => void;
@@ -44,8 +49,8 @@ type Props = {
   onDownload?: () => void;
   openLabel?: string;
   onOpenStandalone?: () => void;
-  /** Extra leading toolbar controls. */
-  toolbarStart?: Snippet;
+  /** `FloatingNotice`s in the bottom-start corner (unsaved changes, truncated source). */
+  notices?: Snippet;
   /** Loading or error states drawn over the viewport. */
   overlay?: Snippet;
   /** The content, rendered at its natural size. */
@@ -69,7 +74,7 @@ let {
   onDownload,
   openLabel = "Open in tab",
   onOpenStandalone,
-  toolbarStart,
+  notices,
   overlay,
   children,
 }: Props = $props();
@@ -84,6 +89,11 @@ let fullscreen = $state(false);
 let dragging = $state(false);
 let activePointerId: number | undefined;
 let dragStart = { x: 0, y: 0, offsetX: 0, offsetY: 0 };
+// The zoom level shows in a pill beside the zoom bar while the user zooms
+// (and briefly after), and while the bar is hovered or focused.
+let zoomChanging = $state(false);
+let zoomControlsActive = $state(false);
+let zoomChangingTimer: ReturnType<typeof setTimeout> | undefined;
 
 const hasContent = $derived(ready && contentWidth > 0 && contentHeight > 0);
 const transform = $derived(
@@ -104,6 +114,17 @@ function content() {
   return { width: contentWidth, height: contentHeight };
 }
 
+function announceZoom(): void {
+  zoomChanging = true;
+  clearTimeout(zoomChangingTimer);
+  zoomChangingTimer = setTimeout(() => (zoomChanging = false), 1200);
+}
+
+function userFit(): void {
+  fit();
+  announceZoom();
+}
+
 export function fit(): void {
   if (!viewport || !hasContent) return;
   view = fitTransform(viewportSize(), content(), fitPadding, maxFitScale);
@@ -114,6 +135,7 @@ export function actualSize(): void {
   if (!viewport || !hasContent) return;
   view = centeredTransform(viewportSize(), content(), 1);
   automaticFit = false;
+  announceZoom();
 }
 
 function zoomAt(nextScale: number, clientX?: number, clientY?: number): void {
@@ -124,6 +146,7 @@ function zoomAt(nextScale: number, clientX?: number, clientY?: number): void {
     y: clientY === undefined ? bounds.height / 2 : clientY - bounds.top,
   });
   automaticFit = false;
+  announceZoom();
 }
 
 function handleWheel(event: WheelEvent): void {
@@ -170,7 +193,7 @@ function endPan(event: PointerEvent): void {
 
 function toggleFitActual(): void {
   if (automaticFit) actualSize();
-  else fit();
+  else userFit();
 }
 
 async function toggleFullscreen(): Promise<void> {
@@ -185,7 +208,7 @@ function handleKeydown(event: KeyboardEvent): void {
     "+": () => zoomAt(view.scale * ZOOM_STEP),
     "=": () => zoomAt(view.scale * ZOOM_STEP),
     "-": () => zoomAt(view.scale / ZOOM_STEP),
-    "0": fit,
+    "0": userFit,
     "1": actualSize,
     f: () => void toggleFullscreen(),
   };
@@ -219,6 +242,8 @@ $effect(() => {
   document.addEventListener("fullscreenchange", update);
   return () => document.removeEventListener("fullscreenchange", update);
 });
+
+$effect(() => () => clearTimeout(zoomChangingTimer));
 </script>
 
 <!-- Keyboard zoom shortcuts apply while focus is anywhere in the view. -->
@@ -254,128 +279,120 @@ $effect(() => {
   {@render overlay?.()}
 
   {#if hasContent}
-    <FloatingToolbar label={`${ariaLabel} controls`} isolatePointer>
-      {@render toolbarStart?.()}
-      {#if info}
-        <span class="px-1.5 text-ui text-muted-foreground tabular-nums"
-          >{info}</span
-        >
-      {/if}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        pressed={wheelZoomEnabled}
-        active={wheelZoomEnabled}
-        ariaLabel={wheelZoomEnabled
-          ? "Disable mouse wheel zoom"
-          : "Enable mouse wheel zoom; hold Control for temporary zoom"}
-        title={wheelZoomEnabled
-          ? "Disable mouse wheel zoom"
-          : "Enable mouse wheel zoom (Ctrl+wheel temporarily)"}
-        onclick={() => (wheelZoomEnabled = !wheelZoomEnabled)}
-      >
-        <Mouse class="size-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel="Zoom out"
-        title="Zoom out (−)"
-        disabled={view.scale <= MIN_SCALE}
-        onclick={() => zoomAt(view.scale / ZOOM_STEP)}
-      >
-        <ZoomOut class="size-3" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        class="min-w-12 tabular-nums"
-        ariaLabel={`Zoom ${zoomLabel}; show actual size`}
-        title="Actual size (1)"
-        onclick={actualSize}
-      >
-        {zoomLabel}
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel="Zoom in"
-        title="Zoom in (+)"
-        disabled={view.scale >= MAX_SCALE}
-        onclick={() => zoomAt(view.scale * ZOOM_STEP)}
-      >
-        <ZoomIn class="size-3" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel="Fit to view"
-        title="Fit to view (0)"
-        pressed={automaticFit}
-        onclick={fit}
-      >
-        <Scan class="size-3" />
-      </Button>
-      <span class="mx-0.5 h-4 w-px bg-border" aria-hidden="true"></span>
-      {#if transparencyToggle}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          pressed={checkerboard}
-          active={checkerboard}
-          ariaLabel="Show transparency"
-          title="Show transparency"
-          onclick={() => (checkerboard = !checkerboard)}
-        >
-          <Grid2x2 class="size-3" />
-        </Button>
-      {/if}
-      {#if onCopy}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          ariaLabel={copyLabel}
-          title={copyLabel}
-          onclick={onCopy}
-        >
-          <Copy class="size-3" />
-        </Button>
-      {/if}
-      {#if onDownload}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          ariaLabel={downloadLabel}
-          title={downloadLabel}
-          onclick={onDownload}
-        >
-          <Download class="size-3" />
-        </Button>
-      {/if}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel={fullscreen ? "Exit full screen" : "Full screen"}
-        title={fullscreen ? "Exit full screen (F)" : "Full screen (F)"}
-        onclick={() => void toggleFullscreen()}
-      >
-        {#if fullscreen}
-          <Minimize2 class="size-3" />
-        {:else}
-          <Maximize2 class="size-3" />
-        {/if}
-      </Button>
-      {#if onOpenStandalone}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          ariaLabel={openLabel}
-          title={openLabel}
-          onclick={onOpenStandalone}
-        >
-          <ExternalLink class="size-3" />
-        </Button>
-      {/if}
-    </FloatingToolbar>
+    <FloatingLayer {topStart} {topEnd} {bottomStart} {bottomEnd} />
   {/if}
 </div>
+
+<!-- Canvas layout shared by every pan/zoom view: what it is (top start),
+     what you can do with it (top end), where you are on it (bottom end),
+     notices (bottom start). -->
+{#snippet topStart()}
+  {#if info}
+    <FloatingToolbar label={`${ariaLabel} details`}>
+      <FloatingToolbarGroup collapse>
+        <FloatingToolbarText>{info}</FloatingToolbarText>
+      </FloatingToolbarGroup>
+    </FloatingToolbar>
+  {/if}
+{/snippet}
+
+{#snippet topEnd()}
+  <FloatingToolbar label={`${ariaLabel} actions`}>
+    {#if transparencyToggle}
+      <FloatingToolbarGroup>
+        <FloatingToolbarButton
+          label="Show transparency"
+          icon={Grid2x2}
+          pressed={checkerboard}
+          onclick={() => (checkerboard = !checkerboard)}
+        />
+      </FloatingToolbarGroup>
+    {/if}
+    <FloatingToolbarGroup>
+      {#if onCopy}
+        <FloatingToolbarButton label={copyLabel} icon={Copy} onclick={onCopy} />
+      {/if}
+      {#if onDownload}
+        <FloatingToolbarButton
+          label={downloadLabel}
+          icon={Download}
+          onclick={onDownload}
+        />
+      {/if}
+      <FloatingToolbarButton
+        label={fullscreen ? "Exit full screen" : "Full screen"}
+        shortcut="F"
+        icon={fullscreen ? Minimize2 : Maximize2}
+        onclick={() => void toggleFullscreen()}
+      />
+      {#if onOpenStandalone}
+        <FloatingToolbarButton
+          label={openLabel}
+          icon={ExternalLink}
+          onclick={onOpenStandalone}
+        />
+      {/if}
+    </FloatingToolbarGroup>
+  </FloatingToolbar>
+{/snippet}
+
+{#snippet bottomStart()}
+  {@render notices?.()}
+{/snippet}
+
+{#snippet bottomEnd()}
+  <!-- The zoom level sits in its own pill so a changing value never resizes
+       the icon-only bar; the pill resets to actual size. -->
+  <div
+    class="flex items-start gap-1.5"
+    role="presentation"
+    onpointerenter={() => (zoomControlsActive = true)}
+    onpointerleave={() => (zoomControlsActive = false)}
+    onfocusin={() => (zoomControlsActive = true)}
+    onfocusout={() => (zoomControlsActive = false)}
+  >
+    {#if zoomChanging || zoomControlsActive}
+      <FloatingToolbar label="Zoom level">
+        <FloatingToolbarButton
+          label="Actual size"
+          shortcut="1"
+          text={zoomLabel}
+          onclick={actualSize}
+        />
+      </FloatingToolbar>
+    {/if}
+    <FloatingToolbar label="Zoom" orientation="vertical">
+      <FloatingToolbarGroup>
+        <FloatingToolbarButton
+          label="Zoom in"
+          shortcut="+"
+          icon={ZoomIn}
+          disabled={view.scale >= MAX_SCALE}
+          onclick={() => zoomAt(view.scale * ZOOM_STEP)}
+        />
+        <FloatingToolbarButton
+          label="Zoom out"
+          shortcut="-"
+          icon={ZoomOut}
+          disabled={view.scale <= MIN_SCALE}
+          onclick={() => zoomAt(view.scale / ZOOM_STEP)}
+        />
+      </FloatingToolbarGroup>
+      <FloatingToolbarGroup>
+        <FloatingToolbarButton
+          label="Fit to view"
+          shortcut="0"
+          icon={Scan}
+          pressed={automaticFit}
+          onclick={userFit}
+        />
+        <FloatingToolbarButton
+          label="Mouse wheel zoom (Ctrl+wheel always zooms)"
+          icon={Mouse}
+          pressed={wheelZoomEnabled}
+          onclick={() => (wheelZoomEnabled = !wheelZoomEnabled)}
+        />
+      </FloatingToolbarGroup>
+    </FloatingToolbar>
+  </div>
+{/snippet}

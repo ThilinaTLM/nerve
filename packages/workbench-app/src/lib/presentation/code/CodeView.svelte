@@ -12,6 +12,7 @@ import { Decoration, EditorView, keymap } from "@codemirror/view";
 import { writeClipboardText } from "@nervekit/ui-kit/browser/clipboard";
 import ContextMenuList from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { onDestroy, onMount, type Snippet, untrack } from "svelte";
+import { FloatingLayer } from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import CodeGoToLinePanel from "./CodeGoToLinePanel.svelte";
 import CodeMirrorFindPanel from "./CodeMirrorFindPanel.svelte";
 import CodeStatusBar from "./CodeStatusBar.svelte";
@@ -643,39 +644,43 @@ onDestroy(() => {
         oncontextmenu={captureContext}
       ></div>
     </ContextMenuList>
-    {#if find.open}
-      <CodeMirrorFindPanel
-        query={find.query}
-        caseSensitive={find.caseSensitive}
-        wholeWord={find.wholeWord}
-        regexp={find.regexp}
-        status={find.status}
-        valid={find.valid}
-        focusRequest={find.focusRequest}
-        canReplace={canEdit}
-        replaceOpen={find.replaceOpen}
-        replacement={find.replacement}
-        onQueryChange={(value) => find.setQuery(value)}
-        onCaseSensitiveChange={(value) => find.setOption("case", value)}
-        onWholeWordChange={(value) => find.setOption("word", value)}
-        onRegexpChange={(value) => find.setOption("regexp", value)}
-        onPrevious={() => find.previous()}
-        onNext={() => find.next()}
-        onClose={() => find.close()}
-        onReplaceOpenChange={(open) => (find.replaceOpen = open)}
-        onReplacementChange={(value) => find.setReplacement(value)}
-        onReplace={() => find.replaceNext()}
-        onReplaceAll={() => find.replaceAll()}
-      />
-    {:else if goToLineOpen && view}
-      <CodeGoToLinePanel
-        currentLine={cursor.line}
-        firstLine={lineStart}
-        lastLine={lineStart + view.state.doc.lines - 1}
-        onGo={goToLine}
-        onClose={closeGoToLine}
-      />
-    {/if}
+    <FloatingLayer>
+      {#snippet topEnd()}
+        {#if find.open}
+          <CodeMirrorFindPanel
+            query={find.query}
+            caseSensitive={find.caseSensitive}
+            wholeWord={find.wholeWord}
+            regexp={find.regexp}
+            status={find.status}
+            valid={find.valid}
+            focusRequest={find.focusRequest}
+            canReplace={canEdit}
+            replaceOpen={find.replaceOpen}
+            replacement={find.replacement}
+            onQueryChange={(value) => find.setQuery(value)}
+            onCaseSensitiveChange={(value) => find.setOption("case", value)}
+            onWholeWordChange={(value) => find.setOption("word", value)}
+            onRegexpChange={(value) => find.setOption("regexp", value)}
+            onPrevious={() => find.previous()}
+            onNext={() => find.next()}
+            onClose={() => find.close()}
+            onReplaceOpenChange={(open) => (find.replaceOpen = open)}
+            onReplacementChange={(value) => find.setReplacement(value)}
+            onReplace={() => find.replaceNext()}
+            onReplaceAll={() => find.replaceAll()}
+          />
+        {:else if goToLineOpen && view}
+          <CodeGoToLinePanel
+            currentLine={cursor.line}
+            firstLine={lineStart}
+            lastLine={lineStart + view.state.doc.lines - 1}
+            onGo={goToLine}
+            onClose={closeGoToLine}
+          />
+        {/if}
+      {/snippet}
+    </FloatingLayer>
   </div>
   {#if statusBar}
     <CodeStatusBar

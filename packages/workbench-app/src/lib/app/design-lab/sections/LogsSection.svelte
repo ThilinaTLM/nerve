@@ -2,7 +2,8 @@
 import type { ApplicationLogRecord } from "@nervekit/contracts/logs";
 import LogRow from "$lib/presentation/logs/LogRow.svelte";
 import LogStream from "$lib/presentation/logs/LogStream.svelte";
-import LogsFloatingToolbar from "$lib/presentation/logs/LogsFloatingToolbar.svelte";
+import LogsFindPanel from "$lib/presentation/logs/LogsFindPanel.svelte";
+import { FloatingLayer } from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import LogsPane from "$lib/presentation/logs/LogsPane.svelte";
 import type {
   LogsLevelFilter,
@@ -228,36 +229,44 @@ const streamLines: LogStreamLine[] = [
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="LogsFloatingToolbar"
-      source="presentation/logs/LogsFloatingToolbar"
+      title="LogsFindPanel"
+      source="presentation/logs/LogsFindPanel"
       usage="1 file · logs"
-      description="Find bar pinned to the top of the pane: idle and loading with an active query."
+      description="Find panel floating at the top end of the pane: idle and loading with an active query."
       layout="bare"
     >
       <div class="grid max-w-200 gap-3">
         <div
-          class="relative h-24 overflow-hidden rounded-md border bg-background"
+          class="relative h-32 overflow-hidden rounded-md border bg-background"
         >
-          <LogsFloatingToolbar
-            contains={findText}
-            rowCount={sampleLogs.length}
-            loading={false}
-            focusRequest={0}
-            onContainsChange={(value) => (findText = value)}
-            onClose={noop}
-          />
+          <FloatingLayer>
+            {#snippet topEnd()}
+              <LogsFindPanel
+                contains={findText}
+                rowCount={sampleLogs.length}
+                loading={false}
+                focusRequest={0}
+                onContainsChange={(value) => (findText = value)}
+                onClose={noop}
+              />
+            {/snippet}
+          </FloatingLayer>
         </div>
         <div
-          class="relative h-24 overflow-hidden rounded-md border bg-background"
+          class="relative h-32 overflow-hidden rounded-md border bg-background"
         >
-          <LogsFloatingToolbar
-            contains="timeout"
-            rowCount={0}
-            loading
-            focusRequest={0}
-            onContainsChange={noop}
-            onClose={noop}
-          />
+          <FloatingLayer>
+            {#snippet topEnd()}
+              <LogsFindPanel
+                contains="timeout"
+                rowCount={0}
+                loading
+                focusRequest={0}
+                onContainsChange={noop}
+                onClose={noop}
+              />
+            {/snippet}
+          </FloatingLayer>
         </div>
       </div>
     </GallerySpecimen>

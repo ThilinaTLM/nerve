@@ -10,6 +10,7 @@ import Trash2 from "@lucide/svelte/icons/trash-2";
 import { SvelteSet } from "svelte/reactivity";
 import type { ApplicationLogRecord } from "@nervekit/contracts/logs";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { FloatingLayer } from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
@@ -18,7 +19,7 @@ import {
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/composites/virtual-list";
 import LogRow from "./LogRow.svelte";
-import LogsFloatingToolbar from "./LogsFloatingToolbar.svelte";
+import LogsFindPanel from "./LogsFindPanel.svelte";
 import type {
   LogsLevelFilter,
   LogsPaneActions,
@@ -164,29 +165,30 @@ $effect(() => {
       role="log"
       aria-label="Application logs"
     >
-      {#if toolbarVisible}
-        <LogsFloatingToolbar
-          contains={model.contains}
-          rowCount={model.rows.length}
-          loading={model.loading}
-          focusRequest={findFocusRequest}
-          onContainsChange={actions.onContainsChange}
-          onClose={() => (toolbarVisible = false)}
-        />
-      {/if}
-
-      {#if model.error}
-        <div
-          class={`pointer-events-none absolute inset-x-3 z-20 flex justify-center ${toolbarVisible ? "top-20" : "top-3"}`}
-        >
-          <div
-            class="pointer-events-auto max-w-2xl rounded-md border border-destructive-strong bg-background px-2.5 py-2 text-ui text-destructive shadow-sm"
-            role="alert"
-          >
-            {model.error}
-          </div>
-        </div>
-      {/if}
+      <FloatingLayer>
+        {#snippet topStart()}
+          {#if model.error}
+            <div
+              class="pointer-events-auto max-w-2xl rounded-md border border-destructive-strong bg-background px-2.5 py-2 text-ui text-destructive shadow-sm"
+              role="alert"
+            >
+              {model.error}
+            </div>
+          {/if}
+        {/snippet}
+        {#snippet topEnd()}
+          {#if toolbarVisible}
+            <LogsFindPanel
+              contains={model.contains}
+              rowCount={model.rows.length}
+              loading={model.loading}
+              focusRequest={findFocusRequest}
+              onContainsChange={actions.onContainsChange}
+              onClose={() => (toolbarVisible = false)}
+            />
+          {/if}
+        {/snippet}
+      </FloatingLayer>
 
       <VirtualScroller
         bind:controller={virtualController}

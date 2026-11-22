@@ -4,6 +4,7 @@ import FileText from "@lucide/svelte/icons/file-text";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import ImageViewer from "@nervekit/ui-kit/renderers/media/ImageViewer.svelte";
+import { FloatingNotice } from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import { isRenderedContentEmpty } from "@nervekit/ui-kit/display/file-display";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Code from "@lucide/svelte/icons/code";
@@ -146,23 +147,19 @@ const showMermaidPreview = $derived(
       {/if}
     </div>
   {:else if svgPreviewSrc && file?.type === "text" && resolved}
-    <div class="flex min-h-0 min-w-0 flex-col">
-      <ImageViewer
-        class="min-h-0 flex-1"
-        src={svgPreviewSrc}
-        alt={`SVG preview: ${resolved.filePath}`}
-        fileName={file.name}
-        mimeType="image/svg+xml"
-        onCopy={(ok) => notifyCopyResult(ok, "SVG markup")}
-      />
-      {#if view?.dirty}
-        <p
-          class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
-        >
-          Previewing unsaved changes.
-        </p>
-      {/if}
-    </div>
+    <ImageViewer
+      src={svgPreviewSrc}
+      alt={`SVG preview: ${resolved.filePath}`}
+      fileName={file.name}
+      mimeType="image/svg+xml"
+      onCopy={(ok) => notifyCopyResult(ok, "SVG markup")}
+    >
+      {#snippet notices()}
+        {#if view?.dirty}
+          <FloatingNotice>Previewing unsaved changes.</FloatingNotice>
+        {/if}
+      {/snippet}
+    </ImageViewer>
   {:else if resolved?.imageSrc && file}
     <ImageViewer
       src={resolved.imageSrc}
@@ -186,14 +183,8 @@ const showMermaidPreview = $derived(
       truncated={file.truncated}
       ariaLabel={`Mermaid diagram: ${resolved.filePath}`}
       fileName={file.name.replace(/\.[^.]+$/, "")}
+      unsaved={view?.dirty}
     />
-    {#if view?.dirty}
-      <p
-        class="m-0 border-t border-border-subtle px-4 py-2 text-ui text-muted-foreground"
-      >
-        Previewing unsaved changes.
-      </p>
-    {/if}
   {:else}
     <ScrollArea class="min-h-0 min-w-0" viewportClass="p-4" orientation="both">
       {#if !view}

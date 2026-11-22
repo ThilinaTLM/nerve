@@ -1,8 +1,12 @@
 <script lang="ts">
 import Square from "@lucide/svelte/icons/square";
 import type { AsyncBash } from "@nervekit/contracts/core";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { FloatingToolbar } from "@nervekit/ui-kit/components/composites/floating-toolbar";
+import {
+  FloatingToolbar,
+  FloatingToolbarButton,
+  FloatingToolbarGroup,
+  FloatingToolbarText,
+} from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import LogStream from "$lib/presentation/logs/LogStream.svelte";
 import {
   asyncBashLogLines,
@@ -56,27 +60,25 @@ const lines = $derived(asyncBashLogLines(page));
     {onLoadEarlier}
     {onJumpToLatest}
   >
-    {#snippet dock()}
+    {#snippet topEnd()}
       <FloatingToolbar label="Command controls">
-        <span
-          class="flex h-6 items-center gap-1.5 px-1.5 text-ui text-muted-foreground tabular-nums"
-          title={bash?.workingDirectory}
-        >
-          {#if bash}<AsyncBashStatusIcon status={bash.status} />{/if}
-          {#if elapsed}<span>{elapsed}</span>{/if}
-          {#if bash?.exitCode != null}<span>exit {bash.exitCode}</span>{/if}
-        </span>
+        <FloatingToolbarGroup>
+          <FloatingToolbarText title={bash?.workingDirectory}>
+            {#if bash}<AsyncBashStatusIcon status={bash.status} />{/if}
+            {#if elapsed}<span>{elapsed}</span>{/if}
+            {#if bash?.exitCode != null}<span>exit {bash.exitCode}</span>{/if}
+          </FloatingToolbarText>
+        </FloatingToolbarGroup>
         {#if bash?.status === "running"}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            ariaLabel="Stop command"
-            title="Stop"
-            disabled={stopping}
-            onclick={onStop}
-          >
-            <Square aria-hidden="true" />
-          </Button>
+          <FloatingToolbarGroup>
+            <FloatingToolbarButton
+              label="Stop command"
+              icon={Square}
+              tone="destructive"
+              disabled={stopping}
+              onclick={onStop}
+            />
+          </FloatingToolbarGroup>
         {/if}
       </FloatingToolbar>
     {/snippet}

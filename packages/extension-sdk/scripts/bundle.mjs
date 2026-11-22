@@ -61,9 +61,19 @@ await build({
         builder.onResolve({ filter: /^\.\/ui\/components\.js$/ }, () => ({
           path: uiComponents,
         }));
+        // Svelte sources of the SDK stay as files next to the bundle (copied below); the
+        // extension's UI build compiles them.
+        builder.onResolve({ filter: /^\.\/[\w-]+\.svelte$/ }, (args) => ({
+          path: `./ui/${args.path.slice(2)}`,
+          external: true,
+        }));
       },
     },
   ],
 });
 await mkdir("dist/ui", { recursive: true });
 await copyFile("src/ui/components.d.ts", "dist/ui/components.d.ts");
+await copyFile(
+  "ui/floating-toolbar-menu.svelte",
+  "dist/ui/floating-toolbar-menu.svelte",
+);
