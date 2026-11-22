@@ -19,6 +19,8 @@ type Props = {
   onSave: (value: ToolPayload) => void;
   /** Above the form, e.g. the layer the change applies to. */
   header?: Snippet;
+  /** Changing it while open reloads the draft from `value` (e.g. another layer). */
+  source?: string;
 };
 
 let {
@@ -31,14 +33,18 @@ let {
   resolvedPython,
   onSave,
   header,
+  source,
 }: Props = $props();
 
 let draft = $state<ToolPayload>({});
 let valid = $state(true);
 let lastOpen = false;
+let lastSource: string | undefined;
 $effect(() => {
-  if (open && !lastOpen) draft = structuredClone($state.snapshot(value));
+  if (open && (!lastOpen || source !== lastSource))
+    draft = structuredClone($state.snapshot(value));
   lastOpen = open;
+  lastSource = source;
 });
 
 function save(): void {

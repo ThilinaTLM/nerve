@@ -449,36 +449,37 @@ const python = $derived(status?.runtime.python);
     </OriginGroup>
   {/each}
 
-  {#key dialogLayer}<ToolConfigDialog
-      bind:open={dialogOpen}
-      name={dialogTool.id}
-      value={dialogValue}
-      description={layered
-        ? undefined
-        : "Applies to every project unless it changes this."}
-      leadProfiles={leadProfileOptions()}
-      resolvedPython={python?.executable}
-      onSave={save}
-    >
-      {#snippet header()}
-        {#if layered}
-          <div class="flex items-center gap-2 text-ui text-muted-foreground">
-            Applies to
-            <ToggleGroup.Root
-              type="single"
-              size="sm"
-              value={dialogLayer}
-              onValueChange={(next) => {
-                if (next === "user" || next === "project") dialogLayer = next;
-              }}
+  <ToolConfigDialog
+    bind:open={dialogOpen}
+    source={dialogLayer}
+    name={dialogTool.id}
+    value={dialogValue}
+    description={layered
+      ? undefined
+      : "Applies to every project unless it changes this."}
+    leadProfiles={leadProfileOptions()}
+    resolvedPython={python?.executable}
+    onSave={save}
+  >
+    {#snippet header()}
+      {#if layered}
+        <div class="flex items-center gap-2 text-ui text-muted-foreground">
+          Applies to
+          <ToggleGroup.Root
+            type="single"
+            size="sm"
+            value={dialogLayer}
+            onValueChange={(next) => {
+              if (next === "user" || next === "project") dialogLayer = next;
+            }}
+          >
+            <ToggleGroup.Item value="user">User</ToggleGroup.Item>
+            <ToggleGroup.Item value="project" disabled={locked}
+              >{projectName}</ToggleGroup.Item
             >
-              <ToggleGroup.Item value="user">User</ToggleGroup.Item>
-              <ToggleGroup.Item value="project" disabled={locked}
-                >{projectName}</ToggleGroup.Item
-              >
-            </ToggleGroup.Root>
-          </div>
-        {/if}
-      {/snippet}
-    </ToolConfigDialog>{/key}
+          </ToggleGroup.Root>
+        </div>
+      {/if}
+    {/snippet}
+  </ToolConfigDialog>
 {/if}
