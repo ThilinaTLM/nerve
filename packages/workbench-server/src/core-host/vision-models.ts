@@ -21,7 +21,7 @@ type Resolve = (
 
 /**
  * The host side of `ctx.models.vision`: explains an image with the model an
- * extension's `model` and `thinkingLevel` settings select. The extension never
+ * extension's `model` setting (with its reasoning level) selects. The extension never
  * names the model itself.
  */
 export type VisionHost = {
@@ -71,7 +71,10 @@ export function createVisionHost(input: {
           "BAD_REQUEST",
           "Unsupported image format: only JPEG, PNG, GIF and WebP are accepted, detected from the file's contents.",
         );
-      const thinking = thinkingLevelSchema.safeParse(settings.thinkingLevel);
+      const thinking = thinkingLevelSchema.safeParse(
+        (settings.model as { reasoningLevel?: unknown } | undefined)
+          ?.reasoningLevel,
+      );
       const text = await explainImageWithModel({
         model: target.resolved.model,
         auth: target.resolved,

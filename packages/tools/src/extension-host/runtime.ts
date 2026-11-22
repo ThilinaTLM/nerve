@@ -266,6 +266,22 @@ export class ExtensionRuntime {
     const generateImage = ports.generateImage;
     const explainImage = ports.explainImage;
     const visionReady = ports.visionReady;
+    const completeText = ports.completeText;
+    const textReady = ports.textReady;
+    /** The named `model` setting's value (absent when unset); any other key is a bad request. */
+    const textSelection = (key: string | undefined) => {
+      if (key === undefined) return {};
+      if (definition.settings.fields[key]?.type !== "model")
+        throw new ExtensionError(
+          "BAD_REQUEST",
+          `'${key}' is not a model setting of this extension.`,
+          {
+            fix: "Pass the key of a field with type 'model' from the manifest's settings, or omit `model` to use Nerve's default model.",
+          },
+        );
+      const selection = settings[key];
+      return selection === undefined ? {} : { selection };
+    };
     const store = storeFor(ports, definition.id);
     const progress = (section: string, chunk: string) => {
       if (!env.context.toolProgress?.(section, chunk))
@@ -379,6 +395,39 @@ export class ExtensionRuntime {
                     signal,
                   }),
                 ready: async () => await visionReady(definition.id),
+              },
+            }
+          : {}),
+        ...(completeText &&
+        textReady &&
+        definition.permissions?.capabilities?.includes("models.text")
+          ? {
+              text: {
+                complete: async (request) =>
+                  await completeText({
+                    extensionId: definition.id,
+                    ...textSelection(request.model),
+                    ...(request.system !== undefined
+                      ? { system: request.system }
+                      : {}),
+                    prompt: request.prompt,
+                    ...(request.maxTokens !== undefined
+                      ? { maxTokens: request.maxTokens }
+                      : {}),
+                    onDelta: ({ kind, delta }) => {
+                      const section =
+                        kind === "thinking"
+                          ? request.progress?.thinking
+                          : request.progress?.text;
+                      if (section) progress(section, delta);
+                    },
+                    signal,
+                  }),
+                ready: async (request) =>
+                  await textReady({
+                    extensionId: definition.id,
+                    ...textSelection(request?.model),
+                  }),
               },
             }
           : {}),

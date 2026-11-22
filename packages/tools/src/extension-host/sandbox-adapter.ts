@@ -218,6 +218,16 @@ const SERVICES: Record<string, Service> = {
     ),
   "models.vision.ready": (ctx) =>
     modelService(ctx.models.vision, "models.vision").ready(),
+  "models.text.complete": (ctx, [request]) =>
+    modelService(ctx.models.text, "models.text").complete(
+      record(request, "request") as never,
+    ),
+  "models.text.ready": (ctx, [request]) =>
+    modelService(ctx.models.text, "models.text").ready(
+      request === undefined || request === null
+        ? undefined
+        : record(request, "request"),
+    ),
   progress: (ctx, [section, chunk]) =>
     ctx.progress(text(section, "section"), text(chunk, "chunk")),
   "report.created": (ctx, [entry]) => ctx.report.created(text(entry, "entry")),
@@ -285,7 +295,7 @@ export async function readSandboxedDefinitionData(options: {
         op: "describe",
         token: "describe",
         settings: {},
-        models: { image: false, vision: false },
+        models: { image: false, vision: false, text: false },
       }),
     );
     const reply = JSON.parse(json) as
@@ -430,7 +440,7 @@ class SandboxExtensionCode implements ExtensionCode {
       const handle = await this.#open();
       const pure = PURE_OPERATIONS.has(operation.op);
       const settings: Record<string, unknown> = {};
-      let models = { image: false, vision: false };
+      let models = { image: false, vision: false, text: false };
       let ctx: ExtensionContext | undefined;
       if (pure) {
         // Pure hooks get no `ctx`: they run outside a run (the script scan) as well.
@@ -449,7 +459,11 @@ class SandboxExtensionCode implements ExtensionCode {
           const value = bound.settings.get(key);
           if (value !== undefined) settings[key] = value;
         }
-        models = { image: !!bound.models.image, vision: !!bound.models.vision };
+        models = {
+          image: !!bound.models.image,
+          vision: !!bound.models.vision,
+          text: !!bound.models.text,
+        };
       }
       try {
         const json = await handle.invoke(

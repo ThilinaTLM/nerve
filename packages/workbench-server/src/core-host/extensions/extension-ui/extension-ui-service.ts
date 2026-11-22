@@ -30,6 +30,16 @@ import type { ExtensionStore } from "../extension-store/extension-store.js";
 import { ExtensionStoreError } from "../extension-store/extension-store.js";
 import type { ExtensionErrorLog } from "../extension-catalog/extension-errors.js";
 import type { VisionHost } from "../../vision-models.js";
+import type { TextHost } from "../../text-models.js";
+import {
+  modelSelectionSchema,
+  thinkingLevelSchema,
+} from "@nervekit/contracts/models";
+import type {
+  CreateConversationRequest,
+  SubmitInputRequest,
+} from "@nervekit/contracts/core";
+import { createId } from "@nervekit/contracts";
 import { ExtensionUiError } from "./extension-ui-error.js";
 import {
   fileInfo,
@@ -51,7 +61,18 @@ export type ExtensionUiOptions = {
   extensions: Pick<ExtensionSettingsService, "resolve">;
   accounts: AccountScopes;
   vision?: VisionHost;
+  text?: TextHost;
   store: ExtensionStore;
+  /** The server's conversation creation and input submission, for `conversations.start`. */
+  conversations: {
+    create(input: CreateConversationRequest): Promise<unknown>;
+    submit(input: SubmitInputRequest): void;
+    /** The digest of a lead-usable agent profile at a project; `undefined` when unavailable. */
+    profile(
+      projectId: string,
+      name: string,
+    ): Promise<{ digest: string; leadUsable: boolean } | undefined>;
+  };
   /** Where frame errors are recorded: the catalog's, so they reach `extensions.status().recentErrors`. */
   errors: Pick<ExtensionErrorLog, "record">;
   project(
@@ -390,12 +411,97 @@ export class ExtensionUiService {
       }
       case "call":
         return await this.#call(active, extension, params, input.projectId);
+      case "conversations.start":
+        return await this.#startConversation(active, extension, params, input);
       case "extensionStore.get":
       case "extensionStore.set":
       case "extensionStore.delete":
       case "extensionStore.keys":
         return await this.#store(method, params, input);
     }
+  }
+
+  /** Creates a conversation at the frame's project from the extension's own settings, and sends the prompt. */
+  async #startConversation(
+    active: ActiveProject,
+    extension: InstalledUiExtension,
+    params: Record<string, unknown>,
+    input: { projectId: string },
+  ): Promise<{ conversationId: string }> {
+    if (
+      !extension.manifest.permissions?.capabilities?.includes(
+        "conversations.start",
+      )
+    )
+      throw new ExtensionUiError(
+        "not_allowed",
+        'This extension did not declare the "conversations.start" capability.',
+      );
+    const resolved = active.resolution.extensions[extension.id];
+    // The named setting must be declared by this extension with the matching type.
+    const setting = (name: "model" | "agentProfile" | "permissionRuleSet") => {
+      const key = params[name] as string | undefined;
+      if (key === undefined) return undefined;
+      if (extension.manifest.settings.fields[key]?.type !== name)
+        throw new ExtensionUiError(
+          "invalid_request",
+          `"${key}" is not a ${name} setting of this extension.`,
+        );
+      const value = fieldValue(resolved, key);
+      return value === undefined || value === "" ? undefined : value;
+    };
+    const overrides: NonNullable<CreateConversationRequest["overrides"]> = {};
+    const modelValue = setting("model");
+    if (modelValue !== undefined) {
+      const model = modelSelectionSchema.safeParse(modelValue);
+      if (!model.success)
+        throw new ExtensionUiError(
+          "invalid_request",
+          "The model setting does not hold a model.",
+        );
+      overrides.model = {
+        provider: model.data.provider,
+        modelId: model.data.modelId,
+      };
+      const reasoning = thinkingLevelSchema.safeParse(
+        (modelValue as { reasoningLevel?: unknown }).reasoningLevel,
+      );
+      if (reasoning.success) overrides.reasoningLevel = reasoning.data;
+    }
+    const ruleSet = setting("permissionRuleSet");
+    if (typeof ruleSet === "string") overrides.permissionRuleSetId = ruleSet;
+    const profileName = setting("agentProfile");
+    let agentProfile: CreateConversationRequest["agentProfile"];
+    if (typeof profileName === "string") {
+      const profile = await this.#options.conversations.profile(
+        input.projectId,
+        profileName,
+      );
+      if (!profile?.leadUsable)
+        throw new ExtensionUiError(
+          "invalid_request",
+          `The agent profile "${profileName}" is not available.`,
+        );
+      agentProfile = { name: profileName, digest: profile.digest };
+    }
+    const conversationId = createId("conv");
+    await this.#options.conversations.create({
+      id: conversationId,
+      projectId: input.projectId,
+      title: (params.title as string | undefined) ?? "New Conversation",
+      config: {},
+      ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
+      ...(agentProfile ? { agentProfile } : {}),
+    });
+    // Unsent: the app puts the prompt into the new conversation's composer.
+    if (params.send !== false)
+      this.#options.conversations.submit({
+        conversationId,
+        inputId: createId("input"),
+        text: params.prompt as string,
+        source: "user",
+      });
+    return { conversationId };
   }
 
   async #store(
@@ -476,6 +582,7 @@ export class ExtensionUiService {
       resolution: active.resolution,
       accounts: this.#options.accounts.reader(projectId),
       ...(this.#options.vision ? { vision: this.#options.vision } : {}),
+      ...(this.#options.text ? { text: this.#options.text } : {}),
       store: this.#options.store,
       projectId,
       warn: (id, message, data) =>

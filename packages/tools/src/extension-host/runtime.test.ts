@@ -175,3 +175,59 @@ void test("ctx.extensionStore maps store errors and rejects without a project", 
       error instanceof ExtensionError && error.code === "BAD_REQUEST",
   );
 });
+
+void test("ctx.models.text passes the named model setting's value, and rejects a key that is not a model field", async () => {
+  const requests: unknown[] = [];
+  const selection = { provider: "p", modelId: "m", reasoningLevel: "low" };
+  const env = {
+    context: {
+      cwd: "/work",
+      conversationDir: "/nonexistent",
+      extensionPorts: {
+        settings: () => ({ summaryModel: selection, prefix: "x" }),
+        accounts: { get: async () => undefined, secret: async () => undefined },
+        completeText: async (request: unknown) => {
+          requests.push(request);
+          return { text: "done", model: "p/m" };
+        },
+        textReady: async (request: unknown) => {
+          requests.push(request);
+          return true;
+        },
+      },
+    },
+    report: { artifacts: new Map() },
+  } as unknown as SdkEnvironment;
+  const extension = {
+    ...demoExtension,
+    settings: {
+      ...demoExtension.settings,
+      fields: {
+        ...demoExtension.settings.fields,
+        summaryModel: { type: "model", label: "Model", reasoning: true },
+        otherModel: { type: "model", label: "Other" },
+      },
+    },
+    permissions: { capabilities: ["models.text" as const] },
+  } as typeof demoExtension;
+  const { text } = new ExtensionRuntime(env).context(extension).models;
+  await text!.complete({ model: "summaryModel", prompt: "hi" });
+  await text!.complete({ model: "otherModel", prompt: "hi" });
+  await text!.complete({ prompt: "hi" });
+  assert.deepEqual(
+    requests.map((request) => (request as { selection?: unknown }).selection),
+    [selection, undefined, undefined],
+  );
+  for (const key of ["prefix", "missing"]) {
+    await assert.rejects(
+      text!.complete({ model: key, prompt: "hi" }),
+      (error: unknown) =>
+        error instanceof ExtensionError && error.code === "BAD_REQUEST",
+    );
+    await assert.rejects(
+      text!.ready({ model: key }),
+      (error: unknown) =>
+        error instanceof ExtensionError && error.code === "BAD_REQUEST",
+    );
+  }
+});

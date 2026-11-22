@@ -28,6 +28,8 @@ import type {
   ImageResult,
   VisionRequest,
   VisionResult,
+  TextRequest,
+  TextResult,
 } from "./types.js";
 import { ExtensionError } from "./errors.js";
 import type { Risk } from "./authorization.js";
@@ -119,6 +121,16 @@ export type FakeContextOptions = {
       progress: (section: string, chunk: string) => void,
     ) => VisionResult | Promise<VisionResult>;
     /** Answer of `ctx.models.vision.ready()`; default `true`. */
+    ready?: boolean;
+  };
+  /** Present: `ctx.models.text` exists; `ready` defaults to true. */
+  text?: {
+    /** Answers `ctx.models.text.complete`; call `progress(section, chunk)` to stream into live sections. */
+    complete: (
+      request: TextRequest,
+      progress: (section: string, chunk: string) => void,
+    ) => TextResult | Promise<TextResult>;
+    /** Answer of `ctx.models.text.ready()`; default `true`. */
     ready?: boolean;
   };
   /** Answers `ctx.text.htmlToMarkdown`; throws when a test uses it without one. */
@@ -293,6 +305,15 @@ export function createFakeContext(options: FakeContextOptions = {}): {
               explain: async (request) =>
                 await options.vision!.explain(request, progress),
               ready: async () => options.vision!.ready ?? true,
+            },
+          }
+        : {}),
+      ...(options.text
+        ? {
+            text: {
+              complete: async (request) =>
+                await options.text!.complete(request, progress),
+              ready: async () => options.text!.ready ?? true,
             },
           }
         : {}),

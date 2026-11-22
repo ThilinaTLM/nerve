@@ -18,6 +18,7 @@ import { extensionAvailability } from "./extension-availability.js";
 import { createExtensionPorts } from "./extension-ports.js";
 import type { ExtensionStore } from "./extension-store/extension-store.js";
 import type { VisionHost } from "../vision-models.js";
+import type { TextHost } from "../text-models.js";
 
 export type ExtensionViewOptions = {
   extensions: ExtensionSettingsService;
@@ -28,6 +29,7 @@ export type ExtensionViewOptions = {
   projectDirectory?(projectId: string): string | undefined;
   accounts: AccountScopes;
   vision?: VisionHost;
+  text?: TextHost;
   /** The durable store behind `ctx.extensionStore` in availability hooks of a project's extensions. */
   extensionStore?: ExtensionStore;
 };
@@ -68,6 +70,7 @@ export function createExtensionViews(options: ExtensionViewOptions) {
           resolution,
           accounts,
           ...(options.vision ? { vision: options.vision } : {}),
+          ...(options.text ? { text: options.text } : {}),
           store: options.extensionStore,
           projectId: ctx.projectId,
         }),

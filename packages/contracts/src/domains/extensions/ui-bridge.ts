@@ -34,6 +34,8 @@ export const bridgeLimits = {
   maxMenuItems: 32,
   maxTextLength: 20_000,
   maxLabelLength: 200,
+  /** Characters of the prompt of one `conversations.start`. */
+  maxConversationPromptLength: 100_000,
   maxPageParamsBytes: 4 * 1024,
   /** Bytes of text one `clipboard.writeText` carries (UTF-8). */
   maxClipboardTextBytes: 1024 * 1024,
@@ -314,6 +316,21 @@ export const bridgeMethods = {
     }),
     result: emptyResult,
   },
+  "conversations.start": {
+    params: z.strictObject({
+      prompt: text(bridgeLimits.maxConversationPromptLength),
+      title: text().optional(),
+      /** Keys of this extension's `model`, `agentProfile` and `permissionRuleSet` settings. */
+      model: text(128).optional(),
+      agentProfile: text(128).optional(),
+      permissionRuleSet: text(128).optional(),
+      /** Default `true`: send the prompt. `false`: leave it unsent in the new conversation's composer. */
+      send: z.boolean().optional(),
+      /** Default `true`: open the new conversation in the app. */
+      open: z.boolean().optional(),
+    }),
+    result: z.strictObject({ conversationId: z.string() }),
+  },
   "extensionStore.get": {
     params: z.strictObject({ key: extensionStoreKeySchema }),
     /** `value` and `revision` are `null` when the key does not exist. */
@@ -396,6 +413,7 @@ export const bridgeMethodKinds: Record<
   "composer.insert": allKinds,
   "clipboard.writeText": allKinds,
   "clipboard.writeImage": allKinds,
+  "conversations.start": allKinds,
   "extensionStore.get": allKinds,
   "extensionStore.set": allKinds,
   "extensionStore.delete": allKinds,

@@ -124,6 +124,8 @@ export type InstalledUiExtension = {
   /** The extension's `dist/` folder: frames are served from `dist/ui/<id>/`, themes read from `dist/themes/<id>.json`. */
   dist: string;
   ui: NonNullable<InstalledExtensionManifest["ui"]>;
+  /** What frame requests check: granted capabilities and declared settings. */
+  manifest: Pick<InstalledExtensionManifest, "permissions" | "settings">;
   /** The themes that passed the theme file schema and the readability rules (user extensions only). */
   themes: ThemeFile[];
 };
@@ -762,6 +764,7 @@ export class ExtensionCatalog implements ExtensionUiSource {
               source: scanned.source,
               dist: join(scanned.read.folder, "dist"),
               ui: manifest.ui,
+              manifest,
               themes:
                 scanned.source === "user"
                   ? (scanned.read.themes ?? []).flatMap((theme) =>

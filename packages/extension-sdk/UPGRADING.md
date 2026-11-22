@@ -30,6 +30,18 @@ Mechanical steps, if the change cannot be read from the code above (renamed file
 
 <!-- Sections start here. Every released SDK version is compatible with the previous one. -->
 
+## Next release: starting conversations from a frame (surfaces `manifest` and `ui`)
+
+Nothing existing breaks; this section tells an agent what is new. Declare `permissions.capabilities: ["conversations.start"]` to call `host.conversations.start({ prompt, title?, model?, agentProfile?, permissionRuleSet?, send?, open? })` from a UI frame; it resolves with `{ conversationId }`. Call it from a click or key handler (else `not_allowed`). `model`, `agentProfile` and `permissionRuleSet` are keys of your own settings of type `model`, `agentProfile` and `permissionRuleSet` (a missing key or another type rejects with `invalid_request`); an unset setting means Nerve's default. `send: false` leaves the prompt unsent in the new conversation's composer; `open: false` keeps the user where they are. the test fake records calls in `bridge.startedConversations`.
+
+## Next release: direct text completion (surface `manifest` and `backend`)
+
+Nothing existing breaks; this section tells an agent what is new. Declare `permissions.capabilities: ["models.text"]` to get `ctx.models.text`: `complete({ model?, system?, prompt, maxTokens?, progress? })` makes one model call without tools and returns `{ text, model }`; `ready({ model? })` says whether the model resolves (use it in `availability`). `model` is the key of a `model` setting of your extension (an unknown or non-`model` key rejects with `BAD_REQUEST`); omit it, or leave the setting unset, to use Nerve's default model and reasoning level for the project. The extension never names a model id. `progress` streams only inside a running direct tool.
+
+## Next release: model, agent profile and permission rule set settings (surface `manifest`)
+
+Nothing existing breaks; this section tells an agent what is new. A `model` setting gains `reasoning: true`, which lets the user also pick a reasoning level; its value is then `{ provider, modelId, reasoningLevel? }` (unset: Nerve's default level). Two new setting types: `agentProfile` (value: the profile name; unset: the project's default profile) and `permissionRuleSet` (value: the rule set id; unset: the user's default). Neither takes a `default`, and neither is allowed in an account kind's `fields`.
+
 ## Next release: accounts (surfaces `manifest` and `backend`)
 
 Nothing existing breaks; this section tells an agent what is new. Account kinds gain several secrets, more injections, a built-in OAuth 2.0 provider and platforms; accounts have a level.

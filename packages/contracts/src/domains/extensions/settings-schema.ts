@@ -103,7 +103,10 @@ export const settingFieldSchema = z.discriminatedUnion("type", [
     ...fieldBase,
     type: z.literal("model"),
     capability: z.enum(["image", "vision"]).optional(),
+    reasoning: z.boolean().optional(),
   }),
+  z.strictObject({ ...fieldBase, type: z.literal("agentProfile") }),
+  z.strictObject({ ...fieldBase, type: z.literal("permissionRuleSet") }),
 ]) as unknown as z.ZodType<ApiSettingField>;
 export type SettingField = z.infer<typeof settingFieldSchema>;
 
@@ -246,7 +249,12 @@ const accountKindObjectSchema = z.strictObject({
     .record(fieldKeySchema, settingFieldSchema)
     .superRefine((fields, context) => {
       for (const [key, field] of Object.entries(fields))
-        if (field.type === "account" || field.type === "model")
+        if (
+          field.type === "account" ||
+          field.type === "model" ||
+          field.type === "agentProfile" ||
+          field.type === "permissionRuleSet"
+        )
           context.addIssue({
             code: "custom",
             path: [key, "type"],
@@ -405,7 +413,16 @@ export type AccountKind = z.infer<typeof accountKindSchema>;
 /** What an extension may reach: network origins and host capabilities. */
 export const extensionPermissionsSchema = z.strictObject({
   network: z.array(z.string().min(1)).optional(),
-  capabilities: z.array(z.enum(["models.image", "models.vision"])).optional(),
+  capabilities: z
+    .array(
+      z.enum([
+        "models.image",
+        "models.vision",
+        "models.text",
+        "conversations.start",
+      ]),
+    )
+    .optional(),
 }) satisfies z.ZodType<ExtensionPermissions>;
 export type ExtensionPermissionsData = z.infer<
   typeof extensionPermissionsSchema

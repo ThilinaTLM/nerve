@@ -1,4 +1,5 @@
-import { modelSelectionSchema } from "../models/models.js";
+import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
+import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
 import type { SettingField, SettingsSchema } from "./settings-schema.js";
 
 export type SettingIssue = {
@@ -73,11 +74,23 @@ export function validateField(
         ? { ok: true, value: value.trim() }
         : fail("Expected an account id.");
     case "model": {
-      const parsed = modelSelectionSchema.strict().safeParse(value);
-      return parsed.success
-        ? { ok: true, value: parsed.data }
-        : fail("Expected a model selection.");
+      const parsed = modelSelectionSchema
+        .extend({ reasoningLevel: thinkingLevelSchema.optional() })
+        .strict()
+        .safeParse(value);
+      if (!parsed.success) return fail("Expected a model selection.");
+      if (parsed.data.reasoningLevel !== undefined && !field.reasoning)
+        return fail("This model setting has no reasoning level.");
+      return { ok: true, value: parsed.data };
     }
+    case "agentProfile":
+      return typeof value === "string" && value.trim().length > 0
+        ? { ok: true, value: value.trim() }
+        : fail("Expected an agent profile name.");
+    case "permissionRuleSet":
+      return permissionRuleSetIdSchema.safeParse(value).success
+        ? { ok: true, value }
+        : fail("Expected a permission rule set id.");
   }
 }
 

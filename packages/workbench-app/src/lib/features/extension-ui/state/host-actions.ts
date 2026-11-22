@@ -7,6 +7,12 @@ export type ExtensionHostActions = {
   openFile(projectId: string, path: string): Promise<void> | void;
   /** Appends text to the active composer without sending. */
   insertIntoComposer(text: string): void;
+  /** A frame started a conversation: puts `draft` (a prompt left unsent) into its composer and opens it when `open`. */
+  conversationStarted(
+    projectId: string,
+    conversationId: string,
+    options: { open: boolean; draft?: string },
+  ): Promise<void>;
 };
 
 let actions: ExtensionHostActions | undefined;

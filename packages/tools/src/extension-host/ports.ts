@@ -1,6 +1,8 @@
 import type { AccountKind } from "@nervekit/contracts/extensions";
 import type {
   AccountInfo,
+  TextCompleteRequest,
+  TextResult,
   VisionExplainRequest,
   VisionResult,
 } from "@nervekit/extension-api";
@@ -108,6 +110,13 @@ export type ExtensionHostPorts = {
   ) => Promise<ImageGenerateResponse>;
   /** The vision model behind `ctx.models.vision`, selected by the extension's `model` and `thinkingLevel` settings. */
   explainImage?: (request: VisionExplainRequest) => Promise<VisionResult>;
+  /** The model behind `ctx.models.text`: the named `model` setting's value, else the project's default. */
+  completeText?: (request: TextCompleteRequest) => Promise<TextResult>;
+  /** Whether that model resolves with credentials; `selection` is the named setting's value. */
+  textReady?: (request: {
+    extensionId: string;
+    selection?: unknown;
+  }) => Promise<boolean>;
   /** The durable store of the open project; absent when the call has no project (`ctx.extensionStore` then rejects). */
   extensionStore?: ExtensionStorePort;
   /** Whether the extension's selected vision model resolves with credentials and accepts images. */

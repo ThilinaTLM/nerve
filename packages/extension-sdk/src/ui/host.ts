@@ -270,6 +270,29 @@ export const host = {
       });
     },
   },
+  /** Starts conversations in the open project (needs the `conversations.start` capability). */
+  conversations: {
+    /**
+     * Starts a conversation in the open project and resolves with its id (Nerve does not track
+     * it afterwards). Call it from a click or key handler (else `not_allowed`) and declare
+     * `"conversations.start"` in `permissions.capabilities` (else `not_allowed`). `title`: absent
+     * keeps Nerve's normal title behaviour. `model`, `agentProfile` and `permissionRuleSet` are
+     * keys of this extension's settings of type `model`, `agentProfile` and `permissionRuleSet`
+     * (another key or type rejects `invalid_request`); an unset setting means Nerve's default.
+     * `send` (default `true`): `false` leaves the prompt unsent in that conversation's composer.
+     * `open` (default `true`): opens the conversation in the app.
+     */
+    start: (options: {
+      prompt: string;
+      title?: string;
+      model?: string;
+      agentProfile?: string;
+      permissionRuleSet?: string;
+      send?: boolean;
+      open?: boolean;
+    }): Promise<{ conversationId: string }> =>
+      request("conversations.start", options),
+  },
   /**
    * Durable JSON storage for this extension in the open project, shared by all its frames and its
    * backend (`ctx.extensionStore`). Unlike `viewState` it is not tied to a tab, and unlike

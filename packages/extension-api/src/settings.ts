@@ -110,10 +110,39 @@ export type SettingField =
       kind?: never;
     })
   | (FieldBase & {
-      /** A model the user picks (the host's model list). Not allowed inside an account kind's `fields`. */
+      /**
+       * A model the user picks (the host's model list). The value is
+       * `{ provider, modelId, reasoningLevel? }`; unset means Nerve's default
+       * model. Not allowed inside an account kind's `fields`.
+       */
       type: "model";
       /** Offer only models with this ability. Absent: any model. */
       capability?: "image" | "vision";
+      /**
+       * Let the user also pick a reasoning level, stored as `reasoningLevel` in the value
+       * (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`). Without it the value never has one.
+       * Unset: Nerve's default level.
+       */
+      reasoning?: boolean;
+    })
+  | (FieldBase & {
+      /**
+       * An agent profile the user picks; the value is its name. Unset means the project's default
+       * profile, so there is no `default`. Not allowed inside an account kind's `fields`.
+       */
+      type: "agentProfile";
+      /** Not allowed: the user decides, unset means the project's default profile. */
+      default?: never;
+    })
+  | (FieldBase & {
+      /**
+       * A permission rule set the user picks (built-in or their own); the value is its id. Unset
+       * means the user's default, and there is no `default`: an extension must not choose a
+       * permission level. Not allowed inside an account kind's `fields`.
+       */
+      type: "permissionRuleSet";
+      /** Not allowed: the user decides, unset means the user's default rule set. */
+      default?: never;
     });
 
 /** The settings fields of an extension and how the UI groups them. */

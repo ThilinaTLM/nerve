@@ -35,6 +35,9 @@ export type {
   VisionRequest,
   VisionResult,
   VisionExplainRequest,
+  TextRequest,
+  TextResult,
+  TextCompleteRequest,
   ExtensionContext,
 } from "./types.js";
 export type {

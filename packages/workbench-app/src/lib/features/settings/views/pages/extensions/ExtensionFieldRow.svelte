@@ -7,9 +7,14 @@ import Lock from "@lucide/svelte/icons/lock";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
+import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import type { ModelInfo } from "$lib/api";
+import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
+import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
+import { selectablePermissionRuleSets } from "$lib/domain/permissions/rule-set-options";
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
+import { leadAgentProfiles } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import {
   SettingsChangeIndicator,
   SettingsRow,
@@ -27,6 +32,8 @@ import {
 
 type Props = {
   extensionId: string;
+  /** Project whose profiles and rule sets `agentProfile` and `permissionRuleSet` fields offer. */
+  projectId?: string;
   item: FieldItem;
   scope: ExtensionsScope;
   accounts: AccountChoices;
@@ -49,6 +56,7 @@ type Props = {
 
 let {
   extensionId,
+  projectId,
   item,
   scope,
   accounts,
@@ -85,9 +93,68 @@ const shown = $derived(
 );
 const modelValue = $derived(
   field.type === "model"
-    ? (item.value as { provider: string; modelId: string } | undefined)
+    ? (item.value as
+        | {
+            provider: string;
+            modelId: string;
+            reasoningLevel?: ThinkingLevel;
+          }
+        | undefined)
     : undefined,
 );
+
+/** The explicit "unset" choice of the profile and rule set selects. */
+const UNSET = "";
+$effect(() => {
+  if (field.type === "agentProfile") void agentProfileCatalog.ensure(projectId);
+  if (field.type === "permissionRuleSet" && projectId)
+    void permissionRuleSetCatalog.ensure(projectId);
+});
+const profileItems = $derived(
+  field.type === "agentProfile"
+    ? [
+        {
+          value: UNSET,
+          label: "Default",
+          detail: "The project's default profile",
+        },
+        ...leadAgentProfiles(agentProfileCatalog.profiles(projectId)).map(
+          (profile) => ({
+            value: profile.name,
+            label: profile.label,
+            ...(profile.whenToUse ? { detail: profile.whenToUse } : {}),
+          }),
+        ),
+      ]
+    : [],
+);
+const ruleSetItems = $derived(
+  field.type === "permissionRuleSet"
+    ? [
+        { value: UNSET, label: "Default", detail: "Your default rule set" },
+        ...selectablePermissionRuleSets(
+          permissionRuleSetCatalog.summaries(projectId),
+        ).map((summary) => ({
+          value: summary.id,
+          label: summary.name,
+          ...(summary.description ? { detail: summary.description } : {}),
+        })),
+      ]
+    : [],
+);
+
+/** A model pick keeps the reasoning level only once the user chose one. */
+function changeModel(next: {
+  model?: ModelSelection;
+  thinkingLevel: ThinkingLevel;
+}): void {
+  if (!next.model) return;
+  onChange(
+    field.type === "model" && field.reasoning && modelValue?.reasoningLevel
+      ? { ...next.model, reasoningLevel: next.thinkingLevel }
+      : next.model,
+  );
+}
 
 let text = $derived(item.value === undefined ? "" : String(item.value));
 let invalid = $state(false);
@@ -175,12 +242,40 @@ function commit(): void {
         class="w-full"
         {models}
         {disabled}
-        showReasoning={false}
+        showReasoning={field.reasoning === true}
         requiredCapabilities={field.capability === "vision" ? ["vision"] : []}
         value={modelValue}
-        thinkingLevel={undefined}
+        thinkingLevel={modelValue?.reasoningLevel}
+        unsetReasoningLabel="Default"
+        onThinkingChange={field.reasoning && modelValue
+          ? (level) =>
+              onChange({
+                provider: modelValue.provider,
+                modelId: modelValue.modelId,
+                ...(level ? { reasoningLevel: level } : {}),
+              })
+          : undefined}
         emptyMessage="Connect a provider with a suitable model first."
-        onChange={(next) => onChange(next.model)}
+        onChange={(next) =>
+          field.reasoning && next.model
+            ? changeModel(next)
+            : onChange(next.model)}
+      />
+    {:else if field.type === "agentProfile"}
+      <SelectField
+        items={profileItems}
+        value={typeof item.value === "string" ? item.value : UNSET}
+        {disabled}
+        ariaLabel={field.label}
+        onValueChange={(next) => onChange(next === UNSET ? undefined : next)}
+      />
+    {:else if field.type === "permissionRuleSet"}
+      <SelectField
+        items={ruleSetItems}
+        value={typeof item.value === "string" ? item.value : UNSET}
+        {disabled}
+        ariaLabel={field.label}
+        onValueChange={(next) => onChange(next === UNSET ? undefined : next)}
       />
     {:else if field.type === "number"}
       <div class="flex w-full items-center gap-2">

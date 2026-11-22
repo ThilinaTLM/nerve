@@ -227,7 +227,9 @@ export function platformItems(
 
 const capabilityText: Record<string, string> = {
   "models.vision": "Uses a vision model",
+  "models.text": "Uses a text model",
   "models.image": "Uses the image generation model",
+  "conversations.start": "Starts conversations in your project",
 };
 
 const list = (values: readonly string[]) => values.join(", ");

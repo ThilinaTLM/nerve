@@ -250,7 +250,7 @@ export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
 };
 export type ToolDefinition = MethodToolDefinition | OwnToolDefinition;
 export declare function isMethodTool(tool: ToolDefinition): tool is MethodToolDefinition;
-export type Capability = "models.image" | "models.vision";
+export type Capability = "models.image" | "models.vision" | "models.text" | "conversations.start";
 export type ExtensionPermissions = {
     network?: string[];
     capabilities?: Capability[];
@@ -323,7 +323,7 @@ export declare class ExtensionError extends Error {
 ===== declarations extension-api/src/index.d.ts =====
 export type { Risk, OperationTarget, OperationAuthorization, ToolAuthorization, Authorization, AuthorizeResult, } from "./authorization.js";
 export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountOAuth2Provider, AccountSecretField, AccountInfo, AccountTestResult, AccountKindData, AccountKind, PlatformUse, } from "./settings.js";
-export type { ArtifactRef, ArtifactInfo, FormPart, HttpRequest, HttpArtifactOptions, HttpResponse, ReportEntry, ImageOptions, ImageRequest, ImageResult, VisionRequest, VisionResult, VisionExplainRequest, ExtensionContext, } from "./types.js";
+export type { ArtifactRef, ArtifactInfo, FormPart, HttpRequest, HttpArtifactOptions, HttpResponse, ReportEntry, ImageOptions, ImageRequest, ImageResult, VisionRequest, VisionResult, VisionExplainRequest, TextRequest, TextResult, TextCompleteRequest, ExtensionContext, } from "./types.js";
 export type { CredentialAccount, CredentialApplyContext, CredentialApplyResult, CredentialChoice, CredentialContextBase, CredentialCrypto, CredentialHashAlgorithm, CredentialHttp, CredentialHttpRequest, CredentialHttpResponse, CredentialLoopback, CredentialLoopbackResult, CredentialNeedsSignIn, CredentialProviderDefinition, CredentialRefreshContext, CredentialRefreshResult, CredentialRequest, CredentialRequestBody, CredentialResult, CredentialRevokeContext, CredentialSignAlgorithm, CredentialSignInContext, CredentialUi, } from "./credentials.js";
 export { defineCredentialProvider } from "./credentials.js";
 export { ExtensionError } from "./errors.js";
@@ -380,6 +380,13 @@ export type SettingField = (FieldBase & {
 }) | (FieldBase & {
     type: "model";
     capability?: "image" | "vision";
+    reasoning?: boolean;
+}) | (FieldBase & {
+    type: "agentProfile";
+    default?: never;
+}) | (FieldBase & {
+    type: "permissionRuleSet";
+    default?: never;
 });
 export type SettingsSchema = {
     sections?: {
@@ -471,7 +478,7 @@ export {};
 
 ===== declarations extension-api/src/testing.d.ts =====
 import type { CredentialAccount, CredentialApplyContext, CredentialHttpRequest, CredentialHttpResponse, CredentialRefreshContext, CredentialRevokeContext, CredentialSignInContext } from "./credentials.js";
-import type { ExtensionContext, HttpRequest, HttpResponse, ImageRequest, ImageResult, VisionRequest, VisionResult } from "./types.js";
+import type { ExtensionContext, HttpRequest, HttpResponse, ImageRequest, ImageResult, VisionRequest, VisionResult, TextRequest, TextResult } from "./types.js";
 import type { Risk } from "./authorization.js";
 import type { AccountInfo } from "./settings.js";
 export type FakeContextRecord = {
@@ -512,6 +519,10 @@ export type FakeContextOptions = {
     image?: (request: ImageRequest) => ImageResult | Promise<ImageResult>;
     vision?: {
         explain: (request: VisionRequest, progress: (section: string, chunk: string) => void) => VisionResult | Promise<VisionResult>;
+        ready?: boolean;
+    };
+    text?: {
+        complete: (request: TextRequest, progress: (section: string, chunk: string) => void) => TextResult | Promise<TextResult>;
         ready?: boolean;
     };
     htmlToMarkdown?: (html: string) => string | Promise<string>;
@@ -650,6 +661,32 @@ export type VisionExplainRequest = {
     }) => void;
     signal?: AbortSignal;
 };
+export type TextRequest = {
+    model?: string;
+    system?: string;
+    prompt: string;
+    maxTokens?: number;
+    progress?: {
+        thinking?: string;
+        text?: string;
+    };
+};
+export type TextResult = {
+    text: string;
+    model: string;
+};
+export type TextCompleteRequest = {
+    extensionId: string;
+    selection?: unknown;
+    system?: string;
+    prompt: string;
+    maxTokens?: number;
+    onDelta?: (update: {
+        kind: "thinking" | "text";
+        delta: string;
+    }) => void;
+    signal?: AbortSignal;
+};
 export interface ExtensionContext {
     settings: {
         get<T = unknown>(key: string): T | undefined;
@@ -712,6 +749,12 @@ export interface ExtensionContext {
         vision?: {
             explain(request: VisionRequest): Promise<VisionResult>;
             ready(): Promise<boolean>;
+        };
+        text?: {
+            complete(request: TextRequest): Promise<TextResult>;
+            ready(request?: {
+                model?: string;
+            }): Promise<boolean>;
         };
     };
     progress(section: string, chunk: string): void;
@@ -917,6 +960,20 @@ type Methods = {
             mediaType: ClipboardImageType;
         };
         result: Record<string, never>;
+    };
+    "conversations.start": {
+        params: {
+            prompt: string;
+            title?: string | undefined;
+            model?: string | undefined;
+            agentProfile?: string | undefined;
+            permissionRuleSet?: string | undefined;
+            send?: boolean | undefined;
+            open?: boolean | undefined;
+        };
+        result: {
+            conversationId: string;
+        };
     };
     "extensionStore.get": {
         params: {
@@ -1153,6 +1210,19 @@ export declare const host: {
         writeText: (text: string) => Promise<void>;
         writeImage: (image: Blob | Uint8Array, mediaType?: ClipboardImageType) => Promise<void>;
     };
+    conversations: {
+        start: (options: {
+            prompt: string;
+            title?: string;
+            model?: string;
+            agentProfile?: string;
+            permissionRuleSet?: string;
+            send?: boolean;
+            open?: boolean;
+        }) => Promise<{
+            conversationId: string;
+        }>;
+    };
     extensionStore: {
         get: (key: string) => Promise<{
             value: BridgeJson | null;
@@ -1257,6 +1327,10 @@ export type FakeBridge = {
         }[];
     };
     composerText: string[];
+    startedConversations: {
+        conversationId: string;
+        options: Record<string, BridgeJson>;
+    }[];
     viewState: BridgeJson | null;
     clipboard: {
         text?: string;
@@ -2131,6 +2205,67 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "conversations.start": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "agentProfile": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "permissionRuleSet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "send": {
+            "type": "boolean"
+          },
+          "open": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationId"
+        ],
         "additionalProperties": false
       }
     },
@@ -3009,6 +3144,129 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                       "image",
                       "vision"
                     ]
+                  },
+                  "reasoning": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "label",
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "project",
+                        "conversation"
+                      ]
+                    }
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "advanced": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "agentProfile"
+                  }
+                },
+                "required": [
+                  "label",
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "project",
+                        "conversation"
+                      ]
+                    }
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "advanced": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "permissionRuleSet"
                   }
                 },
                 "required": [
@@ -3503,6 +3761,129 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                         "image",
                         "vision"
                       ]
+                    },
+                    "reasoning": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "project",
+                          "conversation"
+                        ]
+                      }
+                    },
+                    "visibleWhen": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "equals": {
+                          "type": [
+                            "string",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "equals"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "advanced": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "agentProfile"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "project",
+                          "conversation"
+                        ]
+                      }
+                    },
+                    "visibleWhen": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "equals": {
+                          "type": [
+                            "string",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "equals"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "advanced": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "permissionRuleSet"
                     }
                   },
                   "required": [
@@ -3936,7 +4317,9 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
             "type": "string",
             "enum": [
               "models.image",
-              "models.vision"
+              "models.vision",
+              "models.text",
+              "conversations.start"
             ]
           }
         }

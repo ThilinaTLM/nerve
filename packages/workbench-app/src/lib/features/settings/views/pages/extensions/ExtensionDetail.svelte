@@ -202,6 +202,7 @@ function openPage(page: "tools" | "skills"): void {
       {#each section.fields as item (item.key)}
         <ExtensionFieldRow
           extensionId={id}
+          {projectId}
           {item}
           {scope}
           {accounts}
@@ -235,6 +236,7 @@ function openPage(page: "tools" | "skills"): void {
             {#each section.advanced as item (item.key)}
               <ExtensionFieldRow
                 extensionId={id}
+                {projectId}
                 {item}
                 {scope}
                 {accounts}

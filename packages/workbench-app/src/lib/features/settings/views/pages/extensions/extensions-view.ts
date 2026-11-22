@@ -86,7 +86,9 @@ export type FieldControl =
   | "number"
   | "select"
   | "account"
-  | "model";
+  | "model"
+  | "profile"
+  | "permission";
 
 /** The control a schema field is edited with. */
 export function controlFor(field: SettingField): FieldControl {
@@ -103,6 +105,10 @@ export function controlFor(field: SettingField): FieldControl {
       return "account";
     case "model":
       return "model";
+    case "agentProfile":
+      return "profile";
+    case "permissionRuleSet":
+      return "permission";
   }
 }
 
@@ -221,14 +227,23 @@ export function displayValue(
         )?.name ?? undefined
       );
     case "model": {
-      const selection = value as { provider?: string; modelId?: string };
-      return (
+      const selection = value as {
+        provider?: string;
+        modelId?: string;
+        reasoningLevel?: string;
+      };
+      const name =
         modelLabel?.(value) ??
         (selection.modelId
           ? `${selection.provider ?? ""}/${selection.modelId}`
-          : undefined)
-      );
+          : undefined);
+      return name && selection.reasoningLevel
+        ? `${name} · ${selection.reasoningLevel}`
+        : name;
     }
+    case "agentProfile":
+    case "permissionRuleSet":
+      return String(value);
   }
 }
 
