@@ -1,16 +1,19 @@
 <!--
   A value setting with wide controls (selects, model picker, inputs). Without a
-  project: today's row (label left, one control column). With one: the label
-  and description take the full width and the controls sit below in two equal
-  halves, User then the project, under the section's SplitColumns header. The ↺
-  belongs to value cells only.
+  project column: today's row (label left, one control column). With one: the
+  label and description take the full width and the controls sit below in two
+  equal halves, User then the project, under the section's `splitLabels`
+  (`SplitColumns`). Each half is [control][↺ slot], so the halves are equal and
+  the ↺ sits inside its own half. The ↺ belongs to value cells only. While the
+  project column is hidden, `overriddenIn` puts a small marker after the title.
+  An untrusted project file needs nothing here: the caller disables the project
+  control and shows User's value, and the column label carries the one lock.
 -->
 <script lang="ts">
-import Lock from "@lucide/svelte/icons/lock";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import type { Snippet } from "svelte";
 import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
-import HoverTip from "./HoverTip.svelte";
+import ProjectOverrideMark from "./ProjectOverrideMark.svelte";
 
 type Reset = { label: string; onReset: () => void };
 
@@ -22,10 +25,10 @@ type Props = {
   project?: Snippet;
   userReset?: Reset;
   projectReset?: Reset;
-  /** The open project's name; without one the row has a single control. */
+  /** The open project's name while its column is shown; without it the row has a single control. */
   projectName?: string;
-  /** The project's settings file is not trusted: its control is locked. */
-  locked?: boolean;
+  /** The project overrides this row while its column is hidden: this is its name. */
+  overriddenIn?: string;
   /** The User layer does not exist (project-defined item); the cell stays empty. */
   userAbsent?: boolean;
   /** Muted text instead of the project control (does not apply there). */
@@ -41,23 +44,30 @@ let {
   userReset,
   projectReset,
   projectName,
-  locked = false,
+  overriddenIn,
   userAbsent = false,
   projectNote,
 }: Props = $props();
 </script>
 
 {#snippet reset(r: Reset | undefined)}
-  {#if r}<IconAction
-      icon={RotateCcw}
-      label={r.label}
-      onclick={r.onReset}
-    />{:else}<span class="w-7 flex-none"></span>{/if}
+  <span class="flex w-7 flex-none items-center justify-center">
+    {#if r}<IconAction
+        icon={RotateCcw}
+        label={r.label}
+        onclick={r.onReset}
+      />{/if}
+  </span>
 {/snippet}
 
 {#snippet text()}
   <div class="grid min-w-0 flex-1 gap-0.5">
-    <span class="text-ui">{label}</span>
+    <span class="flex min-w-0 items-center gap-1.5 text-ui">
+      {label}
+      {#if overriddenIn && !projectName}
+        <ProjectOverrideMark projectName={overriddenIn} />
+      {/if}
+    </span>
     {#if description || hint}
       <span class="text-caption text-muted-foreground"
         >{description}
@@ -86,25 +96,17 @@ let {
       <div class="flex min-w-0 items-center gap-1">
         {#if !userAbsent}
           <div class="flex min-w-0 flex-1">{@render user()}</div>
-          {@render reset(userReset)}
+        {:else}
+          <div class="flex min-w-0 flex-1"></div>
         {/if}
+        {@render reset(userAbsent ? undefined : userReset)}
       </div>
       <div class="flex min-w-0 items-center gap-1">
         {#if projectNote || !project}
-          <span class="text-caption text-muted-foreground">{projectNote}</span>
-        {:else if locked}
-          <HoverTip
-            delay={400}
-            class="min-w-0 flex-1 items-center gap-1.5"
-            tip={`Locked until you trust ${projectName}'s settings file. Uses User for now.`}
+          <span class="min-w-0 flex-1 text-caption text-muted-foreground"
+            >{projectNote}</span
           >
-            <Lock
-              class="size-3.5 flex-none text-muted-foreground"
-              aria-hidden="true"
-            />
-            <div class="flex min-w-0 flex-1">{@render project()}</div>
-          </HoverTip>
-          <span class="w-7 flex-none"></span>
+          {@render reset(undefined)}
         {:else}
           <div class="flex min-w-0 flex-1">{@render project()}</div>
           {@render reset(projectReset)}

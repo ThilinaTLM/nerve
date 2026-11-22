@@ -1,15 +1,5 @@
 import { SuggestionsPageState } from "./suggestions/suggestions-page-state.svelte";
-import type { ProfileUsableBy } from "@nervekit/contracts/agent-configuration";
 import type { Project } from "@nervekit/contracts/core";
-import {
-  profileFileCount,
-  profileKindForPage,
-  storedUsableBy,
-} from "$lib/features/settings/views/pages/agent-profiles/profile-kind";
-import {
-  readAgentProfiles,
-  resetAgentProfile,
-} from "$lib/features/settings/api/agent-profiles.api";
 import type {
   LaunchDefinition,
   LaunchDefinitionCatalog,
@@ -33,18 +23,8 @@ import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-ag
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import { refreshPromptSuggestionStatuses } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
-import {
-  trustPromptSuggestionProjectFile,
-  updatePromptSuggestionEnabled,
-} from "$lib/features/prompt-suggestions/api/prompt-suggestions.api";
-import {
-  agentOverridePointers,
-  agentOverrideResets,
-  differingExtensionCount,
-  differingSuggestionCount,
-  mergeDiffCounts,
-  type AgentOverridePageId,
-} from "$lib/features/settings/state/project-page-diffs";
+import { trustPromptSuggestionProjectFile } from "$lib/features/prompt-suggestions/api/prompt-suggestions.api";
+import { agentOverridePointers } from "$lib/features/settings/state/project-page-diffs";
 import { PermissionsPageController } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
 import { ExtensionsPageController } from "$lib/features/settings/views/pages/extensions/extensions-page-controller.svelte";
 import { StoragePageController } from "$lib/features/settings/views/pages/storage/storage-page-state.svelte";
@@ -59,45 +39,18 @@ export function createSettingsPageControllers(deps: {
     const target = deps.target();
     return target.kind === "project" ? target.projectId : deps.project()?.id;
   };
-  /** What the project stores outside capabilities; see `pageDiffs`. */
-  let profileFiles = $state.raw<
-    {
-      name: string;
-      digest: string;
-      usableBy?: ProfileUsableBy;
-    }[]
-  >([]);
-  let diffRequest = 0;
   /** The project's own agent settings, extension entries and suggestion choices. */
   const agentState = new ScopedAgentState();
   const extensionsState = new ScopedExtensionsState();
   /** The suggestions' state is shared with the Suggestions page, which refreshes it. */
-  const suggestionStatuses = () => promptSuggestionsState.statuses;
   const suggestionFile = () => promptSuggestionsState.projectFile;
 
   async function loadProjectDiff(): Promise<void> {
     const projectId = targetProjectId();
-    const request = ++diffRequest;
-    if (!projectId) {
-      profileFiles = [];
-      return;
-    }
+    if (!projectId) return;
     void agentState.load({ scope: "project", projectId });
     void extensionsState.load({ scope: "project", projectId });
     void refreshPromptSuggestionStatuses(projectId);
-    try {
-      const profiles = await readAgentProfiles({ scope: "project", projectId });
-      if (request !== diffRequest) return;
-      profileFiles = profiles.profiles
-        .filter((profile) => profile.local)
-        .map((profile) => ({
-          name: profile.name,
-          digest: profile.digest,
-          usableBy: storedUsableBy(profile),
-        }));
-    } catch {
-      // Counts are advisory; the pages report their own load errors.
-    }
   }
 
   let instructionsFiles = $state.raw<InstructionsFile[]>([]);
@@ -314,92 +267,9 @@ export function createSettingsPageControllers(deps: {
     }
   });
 
-  /** Pages where this project differs from the user's settings, with counts. */
-  function pageDiffs(): Readonly<Record<string, number>> {
-    // A page whose project file is not trusted shows User's values and no differences.
-    const agentLocked =
-      agentState.document?.status === "available" &&
-      agentState.document.trusted === false;
-    const overrides = agentState.overrides;
-    const agentCounts = Object.fromEntries(
-      (["general", "tools", "skills", "sub-agents"] as const).map((page) => [
-        page,
-        agentLocked ? 0 : agentOverridePointers(overrides, page).length,
-      ]),
-    );
-    return mergeDiffCounts(agentCounts, {
-      agents: profileFileCount(profileFiles, "lead"),
-      "sub-agents": profileFileCount(profileFiles, "subagent"),
-      extensions:
-        extensionsState.view?.file.trusted === false
-          ? 0
-          : differingExtensionCount(
-              extensionsState.view,
-              extensionsState.inherited,
-            ),
-      suggestions:
-        suggestionFile()?.status === "untrusted"
-          ? 0
-          : differingSuggestionCount(suggestionStatuses()),
-    });
-  }
-
-  async function resetAgentOverrides(page: AgentOverridePageId): Promise<void> {
-    const resets = agentOverrideResets(agentState.overrides, page);
-    if (!resets.length) return;
-    await agentState.save({}, resets);
-    if (agentState.error) throw new Error(agentState.error);
-  }
-
-  /** Removes every project override on one page, so it follows user settings again. */
-  async function resetProjectPage(pageId: string): Promise<void> {
-    const projectId = targetProjectId();
-    if (!projectId) return;
-    switch (pageId) {
-      case "general":
-      case "tools":
-      case "skills":
-        await resetAgentOverrides(pageId);
-        break;
-      case "extensions": {
-        const ids = (extensionsState.view?.extensions ?? [])
-          .filter((entry) => entry.stored)
-          .map((entry) => entry.metadata.id);
-        await extensionsState.resetAll(ids);
-        if (extensionsState.error) throw new Error(extensionsState.error);
-        break;
-      }
-      case "suggestions":
-        for (const { definitionKey } of suggestionStatuses().filter(
-          (status) => status.projectEnabled !== undefined,
-        ))
-          await updatePromptSuggestionEnabled({
-            definitionKey,
-            enabled: null,
-            scope: "project",
-            projectId,
-          });
-        break;
-      case "agents":
-      case "sub-agents":
-        if (pageId === "sub-agents") await resetAgentOverrides(pageId);
-        for (const file of profileFiles.filter(
-          (candidate) =>
-            profileFileCount([candidate], profileKindForPage(pageId)) > 0,
-        )) {
-          const result = await resetAgentProfile({
-            scope: { scope: "project", projectId },
-            name: file.name,
-            expectedDigest: file.digest,
-          });
-          if (result.status !== "saved")
-            throw new Error(
-              `Profile reset ${result.status}; reload before retrying.`,
-            );
-        }
-        break;
-    }
-    await loadProjectDiff();
+  /** Settings the project stores on a User-only page, whether or not its file is trusted. */
+  function projectOverrideCount(page: "general" | "tools"): number {
+    return agentOverridePointers(agentState.overrides, page).length;
   }
 
   $effect(() => {
@@ -462,8 +332,7 @@ export function createSettingsPageControllers(deps: {
     launchFolders,
     saveLaunchDialog,
     trustEntries,
-    pageDiffs,
-    resetProjectPage,
+    projectOverrideCount,
     suggestionsPageState,
     storageController,
     permissionsController,

@@ -18,6 +18,7 @@ import { skillApprovalProblem } from "$lib/application/skills/skill-review";
 import {
   LayerSwitches,
   OriginGroup,
+  SETTINGS_SEARCH_MIN,
   SettingsItem,
   SettingsList,
   SettingsSection,
@@ -31,9 +32,6 @@ import {
 } from "$lib/domain/skills/skill-catalog";
 import type { Layered } from "../../../state/layered";
 import { applyLayerChange } from "../../shared/layer-change";
-
-/** Lists with at least this many entries get a search field. */
-const SEARCH_MIN = 12;
 
 let {
   projectId,
@@ -157,7 +155,7 @@ const rows = $derived<Row[]>(
 
 const total = $derived(rows.length);
 const visible = $derived(
-  total >= SEARCH_MIN
+  total >= SETTINGS_SEARCH_MIN
     ? filterSkills({
         entries: rows.map((r) => r.entry),
         query,
@@ -273,7 +271,7 @@ function onRetry() {
 {#if !ready && !error}
   <Skeleton class="h-8 w-full" />
 {:else if ready}
-  {#if total >= SEARCH_MIN}
+  {#if total >= SETTINGS_SEARCH_MIN}
     <SearchInput
       bind:value={query}
       placeholder="Search skills"
@@ -287,6 +285,7 @@ function onRetry() {
       origin={group.origin}
       count={group.rows.length}
       projectName={layered ? projectName : undefined}
+      {locked}
     >
       {#each group.rows as row (row.entry.skill.filePath)}
         {@const entry = row.entry}

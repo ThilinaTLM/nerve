@@ -29,6 +29,7 @@ import {
   openSettingsPane,
 } from "$lib/application/settings";
 import {
+  ColumnLabels,
   LayerSwitches,
   SettingsItem,
   SettingsList,
@@ -205,6 +206,7 @@ function accountLayers(item: FieldItem) {
     projectName: projectName!,
     userValue: typeof userValue === "string" ? userValue : undefined,
     userDisabled: busy || projectLocked || !userItem?.editable,
+    locked: projectLocked,
     onSelectUser: (account: string) => void changeField(item, "user", account),
   };
 }
@@ -258,6 +260,27 @@ function openPage(page: "tools" | "skills"): void {
 
 {#snippet helpersNote()}{note}{/snippet}
 
+{#snippet splitLabels()}
+  {#if projectName}
+    <SplitColumns
+      {projectName}
+      projectOnly={extension.metadata.source === "project"}
+      locked={projectLocked}
+    />
+  {/if}
+{/snippet}
+
+{#snippet layerLabels()}
+  {#if projectName}
+    <ColumnLabels
+      {projectName}
+      projectOnly={extension.metadata.source === "project"}
+      locked={projectLocked}
+      chevron
+    />
+  {/if}
+{/snippet}
+
 <div class="grid gap-5">
   {#if extension.readOnly}
     <Callout
@@ -308,11 +331,8 @@ function openPage(page: "tools" | "skills"): void {
       title={section.title}
       description={section.description}
       divided
+      splitLabels={layered ? splitLabels : undefined}
     >
-      {#if layered}<SplitColumns
-          {projectName}
-          projectOnly={extension.metadata.source === "project"}
-        />{/if}
       {#each section.fields as item (item.key)}
         <ExtensionFieldRow
           extensionId={id}
@@ -372,17 +392,9 @@ function openPage(page: "tools" | "skills"): void {
       footer={note ? helpersNote : undefined}
       title="Features"
       description="The tools, Quick script namespaces and skills the agent gets when this extension is on."
+      layerLabels={layered ? layerLabels : undefined}
     >
-      <SettingsList
-        ariaLabel="Features"
-        columns={layered
-          ? {
-              chevron: true,
-              projectName,
-              projectOnly: extension.metadata.source === "project",
-            }
-          : undefined}
-      >
+      <SettingsList ariaLabel="Features">
         {#each layout.features as row (`${row.kind}:${row.id}`)}
           {@const control = row.control}
           {@const item = control.type === "switch" ? control.item : undefined}
@@ -435,8 +447,8 @@ function openPage(page: "tools" | "skills"): void {
               {:else if control.type === "follows"}
                 <span
                   class={[
-                    layered ? "w-48 text-center" : "w-20 text-right",
-                    "text-caption text-muted-foreground",
+                    layered ? "w-48" : "w-24",
+                    "text-center text-caption text-muted-foreground",
                   ]}>Always on</span
                 >
               {/if}

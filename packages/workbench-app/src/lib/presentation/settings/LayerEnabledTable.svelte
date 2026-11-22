@@ -1,13 +1,16 @@
 <!--
-  The "Enabled" table of a layered detail page: a one-row table (label and
-  description left, User and project switches right) under the page header,
-  with the same column header and cell widths as the lists further down. Detail
+  The "Enabled" table of a layered detail page: a one-row card (label and
+  description left, User and project switches right) right under the page
+  header, with the column labels on a short right-aligned line above it and the
+  same cell widths as the lists further down. It has no section heading. Detail
   titles carry at most one simple action; the layer switches live here instead.
 -->
 <script lang="ts">
+import ColumnLabels from "./ColumnLabels.svelte";
 import LayerSwitches from "./LayerSwitches.svelte";
 import SettingsItem from "./SettingsItem.svelte";
 import SettingsList from "./SettingsList.svelte";
+import SettingsSection from "./SettingsSection.svelte";
 import type { SettingsLayer } from "./settings-origin";
 
 type Props = {
@@ -46,24 +49,28 @@ let {
 }: Props = $props();
 </script>
 
-<SettingsList
-  ariaLabel={title}
-  columns={{ chevron: true, projectName, projectOnly }}
->
-  <SettingsItem {title} summary={description}>
-    {#snippet meta()}
-      <LayerSwitches
-        {name}
-        {user}
-        {project}
-        {projectSet}
-        {projectName}
-        {projectOnly}
-        {locked}
-        {pending}
-        {inapplicable}
-        {onChange}
-      />
-    {/snippet}
-  </SettingsItem>
-</SettingsList>
+<SettingsSection surface={false}>
+  {#snippet layerLabels()}
+    {#if projectName}
+      <ColumnLabels {projectName} {projectOnly} {locked} chevron />
+    {/if}
+  {/snippet}
+  <SettingsList ariaLabel={title}>
+    <SettingsItem {title} summary={description}>
+      {#snippet meta()}
+        <LayerSwitches
+          {name}
+          {user}
+          {project}
+          {projectSet}
+          {projectName}
+          {projectOnly}
+          {locked}
+          {pending}
+          {inapplicable}
+          {onChange}
+        />
+      {/snippet}
+    </SettingsItem>
+  </SettingsList>
+</SettingsSection>

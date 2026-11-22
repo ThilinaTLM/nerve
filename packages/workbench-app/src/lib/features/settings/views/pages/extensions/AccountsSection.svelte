@@ -5,7 +5,7 @@
   an index); a row opens to edit, and signs in or retries from its problem line.
   A user-scope setting offers user-level accounts; a project setting also offers
   that project's. With a project open (`choice.layers`) each row has two radio
-  slots, User and the project: the project follows User until it picks another
+  slots under quiet column labels, User and the project: the project follows User until it picks another
   account, and picking User's account again clears the override. Project
   accounts have no User radio.
 -->
@@ -23,6 +23,7 @@ import type { AccountView } from "$lib/api";
 import { testAccount } from "$lib/api";
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import {
+  ColumnLabels,
   LayerCells,
   SettingsChangeIndicator,
   SettingsEmptyState,
@@ -67,6 +68,8 @@ type Props = {
       userValue?: string;
       /** The User slot cannot be changed. */
       userDisabled: boolean;
+      /** The project's settings file is not trusted: its radios are disabled and show User's choice. */
+      locked?: boolean;
       onSelectUser: (id: string) => void;
     };
   };
@@ -133,6 +136,7 @@ const accounts = $derived(
   id={choice ? "accounts" : `accounts-${kind.kind}`}
   title={choice?.title ?? `${kind.label}s`}
   description={choice?.description}
+  layerLabels={choice?.layers && accounts.length > 0 ? layerLabels : undefined}
 >
   {#snippet actions()}
     {#if choice?.lockedReason}
@@ -210,13 +214,19 @@ const accounts = $derived(
   </button>
 {/snippet}
 
+{#snippet layerLabels()}
+  {#if choice?.layers}
+    <ColumnLabels
+      projectName={choice.layers.projectName}
+      {projectOnly}
+      locked={choice.layers.locked}
+      chevron
+    />
+  {/if}
+{/snippet}
+
 {#snippet list()}
-  <SettingsList
-    ariaLabel={`${kind.label}s`}
-    columns={choice?.layers
-      ? { chevron: true, projectName: choice.layers.projectName, projectOnly }
-      : undefined}
-  >
+  <SettingsList ariaLabel={`${kind.label}s`}>
     {#each accounts as account (account.id)}
       {#snippet mark()}
         <RadioGroup.Item
@@ -245,7 +255,8 @@ const accounts = $derived(
               {/snippet}
               {#snippet project()}
                 {@render radio(
-                  choice?.value === account.id,
+                  (layers.locked ? layers.userValue : choice?.value) ===
+                    account.id,
                   `Use ${account.name} in ${layers.projectName}`,
                   choice?.disabled === true,
                   () => choice?.onSelect(account.id),

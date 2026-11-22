@@ -40,6 +40,7 @@ import { accountHealthBadge } from "$lib/presentation/integrations/account-healt
 import {
   SettingsEmptyState,
   OriginGroup,
+  SETTINGS_SEARCH_MIN,
   SettingsItem,
   SettingsSection,
   SettingsToolbar,
@@ -54,7 +55,6 @@ import {
   duplicateWarning,
   searchAccountRows,
   levelChoices,
-  ACCOUNT_SEARCH_MIN,
   visibleAccounts,
   type AccountExtension,
   type AccountRowModel,
@@ -111,7 +111,7 @@ const rows = $derived(
     (kind) => extensionsByKind[kind],
   ),
 );
-const searchable = $derived(rows.length >= ACCOUNT_SEARCH_MIN);
+const searchable = $derived(rows.length >= SETTINGS_SEARCH_MIN);
 const shown = $derived(
   searchAccountRows(rows, searchable ? query : "", project?.name),
 );

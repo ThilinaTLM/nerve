@@ -39,9 +39,13 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import {
   LayerSwitches,
   OriginGroup,
+  ProjectOverrideMark,
+  SETTINGS_SEARCH_MIN,
   SettingsItem,
   type SettingsLayer,
 } from "$lib/presentation/settings";
+import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
+import { projectColumns } from "../../../state/project-columns.svelte";
 import { modelKey } from "$lib/presentation/utils/model";
 import {
   ensureProfilesFor,
@@ -79,6 +83,8 @@ let {
   onReviewTrust?: () => void;
 } = $props();
 const layered = $derived(!!projectId && !!projectName);
+/** The project's column is shown next to User (header switch); otherwise the page is User-only. */
+const columns = $derived(layered && projectColumns.tools);
 const clamp = (model: ModelSelection, level: ThinkingLevel) => {
   const known = models.find((m) => modelKey(m) === modelKey(model));
   return known ? clampThinkingLevelForModel(level, known) : level;
@@ -162,6 +168,33 @@ const extensionGroups = $derived.by(() => {
   }
   return groups;
 });
+const total = $derived(
+  toolRows.length +
+    extensionGroups.reduce((sum, group) => sum + group.tools.length, 0),
+);
+let query = $state("");
+const needle = $derived(
+  total >= SETTINGS_SEARCH_MIN ? query.trim().toLowerCase() : "",
+);
+const matches = (text: string) =>
+  !needle || text.toLowerCase().includes(needle);
+const shownRows = $derived(
+  toolRows.filter((row) => matches(`${row.label} ${row.description}`)),
+);
+const shownGroups = $derived(
+  extensionGroups
+    .map((group) => ({
+      ...group,
+      tools: group.tools.filter((tool) =>
+        matches(`${toolLabel(tool.name)} ${tool.description}`),
+      ),
+    }))
+    .filter((group) => group.tools.length > 0),
+);
+const shownTotal = $derived(
+  shownRows.length +
+    shownGroups.reduce((sum, group) => sum + group.tools.length, 0),
+);
 /** An extension tool's row label: its name as words (`web_search` → Web search). */
 function toolLabel(name: string): string {
   const words = name.replaceAll("_", " ");
@@ -205,7 +238,7 @@ function rowSummary(row: ToolRowDef) {
   return (
     toolSettingsSummary(
       row.id,
-      payload(layered && !locked ? "project" : "user", row.id),
+      payload(columns && !locked ? "project" : "user", row.id),
       displayContext,
     ) ?? row.description
   );
@@ -314,6 +347,12 @@ const python = $derived(status?.runtime.python);
   </Callout>
 {/if}
 
+{#snippet overrideMark(id: ToolId)}
+  {#if layered && !columns && projectName && enabledOf(projectEditor.overrides.tools, id) !== undefined}
+    <ProjectOverrideMark {projectName} />
+  {/if}
+{/snippet}
+
 {#snippet switches(id: ToolId, name: string, pending: boolean)}
   {@const l = layersOf(id)}
   <LayerSwitches
@@ -321,7 +360,7 @@ const python = $derived(status?.runtime.python);
     user={l.user}
     project={l.project}
     projectSet={l.projectSet}
-    projectName={layered ? projectName : undefined}
+    projectName={columns ? projectName : undefined}
     {pending}
     {locked}
     onChange={(layer, next) => toggle(id, layer, next)}
@@ -330,13 +369,29 @@ const python = $derived(status?.runtime.python);
 
 {#if loading}<Skeleton class="h-10 w-full" />
 {:else if ready}
+  {#if total >= SETTINGS_SEARCH_MIN}
+    <SearchInput
+      bind:value={query}
+      placeholder="Search tools"
+      ariaLabel="Search tools"
+      class="max-w-xs"
+    >
+      {#snippet trailing()}
+        {#if needle}<span class="flex-none text-ui text-muted-foreground"
+            >{shownTotal} of {total}</span
+          >{/if}
+      {/snippet}
+    </SearchInput>
+  {/if}
+
   <OriginGroup
     origin={{ kind: "builtin" }}
-    count={toolRows.length}
-    projectName={layered ? projectName : undefined}
+    count={shownRows.length}
+    projectName={columns ? projectName : undefined}
+    {locked}
     note="Read, edit, ask_user and process tools are always on. Permissions govern them."
   >
-    {#each toolRows as row (row.id)}
+    {#each shownRows as row (row.id)}
       {@const fromExtension = extensionState(row.id)}
       {@const link = toolSettingsLink(row.id)}
       <SettingsItem
@@ -363,12 +418,15 @@ const python = $derived(status?.runtime.python);
           ? `Configure ${row.label}`
           : `Open ${row.label} extension settings`}
       >
+        {#snippet badges()}{#if !row.always}{@render overrideMark(
+              row.id,
+            )}{/if}{/snippet}
         {#snippet meta()}
           {#if row.always}
             <span
               class={[
-                layered ? "w-40" : "w-20",
-                "text-right text-caption text-muted-foreground",
+                columns ? "w-48" : "w-24",
+                "text-center text-caption text-muted-foreground",
               ]}>Always on</span
             >
           {:else}
@@ -383,11 +441,12 @@ const python = $derived(status?.runtime.python);
     {/each}
   </OriginGroup>
 
-  {#each extensionGroups as group (group.extensionId)}
+  {#each shownGroups as group (group.extensionId)}
     <OriginGroup
       origin={{ kind: "extension", name: group.name }}
       count={group.tools.length}
-      projectName={layered ? projectName : undefined}
+      projectName={columns ? projectName : undefined}
+      {locked}
       note={`Tools from the ${group.name} extension.`}
     >
       {#snippet actions()}
@@ -428,6 +487,9 @@ const python = $derived(status?.runtime.python);
           onOpen={() => openExtension(group.extensionId)}
           openLabel={`Open ${group.name} extension settings`}
         >
+          {#snippet badges()}{#if switchId}{@render overrideMark(
+                switchId,
+              )}{/if}{/snippet}
           {#snippet meta()}
             {#if switchId}
               {@render switches(
@@ -438,8 +500,8 @@ const python = $derived(status?.runtime.python);
             {:else}
               <span
                 class={[
-                  layered ? "w-40" : "w-20",
-                  "text-right text-caption text-muted-foreground",
+                  columns ? "w-48" : "w-24",
+                  "text-center text-caption text-muted-foreground",
                 ]}>Always on</span
               >
             {/if}

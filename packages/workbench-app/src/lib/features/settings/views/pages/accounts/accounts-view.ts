@@ -29,9 +29,6 @@ export type AccountRowModel = {
   extension?: AccountExtension;
 };
 
-/** The Accounts page offers its search from this many accounts. */
-export const ACCOUNT_SEARCH_MIN = 12;
-
 const levelLabels: Record<AccountLevel, string> = {
   user: "User",
   project: "Project",

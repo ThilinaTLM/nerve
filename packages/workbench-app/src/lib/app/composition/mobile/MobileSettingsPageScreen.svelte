@@ -99,7 +99,6 @@ $effect(() => {
   {#snippet actions()}
     {#if !desktopOnly}<SettingsPageActions
         {page}
-        {target}
         {controllers}
         settingsDraft={settingsState.settingsDraft}
         {project}

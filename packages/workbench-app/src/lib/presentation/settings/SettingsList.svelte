@@ -1,24 +1,13 @@
 <script lang="ts">
-import ColumnLabels from "./ColumnLabels.svelte";
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {
   ariaLabel,
-  columns,
   class: className,
   children,
 }: {
   ariaLabel?: string;
-  /**
-   * Layer column labels (User, the project) as the list's header row, over the
-   * rows' switches or radios. Pass `chevron` when the rows open something.
-   */
-  columns?: {
-    projectName?: string;
-    projectOnly?: boolean;
-    chevron?: boolean;
-  };
   class?: string;
   children: Snippet;
 } = $props();
@@ -36,13 +25,5 @@ let {
     className,
   )}
 >
-  {#if columns}
-    <div
-      role="presentation"
-      class="flex min-h-8 items-center justify-end gap-2 px-3 py-1"
-    >
-      <ColumnLabels {...columns} />
-    </div>
-  {/if}
   {@render children()}
 </div>

@@ -11,6 +11,14 @@ type Props = {
   title?: string;
   /** One line of muted text under the heading. */
   description?: string;
+  /**
+   * Layer column labels (`ColumnLabels`) of a layered table. They sit at the
+   * right of the heading/description line, or on a short line of their own
+   * when the section has `actions` there.
+   */
+  layerLabels?: Snippet;
+  /** Labels over the two halves of `LayerRow`s (`SplitColumns`), on the line above the card. */
+  splitLabels?: Snippet;
   /** Longer detail shown in a tooltip beside the title. */
   info?: string;
   /**
@@ -39,6 +47,8 @@ let {
   title,
   description,
   info,
+  layerLabels,
+  splitLabels,
   divided = false,
   surface = true,
   class: className,
@@ -59,7 +69,7 @@ let {
     : undefined}
   class={cn("-mx-2 grid min-w-0 scroll-mt-3 gap-2 px-2", className)}
 >
-  {#if title || description || actions}
+  {#if title || description || actions || layerLabels}
     <div class="flex min-h-6 min-w-0 items-end justify-between gap-3">
       <div class="grid min-w-0 gap-0.5">
         {#if title}
@@ -84,9 +94,19 @@ let {
         <div class="flex flex-none items-center gap-1.5">
           {@render actions()}
         </div>
+      {:else if layerLabels}
+        <div class="flex-none pr-[calc(--spacing(3)+1px)]">
+          {@render layerLabels()}
+        </div>
       {/if}
     </div>
+    {#if actions && layerLabels}
+      <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
+        {@render layerLabels()}
+      </div>
+    {/if}
   {/if}
+  {#if splitLabels}{@render splitLabels()}{/if}
 
   <!-- `data-settings-surface` is the contract nested cards (SettingsList,
        card empty states, catalogs) read to drop their own chrome. -->

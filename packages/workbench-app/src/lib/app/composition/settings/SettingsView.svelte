@@ -164,7 +164,6 @@ function statusText(): string {
   {#snippet pageActions(page)}
     <SettingsPageActions
       {page}
-      {target}
       {controllers}
       {settingsDraft}
       {project}

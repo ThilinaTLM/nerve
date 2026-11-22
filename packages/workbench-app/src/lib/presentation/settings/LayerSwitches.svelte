@@ -4,14 +4,16 @@
   (`onChange(layer, value)`); callers decide what that means for the stored
   layers (e.g. a project value equal to User's means "follow User").
   `projectOnly` leaves the User slot empty at the same width. Cells are the
-  shared `LayerCells`, so switches line up with the column labels.
+  shared `LayerCells`, so switches line up with the column labels. `locked` (the
+  project's settings file is not trusted) leaves the project switch disabled
+  and muted, showing User's value and centered like the others; the column
+  label carries the one lock, so rows get no icon.
 -->
 <script lang="ts">
-import Lock from "@lucide/svelte/icons/lock";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import HoverTip from "./HoverTip.svelte";
 import LayerCells from "./LayerCells.svelte";
-import type { SettingsLayer } from "./settings-origin";
+import { lockedColumnTip, type SettingsLayer } from "./settings-origin";
 
 type Props = {
   /** Item name, for the switches' accessible labels. */
@@ -30,7 +32,7 @@ type Props = {
   pending?: boolean;
   /** The project layer does not apply here; the row's badge says why. */
   inapplicable?: boolean;
-  /** The project's settings file is not trusted: its switch is locked and shows User's value. */
+  /** The project's settings file is not trusted: its switch is disabled and shows User's value. */
   locked?: boolean;
   onChange: (layer: SettingsLayer, value: boolean) => void;
 };
@@ -75,21 +77,13 @@ const projectTip = $derived(
   {#if pending || inapplicable}
     <!-- Empty: the row explains it. -->
   {:else if locked}
-    <HoverTip
-      delay={400}
-      tip={`Locked until you trust ${projectName}'s settings file. Uses User for now.`}
-    >
+    <HoverTip delay={400} tip={lockedColumnTip(projectName ?? "the project")}>
       <Switch
         checked={user}
         disabled
         aria-label={`${name} in ${projectName}`}
       />
     </HoverTip>
-    <!-- Beside the switch, so the switch itself stays centered in the column. -->
-    <Lock
-      class="pointer-events-none absolute left-3 size-3.5 text-muted-foreground"
-      aria-hidden="true"
-    />
   {:else}
     <HoverTip delay={400} tip={projectTip}>
       <Switch

@@ -16,6 +16,11 @@ export function projectColumnTip(project: string): string {
   return `Only in ${project}. Follows User until you change it here.`;
 }
 
+/** Why a project column is disabled: its settings file is not trusted yet. */
+export function lockedColumnTip(project: string): string {
+  return `Not applied until you review ${project}'s settings file`;
+}
+
 export function originLabel(origin: SettingsOrigin, project?: string): string {
   switch (origin.kind) {
     case "project":

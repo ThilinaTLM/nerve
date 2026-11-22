@@ -401,6 +401,7 @@ $effect(() => {
         origin={{ kind: origin }}
         count={rows.length}
         projectName={layered ? projectName : undefined}
+        {locked}
         emptyText={origin === "builtin" ? undefined : empty[origin][0]}
         emptyDescription={origin === "builtin" ? undefined : empty[origin][1]}
       >

@@ -19,6 +19,7 @@ import { openSettingsPane } from "$lib/application/settings";
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import { projectColumns } from "../../../state/project-columns.svelte";
 import { CreationPreferencesState } from "../../../state/creation-preferences.svelte";
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
 import {
@@ -56,6 +57,8 @@ let {
   settingsDraft?: Settings;
 } = $props();
 const layered = $derived(!!projectId && !!projectName);
+/** The project's column is shown next to User (header switch); otherwise the page is User-only. */
+const columns = $derived(layered && projectColumns.general);
 const clamp = (model: ModelSelection, level: ThinkingLevel) => {
   const known = models.find((m) => modelKey(m) === modelKey(model));
   return known ? clampThinkingLevelForModel(level, known) : level;
@@ -335,13 +338,17 @@ function resets(key: Key, text: (v: Display) => string) {
         }
       : undefined,
     projectReset:
-      layered && !locked && isSet("project", key)
+      columns && !locked && isSet("project", key)
         ? {
             label: `Use the User value (${text(userValues!)})`,
             onReset: () => void clear("project", key),
           }
         : undefined,
   };
+}
+/** The project's name on a row it overrides while its column is hidden (also while its file is untrusted). */
+function overridden(key: Key): string | undefined {
+  return layered && !columns && isSet("project", key) ? projectName : undefined;
 }
 /** After User returns to its default, drop a project choice that now equals it. */
 async function clearMatching(key: Key) {
@@ -356,11 +363,11 @@ async function clearMatching(key: Key) {
 }
 const autoAnywhere = $derived(
   !!userValues?.compaction.auto ||
-    (layered && !!projectValues?.compaction.auto),
+    (columns && !!projectValues?.compaction.auto),
 );
 const customAnywhere = $derived(
   userValues?.compaction.profile === "custom" ||
-    (layered && projectValues?.compaction.profile === "custom"),
+    (columns && projectValues?.compaction.profile === "custom"),
 );
 const error = $derived(
   userState.error ??
@@ -385,6 +392,10 @@ const reasoningConflict = $derived(
       )),
 );
 </script>
+
+{#snippet splitLabels()}
+  {#if projectName}<SplitColumns {projectName} {locked} />{/if}
+{/snippet}
 
 {#snippet link(text: string, page: string)}
   <button
@@ -468,7 +479,7 @@ const reasoningConflict = $derived(
   {#if v.compaction.profile === "custom"}
     <span class="flex items-center gap-2">
       <Input
-        class={layered ? "w-20" : undefined}
+        class={columns ? "w-20" : undefined}
         disabled={disabled || states[layer].saving}
         type="number"
         min={60}
@@ -535,13 +546,17 @@ const reasoningConflict = $derived(
   <Skeleton class="h-10 w-full" />
 {:else if userValues}
   {@const pv = projectValues ?? userValues}
-  <SettingsSection id="new-conversations" title="New conversations" divided>
-    {#if layered}<SplitColumns {projectName} />{/if}
+  <SettingsSection
+    id="new-conversations"
+    title="New conversations"
+    divided
+    splitLabels={columns ? splitLabels : undefined}
+  >
     <LayerRow
       label="Start new conversations with"
       description="The profile applied when a conversation starts. Plan approval switches to the profile set in Tools → Plan review."
-      projectName={layered ? projectName : undefined}
-      {locked}
+      projectName={columns ? projectName : undefined}
+      overriddenIn={overridden("startProfile")}
       {...resets("startProfile", (v) =>
         profileLabelFor(v.startProfile ?? DEFAULT_AGENT_PROFILE),
       )}
@@ -559,13 +574,17 @@ const reasoningConflict = $derived(
     </LayerRow>
   </SettingsSection>
 
-  <SettingsSection id="model" title="Model and permissions" divided>
-    {#if layered}<SplitColumns {projectName} />{/if}
+  <SettingsSection
+    id="model"
+    title="Model and permissions"
+    divided
+    splitLabels={columns ? splitLabels : undefined}
+  >
     <LayerRow
       label="Model"
       description="The model decides which reasoning levels exist."
-      projectName={layered ? projectName : undefined}
-      {locked}
+      projectName={columns ? projectName : undefined}
+      overriddenIn={overridden("model")}
       {...resets("model", (v) => modelText(v.defaults))}
     >
       {#snippet hint()}{@render link("Model scope", "models")}{/snippet}
@@ -579,8 +598,8 @@ const reasoningConflict = $derived(
     <LayerRow
       label="Permissions"
       description="Baseline guardrails always apply underneath."
-      projectName={layered ? projectName : undefined}
-      {locked}
+      projectName={columns ? projectName : undefined}
+      overriddenIn={overridden("permission")}
       {...resets("permission", (v) =>
         ruleSetText(v.defaults.permissionRuleSetId),
       )}
@@ -607,12 +626,12 @@ const reasoningConflict = $derived(
     title="Compaction"
     description="Summarizes long conversations between agent iterations instead of stopping at the context limit."
     divided
+    splitLabels={columns ? splitLabels : undefined}
   >
-    {#if layered}<SplitColumns {projectName} />{/if}
     <LayerRow
       label="Auto-compact"
-      projectName={layered ? projectName : undefined}
-      {locked}
+      projectName={columns ? projectName : undefined}
+      overriddenIn={overridden("auto")}
       {...resets("auto", (v) => (v.compaction.auto ? "On" : "Off"))}
     >
       {#snippet user()}<Switch
@@ -632,8 +651,8 @@ const reasoningConflict = $derived(
       <LayerRow
         label="Compaction strategy"
         description="Every strategy keeps about 10,000 tokens of recent messages."
-        projectName={layered ? projectName : undefined}
-        {locked}
+        projectName={columns ? projectName : undefined}
+        overriddenIn={overridden("strategy")}
         {...resets("strategy", (v) => strategyText(v.compaction.profile))}
       >
         {#snippet user()}{@render strategySelect(
@@ -651,8 +670,8 @@ const reasoningConflict = $derived(
         <LayerRow
           label="Compact at"
           description="60–90% of the context used."
-          projectName={layered ? projectName : undefined}
-          {locked}
+          projectName={columns ? projectName : undefined}
+          overriddenIn={overridden("percent")}
           {...resets("percent", (v) => `${v.compaction.customTriggerPercent}%`)}
         >
           {#snippet user()}{@render percentInput(

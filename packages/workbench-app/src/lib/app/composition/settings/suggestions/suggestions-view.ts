@@ -8,9 +8,6 @@ import type {
 } from "$lib/features/settings/state/layered";
 import { applyLayerChange } from "$lib/features/settings/views/shared/layer-change";
 
-/** Lists show a search field from this many suggestions. */
-export const SEARCH_MIN = 12;
-
 /** The stored choices of one suggestion. A project-defined one has no User layer. */
 export function suggestionLayers(
   status: PromptSuggestionStatus,

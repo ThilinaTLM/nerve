@@ -13,6 +13,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   LayerSwitches,
   OriginGroup,
+  SETTINGS_SEARCH_MIN,
   SettingsItem,
   TipBadge,
 } from "$lib/presentation/settings";
@@ -21,9 +22,6 @@ import type { ProfileOrigin, ProfileRow } from "./profile-groups";
 import type { ProfileKind } from "./profile-kind";
 import { changeSummary, type ChangeTextDeps } from "./profile-summary";
 import type { ProfilesStore } from "./profiles-store.svelte";
-
-/** Lists with at least this many profiles get a search field. */
-const SEARCH_MIN = 12;
 
 let {
   store,
@@ -72,7 +70,7 @@ function problemOf(row: ProfileRow): string | undefined {
 }
 </script>
 
-{#if total >= SEARCH_MIN}
+{#if total >= SETTINGS_SEARCH_MIN}
   <SearchInput
     bind:value={query}
     placeholder="Search profiles"
@@ -88,6 +86,7 @@ function problemOf(row: ProfileRow): string | undefined {
     count={rows.length}
     {projectName}
     layers={sub}
+    locked={store.launchLocked}
     emptyText={origin === "builtin" || needle
       ? undefined
       : "No profiles here yet"}

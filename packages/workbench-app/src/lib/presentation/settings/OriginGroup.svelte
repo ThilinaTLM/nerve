@@ -1,9 +1,10 @@
 <!--
   One origin group: caption (origin icon, name, count) above the card with a hover
-  tooltip saying where the group comes from; the card's first row is the layer
-  column labels, aligned with every row's LayerSwitches. Order groups Project, User,
-  other sources, Built-in. An empty group is hidden unless `emptyText` is given
-  (the user can add to it).
+  tooltip saying where the group comes from. With a project open the layer column
+  labels sit at the right of the caption line, over the rows' LayerSwitches; a
+  project-only group shows none (its caption names the project). Order groups
+  Project, User, other sources, Built-in. An empty group is hidden unless
+  `emptyText` is given (the user can add to it).
 -->
 <script lang="ts">
 import Blocks from "@lucide/svelte/icons/blocks";
@@ -13,6 +14,7 @@ import Globe from "@lucide/svelte/icons/globe";
 import Package from "@lucide/svelte/icons/package";
 import type { Snippet } from "svelte";
 import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
+import ColumnLabels from "./ColumnLabels.svelte";
 import HoverTip from "./HoverTip.svelte";
 import { originLabel, originTip, type SettingsOrigin } from "./settings-origin";
 import SettingsEmptyState from "./SettingsEmptyState.svelte";
@@ -25,6 +27,8 @@ type Props = {
   projectName?: string;
   /** Show the column labels (lists with LayerSwitches). */
   layers?: boolean;
+  /** The project's settings file is not trusted: its column label carries the lock. */
+  locked?: boolean;
   /** Overrides the origin's tooltip copy. */
   note?: string;
   /** Rows end with a chevron slot (lists); cards do not. */
@@ -44,6 +48,7 @@ let {
   count,
   projectName,
   layers = true,
+  locked = false,
   note,
   chevron = true,
   list = true,
@@ -56,6 +61,7 @@ let {
 
 const label = $derived(originLabel(origin, projectName));
 const tip = $derived(note ?? originTip(origin, projectName));
+const showLabels = $derived(layers && origin.kind !== "project" && count !== 0);
 const icon = $derived(
   origin.kind === "project"
     ? BriefcaseBusiness
@@ -71,11 +77,14 @@ const icon = $derived(
 
 {#if count !== 0 || emptyText}
   <section class="grid gap-1.5">
-    <div class="flex min-h-6 items-end gap-2 pr-3 pl-1">
-      <div class="flex min-w-0 flex-1 items-center">
+    <div class="flex min-h-6 items-end gap-2 pr-[calc(--spacing(3)+1px)] pl-1">
+      <div class="flex min-w-0 flex-1 items-center gap-1">
         <HoverTip {tip}><GroupLabel {label} {count} {icon} /></HoverTip>
+        {#if actions}{@render actions()}{/if}
       </div>
-      {#if actions}{@render actions()}{/if}
+      {#if showLabels && projectName}
+        <ColumnLabels {projectName} {chevron} {locked} />
+      {/if}
     </div>
     {#if count === 0 && emptyText}
       <SettingsEmptyState
@@ -85,12 +94,7 @@ const icon = $derived(
         actions={emptyAction}
       />
     {:else if list}
-      <SettingsList
-        ariaLabel={label}
-        columns={layers
-          ? { chevron, projectName, projectOnly: origin.kind === "project" }
-          : undefined}
-      >
+      <SettingsList ariaLabel={label}>
         {@render children()}
       </SettingsList>
     {:else}

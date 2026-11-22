@@ -103,7 +103,6 @@ const labelFor = $derived(
     description={feature?.summary ?? field.description}
     hint={feature?.problem ? problemHint : undefined}
     projectName={layers.projectName}
-    locked={layers.locked}
     userAbsent={layers.projectOnly || !layers.userItem}
     projectNote={item.editable
       ? undefined

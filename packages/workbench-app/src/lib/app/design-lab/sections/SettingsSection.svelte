@@ -4,12 +4,15 @@ import SettingsChangeIndicator from "$lib/presentation/settings/SettingsChangeIn
 import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
 import EntityRow from "$lib/presentation/settings/EntityRow.svelte";
 import OAuthInteractionPanel from "$lib/presentation/settings/OAuthInteractionPanel.svelte";
+import ColumnLabels from "$lib/presentation/settings/ColumnLabels.svelte";
 import LayerCells from "$lib/presentation/settings/LayerCells.svelte";
 import LayerEnabledTable from "$lib/presentation/settings/LayerEnabledTable.svelte";
 import LayerRow from "$lib/presentation/settings/LayerRow.svelte";
 import LayerSwitches from "$lib/presentation/settings/LayerSwitches.svelte";
 import LevelMenu from "$lib/presentation/settings/LevelMenu.svelte";
 import OriginGroup from "$lib/presentation/settings/OriginGroup.svelte";
+import ProjectColumnsToggle from "$lib/presentation/settings/ProjectColumnsToggle.svelte";
+import ProjectOverrideMark from "$lib/presentation/settings/ProjectOverrideMark.svelte";
 import SplitColumns from "$lib/presentation/settings/SplitColumns.svelte";
 import TipBadge from "$lib/presentation/settings/TipBadge.svelte";
 import type { OAuthFlowInfo } from "@nervekit/contracts/auth";
@@ -90,6 +93,7 @@ const layered = $state({
 });
 let layerModelUser = $state("auto");
 let layerModelProject = $state("auto");
+let columnsShown = $state(false);
 
 let toggleA = $state(true);
 let toggleB = $state(false);
@@ -798,6 +802,10 @@ let oauthResponse = $state("");
       source="presentation/settings/OriginGroup.svelte"
       layout="stack"
     >
+      <p class="text-caption text-muted-foreground">
+        The column labels are quiet text on the group's caption line. A
+        project-only group shows none: its caption names the project.
+      </p>
       <OriginGroup
         origin={{ kind: "project" }}
         count={1}
@@ -861,6 +869,30 @@ let oauthResponse = $state("");
               project={layered.docs.project ?? layered.docs.user}
               projectSet={layered.docs.project !== undefined}
               projectName={layerProject}
+              onChange={(layer, value) =>
+                layer === "user"
+                  ? (layered.docs.user = value)
+                  : (layered.docs.project = value)}
+            />
+          {/snippet}
+        </SettingsItem>
+      </OriginGroup>
+      <OriginGroup
+        origin={{ kind: "user" }}
+        count={1}
+        projectName={layerProject}
+        locked
+      >
+        <SettingsItem
+          icon={BookOpenIcon}
+          title="release-notes"
+          summary="Untrusted project file: one lock on the label; the project switch is disabled and shows User's value"
+        >
+          {#snippet meta()}
+            <LayerSwitches
+              name="release-notes"
+              user={layered.core.user}
+              projectName={layerProject}
               locked
               onChange={() => {}}
             />
@@ -868,10 +900,10 @@ let oauthResponse = $state("");
         </SettingsItem>
       </OriginGroup>
       <OriginGroup
-        origin={{ kind: "user" }}
+        origin={{ kind: "agent-browser" }}
         count={0}
         projectName={layerProject}
-        emptyText="No user skills yet."
+        emptyText="No agent-browser skills yet."
       >
         {null}
       </OriginGroup>
@@ -882,13 +914,15 @@ let oauthResponse = $state("");
       layout="stack"
     >
       <p class="text-caption text-muted-foreground">
-        The header row of the list's own card (`SettingsList columns`). Labels
-        and controls share the fixed, centered `LayerCells` columns.
+        Quiet text above the card, no header row inside it. Labels and controls
+        share the fixed, centered `LayerCells` columns. Project-defined blocks
+        hide the User label; an untrusted file puts one lock on the project
+        label.
       </p>
-      <SettingsList
-        ariaLabel="Column labels"
-        columns={{ projectName: layerProject, chevron: true }}
-      >
+      <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
+        <ColumnLabels projectName={layerProject} chevron />
+      </div>
+      <SettingsList ariaLabel="Column labels">
         <SettingsItem title="Both layers" summary="Radios in the same cells">
           {#snippet meta()}
             <LayerCells projectName={layerProject}>
@@ -905,14 +939,10 @@ let oauthResponse = $state("");
           {/snippet}
         </SettingsItem>
       </SettingsList>
-      <SettingsList
-        ariaLabel="Project-only column labels"
-        columns={{
-          projectName: layerProject,
-          projectOnly: true,
-          chevron: true,
-        }}
-      >
+      <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
+        <ColumnLabels projectName={layerProject} projectOnly chevron />
+      </div>
+      <SettingsList ariaLabel="Project-only column labels">
         <SettingsItem title="Project-only" summary="The User cell stays empty">
           {#snippet meta()}
             <LayerCells projectName={layerProject}>
@@ -925,6 +955,9 @@ let oauthResponse = $state("");
           {/snippet}
         </SettingsItem>
       </SettingsList>
+      <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
+        <ColumnLabels projectName={layerProject} locked chevron />
+      </div>
     </GallerySpecimen>
     <GallerySpecimen
       title="LayerEnabledTable"
@@ -933,7 +966,7 @@ let oauthResponse = $state("");
     >
       <LayerEnabledTable
         name="core"
-        description="Detail pages put layer switches in a table row under the header, not in the title."
+        description="Detail pages put layer switches in a card right under the header, with the labels on a short line above it."
         projectName={layerProject}
         user={layered.core.user}
         project={layered.core.project ?? layered.core.user}
@@ -946,7 +979,7 @@ let oauthResponse = $state("");
       <LayerEnabledTable
         name="core"
         title="Available"
-        description="Without a project there is only the User column."
+        description="Without a project there is only the User column and no labels."
         user={layered.core.user}
         onChange={(_, value) => (layered.core.user = value)}
       />
@@ -956,31 +989,54 @@ let oauthResponse = $state("");
       source="presentation/settings/LayerRow.svelte"
       layout="stack"
     >
-      <SplitColumns projectName={layerProject} />
-      <LayerRow
-        label="Header style"
-        description="Wide controls: label on the full width, User and project halves below."
-        projectName={layerProject}
-        projectReset={{
-          label: "Follow User",
-          onReset: () => (layerModelProject = layerModelUser),
-        }}
+      <SettingsSection
+        title="Defaults"
+        divided
+        splitLabels={columnsShown ? splitLabels : undefined}
       >
-        {#snippet user()}
-          <SelectField
-            items={headerStyles}
-            bind:value={layerModelUser}
-            ariaLabel="User header style"
-          />
-        {/snippet}
-        {#snippet project()}
-          <SelectField
-            items={headerStyles}
-            bind:value={layerModelProject}
-            ariaLabel="Project header style"
-          />
-        {/snippet}
-      </LayerRow>
+        <LayerRow
+          label="Header style"
+          description="Wide controls: label on the full width, then User and project halves, each [control][↺]."
+          projectName={columnsShown ? layerProject : undefined}
+          overriddenIn={layerModelProject !== layerModelUser
+            ? layerProject
+            : undefined}
+          projectReset={layerModelProject !== layerModelUser
+            ? {
+                label: "Follow User",
+                onReset: () => (layerModelProject = layerModelUser),
+              }
+            : undefined}
+        >
+          {#snippet user()}
+            <SelectField
+              items={headerStyles}
+              bind:value={layerModelUser}
+              ariaLabel="User header style"
+            />
+          {/snippet}
+          {#snippet project()}
+            <SelectField
+              items={headerStyles}
+              bind:value={layerModelProject}
+              ariaLabel="Project header style"
+            />
+          {/snippet}
+        </LayerRow>
+      </SettingsSection>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ProjectColumnsToggle + ProjectOverrideMark"
+      source="presentation/settings/ProjectColumnsToggle.svelte"
+    >
+      <ProjectColumnsToggle
+        id="lab-project-columns"
+        projectName={layerProject}
+        checked={columnsShown}
+        count={layerModelProject !== layerModelUser ? 1 : 0}
+        onCheckedChange={(next) => (columnsShown = next)}
+      />
+      <ProjectOverrideMark projectName={layerProject} />
     </GallerySpecimen>
     <GallerySpecimen
       title="LevelMenu"
@@ -996,3 +1052,7 @@ let oauthResponse = $state("");
     </GallerySpecimen>
   </GalleryGroup>
 </div>
+
+{#snippet splitLabels()}
+  <SplitColumns projectName={layerProject} />
+{/snippet}

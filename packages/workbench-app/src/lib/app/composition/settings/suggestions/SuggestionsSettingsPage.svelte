@@ -16,6 +16,7 @@ import {
   LayerEnabledTable,
   LayerSwitches,
   OriginGroup,
+  SETTINGS_SEARCH_MIN,
   SettingsEmptyState,
   SettingsItem,
   SettingsPageHeader,
@@ -36,7 +37,6 @@ import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/p
 import type { SuggestionsPageState } from "./suggestions-page-state.svelte";
 import {
   awaitsScriptReview,
-  SEARCH_MIN,
   suggestionSwitches,
   suggestionWrites,
   trustBadge,
@@ -340,7 +340,7 @@ function copyPath(path: string): void {
     />
   {/if}
 {:else}
-  {#if statuses.length >= SEARCH_MIN}
+  {#if statuses.length >= SETTINGS_SEARCH_MIN}
     <SearchInput
       bind:value={query}
       placeholder="Search suggestions"
@@ -363,6 +363,7 @@ function copyPath(path: string): void {
         origin={group.origin}
         count={group.rows.length}
         {projectName}
+        {locked}
         emptyText={group.source !== "builtin" && !query.trim()
           ? emptyCopy[group.source]
           : undefined}
