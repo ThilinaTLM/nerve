@@ -4,10 +4,9 @@ import type { PermissionRule } from "@nervekit/contracts/permissions";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { Settings } from "$lib/api";
 import {
+  OriginGroup,
   SettingsEmptyState,
-  SettingsList,
   SettingsPageHeader,
-  SettingsSection,
 } from "$lib/presentation/settings";
 import PermissionRuleDialog from "./PermissionRuleDialog.svelte";
 import PermissionRuleSetDetail from "./PermissionRuleSetDetail.svelte";
@@ -47,6 +46,14 @@ const openRuleSet = $derived(
   itemId
     ? configuration?.ruleSets.find((ruleSet) => ruleSet.id === itemId)
     : undefined,
+);
+const userRuleSets = $derived(
+  configuration?.ruleSets.filter((ruleSet) => ruleSet.source !== "builtin") ??
+    [],
+);
+const builtinRuleSets = $derived(
+  configuration?.ruleSets.filter((ruleSet) => ruleSet.source === "builtin") ??
+    [],
 );
 const defaultId = $derived(settingsDraft.defaultPermissionRuleSetId);
 
@@ -151,16 +158,15 @@ async function trustProject(): Promise<void> {
     />
   {/if}
 {:else}
-  <SettingsSection
-    id="rule-sets"
-    title="Rule sets"
-    surface={false}
-    info="Overrides add rules to one rule set. User overrides apply to every project; project overrides apply only while the project file is trusted."
-  >
-    {@render notices()}
-    {#if configuration}
-      <SettingsList ariaLabel="Permission rule sets">
-        {#each configuration.ruleSets as ruleSet (ruleSet.id)}
+  {@render notices()}
+  {#if configuration}
+    {#each [{ kind: "user", ruleSets: userRuleSets }, { kind: "builtin", ruleSets: builtinRuleSets }] as const as group (group.kind)}
+      <OriginGroup
+        origin={{ kind: group.kind }}
+        count={group.ruleSets.length}
+        layers={false}
+      >
+        {#each group.ruleSets as ruleSet (ruleSet.id)}
           <PermissionRuleSetItem
             {ruleSet}
             {configuration}
@@ -168,15 +174,15 @@ async function trustProject(): Promise<void> {
             onOpen={() => onOpenItem?.(ruleSet.id)}
           />
         {/each}
-      </SettingsList>
-    {:else if !controller.error}
-      <SettingsEmptyState
-        variant="card"
-        title="Loading rule sets"
-        description="Fetching permission rule sets and overrides."
-      />
-    {/if}
-  </SettingsSection>
+      </OriginGroup>
+    {/each}
+  {:else if !controller.error}
+    <SettingsEmptyState
+      variant="card"
+      title="Loading rule sets"
+      description="Fetching permission rule sets and overrides."
+    />
+  {/if}
 {/if}
 
 {#if editing && editingRuleSet}

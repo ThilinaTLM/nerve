@@ -69,6 +69,9 @@ function trustLabel(): string {
 </script>
 
 <div class="flex flex-wrap items-center gap-2 text-ui text-muted-foreground">
+  <Badge variant="neutral"
+    >{ruleSet.source === "builtin" ? "Built-in" : "User"}</Badge
+  >
   <PermissionRuleSetBadges {ruleSet} {isDefault} />
   <span>{roleNote}</span>
 </div>

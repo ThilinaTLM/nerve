@@ -237,6 +237,17 @@ export function duplicateProfileName(name: string): string {
   return `${name.slice(0, AGENT_PROFILE_NAME_MAX_LENGTH - 5).replace(/-+$/g, "")}-copy`;
 }
 
+/** `base`, or `base-2`, `base-3`… (within the length limit) when `taken` has it. */
+export function uniqueProfileName(base: string, taken: Iterable<string>) {
+  const names = new Set(taken);
+  if (!names.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const suffix = `-${n}`;
+    const name = `${base.slice(0, AGENT_PROFILE_NAME_MAX_LENGTH - suffix.length).replace(/-+$/g, "")}${suffix}`;
+    if (!names.has(name)) return name;
+  }
+}
+
 /** A single policy choice explicitly unifies model and reasoning, retaining absent fields. */
 export function unifyChangeMode(
   row: { key: ChangeKey; value: unknown },
@@ -257,77 +268,64 @@ export function unifyChangeMode(
     },
   };
 }
-export const changeKeywords: Partial<Record<ChangeKey, string[]>> = {
-  model: ["llm", "provider", "thinking", "reasoning"],
-  permission: ["approval", "safety", "planning"],
-  compaction: ["compression", "context", "tokens", "summarize"],
-  instructions: ["prompt", "system prompt", "guidance"],
-};
-
+export type AddChangeGroup = "Basics" | "Tools" | "Skills";
 export type AddChangeItem = {
   key: ChangeKey;
   label: string;
-  group: string;
-  keywords?: string[];
-  defaultOn?: boolean;
-  /** What one click does, e.g. Off → On; once applied, what it did. */
-  flip?: { from: "On" | "Off"; to: "On" | "Off"; applied: boolean };
+  /** Tools and skills with an on/off state: what choosing the item writes. */
+  turnsTo?: "On" | "Off";
+  /** Plain fields and tools without a switch open their editor instead. */
+  opensEditor: boolean;
 };
-/** Baseline is captured when opening, so a just-added flip remains available to undo. */
-export function buildAddChangeItems(input: {
-  baseline: ChangeKey[];
+/**
+ * What "Add a change" offers: every setting a profile can change except those
+ * it already changes, grouped Basics / Tools / Skills. Tools and skills with a
+ * switch are added flipped from their current state; the rest open an editor.
+ * Profiles cannot change anything about extensions yet, so there is no
+ * Extensions group.
+ */
+export function addableChanges(input: {
   rows: ChangeRow[];
   tools: {
     key: ChangeKey;
     label: string;
-    description: string;
-    account?: boolean;
+    /** Absent for tools without a switch (bash). */
     defaultOn?: boolean;
   }[];
-  skills: {
+  skills: { key: ChangeKey; label: string; defaultOn: boolean }[];
+}): { group: AddChangeGroup; items: AddChangeItem[] }[] {
+  const present = new Set(input.rows.map((row) => row.key));
+  const flipped = (item: {
     key: ChangeKey;
     label: string;
-    defaultOn: boolean;
-    description?: string;
-  }[];
-}): AddChangeItem[] {
-  const settings = (
-    ["model", "permission", "compaction", "instructions"] as const
-  ).map((key) => ({
-    key,
-    label: changeLabel(key),
-    group: "Settings",
-    keywords: changeKeywords[key],
-  }));
-  const flips = [
-    ...input.tools.map((tool) => ({
-      ...tool,
-      group: tool.account ? "Account tools" : "Tools",
-      keywords: [tool.key, tool.description, "tools"],
-    })),
-    ...input.skills.map((skill) => ({
-      ...skill,
-      group: "Skills",
-      keywords: [skill.key, skill.description ?? ""],
-    })),
-  ].map((item): AddChangeItem => {
-    // Tools without an on/off switch (e.g. bash) only open their settings.
-    if (item.defaultOn === undefined) return item;
-    const row = input.rows.find((row) => row.key === item.key);
-    const from = item.defaultOn ? "On" : "Off";
-    const enabled = row
-      ? item.key.startsWith("tool:")
-        ? (row.value as { enabled?: boolean }).enabled
-        : Boolean(row.value)
-      : !item.defaultOn;
-    return {
-      ...item,
-      flip: { from, to: enabled ? "On" : "Off", applied: Boolean(row) },
-    };
+    defaultOn?: boolean;
+  }): AddChangeItem => ({
+    key: item.key,
+    label: item.label,
+    opensEditor: item.defaultOn === undefined,
+    ...(item.defaultOn === undefined
+      ? {}
+      : { turnsTo: item.defaultOn ? ("Off" as const) : ("On" as const) }),
   });
-  return [...settings, ...flips].filter(
-    (item) => !input.baseline.includes(item.key),
-  );
+  return [
+    {
+      group: "Basics" as const,
+      items: (
+        ["model", "permission", "compaction", "instructions"] as const
+      ).map((key) => ({
+        key,
+        label: changeLabel(key),
+        opensEditor: true,
+      })),
+    },
+    { group: "Tools" as const, items: input.tools.map(flipped) },
+    { group: "Skills" as const, items: input.skills.map(flipped) },
+  ]
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !present.has(item.key)),
+    }))
+    .filter((group) => group.items.length > 0);
 }
 
 export type ChangeSection = {
