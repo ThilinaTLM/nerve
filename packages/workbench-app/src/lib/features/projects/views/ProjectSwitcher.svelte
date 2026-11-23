@@ -22,7 +22,7 @@ import {
   conversationStatusLabel,
 } from "$lib/presentation/conversations/conversation-row-state";
 import type { ProjectSwitcherItem } from "$lib/features/projects/state/project-switcher";
-import ProjectIcon from "./ProjectIcon.svelte";
+import ProjectIcon from "$lib/presentation/brand/ProjectIcon.svelte";
 
 type Props = {
   items?: ProjectSwitcherItem[];
@@ -176,7 +176,11 @@ function useSystemPicker() {
           >
             <!-- Sized to the two-line text block beside it, not to the
                    single-line icons used elsewhere in the panel. -->
-            <ProjectIcon projectId={item.project.id} class="size-7" />
+            <ProjectIcon
+              projectId={item.project.id}
+              name={item.project.name}
+              class="size-7"
+            />
             {@const status = conversationRowStatusLabel(item.activity)}
             <span class="grid min-w-0 flex-1 gap-0.5">
               <span class="flex min-w-0 items-center gap-1.5">

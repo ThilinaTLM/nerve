@@ -459,6 +459,7 @@ function menuForTranscript(
   {#snippet emptyExtension()}
     {#if !conversationLoading}<ConversationWelcome
         projectSelected={Boolean(activeProject && onNewConversationInProject)}
+        projectId={activeProject?.id}
         projectLabel={activeProjectLabel}
         projectPath={activeProject?.dir}
         availableProfiles={agentProfiles.map((profile) => profile.name)}

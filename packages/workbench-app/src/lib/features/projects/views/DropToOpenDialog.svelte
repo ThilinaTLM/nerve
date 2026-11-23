@@ -10,7 +10,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { cn } from "@nervekit/ui-kit/utils";
 import { dropActionLabel, type DropPlan } from "../state/drop-to-open";
 import { signalMeta } from "./directory-picker-helpers";
-import ProjectIcon from "./ProjectIcon.svelte";
+import ProjectIcon from "$lib/presentation/brand/ProjectIcon.svelte";
 
 type Props = {
   open?: boolean;
@@ -100,7 +100,11 @@ function handleOpenChange(next: boolean) {
                 aria-hidden="true"
               />
             {:else if row.projectId}
-              <ProjectIcon projectId={row.projectId} class="size-5" />
+              <ProjectIcon
+                projectId={row.projectId}
+                name={row.name}
+                class="size-5"
+              />
             {:else}
               <Folder
                 class="size-4 shrink-0 text-muted-foreground"

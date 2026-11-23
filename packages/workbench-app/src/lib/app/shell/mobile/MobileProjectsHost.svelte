@@ -7,7 +7,8 @@ import {
   MobileScreen,
   MobileSection,
 } from "$lib/presentation/shell";
-import { ProjectIcon, type ProjectSwitcherItem } from "$lib/features/projects";
+import type { ProjectSwitcherItem } from "$lib/features/projects";
+import { ProjectIcon } from "$lib/presentation";
 import { tildePath } from "$lib/domain/filesystem/project-path";
 import { workspaceSelectors, workspaceState } from "$lib/application/workspace";
 import MobileNewChatFab from "./MobileNewChatFab.svelte";
@@ -71,7 +72,11 @@ function browse() {
     onclick={() => choose(item)}
   >
     {#snippet leading()}
-      <ProjectIcon projectId={item.project.id} class="size-8" />
+      <ProjectIcon
+        projectId={item.project.id}
+        name={item.project.name}
+        class="size-8"
+      />
     {/snippet}
   </MobileListRow>
 {/snippet}
