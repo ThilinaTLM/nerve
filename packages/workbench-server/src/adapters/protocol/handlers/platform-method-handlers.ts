@@ -2,7 +2,10 @@ import {
   createDirectory,
   getFilesystemLocations,
 } from "../../../domains/filesystem/filesystem-browser.js";
-import { type UpdateApplicationConfigurationRequest } from "@nervekit/contracts/settings";
+import {
+  type Settings,
+  type UpdateApplicationConfigurationRequest,
+} from "@nervekit/contracts/settings";
 import {
   providerApiKeySecretName,
   providerOAuthSecretName,
@@ -267,8 +270,27 @@ async function updateSettings(
     );
   }
   const settings = await writeSettings(state.storage, patch);
+  applyTunnelOnSave(state, patch, settings);
   await publishSettingsChanged(state.events, settings);
   return { settings };
+}
+
+/** The tunnel applies on save; its progress arrives as tunnel events. */
+function applyTunnelOnSave(
+  state: PlatformMethodContext,
+  patch: { application?: unknown },
+  settings: Settings,
+) {
+  const application = patch.application as
+    | { network?: { tunnel?: unknown } }
+    | undefined;
+  if (!application?.network?.tunnel) return;
+  state.tunnel.apply(settings.application.network.tunnel).catch(
+    (error) =>
+      void state.logger.warn("Private tunnel apply failed", {
+        context: { error: String(error) },
+      }),
+  );
 }
 
 async function updateApplicationConfiguration(
@@ -287,9 +309,7 @@ async function updateApplicationConfiguration(
     activeSnapshot: state.applicationConfiguration,
   });
   state.applicationConfiguration = resolved.snapshot;
-  // The tunnel applies on save; its progress arrives as tunnel events.
-  if (patch.application?.network?.tunnel)
-    void state.tunnel.apply(settings.application.network.tunnel);
+  applyTunnelOnSave(state, patch, settings);
   await publishSettingsChanged(state.events, settings);
   await state.events.publish("applicationConfiguration.updated", {
     snapshot: resolved.snapshot,

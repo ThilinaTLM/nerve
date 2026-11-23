@@ -36,6 +36,21 @@ void describe("resolveClient on the tunnel listener", () => {
     assert.equal(client.ip, "100.99.21.83");
   });
 
+  void it("takes the client address from the rightmost forwarded entry", () => {
+    const client = resolveClient(
+      request({
+        viaTunnel: true,
+        headers: new Headers({
+          host: tunnelHost,
+          "x-forwarded-for": "1.2.3.4, 100.99.21.83",
+        }),
+      }),
+      config,
+    );
+    assert.equal(client.ip, "100.99.21.83");
+    assert.equal(client.viaTunnel, true);
+  });
+
   void it("ignores the same headers on the main listener", () => {
     // A local process forging tunnel headers on the main port gains nothing.
     const client = resolveClient(request(), config);
@@ -43,5 +58,6 @@ void describe("resolveClient on the tunnel listener", () => {
     assert.equal(client.transportOk, false);
     assert.equal(client.localEligible, false);
     assert.equal(client.ip, "127.0.0.1");
+    assert.equal(client.viaTunnel, false);
   });
 });

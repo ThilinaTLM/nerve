@@ -122,7 +122,7 @@ Why a separate listener:
 5. The pairing dialog offers the tunnel URL as a QR target (`https://machine.tailnet.ts.net/#pair=CODE`) next to the LAN addresses, preselected when the tunnel is on. No "first time on this device" CA step is needed for it.
 6. **Disable** removes only the Serve entry Nerve created and closes the listener.
 
-On daemon start, an enabled tunnel reopens its listener at the same port (so the persisted Serve entry still matches) and re-checks Serve status; drift (entry removed or pointed elsewhere) shows as a warning in Remote access, not a silent repair.
+The Serve entry does not outlive the daemon: disable and clean shutdown remove it (listener closed first). On daemon start, an enabled tunnel reopens its listener on the saved port when free, otherwise on another one, and adds the entry; a leftover from a crash that proxies to the previously saved port is recognized as Nerve's own and replaced. While running, the tunnel re-checks Serve status every minute; if the entry vanished or changed, or Funnel exposes it, the listener closes and Remote access shows the problem.
 
 Drift detection reads `tailscale serve status --json`. Nerve's entry is `TCP["<port>"].HTTPS == true` plus `Web["<host>:<port>"].Handlers["/"].Proxy == "http://127.0.0.1:<tunnelPort>"`; any other value at that port is someone else's, and Funnel enabled for that port is reported as an error (the tunnel must stay private).
 

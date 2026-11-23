@@ -52,7 +52,7 @@ You need Tailscale installed and signed in on the computer and the phone, with M
 
 The first connection waits for Tailscale to issue the certificate (up to a minute, once). Then pair the phone as usual: **Pair a device** preselects the Tailscale address. Being on the tailnet grants nothing by itself; every phone still pairs and can be revoked.
 
-Port 443 gives an address without a port number. If another service already uses it on Tailscale, Nerve leaves it alone and asks you to pick 8443 or 10000. Nerve only ever removes its own Serve entry, and refuses to run if Tailscale Funnel would make that entry public. Turning private access off removes the entry and disconnects phones using it immediately.
+Port 443 gives an address without a port number. If another service already uses it on Tailscale, Nerve leaves it alone and asks you to pick 8443 or 10000. Nerve only ever removes its own Serve entry, and refuses to run if Tailscale Funnel would make that entry public. Turning private access off, or quitting Nerve, removes the entry and disconnects phones using it immediately. While it runs, Nerve checks once a minute that the entry is still its own and not public, and stops serving if it is not.
 
 ## Next steps
 

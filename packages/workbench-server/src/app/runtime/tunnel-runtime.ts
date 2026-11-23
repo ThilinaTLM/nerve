@@ -16,7 +16,7 @@ import {
 } from "../../infrastructure/network/tailscale.js";
 import { markTunnelListener } from "../../infrastructure/network/tunnel-sockets.js";
 import {
-  writeSettings,
+  writeTunnelListenerPort,
   type InitializedStorage,
 } from "../../infrastructure/storage-bootstrap/index.js";
 
@@ -68,9 +68,7 @@ export function createTunnelRuntime(input: {
       return openListener(port);
     },
     saveListenerPort: async (listenerPort) => {
-      await writeSettings(input.storage, {
-        application: { network: { tunnel: { listenerPort } } },
-      });
+      await writeTunnelListenerPort(input.storage, listenerPort);
     },
     warmUp,
     setOrigin: (origin) => {
@@ -94,6 +92,8 @@ export function createTunnelRuntime(input: {
 export async function openTunnelListener(
   port: number | undefined,
   create: (port: number) => unknown,
+  /** Runs once the server listens; the returned function runs when it closes. */
+  attach?: (server: NetServer) => () => void,
 ): Promise<TunnelListener> {
   // Every socket, including upgraded WebSockets the HTTP server no longer
   // tracks: turning the tunnel off must cut tunnel clients off at once, and
@@ -109,7 +109,10 @@ export async function openTunnelListener(
         socket.once("close", () => sockets.delete(socket));
       });
       server.once("error", reject);
-      server.once("listening", () => resolve(server));
+      server.once("listening", () => {
+        server.off("error", reject);
+        resolve(server);
+      });
     });
   let server: NetServer;
   try {
@@ -119,10 +122,12 @@ export async function openTunnelListener(
     server = await listen(0);
   }
   const address = server.address() as AddressInfo;
+  const detach = attach?.(server);
   return {
     port: address.port,
     close: () =>
       new Promise<void>((resolve) => {
+        detach?.();
         server.close(() => resolve());
         for (const socket of sockets) socket.destroy();
       }),
@@ -139,6 +144,7 @@ export function startTunnel(input: {
     ServerRuntime,
     | "adapterContexts"
     | "access"
+    | "logger"
     | "storage"
     | "tunnel"
     | "setTunnelListenerFactory"
@@ -148,25 +154,36 @@ export function startTunnel(input: {
   isAllowedHost: HostAllowlist;
 }): void {
   input.state.setTunnelListenerFactory((port) =>
-    openTunnelListener(port, (listenerPort) => {
-      const server = serve({
-        fetch: input.app.fetch,
-        hostname: "127.0.0.1",
-        port: listenerPort,
-      });
-      input.sessionSets.push(
-        installProtocolWebSocketUpgrade(
+    openTunnelListener(
+      port,
+      (listenerPort) =>
+        serve({
+          fetch: input.app.fetch,
+          hostname: "127.0.0.1",
+          port: listenerPort,
+        }),
+      (server) => {
+        // Registered for shutdown only while this listener is up.
+        const sessions = installProtocolWebSocketUpgrade(
           server,
           input.webSockets,
           input.state.adapterContexts.websocket,
           input.state.access,
           input.isAllowedHost,
-        ),
-      );
-      return server;
-    }),
+        );
+        input.sessionSets.push(sessions);
+        return () => {
+          const index = input.sessionSets.indexOf(sessions);
+          if (index !== -1) input.sessionSets.splice(index, 1);
+        };
+      },
+    ),
   );
-  void input.state.tunnel.apply(
-    input.state.storage.settings.application.network.tunnel,
-  );
+  input.state.tunnel
+    .apply(input.state.storage.settings.application.network.tunnel)
+    .catch((error) =>
+      input.state.logger.warn("Private tunnel apply failed", {
+        context: { error: String(error) },
+      }),
+    );
 }

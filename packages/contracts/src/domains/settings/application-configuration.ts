@@ -70,8 +70,8 @@ export const DEFAULT_TRUST_PROXY_PEERS: readonly string[] = [
 
 /**
  * Private Tailscale Serve tunnel. Applies without a restart. `listenerPort` is
- * the loopback port Serve proxies to; chosen once and kept so the persisted
- * Serve entry stays valid across restarts.
+ * the loopback port Serve proxies to, written only by the daemon (it is not in
+ * the patch schema); it lets a later run recognize its own leftover Serve entry.
  */
 export const tunnelSettingsSchema = z.object({
   enabled: z.boolean().default(false),
@@ -144,8 +144,6 @@ export const applicationSettingsPatchSchema = z.object({
         .object({
           enabled: z.boolean().optional(),
           httpsPort: tunnelHttpsPortSchema.optional(),
-          /** Set by the daemon when it first opens the tunnel listener. */
-          listenerPort: z.number().int().min(1).max(65_535).optional(),
         })
         .optional(),
     })

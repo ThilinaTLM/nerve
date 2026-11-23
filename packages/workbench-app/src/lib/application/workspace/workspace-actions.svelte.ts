@@ -3,6 +3,7 @@ import {
   pendingConversations,
   type PendingConversationState,
 } from "./pending-conversations.svelte";
+import type { TunnelStatus } from "@nervekit/contracts/access";
 import type { Project, ConversationConfig } from "@nervekit/contracts/core";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import {
@@ -65,6 +66,12 @@ export async function openConversation(conversationId: string): Promise<void> {
   }
   addCenterTab({ kind: "conversation", id: conversationId });
   await selectCenterTab({ kind: "conversation", id: conversationId });
+}
+
+/** Records the private tunnel's latest state in the daemon status. */
+export function setTunnelStatus(tunnel: TunnelStatus): void {
+  if (workspaceState.status)
+    workspaceState.status = { ...workspaceState.status, tunnel };
 }
 
 export async function loadWorkspaceState(): Promise<void> {

@@ -67,4 +67,28 @@ void describe("openTunnelListener", () => {
     ]);
     await ended;
   });
+
+  void it("attaches only once listening and detaches on close", async () => {
+    const calls: string[] = [];
+    // A failed first attempt (port taken) never attaches.
+    const taken = probe(0);
+    await new Promise((resolve) => taken.once("listening", resolve));
+    const busy = (taken.address() as AddressInfo).port;
+    const fallback = await openTunnelListener(busy, probe, () => {
+      calls.push("fallback");
+      return () => undefined;
+    });
+    assert.deepEqual(calls, ["fallback"]);
+    await fallback.close();
+    await new Promise((resolve) => taken.close(resolve));
+    calls.length = 0;
+
+    const listener = await openTunnelListener(undefined, probe, () => {
+      calls.push("attach");
+      return () => void calls.push("detach");
+    });
+    assert.deepEqual(calls, ["attach"]);
+    await listener.close();
+    assert.deepEqual(calls, ["attach", "detach"]);
+  });
 });

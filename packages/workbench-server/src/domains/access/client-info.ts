@@ -43,6 +43,8 @@ export interface ClientInfo {
   transportOk: boolean;
   /** Eligible for the local (tier 1) credential: loopback peer + host, no forwarding. */
   localEligible: boolean;
+  /** Arrived on the private tunnel listener (a remote client even though the peer is loopback). */
+  viaTunnel: boolean;
 }
 
 export interface ClientResolution {
@@ -85,7 +87,8 @@ function forwardedClient(
 /**
  * A tunnel request is a remote HTTPS client even though its TCP peer is the
  * tunnel daemon on loopback: never local, always secure, and the client
- * address comes from the tunnel's `X-Forwarded-For`.
+ * address is the rightmost `X-Forwarded-For` entry (the one tailscaled
+ * appended; anything left of it is client-supplied).
  */
 function resolveTunnelClient(
   request: GateRequest,
@@ -95,8 +98,9 @@ function resolveTunnelClient(
   const host = headers.get("host") ?? request.url.host;
   return {
     ip:
-      normalizeAddress(first(headers.get("x-forwarded-for"))) ||
-      normalizeAddress(request.peerAddress),
+      normalizeAddress(
+        headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? "",
+      ) || normalizeAddress(request.peerAddress),
     loopbackPeer: isLoopbackAddress(normalizeAddress(request.peerAddress)),
     forwarded: true,
     viaTrustedProxy: false,
@@ -105,6 +109,7 @@ function resolveTunnelClient(
     origin: config.tunnelOrigin?.origin ?? `https://${host}`,
     transportOk: true,
     localEligible: false,
+    viaTunnel: true,
   };
 }
 
@@ -151,5 +156,6 @@ export function resolveClient(
     origin,
     transportOk: secure || (loopbackPeer && !forwarded),
     localEligible: loopbackPeer && loopbackHost && !forwarded,
+    viaTunnel: false,
   };
 }

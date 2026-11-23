@@ -59,6 +59,8 @@ export type GateOutcome = GateSuccess | GateFailure;
 export interface AccessGateConfig {
   publicUrl?: URL;
   trustedPeers: PeerMatcher;
+  /** Origin of the private tunnel while it is on. */
+  tunnelOrigin?: URL;
 }
 
 export interface AccessGateDeps {
@@ -121,6 +123,15 @@ export class AccessGate {
         403,
         "FORBIDDEN",
         "Cross-origin browser requests are not allowed.",
+      );
+    }
+
+    // Funnel adds this header: the request came from the public internet.
+    if (client.viaTunnel && headers.has("tailscale-funnel-request")) {
+      return fail(
+        403,
+        "FORBIDDEN",
+        "Public Tailscale Funnel requests are not allowed.",
       );
     }
 
@@ -252,6 +263,8 @@ export class AccessGate {
     ];
     if (bearer !== undefined && tokensEqual(bearer, token)) {
       if (client.localEligible) return { kind: "local" };
+      // The tunnel is a new surface: no legacy bearer there, ever.
+      if (client.viaTunnel) return undefined;
       this.deps.onLegacyBearer?.(client, request);
       return { kind: "local", legacyRemote: true };
     }

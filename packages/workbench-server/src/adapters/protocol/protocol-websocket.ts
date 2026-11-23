@@ -31,7 +31,10 @@ const WORKBENCH_CAPABILITIES = [
 import type { Principal } from "../../domains/access/access-gate.js";
 import type { AccessService } from "../../domains/access/access-service.js";
 import { gateRequestFromUpgrade } from "../http/gate-request.js";
-import type { HostAllowlist } from "../http/host-allowlist.js";
+import {
+  isRequestHostAllowed,
+  type HostAllowlist,
+} from "../http/host-allowlist.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import { workbenchWebSocketRpcDispatcher } from "./http-dispatcher.js";
 import { orchestratorSource } from "./messages.js";
@@ -88,7 +91,13 @@ export function installProtocolWebSocketUpgrade(
       return;
     }
     const gateRequest = gateRequestFromUpgrade(request);
-    if (!isAllowedHost(access.gate.resolveClient(gateRequest).host)) {
+    if (
+      !isRequestHostAllowed(
+        isAllowedHost,
+        access.gate.resolveClient(gateRequest),
+        access.tunnelHost,
+      )
+    ) {
       socket.write("HTTP/1.1 421 Misdirected Request\r\n\r\n");
       socket.destroy();
       return;

@@ -78,6 +78,7 @@ export type TailscaleProblem =
   | { code: "permission_denied" }
   | { code: "port_in_use"; httpsPort: number }
   | { code: "funnel_enabled"; httpsPort: number }
+  | { code: "entry_changed" }
   | { code: "command_failed"; detail: string };
 
 /** What blocks the tunnel before anything is changed, if anything. */
@@ -103,6 +104,11 @@ export type ServeEntry =
   | { kind: "absent" }
   /** This port proxies to our listener. */
   | { kind: "ours"; funnel: boolean }
+  /**
+   * This port proxies to the listener port we used before a restart moved us
+   * to another one: our own leftover, safe to replace.
+   */
+  | { kind: "stale" }
   /** Something else owns this port; never overwrite it. */
   | { kind: "other" };
 
@@ -112,7 +118,13 @@ export type ServeEntry =
  */
 export function findServeEntry(
   json: unknown,
-  input: { host: string; httpsPort: number; target: string },
+  input: {
+    host: string;
+    httpsPort: number;
+    target: string;
+    /** Where an earlier run of ours proxied, when it differs from `target`. */
+    previousTarget?: string;
+  },
 ): ServeEntry {
   const status = (json ?? {}) as {
     TCP?: Record<string, unknown>;
@@ -123,12 +135,38 @@ export function findServeEntry(
   const web = status.Web?.[key];
   if (!status.TCP?.[String(input.httpsPort)] && !web) return { kind: "absent" };
   const handlers = Object.entries(web?.Handlers ?? {});
-  const ours =
-    handlers.length === 1 &&
-    handlers[0]?.[0] === "/" &&
-    normalizeProxy(handlers[0][1].Proxy) === normalizeProxy(input.target);
-  if (!ours) return { kind: "other" };
-  return { kind: "ours", funnel: status.AllowFunnel?.[key] === true };
+  const proxy =
+    handlers.length === 1 && handlers[0]?.[0] === "/"
+      ? normalizeProxy(handlers[0][1].Proxy)
+      : undefined;
+  if (!proxy) return { kind: "other" };
+  if (proxy === normalizeProxy(input.target))
+    return { kind: "ours", funnel: status.AllowFunnel?.[key] === true };
+  if (
+    input.previousTarget !== undefined &&
+    proxy === normalizeProxy(input.previousTarget)
+  )
+    return { kind: "stale" };
+  return { kind: "other" };
+}
+
+/**
+ * True when Funnel is enabled on any entry (any host or port) with a handler
+ * that proxies to `target`: our listener would be reachable from the internet.
+ */
+export function funnelExposes(json: unknown, target: string): boolean {
+  const status = (json ?? {}) as {
+    Web?: Record<string, { Handlers?: Record<string, { Proxy?: unknown }> }>;
+    AllowFunnel?: Record<string, unknown>;
+  };
+  const wanted = normalizeProxy(target);
+  return Object.entries(status.Web ?? {}).some(
+    ([key, web]) =>
+      status.AllowFunnel?.[key] === true &&
+      Object.values(web?.Handlers ?? {}).some(
+        (handler) => normalizeProxy(handler?.Proxy) === wanted,
+      ),
+  );
 }
 
 function normalizeProxy(value: unknown): string {

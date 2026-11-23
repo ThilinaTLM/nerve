@@ -6,6 +6,7 @@ import { createAccessRoutes } from "../adapters/http/routes/access-routes.js";
 import type { AccessService } from "../domains/access/access-service.js";
 import {
   createHostAllowlist,
+  isRequestHostAllowed,
   normalizeHostname,
   type HostAllowlist,
 } from "../adapters/http/host-allowlist.js";
@@ -31,10 +32,14 @@ export function hostGuard(
 ): MiddlewareHandler {
   return async (c, next) => {
     // Behind a trusted reverse proxy the public host may arrive as X-Forwarded-Host.
-    const host = access
-      ? access.gate.resolveClient(gateRequestFromContext(c)).host
-      : (c.req.header("host") ?? new URL(c.req.url).host);
-    if (!isAllowedHost(host)) {
+    const allowed = access
+      ? isRequestHostAllowed(
+          isAllowedHost,
+          access.gate.resolveClient(gateRequestFromContext(c)),
+          access.tunnelHost,
+        )
+      : isAllowedHost(c.req.header("host") ?? new URL(c.req.url).host);
+    if (!allowed) {
       return c.json(
         {
           error: {

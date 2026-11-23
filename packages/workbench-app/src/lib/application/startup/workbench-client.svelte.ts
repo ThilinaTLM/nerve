@@ -26,7 +26,10 @@ import {
   startReleasePolling,
   stopReleasePolling,
 } from "$lib/features/releases";
-import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
+import {
+  loadWorkspaceState,
+  setTunnelStatus,
+} from "$lib/application/workspace/workspace-actions.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { conversationDraftStore } from "$lib/application/workspace/conversation-draft-store";
 import { withConversationRow } from "$lib/application/workspace/conversation-rows";
@@ -73,6 +76,10 @@ export async function initializeWorkbench(): Promise<boolean> {
     unobserve = observeConversationChannel({
       recover: async (id) => {
         if (!id) {
+          // Tunnel events sent while disconnected are gone: re-read the state.
+          void getClientConfig()
+            .then((fresh) => setTunnelStatus(fresh.status.tunnel))
+            .catch(() => undefined);
           await loadWorkspaceState();
           conversationAttention.seed(workspaceState.conversations);
         }

@@ -25,6 +25,7 @@ export {
   openProjectInEditorAndNotify,
   openProjectInTerminalAndNotify,
   selectProject,
+  setTunnelStatus,
   openConversation,
   updateConversationStateAndRefresh,
 } from "./workspace-actions.svelte";

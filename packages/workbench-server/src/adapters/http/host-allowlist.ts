@@ -80,3 +80,20 @@ export function createHostAllowlist(
     return normalizeHostname(source.host) === host;
   };
 }
+
+/**
+ * The one Host decision for inbound requests (HTTP and WebSocket upgrade).
+ * The tunnel listener answers only to the tunnel host, and to nothing while
+ * the tunnel is off or its host is unknown; other listeners use the allowlist.
+ */
+export function isRequestHostAllowed(
+  isAllowedHost: HostAllowlist,
+  client: { host: string; viaTunnel: boolean },
+  tunnelHost: string | undefined,
+): boolean {
+  if (!client.viaTunnel) return isAllowedHost(client.host);
+  return (
+    tunnelHost !== undefined &&
+    normalizeHostname(tunnelHost) === normalizeHostname(client.host)
+  );
+}

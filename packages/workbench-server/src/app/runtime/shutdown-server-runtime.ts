@@ -9,7 +9,7 @@ export interface ServerShutdownResources {
   logger: { flush(): Promise<void> };
   /** Flushes buffered device `lastSeenAt` updates. */
   access?: { dispose(): Promise<void> };
-  /** Closes the tunnel listener; the Serve entry stays for the next start. */
+  /** Closes the tunnel listener and removes our Serve entry (bounded, best effort). */
   tunnel?: { close(): Promise<void> };
 }
 

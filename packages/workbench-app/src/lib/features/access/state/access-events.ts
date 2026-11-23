@@ -1,7 +1,7 @@
 import type { Device, TunnelStatus } from "@nervekit/contracts/access";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { notifyToast } from "$lib/application/notifications/notify.svelte";
-import { workspaceState } from "$lib/application/workspace";
+import { setTunnelStatus } from "$lib/application/workspace";
 import { devicePairedMessage } from "./device-format";
 
 export function registerAccessEventHandlers(): () => void {
@@ -12,8 +12,7 @@ export function registerAccessEventHandlers(): () => void {
   });
   const offTunnel = onEvent("access.tunnel_changed", (event) => {
     const status = (event.data as { status?: TunnelStatus }).status;
-    if (status && workspaceState.status)
-      workspaceState.status = { ...workspaceState.status, tunnel: status };
+    if (status) setTunnelStatus(status);
   });
   return () => {
     offPaired();

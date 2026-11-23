@@ -2,18 +2,21 @@
 import Copy from "@lucide/svelte/icons/copy";
 import { ToggleRow } from "@nervekit/ui-kit/components/composites/page";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
+import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { TunnelStatus } from "@nervekit/contracts/access";
+import type { ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
 import type { TunnelHttpsPort } from "@nervekit/contracts/access";
 import { describeTunnel } from "$lib/application/access/tunnel-view";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { SettingsSelectRow } from "$lib/presentation/settings";
 
-type Leaf<T> = { activeValue: T; savedValue: T; editable: boolean };
+type Network = ApplicationConfigurationSnapshot["application"]["network"];
+type Leaf = Network["tunnelEnabled"] | Network["tunnelHttpsPort"];
 
 type Props = {
-  enabled: Leaf<boolean>;
-  httpsPort: Leaf<TunnelHttpsPort>;
+  enabled: Network["tunnelEnabled"];
+  httpsPort: Network["tunnelHttpsPort"];
   status: TunnelStatus | undefined;
   onSave: (tunnel: { enabled: boolean; httpsPort: TunnelHttpsPort }) => void;
 };
@@ -26,7 +29,7 @@ const portItems = [
   { value: "10000", label: "10000" },
 ];
 
-const value = (leaf: Leaf<unknown>) =>
+const value = (leaf: Leaf) =>
   leaf.editable ? leaf.savedValue : leaf.activeValue;
 const isEnabled = $derived(Boolean(value(enabled)));
 const port = $derived(value(httpsPort) as TunnelHttpsPort);
@@ -73,14 +76,11 @@ function save(next: Partial<{ enabled: boolean; httpsPort: TunnelHttpsPort }>) {
             class="min-w-0 flex-1 truncate font-mono text-caption text-muted-foreground"
             title={text}>{text}</span
           >
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={index === 0 ? "Copy address" : "Copy command"}
+          <IconAction
+            icon={Copy}
+            label={index === 0 ? "Copy address" : "Copy command"}
             onclick={() => void writeClipboardText(text)}
-          >
-            <Copy />
-          </Button>
+          />
         </div>
       {/if}
     {/each}

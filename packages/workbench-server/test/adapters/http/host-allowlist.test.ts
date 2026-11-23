@@ -3,7 +3,10 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import { createHostAllowlist } from "../../../src/adapters/http/host-allowlist.js";
+import {
+  createHostAllowlist,
+  isRequestHostAllowed,
+} from "../../../src/adapters/http/host-allowlist.js";
 import { tokensEqual } from "../../../src/adapters/http/token-compare.js";
 import { sessionCookie } from "../../../src/domains/access/access-cookies.js";
 import { withPeer } from "../../support/peer-address.js";
@@ -163,5 +166,50 @@ describe("server host guard and static cookie", () => {
     assert.equal(response.status, 403);
     assert.equal(response.headers.get("set-cookie"), null);
     assert.match(await response.text(), /HTTPS pairing/);
+  });
+});
+
+describe("tunnel host", () => {
+  const none = { addresses: () => [], env: {} };
+
+  it("is allowed only while the tunnel is on", () => {
+    const access = {
+      publicHost: undefined,
+      tunnelHost: undefined as string | undefined,
+    };
+    const allowed = createHostAllowlist({ host: "127.0.0.1", access }, none);
+    assert.equal(allowed("pc.tail1234.ts.net"), false);
+    access.tunnelHost = "pc.tail1234.ts.net:8443";
+    assert.equal(allowed("pc.tail1234.ts.net"), true);
+    access.tunnelHost = undefined;
+    assert.equal(allowed("pc.tail1234.ts.net"), false);
+  });
+
+  it("is the only host the tunnel listener answers to", () => {
+    const allowed = createHostAllowlist({ host: "127.0.0.1" }, none);
+    const tunnel = (host: string) => ({ host, viaTunnel: true });
+    // Loopback names pass the allowlist but not on the tunnel listener.
+    assert.equal(
+      isRequestHostAllowed(allowed, tunnel("localhost"), "pc.ts.net"),
+      false,
+    );
+    assert.equal(
+      isRequestHostAllowed(allowed, tunnel("PC.ts.net:443"), "pc.ts.net"),
+      true,
+    );
+    // Nothing is allowed while the tunnel host is unset.
+    assert.equal(
+      isRequestHostAllowed(allowed, tunnel("pc.ts.net"), undefined),
+      false,
+    );
+    // Other listeners keep using the allowlist.
+    assert.equal(
+      isRequestHostAllowed(
+        allowed,
+        { host: "localhost", viaTunnel: false },
+        undefined,
+      ),
+      true,
+    );
   });
 });

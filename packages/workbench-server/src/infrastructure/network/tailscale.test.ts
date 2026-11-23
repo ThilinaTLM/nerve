@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   extractApprovalUrl,
   findServeEntry,
+  funnelExposes,
   isPermissionDenied,
   locateTailscale,
   nodeProblem,
@@ -109,6 +110,41 @@ void describe("tailscale serve status", () => {
       ),
       { kind: "ours", funnel: true },
     );
+  });
+});
+
+void describe("stale entries and Funnel", () => {
+  const entry = {
+    TCP: { "8443": { HTTPS: true } },
+    Web: {
+      [`${host}:8443`]: {
+        Handlers: { "/": { Proxy: "http://127.0.0.1:5000" } },
+      },
+    },
+  };
+
+  void it("recognizes the entry of the previously saved port as stale", () => {
+    const input = { host, httpsPort: 8443, target };
+    assert.deepEqual(
+      findServeEntry(entry, {
+        ...input,
+        previousTarget: "http://127.0.0.1:5000",
+      }),
+      { kind: "stale" },
+    );
+    assert.deepEqual(findServeEntry(entry, input), { kind: "other" });
+  });
+
+  void it("finds Funnel on any entry that proxies to the target", () => {
+    const json = {
+      Web: {
+        [`${host}:10000`]: { Handlers: { "/x": { Proxy: `${target}/` } } },
+      },
+      AllowFunnel: { [`${host}:10000`]: true },
+    };
+    assert.equal(funnelExposes(json, target), true);
+    assert.equal(funnelExposes(json, "http://127.0.0.1:1"), false);
+    assert.equal(funnelExposes({ ...json, AllowFunnel: {} }, target), false);
   });
 });
 
