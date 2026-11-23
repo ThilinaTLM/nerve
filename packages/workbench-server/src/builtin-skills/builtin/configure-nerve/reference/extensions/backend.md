@@ -47,7 +47,7 @@ export const get = method({
 - Credentials never reach the extension: set `auth: { account: "<setting key>" }` and the host adds the selected account's credential to the request, only toward that account's `origins`. `ctx.accounts.selected` returns non-secret `fields`, `level` and, for accounts with a provider, `identity`.
 - Bytes cross the sandbox boundary as base64, which costs a third more plus memory on both sides. For downloads use `response: "artifact"` and pass the artifact handle on instead of the bytes.
 - Settings hold no secrets; read them with `ctx.settings.get`.
-- `ctx.extensionStore` keeps this extension's data per project, across conversations and shared with its frames (`host.extensionStore`); revisions and `ifRevision` work as in `ui.md` ("Keeping state"), and a stale write throws `CONFLICT`. Without an open project it throws `BAD_REQUEST`. Use artifacts for files the conversation and agent should see, the store for the extension's own state.
+- `ctx.store` keeps this extension's data per project, across conversations and shared with its frames (`host.store`); revisions and `ifRevision` work as in `ui.md` ("Keeping state"), and a stale write throws `CONFLICT`. Without an open project it throws `BAD_REQUEST`. Use artifacts for files the conversation and agent should see, the store for the extension's own state.
 
 ### An account kind
 
@@ -144,4 +144,4 @@ Test `parse` errors, `authorize` targets and risk, and one run per method.
 
 ## Calls from a frame
 
-A UI frame calls a method with `host.call("<namespace>.<method>", args)`. No permission prompt applies, because the user's consent to the extension covers it; the `ctx` rules still hold (network allowlist, credentials stay with the host, file reads stay inside the project). `args` arrives as the method's single argument, so `parse` must accept an object there.
+A UI frame calls a method with `host.backend.call("<namespace>.<method>", args)`. No permission prompt applies, because the user's consent to the extension covers it; the `ctx` rules still hold (network allowlist, credentials stay with the host, file reads stay inside the project). `args` arrives as the method's single argument, so `parse` must accept an object there.

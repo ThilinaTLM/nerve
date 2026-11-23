@@ -8,7 +8,7 @@ const page = { kind: "page" as const, id: "main" };
 
 function setup(
   options: {
-    capabilities?: string[];
+    frame?: string[];
     values?: Record<string, unknown>;
     profile?: { digest: string; leadUsable: boolean };
   } = {},
@@ -48,7 +48,7 @@ function setup(
           },
           manifest: {
             permissions: {
-              capabilities: options.capabilities ?? ["conversations.start"],
+              frame: options.frame ?? ["chat.startConversation"],
             },
             settings: {
               version: 1,
@@ -76,7 +76,7 @@ function setup(
     },
   });
   const start = (params: Record<string, unknown>) =>
-    service.bridge("conversations.start", {
+    service.bridge("chat.startConversation", {
       projectId: "p1",
       extensionId: "probe",
       contribution: page,
@@ -92,13 +92,13 @@ const rejects = (promise: Promise<unknown>, code: string) =>
     return true;
   });
 
-void test("conversations.start needs the manifest capability", async () => {
-  const w = setup({ capabilities: [] });
+void test("chat.startConversation needs the manifest grant", async () => {
+  const w = setup({ frame: [] });
   await rejects(w.start({}), "not_allowed");
   assert.deepEqual(w.created, []);
 });
 
-void test("conversations.start creates in the frame's project and sends the prompt", async () => {
+void test("chat.startConversation creates in the frame's project and sends the prompt", async () => {
   const w = setup();
   const { conversationId } = await w.start({ title: "Review" });
   assert.deepEqual(w.created, [
@@ -118,7 +118,7 @@ void test("conversations.start creates in the frame's project and sends the prom
   });
 });
 
-void test("conversations.start maps the named settings to overrides and the profile", async () => {
+void test("chat.startConversation maps the named settings to overrides and the profile", async () => {
   const w = setup({
     values: {
       fast: { provider: "p", modelId: "m", reasoningLevel: "high" },
@@ -146,7 +146,7 @@ void test("conversations.start maps the named settings to overrides and the prof
   });
 });
 
-void test("conversations.start uses defaults for unset settings", async () => {
+void test("chat.startConversation uses defaults for unset settings", async () => {
   const w = setup();
   await w.start({
     model: "fast",
@@ -158,7 +158,7 @@ void test("conversations.start uses defaults for unset settings", async () => {
   assert.equal("agentProfile" in input, false);
 });
 
-void test("conversations.start rejects unknown keys and keys of another type", async () => {
+void test("chat.startConversation rejects unknown keys and keys of another type", async () => {
   const w = setup({ values: { name: "x" } });
   await rejects(w.start({ model: "missing" }), "invalid_request");
   await rejects(w.start({ model: "name" }), "invalid_request");
@@ -167,13 +167,13 @@ void test("conversations.start rejects unknown keys and keys of another type", a
   assert.deepEqual(w.created, []);
 });
 
-void test("conversations.start refuses an unavailable profile", async () => {
+void test("chat.startConversation refuses an unavailable profile", async () => {
   const w = setup({ values: { persona: "gone" } });
   await rejects(w.start({ agentProfile: "persona" }), "invalid_request");
   assert.deepEqual(w.created, []);
 });
 
-void test("conversations.start with send false leaves the prompt unsent", async () => {
+void test("chat.startConversation with send false leaves the prompt unsent", async () => {
   const w = setup();
   await w.start({ send: false });
   assert.equal(w.created.length, 1);

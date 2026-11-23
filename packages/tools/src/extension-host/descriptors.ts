@@ -33,8 +33,11 @@ export function extensionMetadata(
       ...(extension.permissions?.network
         ? { network: [...extension.permissions.network] }
         : {}),
-      ...(extension.permissions?.capabilities
-        ? { capabilities: [...extension.permissions.capabilities] }
+      ...(extension.permissions?.models
+        ? { models: [...extension.permissions.models] }
+        : {}),
+      ...(extension.permissions?.frame
+        ? { frame: [...extension.permissions.frame] }
         : {}),
     },
     contributes: {

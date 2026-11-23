@@ -419,19 +419,11 @@ export const accountKindDataSchema = accountKindObjectSchema
   .superRefine(checkAccountSecrets);
 export type AccountKind = z.infer<typeof accountKindSchema>;
 
-/** What an extension may reach: network origins and host capabilities. */
+/** What an extension may reach: network origins, model services and frame services. */
 export const extensionPermissionsSchema = z.strictObject({
   network: z.array(z.string().min(1)).optional(),
-  capabilities: z
-    .array(
-      z.enum([
-        "models.image",
-        "models.vision",
-        "models.text",
-        "conversations.start",
-      ]),
-    )
-    .optional(),
+  models: z.array(z.enum(["image", "vision", "text"])).optional(),
+  frame: z.array(z.enum(["chat.startConversation"])).optional(),
 }) satisfies z.ZodType<ExtensionPermissions>;
 export type ExtensionPermissionsData = z.infer<
   typeof extensionPermissionsSchema
@@ -476,7 +468,7 @@ export const extensionMetadataSchema = z.strictObject({
   settingsVersion: z.number().int().positive(),
   /** Default of the implicit `enabled` switch. */
   enabledByDefault: z.boolean(),
-  /** What the extension may reach (network origins, host capabilities); shown for consent. */
+  /** What the extension may reach (network origins, model and frame services); shown for consent. */
   permissions: extensionPermissionsSchema,
   /** What the extension adds, for the detail view. */
   contributes: z.strictObject({

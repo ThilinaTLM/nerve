@@ -1,3 +1,8 @@
+<!--
+@component
+Overlay for the floating chrome of a page, preview or panel. Place it inside a `relative` container that fills the frame (`<div class="relative h-screen">`), next to the content, not around it. One snippet per anchor, each stacking several items: `topStart` (identity, view choice), `topEnd` (actions on the content: find, copy, download, more), `bottomEnd` (spatial navigation: zoom), `bottomStart` (notices). `class` adjusts the insets (`pr-5` clears a scrollbar lane). Put the actions of a page in a `FloatingToolbar` here; do not build absolutely positioned bars.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";

@@ -7,8 +7,8 @@
 - **Id.** It is also the folder name, and settings, accounts and operations are keyed by it. Changing it later loses the user's settings and consent.
 - **`enabledByDefault`.** Use `false` for anything that reaches the network or an account, so the user turns it on deliberately.
 - **Settings vs accounts.** Settings hold plain values the user chooses (a server URL, a default project). Credentials always belong in an account kind; the user adds accounts in Settings → Accounts and the extension never sees the secret. Bump the settings `version` when a field changes meaning.
-- **Permissions.** Declare only what the feature needs. Each network origin and capability is a line the user must accept.
-- **Not allowed in installed extensions:** `prelude` and settings `migrations`. The build reports them.
+- **Permissions.** Declare only what the feature needs. Each network origin (`network`), model service (`models`) and frame service (`frame`) is a line the user must accept.
+- **Not allowed in installed extensions:** settings `migrations`. The build reports it.
 
 ## Icons
 

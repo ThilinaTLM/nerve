@@ -1,3 +1,8 @@
+<!--
+@component
+Radio group root; `bind:value` is the chosen item's `value`. Holds `RadioGroup.Item`s.
+-->
+
 <script lang="ts">
 import { RadioGroup as RadioGroupPrimitive } from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";

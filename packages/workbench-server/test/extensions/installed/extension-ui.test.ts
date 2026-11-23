@@ -412,8 +412,22 @@ void test(
   async () => {
     const w = await world();
     assert.deepEqual(
-      await call(w, "settings.get", { kind: "panel", id: "summary" }),
-      { values: { greeting: "hi" } },
+      await call(
+        w,
+        "settings.get",
+        { kind: "panel", id: "summary" },
+        { key: "greeting" },
+      ),
+      { value: "hi" },
+    );
+    assert.deepEqual(
+      await call(
+        w,
+        "settings.get",
+        { kind: "panel", id: "summary" },
+        { key: "missing" },
+      ),
+      {},
     );
     assert.deepEqual(
       await call(w, "project.info", { kind: "page", id: "explorer" }),
@@ -427,13 +441,13 @@ void test(
 );
 
 void test(
-  "call runs the extension's own backend method in the sandbox, bound to the project",
+  "backend.call runs the extension's own backend method in the sandbox, bound to the project",
   { skip },
   async () => {
     const w = await world();
     const page = { kind: "page" as const, id: "explorer" };
     assert.deepEqual(
-      await call(w, "call", page, {
+      await call(w, "backend.call", page, {
         method: "probe.greet",
         args: { name: "Ada" },
       }),
@@ -445,7 +459,7 @@ void test(
     assert.deepEqual(
       await call(
         w,
-        "call",
+        "backend.call",
         { kind: "panel", id: "summary" },
         { method: "probe.echo", args: "x" },
       ),
@@ -453,17 +467,20 @@ void test(
     );
     // The method must exist and belong to the extension.
     await rejects(
-      call(w, "call", page, { method: "probe.missing" }),
+      call(w, "backend.call", page, { method: "probe.missing" }),
       "not_found",
     );
     await rejects(
-      call(w, "call", page, { method: "files.read", args: "x" }),
+      call(w, "backend.call", page, { method: "files.read", args: "x" }),
       "not_found",
     );
-    await rejects(call(w, "call", page, { method: "nodot" }), "not_found");
+    await rejects(
+      call(w, "backend.call", page, { method: "nodot" }),
+      "not_found",
+    );
     // The backend's own error is reported as backend_error with its message.
     await assert.rejects(
-      call(w, "call", page, { method: "probe.greet", args: {} }),
+      call(w, "backend.call", page, { method: "probe.greet", args: {} }),
       (error) =>
         error instanceof ExtensionUiError &&
         error.bridgeCode === "backend_error" &&
@@ -471,27 +488,33 @@ void test(
     );
     // ctx rules: a declared read outside the open project is refused.
     assert.deepEqual(
-      await call(w, "call", page, { method: "probe.peek", args: "data.csv" }),
+      await call(w, "backend.call", page, {
+        method: "probe.peek",
+        args: "data.csv",
+      }),
       { value: { path: "data.csv" } },
     );
     await rejects(
-      call(w, "call", page, { method: "probe.peek", args: "../secret.csv" }),
+      call(w, "backend.call", page, {
+        method: "probe.peek",
+        args: "../secret.csv",
+      }),
       "failed",
     );
     await rejects(
-      call(w, "call", page, {
+      call(w, "backend.call", page, {
         method: "probe.peek",
         args: join(w.base, "secret.csv"),
       }),
       "failed",
     );
     await rejects(
-      call(w, "call", page, { method: "probe.peek", args: "link.csv" }),
+      call(w, "backend.call", page, { method: "probe.peek", args: "link.csv" }),
       "failed",
     );
     // Arguments over the limit never reach the backend.
     await rejects(
-      call(w, "call", page, {
+      call(w, "backend.call", page, {
         method: "probe.greet",
         args: { name: "x".repeat(1024 * 1024 + 1) },
       }),

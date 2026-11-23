@@ -4,6 +4,11 @@
   state with Review and Revoke (Source), and the host's diagnostics.
 -->
 <script lang="ts">
+import {
+  FieldRow,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import Globe from "@lucide/svelte/icons/globe";
 import Layers from "@lucide/svelte/icons/layers";
 import Puzzle from "@lucide/svelte/icons/puzzle";
@@ -18,12 +23,7 @@ import type {
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
-import {
-  SettingsItem,
-  SettingsList,
-  SettingsRow,
-  SettingsSection,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import ExtensionConsentDialog from "./ExtensionConsentDialog.svelte";
 import { consentState, installedSourceRows } from "./extensions-view";
 
@@ -37,7 +37,8 @@ let { entry, extensions }: Props = $props();
 const icons: Record<ExtensionConsentItem["kind"], typeof Puzzle> = {
   network: Globe,
   account: User,
-  capability: Zap,
+  model: Zap,
+  frame: Zap,
   tools: Wrench,
   namespace: Zap,
   ui: Layers,
@@ -63,21 +64,21 @@ let reviewOpen = $state(false);
     title="Adds"
     description="What this extension adds to Nerve and what it can reach."
   >
-    <SettingsList ariaLabel="What this extension adds">
+    <PageList ariaLabel="What this extension adds">
       {#each adds as item (item.text)}
-        <SettingsItem
+        <PageItem
           title={item.text}
           icon={item.broad ? TriangleAlert : icons[item.kind]}
           compact
         />
       {/each}
-    </SettingsList>
+    </PageList>
   </SettingsSection>
 {/if}
 
 <SettingsSection id="source" title="Source" divided>
   {#each rows as row (row.label)}
-    <SettingsRow label={row.label}>
+    <FieldRow label={row.label}>
       {#snippet control()}
         <span
           class={row.mono
@@ -85,9 +86,9 @@ let reviewOpen = $state(false);
             : "text-ui text-muted-foreground"}>{row.value}</span
         >
       {/snippet}
-    </SettingsRow>
+    </FieldRow>
   {/each}
-  <SettingsRow label="Consent" description={consent.description}>
+  <FieldRow label="Consent" description={consent.description}>
     {#snippet control()}
       <div class="flex flex-wrap items-center justify-end gap-2">
         <span class="text-ui text-foreground">{consent.label}</span>
@@ -108,7 +109,7 @@ let reviewOpen = $state(false);
         {/if}
       </div>
     {/snippet}
-  </SettingsRow>
+  </FieldRow>
 </SettingsSection>
 <ExtensionConsentDialog
   bind:open={reviewOpen}

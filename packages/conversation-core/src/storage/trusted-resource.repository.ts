@@ -94,7 +94,7 @@ export class TrustedResourceRepository {
 function mapTrustedResource(
   row: Record<string, SQLOutputValue>,
 ): TrustedResource {
-  return trustedResourceSchema.parse({
+  const raw = {
     id: row.id,
     kind: row.kind,
     projectId: row.project_id,
@@ -105,5 +105,17 @@ function mapTrustedResource(
     grants: typeof row.grants === "string" ? JSON.parse(row.grants) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+  const parsed = trustedResourceSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  // A grant snapshot of an older shape (the release before `capabilities` became `models` and
+  // `frame`) cannot be read. The decision does not count: it reads as rejected without grants, and
+  // the user's next decision replaces it.
+  const unreadable = trustedResourceSchema.safeParse({
+    ...raw,
+    status: "rejected",
+    grants: null,
   });
+  if (unreadable.success && raw.kind === "extension") return unreadable.data;
+  throw parsed.error;
 }

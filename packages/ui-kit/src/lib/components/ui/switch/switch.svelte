@@ -1,3 +1,8 @@
+<!--
+@component
+On/off switch; `bind:checked`, `onCheckedChange`.
+-->
+
 <script lang="ts">
 import { Switch as SwitchPrimitive } from "bits-ui";
 import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";
@@ -10,6 +15,7 @@ let {
   busy = false,
   ...restProps
 }: WithoutChildrenOrChild<SwitchPrimitive.RootProps> & {
+  /** Blocks toggling while work is pending. */
   busy?: boolean;
 } = $props();
 </script>

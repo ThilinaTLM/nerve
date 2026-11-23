@@ -1,3 +1,8 @@
+<!--
+@component
+Quiet caption above a group of rows (Pinned, Today): sentence case, no eyebrow. A heading with actions is `PanelSectionHeader`.
+-->
+
 <script lang="ts">
 import type { Component } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -11,8 +16,11 @@ let {
   icon: Icon,
   class: className,
 }: {
+  /** Caption text. */
   label: string;
+  /** Number of rows in the group, shown after the label. */
   count?: number;
+  /** Icon component before the label. */
   icon?: Component;
   class?: string;
 } = $props();

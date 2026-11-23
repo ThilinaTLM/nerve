@@ -1,3 +1,8 @@
+<!--
+@component
+Related controls inside a `FloatingToolbar`; dividers between groups are drawn for you, so do not add separators. `collapse` hides the group in panes narrower than 28rem: use it only for readouts and actions the bar's overflow menu also offers.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";

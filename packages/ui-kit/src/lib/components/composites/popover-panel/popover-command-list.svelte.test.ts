@@ -93,4 +93,72 @@ describe("PopoverCommandList", () => {
         .getAttribute("aria-selected"),
     ).toBe("false");
   });
+
+  describe("multiple", () => {
+    function multiple() {
+      const selected = new Set<string>();
+      const onApply = vi.fn();
+      const onCancel = vi.fn();
+      const onChoose = vi.fn((item: { key: string }) =>
+        selected.has(item.key)
+          ? selected.delete(item.key)
+          : selected.add(item.key),
+      );
+      render(PopoverCommandList, {
+        items,
+        ariaLabel: "Pick",
+        onChoose,
+        autofocus: false,
+        multiple: true,
+        isSelected: (item: { key: string }) => selected.has(item.key),
+        onApply,
+        onCancel,
+      });
+      return {
+        onApply,
+        onCancel,
+        onChoose,
+        search: screen.getByRole("textbox", { name: "Pick" }),
+      };
+    }
+
+    it("toggles rows without closing; Space toggles the highlighted row and Enter applies", async () => {
+      const { onApply, onChoose, search } = multiple();
+      await userEvent.click(screen.getByRole("option", { name: "Alpha" }));
+      expect(onChoose).toHaveBeenCalledTimes(1);
+
+      await userEvent.click(search);
+      await userEvent.keyboard("{ArrowDown}{ArrowDown} ");
+      expect(onChoose).toHaveBeenLastCalledWith(items[1]);
+      expect(search).toHaveProperty("value", "");
+
+      await userEvent.keyboard("{Enter}");
+      expect(onApply).toHaveBeenCalledTimes(1);
+      expect(onChoose).toHaveBeenCalledTimes(2);
+    });
+
+    it("applies on Enter from a row that took focus", async () => {
+      const { onApply, onChoose } = multiple();
+      await userEvent.click(screen.getByRole("option", { name: "Beta" }));
+      await userEvent.keyboard("{Enter}");
+      expect(onApply).toHaveBeenCalledTimes(1);
+      expect(onChoose).toHaveBeenCalledTimes(1);
+    });
+
+    it("has Apply and Cancel buttons", async () => {
+      const { onApply, onCancel } = multiple();
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(onCancel).toHaveBeenCalledTimes(1);
+      await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+      expect(onApply).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("without a search field it still navigates but ignores typing", async () => {
+    const { onChoose, search } = setup({ searchable: false });
+    await userEvent.click(search);
+    await userEvent.keyboard("zz{ArrowDown}{Enter}");
+    expect(search).toHaveProperty("value", "");
+    expect(onChoose).toHaveBeenCalledExactlyOnceWith(items[0]);
+  });
 });

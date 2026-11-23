@@ -284,7 +284,7 @@ const manifestOf = async (edit?: (manifest: Json) => void) => {
     (m) => {
       m.permissions = {
         network: ["api.github.com"],
-        capabilities: ["models.vision"],
+        models: ["vision"],
       };
       edit?.(m);
     },
@@ -401,7 +401,7 @@ void test("grant diffs list only what is new; shrinking is empty", async () => {
   assert.ok(isEmptyGrant(newGrants(full, smaller)));
   const added = newGrants(smaller, full);
   assert.deepEqual(added.tools, ["summary_echo", "summary_ping"]);
-  assert.deepEqual(added.capabilities, ["models.vision"]);
+  assert.deepEqual(added.models, ["vision"]);
   assert.deepEqual(added.network, []);
   // A new operation of an existing namespace is new; the namespace is not.
   const more = {

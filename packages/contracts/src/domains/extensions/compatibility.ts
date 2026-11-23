@@ -1,71 +1,9 @@
-/** What an extension was built against, one version floor each (see `oldestCompatibleSdkVersion`). */
-export const extensionSurfaceNames = [
-  "manifest",
-  "backend",
-  "ui",
-  "credentials",
-  "themes",
-] as const;
-export type ExtensionSurface = (typeof extensionSurfaceNames)[number];
-
-/** Words for a surface in a message to the user. */
-const surfaceLabels: Record<ExtensionSurface, string> = {
-  manifest: "manifest format",
-  backend: "backend API",
-  ui: "UI bridge and ui-kit components",
-  credentials: "credential provider API",
-  themes: "theme tokens",
-};
-
 /**
- * The oldest SDK version whose extensions this Nerve still loads, per surface: `manifest` (the
- * `manifest.json` format), `backend` (the extension API and `ctx`), `ui` (the frame bridge and
- * `ui-kit`), `credentials` (the credential provider API and its `ctx`) and `themes` (token names). Raise one floor only when a release breaks that surface,
- * and add an `UPGRADING.md` section in the same change (see docs/architecture/extension-platform.md,
- * "Installed extensions"). An extension is checked only against the surfaces its manifest uses.
+ * The oldest SDK version whose extensions this Nerve still loads. Raise it only when a release
+ * breaks extensions, and add an `UPGRADING.md` section in the same change (see
+ * docs/architecture/extension-platform.md, "Compatibility").
  */
-export const oldestCompatibleSdkVersion: Record<ExtensionSurface, string> = {
-  manifest: "0.41.0",
-  backend: "0.41.0",
-  ui: "0.41.0",
-  // New surface: nothing older than the SDK that introduced it can use it, so the floor is the first version.
-  credentials: "0.41.0",
-  themes: "0.41.0",
-};
-
-/**
- * The surfaces a manifest uses, read leniently from untrusted JSON (before the strict schema):
- * `manifest` always; `backend` with namespaces, tools or accounts; `credentials` with a credential
- * provider; `ui` with previews, pages or panels; `themes` with themes.
- */
-export function usedExtensionSurfaces(manifest: unknown): ExtensionSurface[] {
-  const record =
-    manifest !== null && typeof manifest === "object"
-      ? (manifest as Record<string, unknown>)
-      : {};
-  const filled = (value: unknown) =>
-    Array.isArray(value)
-      ? value.length > 0
-      : value !== null &&
-        typeof value === "object" &&
-        Object.keys(value).length > 0;
-  const ui =
-    record.ui !== null && typeof record.ui === "object"
-      ? (record.ui as Record<string, unknown>)
-      : {};
-  const used: ExtensionSurface[] = ["manifest"];
-  if (
-    filled(record.namespaces) ||
-    filled(record.tools) ||
-    filled(record.accounts)
-  )
-    used.push("backend");
-  if (filled(ui.previews) || filled(ui.pages) || filled(ui.panels))
-    used.push("ui");
-  if (filled(record.credentials)) used.push("credentials");
-  if (filled(ui.themes)) used.push("themes");
-  return used;
-}
+export const oldestCompatibleSdkVersion = "0.41.0";
 
 type Version = { numbers: [number, number, number]; prerelease: string | null };
 
@@ -95,36 +33,19 @@ export function compareVersions(a: string, b: string): number | undefined {
 
 /**
  * Why an extension built with `sdkVersion` cannot load in the running Nerve (`nerveVersion`), or
- * undefined when every surface in `surfaces` has `floor <= sdkVersion <= nerveVersion`. The text
- * is for the user and names each surface that changed and the version that changed it.
+ * undefined when `oldestCompatibleSdkVersion <= sdkVersion <= nerveVersion`. The text is for the
+ * user and the agent and names the fix.
  */
 export function sdkCompatibilityProblem(
   sdkVersion: string,
   nerveVersion: string,
-  surfaces: readonly ExtensionSurface[],
-  oldest: Record<ExtensionSurface, string> = oldestCompatibleSdkVersion,
+  oldest: string = oldestCompatibleSdkVersion,
 ): string | undefined {
-  const byFloor = new Map<string, string[]>();
-  for (const surface of surfaces) {
-    const floor = oldest[surface];
-    const old = compareVersions(sdkVersion, floor);
-    if (old !== undefined && old < 0)
-      byFloor.set(floor, [
-        ...(byFloor.get(floor) ?? []),
-        surfaceLabels[surface],
-      ]);
-  }
-  if (byFloor.size > 0) {
-    const changes = [...byFloor]
-      .map(
-        ([floor, names]) =>
-          `the ${names.join(" and the ")} changed in SDK ${floor}`,
-      )
-      .join("; ");
-    return `Built with SDK ${sdkVersion}; ${changes}, and this Nerve needs the new one. Ask the agent in the Forge profile to upgrade it.`;
-  }
+  const old = compareVersions(sdkVersion, oldest);
+  if (old !== undefined && old < 0)
+    return `Built with SDK ${sdkVersion}, older than the ${oldest} this Nerve loads. Upgrade @nervekit/extension-sdk and rebuild with \`nerve-ext build\` (ask the agent in the Forge profile to do it).`;
   const ahead = compareVersions(sdkVersion, nerveVersion);
   if (ahead !== undefined && ahead > 0)
-    return `Built with SDK ${sdkVersion}, which is newer than this Nerve (${nerveVersion}). Update Nerve, or ask the agent in the Forge profile to rebuild it for this version.`;
+    return `Built with SDK ${sdkVersion}, newer than this Nerve (${nerveVersion}). Update Nerve, or install @nervekit/extension-sdk@${nerveVersion} and rebuild with \`nerve-ext build\` (ask the agent in the Forge profile to do it).`;
   return undefined;
 }

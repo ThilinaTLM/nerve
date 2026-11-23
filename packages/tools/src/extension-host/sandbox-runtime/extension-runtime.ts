@@ -136,12 +136,11 @@ function buildContext(
       freshName: (base, extension) =>
         call("artifacts.freshName", base, extension),
     },
-    extensionStore: {
-      get: (key) => call("extensionStore.get", key),
-      set: (key, value, options) =>
-        call("extensionStore.set", key, value, options),
-      delete: (key, options) => call("extensionStore.delete", key, options),
-      keys: (options) => call("extensionStore.keys", options),
+    store: {
+      get: (key) => call("store.get", key),
+      set: (key, value, options) => call("store.set", key, value, options),
+      delete: (key, options) => call("store.delete", key, options),
+      keys: (options) => call("store.keys", options),
     },
     text: { htmlToMarkdown: (html) => call("text.htmlToMarkdown", html) },
     authorize: (check) => call("authorize", check),
@@ -229,6 +228,12 @@ function toolOf(name: string): any {
   return found;
 }
 
+function anyToolOf(name: string): any {
+  const found = definitionOf().tools?.find((entry) => entry.name === name);
+  if (!found) throw new Error(`${definitionOf().id}: unknown tool ${name}.`);
+  return found;
+}
+
 const asArray = (result: unknown): Authorization[] =>
   result === undefined
     ? []
@@ -283,7 +288,7 @@ async function perform(
         ctx,
       );
     case "present":
-      return toolOf(payload.tool as string).present?.(payload.output);
+      return anyToolOf(payload.tool as string).present?.(payload.output);
     case "configuration":
       return namespaceOf(payload.namespace as string).configuration?.(
         hookContext(ctx),

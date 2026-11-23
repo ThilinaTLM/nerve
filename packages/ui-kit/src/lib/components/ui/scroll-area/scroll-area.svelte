@@ -1,3 +1,8 @@
+<!--
+@component
+Scrollable area with styled scrollbars; give it a bounded height.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import type { HTMLAttributes } from "svelte/elements";
@@ -5,8 +10,11 @@ import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = Omit<HTMLAttributes<HTMLDivElement>, "children"> & {
   ref?: HTMLElement | null;
+  /** The scrolling element, bindable. */
   viewportRef?: HTMLElement | null;
+  /** Scroll direction (default `vertical`). */
   orientation?: "vertical" | "horizontal" | "both";
+  /** Classes of the scrolling element. */
   viewportClass?: string;
   children?: Snippet;
 };

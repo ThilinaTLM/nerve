@@ -1,3 +1,8 @@
+<!--
+@component
+Small coloured dot for a state (running, failed). Pair it with text or `label`; colour alone is not enough.
+-->
+
 <script lang="ts" module>
 import type { VariantProps } from "tailwind-variants";
 import { cn, tv } from "@nervekit/ui-kit/utils";
@@ -53,10 +58,15 @@ let {
   label,
   class: className,
 }: {
+  /** Colour (default `neutral`): `neutral`, `brand`, `info`, `success`, `warning`, `destructive`. */
   tone?: StatusTone;
+  /** `xs`, `sm` (default) or `md`. */
   size?: StatusDotSize;
+  /** `solid` (default) or `outline`. */
   variant?: StatusDotVariant;
+  /** Animates the dot, for work in progress. */
   pulse?: boolean;
+  /** Accessible name; without it the dot is decorative. */
   label?: string;
   class?: string;
 } = $props();

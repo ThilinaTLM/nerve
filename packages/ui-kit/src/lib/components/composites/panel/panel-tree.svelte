@@ -1,0 +1,743 @@
+<!--
+@component
+Keyboard-navigable tree (files, folders of launches). Build `nodes` with `buildPanelTree` (paths) or `buildPanelItemTree` (parent keys). Without `expandedIds` it keeps expansion itself.
+-->
+
+<script lang="ts" module>
+export type PanelTreeController = {
+  /** Scrolls the row into view and, with `focus`, moves keyboard focus to it. */
+  revealRow: (id: string, options?: { focus?: boolean }) => Promise<void>;
+};
+</script>
+
+<script lang="ts" generics="T">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import ChevronRight from "@lucide/svelte/icons/chevron-right";
+import Folder from "@lucide/svelte/icons/folder";
+import FolderOpen from "@lucide/svelte/icons/folder-open";
+import {
+  VirtualScroller,
+  type VirtualScrollerController,
+} from "@nervekit/ui-kit/components/composites/virtual-list";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import { cn } from "@nervekit/ui-kit/utils";
+import { tick, type Snippet } from "svelte";
+import { SvelteSet } from "svelte/reactivity";
+import { ItemMenu } from "../item-menu/index.js";
+import PanelRow from "./panel-row.svelte";
+import {
+  canContainPanelItems,
+  indexPanelReorderNodes,
+  normalizePanelReorderDrop,
+  panelReorderKey,
+  panelReorderKeyDrop,
+  panelReorderZone,
+  type PanelReorderKey,
+  type PanelReorderZone,
+  type PanelTreeReorder,
+} from "./panel-reorder.js";
+import type { PanelSelectionState } from "./panel-selection.svelte.js";
+import {
+  adjacentPanelTreeRowId,
+  expandedPanelTreeIds,
+  firstPanelTreeChildId,
+  panelTreeExpandableIds,
+  parentPanelTreeRowId,
+  typeaheadPanelTreeRowId,
+  visiblePanelTreeRows,
+  type PanelTreeNode,
+  type PanelTreeRow,
+} from "./panel-tree.js";
+
+type Props = {
+  /** Prebuilt nodes from `buildPanelTree` (paths) or `buildPanelItemTree`. */
+  nodes: readonly PanelTreeNode<T>[];
+  /** Accessible name of the tree. */
+  ariaLabel: string;
+  /** Indentation steps applied to root rows, for trees nested under a header. */
+  baseIndent?: number;
+  /** Tooltip of an item row. */
+  getItemTitle?: (item: T) => string;
+  /** Whether an item row is selected. */
+  getItemSelected?: (item: T) => boolean;
+  /** Marks the row as the current item (`aria-current`), independent of selection. */
+  getItemActive?: (item: T) => boolean;
+  /** Colour of an item row's label. */
+  getItemTone?: (item: T) => StatusTone | undefined;
+  /** Controlled expansion state. Node ids are the ids produced by the builders. */
+  expandedIds?: ReadonlySet<string>;
+  /** An item with children was expanded or collapsed. */
+  onItemExpansionChange?: (item: T, expanded: boolean) => void;
+  /** Expansion changes for generated path groups. */
+  onGroupExpansionChange?: (path: readonly string[], expanded: boolean) => void;
+  /** Opt into a single fixed-height virtualized viewport for large trees. */
+  virtualized?: boolean;
+  /** Allow deeply indented rows to scroll horizontally instead of clipping. */
+  horizontalScroll?: boolean;
+  /** Hide item disclosure arrows when open/closed leading icons carry state. */
+  showDisclosure?: boolean;
+  /** Hide generated-directory chevrons when folder icons carry state. */
+  showGroupDisclosure?: boolean;
+  /** Monospace labels, for paths. */
+  itemMono?: boolean;
+  /**
+   * Activates a leaf or item parent. Item parents also toggle their children on
+   * the same click, so selecting and disclosing stay a single gesture.
+   */
+  onItemActivate?: (item: T) => void;
+  /** Whether an item row can be dragged. */
+  getItemDraggable?: (item: T) => boolean;
+  /** Drag started on an item row. */
+  onItemDragStart?: (event: DragEvent, item: T) => void;
+  /** Drag ended. */
+  onItemDragEnd?: (event: DragEvent, item: T) => void;
+  /** Row drop-target handlers; the tree only forwards the events. */
+  onItemDragEnter?: (event: DragEvent, item: T) => void;
+  /** A drag is over an item row. */
+  onItemDragOver?: (event: DragEvent, item: T) => void;
+  /** A drag left an item row. */
+  onItemDragLeave?: (event: DragEvent, item: T) => void;
+  /** Something was dropped on an item row. */
+  onItemDrop?: (event: DragEvent, item: T) => void;
+  /** Drop indicator of an item row while dragging over it. */
+  getItemDropTarget?: (item: T) => boolean;
+  /** Recedes the row (e.g. ignored files). */
+  getItemDimmed?: (item: T) => boolean;
+  /** Rows for which `itemEditor` replaces the label. */
+  getItemEditing?: (item: T) => boolean;
+  /** Replaces an item's label with an inline editor (rename); return a snippet for the item being edited. */
+  itemEditor?: Snippet<[T]>;
+  /**
+   * Called before the default pointer handling; return true to consume the
+   * click (modifier-click selection) so the row is neither activated nor toggled.
+   */
+  onItemClick?: (event: MouseEvent, item: T) => boolean | void;
+  /**
+   * Called for keys on a focused row before the built-in navigation; return
+   * true to consume the key. Receives the rows currently visible.
+   */
+  onItemKeydown?: (event: KeyboardEvent, item: T) => boolean | void;
+  /** Allows more than one selected row (adds `aria-multiselectable`). */
+  multiselectable?: boolean;
+  /**
+   * Built-in multi-selection over item rows: click selects, Ctrl/Cmd-click
+   * toggles, Shift-click selects the visible range, Shift+↑/↓ extends,
+   * Ctrl/Cmd+A selects all visible, Escape clears. Selected rows render as
+   * selected; read `selection.ids` (node ids, see `panelItemNodeId`) to act on
+   * them. Implies `multiselectable`.
+   */
+  selection?: PanelSelectionState;
+  /** Opt-in drag and keyboard reordering of item rows; see `PanelTreeReorder`. */
+  reorder?: PanelTreeReorder<T>;
+  /** Menu for the empty area below the rows, which is also the top-level drop target of `reorder`. */
+  emptyAreaMenuItems?: ContextMenuItem[];
+  /** Bindable imperative handle for scroll-to-row and focus. */
+  controller?: PanelTreeController;
+  /** Icon or `StatusDot` before an item's label. */
+  itemLeading?: Snippet<[T]>;
+  /** Replaces the default folder icon of generated path groups. */
+  groupIcon?: Snippet<[readonly string[], boolean]>;
+  /** Segmented label (e.g. highlighted search matches); the node label stays the accessible fallback. */
+  itemLabel?: Snippet<[T]>;
+  /** Badges after an item's label. */
+  itemBadges?: Snippet<[T]>;
+  /** Icon actions of an item row (`PanelToolbarButton dense`). */
+  itemActions?: Snippet<[T]>;
+  /** Actions for generated directory groups, receiving the full path. */
+  groupActions?: Snippet<[readonly string[]]>;
+  /** Overlay row actions so hidden controls reserve no horizontal space. */
+  overlayActions?: boolean;
+  /** Right-click menu of an item row. */
+  getItemMenuItems?: (item: T) => ContextMenuItem[];
+  /** Right-click menu of a generated folder, from its path. */
+  getGroupMenuItems?: (path: readonly string[]) => ContextMenuItem[];
+  class?: string;
+};
+
+/* eslint-disable no-useless-assignment -- $bindable defaults declare parent bindings before the effect assigns the handle. */
+let {
+  nodes,
+  ariaLabel,
+  baseIndent = 0,
+  getItemTitle,
+  getItemSelected,
+  getItemActive,
+  getItemTone,
+  expandedIds,
+  onItemExpansionChange,
+  onGroupExpansionChange,
+  virtualized = false,
+  horizontalScroll = false,
+  showDisclosure = true,
+  showGroupDisclosure = true,
+  itemMono = false,
+  onItemActivate,
+  getItemDraggable,
+  onItemDragStart,
+  onItemDragEnd,
+  onItemDragEnter,
+  onItemDragOver,
+  onItemDragLeave,
+  onItemDrop,
+  getItemDropTarget,
+  getItemDimmed,
+  getItemEditing,
+  itemEditor,
+  onItemClick,
+  onItemKeydown,
+  multiselectable = false,
+  selection,
+  reorder,
+  emptyAreaMenuItems,
+  controller = $bindable(),
+  itemLeading,
+  groupIcon,
+  itemLabel,
+  itemBadges,
+  itemActions,
+  groupActions,
+  overlayActions = false,
+  getItemMenuItems,
+  getGroupMenuItems,
+  class: className,
+}: Props = $props();
+/* eslint-enable no-useless-assignment */
+
+let root: HTMLElement | undefined = $state();
+let virtualController = $state<VirtualScrollerController>();
+const collapsed = new SvelteSet<string>();
+let focusedId = $state<string>();
+
+const expandableIds = $derived(panelTreeExpandableIds(nodes));
+const expanded = $derived.by(() => {
+  if (expandedIds)
+    return new Set([...expandedIds].filter((id) => expandableIds.has(id)));
+  return expandedPanelTreeIds(expandableIds, collapsed);
+});
+const rows = $derived(visiblePanelTreeRows(nodes, expanded));
+/** Reserve the chevron column so leaf rows align with expandable siblings. */
+const hasExpandableItems = $derived(
+  showDisclosure &&
+    rows.some((row) => row.node.kind === "item" && isExpandable(row.node)),
+);
+const visibleItemIds = $derived(
+  rows.filter((row) => row.node.kind === "item").map((row) => row.node.id),
+);
+// Selection only ever holds rows that are still visible.
+$effect(() => {
+  selection?.prune(new Set(visibleItemIds));
+});
+$effect(() => {
+  for (const id of collapsed) if (!expandableIds.has(id)) collapsed.delete(id);
+});
+
+$effect(() => {
+  const visibleIds = new Set(rows.map((row) => row.node.id));
+  if (!focusedId || !visibleIds.has(focusedId)) focusedId = rows[0]?.node.id;
+});
+
+function notifyExpansionChange(node: PanelTreeNode<T>, open: boolean): void {
+  if (node.kind === "item") onItemExpansionChange?.(node.value, open);
+  else onGroupExpansionChange?.(node.path, open);
+}
+
+function setExpanded(node: PanelTreeNode<T>, open: boolean): void {
+  if (expandedIds) {
+    notifyExpansionChange(node, open);
+    return;
+  }
+  if (open) collapsed.delete(node.id);
+  else collapsed.add(node.id);
+  notifyExpansionChange(node, open);
+}
+
+function isExpandable(node: PanelTreeNode<T>): boolean {
+  return (
+    node.children.length > 0 ||
+    (node.kind === "item" && node.expandable === true)
+  );
+}
+
+function toggle(node: PanelTreeNode<T>): void {
+  if (isExpandable(node)) setExpanded(node, !expanded.has(node.id));
+}
+
+function activate(node: PanelTreeNode<T>): void {
+  if (node.kind === "item") onItemActivate?.(node.value);
+  toggle(node);
+}
+
+async function focusRow(
+  id: string | undefined,
+  options: { focus?: boolean } = {},
+): Promise<void> {
+  if (!id) return;
+  const index = rows.findIndex((row) => row.node.id === id);
+  if (index < 0) return;
+  if (options.focus !== false) focusedId = id;
+  if (virtualized) virtualController?.scrollToIndex(index, { align: "auto" });
+  await tick();
+  if (virtualized) await tick();
+  const element = [
+    ...(root?.querySelectorAll<HTMLElement>("[data-panel-row-id]") ?? []),
+  ].find((candidate) => candidate.dataset.panelRowId === id);
+  if (options.focus === false) element?.scrollIntoView({ block: "nearest" });
+  else element?.focus();
+}
+
+$effect(() => {
+  controller = {
+    revealRow: (id, options) => focusRow(id, options),
+  };
+});
+
+const TYPEAHEAD_RESET_MS = 700;
+let typeaheadBuffer = "";
+let typeaheadTimer: ReturnType<typeof setTimeout> | undefined;
+
+function typeahead(event: KeyboardEvent, node: PanelTreeNode<T>): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1)
+    return false;
+  if (event.key === " " && typeaheadBuffer === "") return false;
+  typeaheadBuffer += event.key;
+  clearTimeout(typeaheadTimer);
+  typeaheadTimer = setTimeout(() => (typeaheadBuffer = ""), TYPEAHEAD_RESET_MS);
+  const destination = typeaheadPanelTreeRowId(rows, node.id, typeaheadBuffer);
+  if (destination) void focusRow(destination);
+  return true;
+}
+
+function activateFromPointer(event: MouseEvent, node: PanelTreeNode<T>): void {
+  const row = (event.currentTarget as HTMLElement).closest<HTMLElement>(
+    "[data-panel-row-id]",
+  );
+  focusedId = node.id;
+  row?.focus();
+  if (node.kind === "item") {
+    if (onItemClick?.(event, node.value) === true) return;
+    if (selection?.handleClick(event, node.id, visibleItemIds)) return;
+  }
+  activate(node);
+}
+
+// ----- Reordering ----------------------------------------------------------
+
+const reorderIndex = $derived(
+  reorder ? indexPanelReorderNodes(nodes) : undefined,
+);
+let dragSources = $state.raw<readonly T[]>();
+let dropState = $state<{ id: string; zone: PanelReorderZone }>();
+const ROOT_DROP = "root";
+
+function reorderSources(item: T): readonly T[] {
+  if (!reorder) return [item];
+  const sources = (reorder.getSources?.(item) ?? [item]).filter(
+    reorder.canDrag,
+  );
+  return sources.length > 0 ? sources : [item];
+}
+
+function reorderSourceIds(sources: readonly T[]): Set<string> {
+  const ids = new SvelteSet<string>();
+  for (const [id, location] of reorderIndex ?? [])
+    if (sources.includes(location.node.value)) ids.add(id);
+  return ids;
+}
+
+/** A valid placement never targets a row that moves along with the sources. */
+function reorderAllowed(
+  sources: readonly T[],
+  target: PanelTreeNode<T> | undefined,
+  zone: PanelReorderZone,
+): boolean {
+  if (!reorder) return false;
+  if (!target) return reorder.canDrop(sources, undefined, zone);
+  if (target.kind !== "item" || sources.includes(target.value)) return false;
+  return reorder.canDrop(sources, target.value, zone);
+}
+
+function commitReorder(
+  sources: readonly T[],
+  target: PanelTreeNode<T> | undefined,
+  zone: PanelReorderZone,
+): void {
+  if (!reorder || !reorderAllowed(sources, target, zone)) return;
+  reorder.onMove(
+    sources,
+    target?.kind === "item" ? target.value : undefined,
+    zone,
+  );
+  if (zone === "inside" && target && !expanded.has(target.id))
+    setExpanded(target, true);
+}
+
+function keyboardReorder(node: PanelTreeNode<T>, key: PanelReorderKey): void {
+  if (!reorder || !reorderIndex || node.kind !== "item") return;
+  if (!reorder.canDrag(node.value)) return;
+  const sources = reorderSources(node.value);
+  const destination = panelReorderKeyDrop(
+    reorderIndex,
+    node.id,
+    key,
+    reorderSourceIds(sources),
+  );
+  if (!destination) return;
+  commitReorder(sources, destination.node, destination.zone);
+  keyboardMovedId = node.id;
+}
+
+// A keyboard move lands once the host refreshes its data, which can remount
+// the row: give the moved row focus back if the refresh dropped it.
+let keyboardMovedId: string | undefined;
+$effect(() => {
+  void rows;
+  const id = keyboardMovedId;
+  if (!id) return;
+  keyboardMovedId = undefined;
+  const active = document.activeElement;
+  if (active && active !== document.body) return;
+  if (rows.some((row) => row.node.id === id)) void focusRow(id);
+});
+
+function startReorder(event: DragEvent, item: T): void {
+  if (!reorder?.canDrag(item) || !event.dataTransfer) return;
+  const sources = reorderSources(item);
+  dragSources = sources;
+  event.dataTransfer.effectAllowed = "move";
+  // Some browsers refuse to start a drag without data.
+  event.dataTransfer.setData("text/plain", "");
+  reorder.onDragStart?.(sources);
+}
+
+function endReorder(): void {
+  const wasDragging = dragSources !== undefined;
+  dragSources = undefined;
+  dropState = undefined;
+  if (wasDragging) reorder?.onDragEnd?.();
+}
+
+function dragOverRow(event: DragEvent, node: PanelTreeNode<T>): void {
+  if (!reorder || !dragSources || node.kind !== "item") return;
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const ratio =
+    rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+  const zone = panelReorderZone(ratio, canContainPanelItems(node));
+  const drop = normalizePanelReorderDrop(node, zone, expanded.has(node.id));
+  if (!reorderAllowed(dragSources, drop.node, drop.zone)) {
+    dropState = undefined;
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  dropState = { id: drop.node.id, zone: drop.zone };
+}
+
+function dragOverEmptyArea(event: DragEvent): void {
+  if (!reorder || !dragSources) return;
+  if (!reorderAllowed(dragSources, undefined, "inside")) {
+    dropState = undefined;
+    return;
+  }
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  dropState = { id: ROOT_DROP, zone: "inside" };
+}
+
+function dropReorder(event: DragEvent): void {
+  if (!dragSources || !dropState) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const sources = dragSources;
+  const { id, zone } = dropState;
+  dragSources = undefined;
+  dropState = undefined;
+  commitReorder(
+    sources,
+    id === ROOT_DROP ? undefined : reorderIndex?.get(id)?.node,
+    zone,
+  );
+}
+
+function leaveTree(event: DragEvent): void {
+  if (!root?.contains(event.relatedTarget as Node | null))
+    dropState = undefined;
+}
+
+/**
+ * App shortcuts run first and can unmount this tree (Ctrl+Shift+F swaps the
+ * dock panel) before the row's own handler is called. A handled key must not
+ * touch the row's reactive state: reading it after teardown logs
+ * `derived_inert`. The node is therefore read lazily, after this guard.
+ */
+function handleRowKeydown(event: KeyboardEvent, node: () => PanelTreeNode<T>) {
+  if (event.defaultPrevented) return;
+  handleKeydown(event, node());
+}
+
+function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
+  if (event.target !== event.currentTarget) return;
+  if (node.kind === "item" && onItemKeydown?.(event, node.value) === true) {
+    event.preventDefault();
+    return;
+  }
+
+  if (node.kind === "item" && selection) {
+    const result = selection.handleKey(event, node.id, visibleItemIds);
+    if (result.handled) {
+      event.preventDefault();
+      if (result.revealId) void focusRow(result.revealId);
+      return;
+    }
+  }
+  const reorderKey =
+    node.kind === "item" && reorder ? panelReorderKey(event) : undefined;
+  if (reorderKey) {
+    event.preventDefault();
+    keyboardReorder(node, reorderKey);
+    return;
+  }
+
+  let destination: string | undefined;
+  switch (event.key) {
+    case "ArrowDown":
+      destination = adjacentPanelTreeRowId(rows, node.id, "next");
+      break;
+    case "ArrowUp":
+      destination = adjacentPanelTreeRowId(rows, node.id, "previous");
+      break;
+    case "Home":
+      destination = adjacentPanelTreeRowId(rows, node.id, "first");
+      break;
+    case "End":
+      destination = adjacentPanelTreeRowId(rows, node.id, "last");
+      break;
+    case "ArrowRight":
+      if (isExpandable(node) && !expanded.has(node.id)) {
+        setExpanded(node, true);
+        destination = node.id;
+      } else if (isExpandable(node)) {
+        destination = firstPanelTreeChildId(rows, node.id) ?? node.id;
+      }
+      break;
+    case "ArrowLeft":
+      if (isExpandable(node) && expanded.has(node.id)) {
+        setExpanded(node, false);
+        destination = node.id;
+      } else {
+        destination = parentPanelTreeRowId(rows, node.id) ?? node.id;
+      }
+      break;
+    case "Enter":
+    case " ":
+      if (event.key === " " && typeaheadBuffer !== "") {
+        typeahead(event, node);
+        event.preventDefault();
+        return;
+      }
+      activate(node);
+      destination = node.id;
+      break;
+    default:
+      if (typeahead(event, node)) event.preventDefault();
+      return;
+  }
+
+  if (!destination) return;
+  event.preventDefault();
+  void focusRow(destination);
+}
+</script>
+
+{#snippet renderRow(row: PanelTreeRow<T>)}
+  {@const node = row.node}
+  {@const expandable = isExpandable(node)}
+  {@const open = expandable && expanded.has(node.id)}
+  {#if node.kind === "group"}
+    {#snippet groupLeading()}
+      {#if open && showGroupDisclosure}
+        <ChevronDown class="size-3" aria-hidden="true" />
+      {:else if !open && showGroupDisclosure}
+        <ChevronRight class="size-3" aria-hidden="true" />
+      {/if}
+      {#if groupIcon}
+        {@render groupIcon(node.path, open)}
+      {:else if open}
+        <FolderOpen class="size-3.5" aria-hidden="true" />
+      {:else}
+        <Folder class="size-3.5" aria-hidden="true" />
+      {/if}
+    {/snippet}
+    {#snippet renderedGroupActions()}
+      {#if groupActions}{@render groupActions(node.path)}{/if}
+    {/snippet}
+    <PanelRow
+      label={node.label}
+      title={node.path.join("/")}
+      leading={groupLeading}
+      actions={groupActions ? renderedGroupActions : undefined}
+      menuItems={getGroupMenuItems?.(node.path)}
+      dense
+      class={horizontalScroll ? "w-max min-w-full" : undefined}
+      alwaysShowActions={!overlayActions}
+      {overlayActions}
+      indent={baseIndent + row.depth}
+      role="treeitem"
+      tabindex={focusedId === node.id ? 0 : -1}
+      contentTabindex={-1}
+      ariaExpanded={open}
+      ariaLevel={row.depth + 1}
+      ariaPosInSet={row.posInSet}
+      ariaSetSize={row.setSize}
+      dataId={node.id}
+      onfocus={() => (focusedId = node.id)}
+      onkeydown={(event) => handleRowKeydown(event, () => node)}
+      onclick={(event) => activateFromPointer(event, node)}
+    />
+  {:else}
+    {#snippet leafLeading()}
+      {#if showDisclosure && expandable}
+        {#if open}
+          <ChevronDown class="size-3" aria-hidden="true" />
+        {:else}
+          <ChevronRight class="size-3" aria-hidden="true" />
+        {/if}
+      {:else if hasExpandableItems}
+        <span class="size-3" aria-hidden="true"></span>
+      {/if}
+      {#if itemLeading}{@render itemLeading(node.value)}{/if}
+    {/snippet}
+    {#snippet leafBadges()}
+      {#if itemBadges}{@render itemBadges(node.value)}{/if}
+    {/snippet}
+    {#snippet leafActions()}
+      {#if itemActions}{@render itemActions(node.value)}{/if}
+    {/snippet}
+    {#snippet leafLabel()}
+      {#if itemLabel}{@render itemLabel(node.value)}{/if}
+    {/snippet}
+    <PanelRow
+      label={node.label}
+      labelContent={itemLabel ? leafLabel : undefined}
+      title={getItemTitle?.(node.value)}
+      selected={(getItemSelected?.(node.value) ?? false) ||
+        (selection?.has(node.id) ?? false)}
+      active={getItemActive?.(node.value) ?? false}
+      tone={getItemTone?.(node.value)}
+      mono={itemMono}
+      leading={itemLeading ||
+      (showDisclosure && (expandable || hasExpandableItems))
+        ? leafLeading
+        : undefined}
+      badges={itemBadges ? leafBadges : undefined}
+      actions={itemActions ? leafActions : undefined}
+      menuItems={getItemMenuItems?.(node.value)}
+      dense
+      alwaysShowActions={!overlayActions}
+      {overlayActions}
+      class={horizontalScroll ? "w-max min-w-full" : undefined}
+      indent={baseIndent + row.depth}
+      role="treeitem"
+      tabindex={focusedId === node.id ? 0 : -1}
+      contentTabindex={-1}
+      ariaExpanded={expandable ? open : undefined}
+      ariaLevel={row.depth + 1}
+      ariaPosInSet={row.posInSet}
+      ariaSetSize={row.setSize}
+      dataId={node.id}
+      draggable={(getItemDraggable?.(node.value) ?? false) ||
+        (reorder?.canDrag(node.value) ?? false)}
+      dimmed={(getItemDimmed?.(node.value) ?? false) ||
+        (dragSources?.includes(node.value) ?? false)}
+      dropTarget={(getItemDropTarget?.(node.value) ?? false) ||
+        (dropState?.id === node.id && dropState.zone === "inside")}
+      dropEdge={dropState?.id === node.id && dropState.zone !== "inside"
+        ? dropState.zone
+        : undefined}
+      editor={itemEditor && getItemEditing?.(node.value)
+        ? itemEditor
+        : undefined}
+      editorArg={node.value}
+      ondragstart={(event) => {
+        startReorder(event, node.value);
+        onItemDragStart?.(event, node.value);
+      }}
+      ondragend={(event) => {
+        endReorder();
+        onItemDragEnd?.(event, node.value);
+      }}
+      ondragenter={(event) => onItemDragEnter?.(event, node.value)}
+      ondragover={(event) => {
+        dragOverRow(event, node);
+        onItemDragOver?.(event, node.value);
+      }}
+      ondragleave={(event) => onItemDragLeave?.(event, node.value)}
+      ondrop={(event) => {
+        dropReorder(event);
+        onItemDrop?.(event, node.value);
+      }}
+      onfocus={() => (focusedId = node.id)}
+      onkeydown={(event) => handleRowKeydown(event, () => node)}
+      onclick={(event) => activateFromPointer(event, node)}
+    />
+  {/if}
+{/snippet}
+
+<!-- The tree only watches drags leaving it; its rows own focus. -->
+<!-- svelte-ignore a11y_interactive_supports_focus -->
+<div
+  bind:this={root}
+  role="tree"
+  aria-label={ariaLabel}
+  aria-multiselectable={multiselectable || selection !== undefined || undefined}
+  ondragleave={reorder ? leaveTree : undefined}
+  class={cn(
+    "flex min-w-0 flex-col",
+    // PanelView insets content by one step. The virtualized scroller bleeds
+    // back to the panel edge so its scrollbar sits flush, and re-pads its rows.
+    virtualized && "-mx-2 min-h-0 flex-1",
+    className,
+  )}
+>
+  {#if virtualized}
+    <VirtualScroller
+      items={rows}
+      getKey={(row) => row.node.id}
+      estimateSize={() => 20}
+      bind:controller={virtualController}
+      viewportClass="h-full px-2"
+      {horizontalScroll}
+      rowClass={horizontalScroll ? "w-max min-w-full" : undefined}
+    >
+      {#snippet row({ item })}
+        {@render renderRow(item)}
+      {/snippet}
+    </VirtualScroller>
+  {:else}
+    {#each rows as row (row.node.id)}
+      {@render renderRow(row)}
+    {/each}
+  {/if}
+  {#if reorder || (emptyAreaMenuItems && emptyAreaMenuItems.length > 0)}
+    {#snippet emptyArea()}
+      <div
+        role="none"
+        class={cn(
+          "min-h-6 rounded-sm transition-colors motion-reduce:transition-none",
+          dropState?.id === ROOT_DROP &&
+            "bg-primary-subtle ring-1 ring-primary-strong ring-inset",
+        )}
+        ondragover={dragOverEmptyArea}
+        ondrop={dropReorder}
+      ></div>
+    {/snippet}
+    {#if emptyAreaMenuItems && emptyAreaMenuItems.length > 0}
+      <ItemMenu items={emptyAreaMenuItems} triggerClass="block">
+        {@render emptyArea()}
+      </ItemMenu>
+    {:else}
+      {@render emptyArea()}
+    {/if}
+  {/if}
+</div>

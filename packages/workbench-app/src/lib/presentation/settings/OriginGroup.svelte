@@ -7,6 +7,10 @@
   `emptyText` is given (the user can add to it).
 -->
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import Blocks from "@lucide/svelte/icons/blocks";
 import BriefcaseBusiness from "@lucide/svelte/icons/briefcase-business";
 import UserIcon from "@lucide/svelte/icons/circle-user";
@@ -17,8 +21,6 @@ import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
 import ColumnLabels from "./ColumnLabels.svelte";
 import HoverTip from "./HoverTip.svelte";
 import { originLabel, originTip, type SettingsOrigin } from "./settings-origin";
-import SettingsEmptyState from "./SettingsEmptyState.svelte";
-import SettingsList from "./SettingsList.svelte";
 
 type Props = {
   origin: SettingsOrigin;
@@ -33,7 +35,7 @@ type Props = {
   note?: string;
   /** Rows end with a chevron slot (lists); cards do not. */
   chevron?: boolean;
-  /** Wrap children in a SettingsList; off for card stacks. */
+  /** Wrap children in a PageList; off for card stacks. */
   list?: boolean;
   /** Shown instead of the rows while the group is empty, with its add action. */
   emptyText?: string;
@@ -87,16 +89,16 @@ const icon = $derived(
       {/if}
     </div>
     {#if count === 0 && emptyText}
-      <SettingsEmptyState
+      <PageEmptyState
         variant="card"
         title={emptyText}
         description={emptyDescription}
         actions={emptyAction}
       />
     {:else if list}
-      <SettingsList ariaLabel={label}>
+      <PageList ariaLabel={label}>
         {@render children()}
-      </SettingsList>
+      </PageList>
     {:else}
       <div class="grid gap-3">{@render children()}</div>
     {/if}

@@ -73,7 +73,7 @@ export const imagegenExtension = defineExtension({
     // Version 1 chose the backend and model with two enums.
     migrations: { 2: foldImageModel },
   },
-  permissions: { capabilities: ["models.image"] },
+  permissions: { models: ["image"] },
   namespaces: [
     defineNamespace({
       id: "imagegen",

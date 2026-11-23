@@ -1,3 +1,8 @@
+<!--
+@component
+Spinning loading indicator (an SVG; `aria-label` defaults to "Loading").
+-->
+
 <script lang="ts">
 import { cn } from "@nervekit/ui-kit/utils";
 import type { SVGAttributes } from "svelte/elements";
@@ -8,7 +13,10 @@ let {
   role = "status",
   "aria-label": ariaLabel = "Loading",
   ...restProps
-}: SVGAttributes<SVGSVGElement> & { variant?: "ring" | "refresh" } = $props();
+}: SVGAttributes<SVGSVGElement> & {
+  /** `ring` (default) or `refresh`, the circular arrows. */
+  variant?: "ring" | "refresh";
+} = $props();
 </script>
 
 <svg

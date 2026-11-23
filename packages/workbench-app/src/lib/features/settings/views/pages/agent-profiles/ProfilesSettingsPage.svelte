@@ -1,4 +1,5 @@
 <script lang="ts">
+import { PageEmptyState } from "@nervekit/ui-kit/components/composites/page";
 import { untrack } from "svelte";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -9,7 +10,6 @@ import {
   onWorkbenchReconnect,
 } from "$lib/application/events/workbench-event-bus";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import { SettingsEmptyState } from "$lib/presentation/settings";
 import { modelDisplayName, modelKey } from "$lib/presentation/utils/model";
 import ProfileDetail from "./ProfileDetail.svelte";
 import ProfilesList from "./ProfilesList.svelte";
@@ -169,7 +169,7 @@ const diagnostics = $derived([
       />
     {/key}
   {:else if store.loaded}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       title="Profile not found"
       description={`No profile is registered as “${itemId}”.`}

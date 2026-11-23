@@ -17,8 +17,8 @@ import { themeFileSchema } from "./theme-file.js";
 /*
  * What the workbench app asks of the daemon for installed-extension UI. Only the signed-in
  * user's app sends these; no agent tool, `quick_script` namespace or extension port exposes
- * them. Methods that are pure host UI (dialogs, menus, notifications, openFile, openPage,
- * composer.insert, viewState, mode, clipboard; `conversations.start` reaches the server after the app's gesture check) never reach the server.
+ * them. Methods that are pure host UI (dialogs, menus, notifications, workspace, pages, chat.insert,
+ * tabState, clipboard; `chat.startConversation` reaches the server after the app's gesture check) never reach the server.
  */
 
 /** Bridge methods the daemon answers: everything that needs files, settings, the project or the backend. */
@@ -28,12 +28,12 @@ export const serverBridgeMethods = [
   "file.write",
   "settings.get",
   "project.info",
-  "call",
-  "conversations.start",
-  "extensionStore.get",
-  "extensionStore.set",
-  "extensionStore.delete",
-  "extensionStore.keys",
+  "backend.call",
+  "chat.startConversation",
+  "store.get",
+  "store.set",
+  "store.delete",
+  "store.keys",
 ] as const satisfies readonly BridgeMethodName[];
 export type ServerBridgeMethod = (typeof serverBridgeMethods)[number];
 
@@ -159,12 +159,12 @@ export const extensionUiOperationDefinitions = [
   uiOperation("file.write", "mutation"),
   uiOperation("settings.get", "read"),
   uiOperation("project.info", "read"),
-  uiOperation("call", "mutation"),
-  uiOperation("conversations.start", "mutation"),
-  uiOperation("extensionStore.get", "read"),
-  uiOperation("extensionStore.set", "mutation"),
-  uiOperation("extensionStore.delete", "mutation"),
-  uiOperation("extensionStore.keys", "read"),
+  uiOperation("backend.call", "mutation"),
+  uiOperation("chat.startConversation", "mutation"),
+  uiOperation("store.get", "read"),
+  uiOperation("store.set", "mutation"),
+  uiOperation("store.delete", "mutation"),
+  uiOperation("store.keys", "read"),
   /** A frame's uncaught error or CSP violation, recorded for `extensions.status().recentErrors`. */
   defineOperation(
     "extensions.ui.reportFrameError",

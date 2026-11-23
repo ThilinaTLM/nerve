@@ -1,3 +1,8 @@
+<!--
+@component
+Search field with a leading magnifier and a clear button.
+-->
+
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
 import Search from "@lucide/svelte/icons/search";
@@ -7,18 +12,25 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = {
+  /** Search text; `bind:value`. */
   value?: string;
+  /** Hint shown while empty (default "Search"). */
   placeholder?: string;
+  /** Accessible name (default "Search"). */
   ariaLabel?: string;
   /** Replaces the leading magnifier (e.g. a tag filter). */
   icon?: Component<{ class?: string; "aria-hidden"?: "true" }>;
+  /** Shows the clear button while there is text (default true). */
   clearable?: boolean;
+  /** Not editable. */
   disabled?: boolean;
   class?: string;
+  /** Classes of the `<input>` itself; `class` styles the wrapper. */
   inputClass?: string;
   ref?: HTMLInputElement | null;
   /** Rendered after the field, e.g. a result count. */
   trailing?: Snippet;
+  /** Called with the new text on every change. */
   onValueChange?: (value: string) => void;
   /** Lets a caller drive a result list from the field (arrow keys, Enter). */
   onkeydown?: (event: KeyboardEvent) => void;

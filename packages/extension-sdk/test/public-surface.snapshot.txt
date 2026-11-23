@@ -227,7 +227,7 @@ export type JsonSchemaObject = {
     additionalProperties?: boolean;
     [key: string]: unknown;
 };
-type ToolBase = {
+type ToolBase<Output = unknown> = {
     name: string;
     label?: string;
     description: string;
@@ -236,15 +236,6 @@ type ToolBase = {
     enabledBy?: string | readonly string[];
     requires?: Requires;
     availability?: (ctx: ExtensionHookContext) => Promise<Availability> | Availability;
-};
-export type MethodToolDefinition = ToolBase & {
-    method: string;
-};
-export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
-    risk: Risk;
-    parse(args: Record<string, unknown>): Input;
-    authorize?(input: Input): AuthorizeResult;
-    run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
     present?(output: Output): {
         text: string;
         sections?: Record<string, unknown>;
@@ -254,12 +245,23 @@ export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
         };
     };
 };
+export type MethodToolDefinition = ToolBase<unknown> & {
+    method: string;
+};
+export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase<Output> & {
+    risk: Risk;
+    parse(args: Record<string, unknown>): Input;
+    authorize?(input: Input): AuthorizeResult;
+    run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
+};
 export type ToolDefinition = MethodToolDefinition | OwnToolDefinition;
 export declare function isMethodTool(tool: ToolDefinition): tool is MethodToolDefinition;
-export type Capability = "models.image" | "models.vision" | "models.text" | "conversations.start";
+export type ModelGrant = "image" | "vision" | "text";
+export type FrameGrant = "chat.startConversation";
 export type ExtensionPermissions = {
     network?: string[];
-    capabilities?: Capability[];
+    models?: ModelGrant[];
+    frame?: FrameGrant[];
 };
 export type PreviewEditMode = "source" | "custom" | "none";
 export type PreviewContribution = {
@@ -307,9 +309,7 @@ export type ExtensionDefinition = {
     permissions?: ExtensionPermissions;
     namespaces: readonly NamespaceDefinition<any>[];
     tools?: readonly ToolDefinition[];
-    prelude?: string;
     ui?: ExtensionUi;
-    limits?: Readonly<Record<string, number>>;
 };
 export {};
 
@@ -334,7 +334,7 @@ export type { CredentialAccount, CredentialApplyContext, CredentialApplyResult, 
 export { defineCredentialProvider } from "./credentials.js";
 export { ExtensionError } from "./errors.js";
 export type { ExtensionErrorCode } from "./errors.js";
-export type { MethodDefinition, Availability, DocTopic, Requires, NamespaceDefinition, ViewSectionType, ViewSection, ToolView, JsonSchemaObject, MethodToolDefinition, OwnToolDefinition, ToolDefinition, Capability, ExtensionPermissions, PreviewEditMode, PreviewContribution, PageContribution, PanelContribution, ThemeContribution, ExtensionUi, ExtensionDefinition, } from "./definition.js";
+export type { MethodDefinition, Availability, DocTopic, Requires, NamespaceDefinition, ViewSectionType, ViewSection, ToolView, JsonSchemaObject, MethodToolDefinition, OwnToolDefinition, ToolDefinition, FrameGrant, ModelGrant, ExtensionPermissions, PreviewEditMode, PreviewContribution, PageContribution, PanelContribution, ThemeContribution, ExtensionUi, ExtensionDefinition, } from "./definition.js";
 export { defineExtension, defineNamespace, method, defineTool, } from "./define.js";
 
 ===== declarations extension-api/src/settings.d.ts =====
@@ -729,7 +729,7 @@ export interface ExtensionContext {
         info(handle: string): Promise<ArtifactInfo>;
         freshName(base: string, extension: string): Promise<string>;
     };
-    extensionStore: {
+    store: {
         get(key: string): Promise<{
             value: unknown;
             revision: number;
@@ -777,22 +777,7 @@ export type ExtensionHookContext = Pick<ExtensionContext, "settings" | "accounts
 };
 export type AccountTestContext = Pick<ExtensionContext, "accounts" | "http" | "log">;
 
-===== declarations extension-sdk/src/index.d.ts =====
-export * from "@nervekit/extension-api";
-
-===== declarations extension-sdk/src/testing.d.ts =====
-export * from "@nervekit/extension-api/testing";
-export { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
-export { flushSync, mount, tick, unmount } from "svelte";
-export { createFakeBridge, type FakeBridge, type FakeBridgeOptions, } from "./ui/testing.js";
-
-===== declarations extension-sdk/src/ui.d.ts =====
-export { host, mode, themeKind, startFrame, type Host } from "./ui/host.js";
-export { BridgeError, createBridgeClient, type BridgeClient, type BridgeTransport, } from "./ui/client.js";
-export type { BridgeErrorCode, BridgeJson, BridgeMethods, ClipboardImageType, ConfirmOptions, ContributionKind, ExtensionStoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, MethodName, Mode, NotifyLevel, PreviewEdit, ProjectInfo, ThemeChange, ThemeKind, } from "./ui/bridge-types.js";
-export * from "./ui/components.js";
-
-===== declarations extension-sdk/src/ui/bridge-types.d.ts =====
+===== declarations extension-sdk/src/frame/bridge-types.d.ts =====
 export type BridgeJson = string | number | boolean | null | BridgeJson[] | {
     [key: string]: BridgeJson;
 };
@@ -815,11 +800,57 @@ export type FileChunk = {
     size: number;
     eof: boolean;
 };
+export type AnchorRect = {
+    x: number;
+    y: number;
+    width?: number | undefined;
+    height?: number | undefined;
+};
+export type Anchor = Element | AnchorRect;
 export type MenuItem = {
+    type?: "item" | undefined;
     id: string;
     label: string;
+    icon?: string | undefined;
+    shortcut?: string | undefined;
+    checked?: boolean | undefined;
     disabled?: boolean | undefined;
     destructive?: boolean | undefined;
+};
+export type MenuSeparator = {
+    type: "separator";
+};
+export type MenuLabel = {
+    type: "label";
+    label: string;
+};
+export type MenuSubmenu = {
+    type: "submenu";
+    label: string;
+    icon?: string | undefined;
+    disabled?: boolean | undefined;
+    items: MenuEntry[];
+};
+export type MenuEntry = MenuItem | MenuSeparator | MenuLabel | MenuSubmenu;
+export type PickItem = {
+    id: string;
+    label: string;
+    group?: string | undefined;
+    detail?: string | undefined;
+    keywords?: string[] | undefined;
+    icon?: string | undefined;
+    disabled?: boolean | undefined;
+};
+export type PickOptions = {
+    title?: string | undefined;
+    placeholder?: string | undefined;
+    ariaLabel: string;
+    items: PickItem[];
+    selected?: string[] | undefined;
+    anchor?: Anchor | undefined;
+};
+export type PickRequest = PickOptions & {
+    mode: "single" | "multiple";
 };
 export type ConfirmOptions = {
     title: string;
@@ -853,7 +884,7 @@ export type ThemeChange = {
     kind: ThemeKind;
     tokensCss: string;
 };
-export type ExtensionStoreChange = {
+export type StoreChange = {
     key: string;
     revision: number | null;
 };
@@ -879,13 +910,7 @@ type Methods = {
             size: number;
         };
     };
-    "mode.get": {
-        params: Record<string, never>;
-        result: {
-            mode: Mode;
-        };
-    };
-    call: {
+    "backend.call": {
         params: {
             method: string;
             args?: BridgeJson | undefined;
@@ -895,18 +920,20 @@ type Methods = {
         };
     };
     "settings.get": {
-        params: Record<string, never>;
+        params: {
+            key: string;
+        };
         result: {
-            values: Record<string, BridgeJson>;
+            value?: BridgeJson | undefined;
         };
     };
-    "viewState.get": {
+    "tabState.get": {
         params: Record<string, never>;
         result: {
             state: BridgeJson | null;
         };
     };
-    "viewState.set": {
+    "tabState.set": {
         params: {
             state: BridgeJson;
         };
@@ -918,16 +945,21 @@ type Methods = {
             confirmed: boolean;
         };
     };
-    "ui.showMenu": {
+    "ui.menu": {
         params: {
-            items: MenuItem[];
-            position?: {
-                x: number;
-                y: number;
-            } | undefined;
+            entries: MenuEntry[];
+            anchor: AnchorRect;
         };
         result: {
             id: string | null;
+        };
+    };
+    "ui.pick": {
+        params: Omit<PickRequest, "anchor"> & {
+            anchor?: AnchorRect | undefined;
+        };
+        result: {
+            ids: string[] | null;
         };
     };
     "ui.notify": {
@@ -937,13 +969,13 @@ type Methods = {
         };
         result: Record<string, never>;
     };
-    openFile: {
+    "workspace.openFile": {
         params: {
             path: string;
         };
         result: Record<string, never>;
     };
-    openPage: {
+    "pages.open": {
         params: {
             id: string;
             params?: BridgeJson | undefined;
@@ -954,7 +986,7 @@ type Methods = {
         params: Record<string, never>;
         result: ProjectInfo;
     };
-    "composer.insert": {
+    "chat.insert": {
         params: {
             text: string;
         };
@@ -973,7 +1005,7 @@ type Methods = {
         };
         result: Record<string, never>;
     };
-    "conversations.start": {
+    "chat.startConversation": {
         params: {
             prompt: string;
             title?: string | undefined;
@@ -987,16 +1019,18 @@ type Methods = {
             conversationId: string;
         };
     };
-    "extensionStore.get": {
+    "store.get": {
         params: {
             key: string;
         };
         result: {
-            value: BridgeJson | null;
-            revision: number | null;
+            entry: {
+                value: BridgeJson;
+                revision: number;
+            } | null;
         };
     };
-    "extensionStore.set": {
+    "store.set": {
         params: {
             key: string;
             value: BridgeJson;
@@ -1006,14 +1040,14 @@ type Methods = {
             revision: number;
         };
     };
-    "extensionStore.delete": {
+    "store.delete": {
         params: {
             key: string;
             ifRevision?: number | undefined;
         };
         result: Record<string, never>;
     };
-    "extensionStore.keys": {
+    "store.keys": {
         params: {
             prefix?: string | undefined;
         };
@@ -1030,8 +1064,8 @@ export type BridgeMethods = Methods;
 export type MethodName = keyof Methods;
 export {};
 
-===== declarations extension-sdk/src/ui/client.d.ts =====
-import type { BridgeErrorCode, BridgeMethods, ExtensionStoreChange, FileChange, FrameInit, Mode, MethodName, ThemeChange, ThemeKind } from "./bridge-types.js";
+===== declarations extension-sdk/src/frame/client.d.ts =====
+import type { BridgeErrorCode, BridgeMethods, StoreChange, FileChange, FrameInit, Mode, MethodName, ThemeChange, ThemeKind } from "./bridge-types.js";
 export declare class BridgeError extends Error {
     readonly code: BridgeErrorCode;
     constructor(code: BridgeErrorCode, message: string);
@@ -1041,12 +1075,12 @@ export type BridgeTransport = {
     listen(handler: (data: unknown) => void): () => void;
 };
 type Listeners = {
-    themeChanged: ((change: ThemeChange) => void)[];
-    fileChanged: ((change: FileChange) => void)[];
-    modeChanged: ((change: {
+    "theme.changed": ((change: ThemeChange) => void)[];
+    "file.changed": ((change: FileChange) => void)[];
+    "mode.changed": ((change: {
         mode: Mode;
     }) => void)[];
-    extensionStoreChanged: ((change: ExtensionStoreChange) => void)[];
+    "store.changed": ((change: StoreChange) => void)[];
 };
 export type BridgeClient = {
     readonly ready: Promise<FrameInit & {
@@ -1077,131 +1111,32 @@ export declare const frameErrors: {
 } | undefined;
 export {};
 
-===== declarations extension-sdk/src/ui/components.d.ts =====
-// Types of `ui/components.ts` (the implementation is compiled by the extension's UI build and
-// stays out of this program: the UI kit's sources need the Svelte compiler to type-check).
-// `test/ui-components.test.ts` keeps both files' export names equal.
-import type { Component } from "svelte";
-
-
-type Part = Component<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-type Parts<Names extends string> = Record<Names, Part>;
-
-type ClassValue = string | false | null | undefined | ClassValue[];
-
-
-export function cn(...inputs: ClassValue[]): string;
-
-export const Button: Part;
-
-export function buttonVariants(options?: {
-  
-  variant?: string;
-  
-  size?: string;
-  
-  class?: string;
-}): string;
-
-export const Badge: Part;
-
-export function badgeVariants(options?: {
-  
-  variant?: string;
-  
-  class?: string;
-}): string;
-
-export const Input: Part;
-
-export const Textarea: Part;
-
-export const Label: Part;
-
-export const Checkbox: Part;
-
-export const Switch: Part;
-
-export const Skeleton: Part;
-
-export const Spinner: Part;
-
-export const Kbd: Part;
-
-export const Separator: Part;
-
-export const Progress: Part;
-
-export const ScrollArea: Part;
-
-export const Tabs: Parts<"Root" | "List" | "Trigger" | "Content">;
-
-export const Select: Parts<"Root" | "Item" | "Content" | "Trigger" | "Portal">;
-
-export const Tooltip: Parts<
-  "Root" | "Trigger" | "Content" | "Provider" | "Portal"
->;
-
-export const Collapsible: Parts<"Root" | "Content" | "Trigger">;
-
-export const Empty: Parts<
-  "Root" | "Header" | "Media" | "Title" | "Description" | "Content"
->;
-
-export const RadioGroup: Parts<"Root" | "Item">;
-
-export const ToggleGroup: Parts<"Root" | "Item">;
-
-export const Resizable: Parts<"PaneGroup" | "Pane" | "Handle">;
-
-export const Callout: Part;
-
-export const GroupLabel: Part;
-
-export const IconAction: Part;
-
-export const SearchInput: Part;
-
-export const StatusDot: Part;
-
-export const ProgressRing: Part;
-
-export const ScrollRegion: Part;
-
-export const FloatingLayer: Part;
-
-export const FloatingToolbar: Part;
-
-export const FloatingToolbarGroup: Part;
-
-export const FloatingToolbarButton: Part;
-
-export const FloatingToolbarText: Part;
-
-export const FloatingPanel: Part;
-
-export const FloatingNotice: Part;
-
-export const FloatingToolbarMenu: Part;
-
-===== declarations extension-sdk/src/ui/host.d.ts =====
+===== declarations extension-sdk/src/frame/host.d.ts =====
 import { type Readable } from "svelte/store";
 import { type BridgeClient } from "./client.js";
-import type { BridgeJson, ClipboardImageType, ConfirmOptions, ExtensionStoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, Mode, NotifyLevel, PreviewEdit, ProjectInfo, ThemeChange, ThemeKind, ContributionKind } from "./bridge-types.js";
-export declare const mode: Readable<Mode>;
-export declare const themeKind: Readable<ThemeKind>;
+import type { Anchor, BridgeJson, ClipboardImageType, ConfirmOptions, StoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuEntry, Mode, NotifyLevel, PickOptions, ProjectInfo, ThemeChange, ThemeKind } from "./bridge-types.js";
 export declare function attach(next: BridgeClient): BridgeClient;
 declare function readAll(): Promise<Uint8Array>;
 export declare const host: {
     readonly ready: Promise<FrameInit>;
-    readonly extensionId: string;
-    readonly contribution: {
-        kind: ContributionKind;
-        id: string;
-        edit?: PreviewEdit;
+    backend: {
+        call: (method: string, args?: BridgeJson) => Promise<BridgeJson | undefined>;
     };
-    readonly pageParams: BridgeJson | undefined;
+    pages: {
+        open: (id: string, params?: BridgeJson) => Promise<void>;
+        params: () => Promise<BridgeJson | undefined>;
+    };
+    workspace: {
+        openFile: (path: string) => Promise<void>;
+    };
+    project: {
+        info: () => Promise<ProjectInfo>;
+    };
+    theme: {
+        kind: Readable<ThemeKind>;
+        onChange: (handler: (change: ThemeChange) => void) => (() => void);
+    };
+    mode: Readable<Mode>;
     file: {
         info: () => Promise<FileInfo>;
         read: (options?: {
@@ -1213,33 +1148,13 @@ export declare const host: {
         write: (content: string | Uint8Array) => Promise<{
             size: number;
         }>;
+        onChange: (handler: (change: FileChange) => void) => (() => void);
     };
-    mode: {
-        get: () => Promise<Mode>;
-    };
-    call: (method: string, args?: BridgeJson) => Promise<BridgeJson | undefined>;
-    clipboard: {
-        writeText: (text: string) => Promise<void>;
-        writeImage: (image: Blob | Uint8Array, mediaType?: ClipboardImageType) => Promise<void>;
-    };
-    conversations: {
-        start: (options: {
-            prompt: string;
-            title?: string;
-            model?: string;
-            agentProfile?: string;
-            permissionRuleSet?: string;
-            send?: boolean;
-            open?: boolean;
-        }) => Promise<{
-            conversationId: string;
-        }>;
-    };
-    extensionStore: {
+    store: {
         get: (key: string) => Promise<{
-            value: BridgeJson | null;
-            revision: number | null;
-        }>;
+            value: BridgeJson;
+            revision: number;
+        } | undefined>;
         set: (key: string, value: BridgeJson, options?: {
             ifRevision?: number;
         }) => Promise<{
@@ -1253,46 +1168,58 @@ export declare const host: {
             revision: number;
             size: number;
         }[]>;
+        onChange: (handler: (change: StoreChange) => void) => (() => void);
     };
-    settings: {
-        get: () => Promise<Record<string, BridgeJson>>;
-    };
-    viewState: {
+    tabState: {
         get: () => Promise<BridgeJson | null>;
         set: (state: BridgeJson) => Promise<void>;
     };
+    chat: {
+        insert: (text: string) => Promise<void>;
+        startConversation: (options: {
+            prompt: string;
+            title?: string;
+            model?: string;
+            agentProfile?: string;
+            permissionRuleSet?: string;
+            send?: boolean;
+            open?: boolean;
+        }) => Promise<{
+            conversationId: string;
+        }>;
+    };
+    clipboard: {
+        writeText: (text: string) => Promise<void>;
+        writeImage: (image: Blob | Uint8Array, mediaType?: ClipboardImageType) => Promise<void>;
+    };
+    settings: {
+        get: <T extends BridgeJson = BridgeJson>(key: string) => Promise<T | undefined>;
+    };
     ui: {
         confirm: (options: ConfirmOptions) => Promise<boolean>;
-        showMenu: (items: MenuItem[], position?: {
-            x: number;
-            y: number;
+        menu: (entries: MenuEntry[], options: {
+            anchor: Anchor;
         }) => Promise<string | null>;
+        pick: {
+            (options: PickOptions & {
+                mode: "single";
+            }): Promise<string | null>;
+            (options: PickOptions & {
+                mode: "multiple";
+            }): Promise<string[] | null>;
+        };
         notify: (message: string, level?: NotifyLevel) => Promise<void>;
     };
-    openFile: (path: string) => Promise<void>;
-    openPage: (id: string, params?: BridgeJson) => Promise<void>;
-    project: {
-        info: () => Promise<ProjectInfo>;
-    };
-    composer: {
-        insert: (text: string) => Promise<void>;
-    };
-    onThemeChange: (handler: (change: ThemeChange) => void) => (() => void);
-    onModeChange: (handler: (change: {
-        mode: Mode;
-    }) => void) => (() => void);
-    onExtensionStoreChange: (handler: (change: ExtensionStoreChange) => void) => (() => void);
-    onFileChange: (handler: (change: FileChange) => void) => (() => void);
 };
 export type Host = typeof host;
 export declare function startFrame(options: {
     target: HTMLElement;
-    render: (target: HTMLElement) => void | (() => void);
+    render: (target: HTMLElement, init: FrameInit) => void | (() => void);
 }): Promise<void>;
 export {};
 
-===== declarations extension-sdk/src/ui/testing.d.ts =====
-import type { BridgeJson, ConfirmOptions, ContributionKind, MenuItem, Mode, NotifyLevel, PreviewEdit, ThemeKind } from "./bridge-types.js";
+===== declarations extension-sdk/src/frame/testing.d.ts =====
+import type { BridgeJson, ConfirmOptions, ContributionKind, AnchorRect, MenuEntry, PickRequest, Mode, NotifyLevel, PreviewEdit, ThemeKind } from "./bridge-types.js";
 export type FakeBridgeOptions = {
     kind?: ContributionKind;
     id?: string;
@@ -1308,7 +1235,7 @@ export type FakeBridgeOptions = {
         modifiedAt?: string;
     };
     settings?: Record<string, BridgeJson>;
-    viewState?: BridgeJson | null;
+    tabState?: BridgeJson | null;
     project?: {
         id?: string;
         name?: string;
@@ -1316,9 +1243,10 @@ export type FakeBridgeOptions = {
     };
     userActivation?: boolean;
     store?: Record<string, BridgeJson>;
-    call?: (method: string, args: BridgeJson | undefined) => BridgeJson | undefined | Promise<BridgeJson | undefined>;
+    backend?: (method: string, args: BridgeJson | undefined) => BridgeJson | undefined | Promise<BridgeJson | undefined>;
     confirm?: boolean | ((options: ConfirmOptions) => boolean);
-    menu?: string | null | ((items: MenuItem[]) => string | null);
+    menu?: string | null | ((entries: MenuEntry[], anchor: AnchorRect) => string | null);
+    pick?: string[] | null | ((options: PickRequest) => string[] | null);
 };
 export type FakeBridge = {
     requests: {
@@ -1343,13 +1271,22 @@ export type FakeBridge = {
         conversationId: string;
         options: Record<string, BridgeJson>;
     }[];
-    viewState: BridgeJson | null;
+    tabState: BridgeJson | null;
     clipboard: {
         text?: string;
         image?: {
             bytes: Uint8Array;
             mediaType: string;
         };
+    }[];
+    menus: {
+        entries: MenuEntry[];
+        anchor: AnchorRect;
+        chosen: string | null;
+    }[];
+    picks: {
+        options: PickRequest;
+        chosen: string[] | null;
     }[];
     store: Map<string, {
         value: BridgeJson;
@@ -1361,16 +1298,659 @@ export type FakeBridge = {
         source?: string;
     }[];
     ready: Promise<void>;
-    emitThemeChanged(kind: ThemeKind, tokensCss: string): void;
-    emitModeChanged(mode: Mode): void;
-    emitFileChanged(change: {
+    emitThemeChange(kind: ThemeKind, tokensCss: string): void;
+    emitModeChange(mode: Mode): void;
+    emitFileChange(change: {
         size: number;
         modifiedAt?: string;
     }, content?: string | Uint8Array): void;
-    emitExtensionStoreChanged(key: string, revision: number | null): void;
+    emitStoreChange(key: string, revision: number | null): void;
     close(): void;
 };
 export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridge;
+
+===== declarations extension-sdk/src/index.d.ts =====
+export * from "@nervekit/extension-api";
+
+===== declarations extension-sdk/src/testing.d.ts =====
+export * from "@nervekit/extension-api/testing";
+export { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
+export { flushSync, mount, tick, unmount } from "svelte";
+export { createFakeBridge, type FakeBridge, type FakeBridgeOptions, } from "./frame/testing.js";
+
+===== declarations extension-sdk/src/ui.d.ts =====
+export { host, startFrame, type Host } from "./frame/host.js";
+export { BridgeError, createBridgeClient, type BridgeClient, type BridgeTransport, } from "./frame/client.js";
+export type { Anchor, AnchorRect, BridgeErrorCode, BridgeJson, BridgeMethods, ClipboardImageType, ConfirmOptions, ContributionKind, FileChange, FileChunk, FileInfo, FrameInit, MenuEntry, MenuItem, MenuLabel, MenuSeparator, MenuSubmenu, MethodName, Mode, NotifyLevel, PickItem, PickOptions, PickRequest, PreviewEdit, ProjectInfo, StoreChange, ThemeChange, ThemeKind, } from "./frame/bridge-types.js";
+export * from "./components/components.js";
+export * from "@lucide/svelte";
+export { Badge } from "./components/components.js";
+
+===== components =====
+Button
+  active?: boolean | undefined
+  ariaLabel?: string | undefined
+  pressed?: boolean | undefined
+  ref?: HTMLElement | null | undefined
+  size?: "default" | "sm" | "icon" | "icon-sm" | undefined
+  variant?: "link" | "default" | "outline" | "success" | "ghost" | "destructive" | undefined
+Badge
+  ref?: HTMLElement | null | undefined
+  variant?: "success" | "destructive" | "neutral" | "brand" | "info" | "warning" | undefined
+Input
+  ariaLabel?: string | undefined
+  files?: FileList | undefined
+  ref?: HTMLElement | null | undefined
+  type?: "file" | InputType | undefined
+Textarea
+  ref?: HTMLElement | null | undefined
+Label
+
+Checkbox
+
+Switch
+  busy?: boolean | undefined
+Skeleton
+  ref?: HTMLElement | null | undefined
+Spinner
+  variant?: "ring" | "refresh" | undefined
+Kbd
+  ref?: HTMLElement | null | undefined
+Separator
+
+Progress
+
+ScrollArea
+  children?: Snippet<[]> | undefined
+  orientation?: "vertical" | "horizontal" | "both" | undefined
+  ref?: HTMLElement | null | undefined
+  viewportClass?: string | undefined
+  viewportRef?: HTMLElement | null | undefined
+Tabs.Root
+
+Tabs.Content
+
+Tabs.List
+
+Tabs.Trigger
+
+Tabs.Tabs
+
+Tabs.TabsContent
+
+Tabs.TabsList
+
+Tabs.TabsTrigger
+
+Tooltip.Root
+
+Tooltip.Trigger
+
+Tooltip.Content
+  arrowClasses?: string | undefined
+  portalProps?: Omit<PortalProps, "children"> | undefined
+Tooltip.Provider
+
+Tooltip.Portal
+
+Tooltip.Tooltip
+
+Tooltip.TooltipContent
+  arrowClasses?: string | undefined
+  portalProps?: Omit<PortalProps, "children"> | undefined
+Tooltip.TooltipTrigger
+
+Tooltip.TooltipProvider
+
+Tooltip.TooltipPortal
+
+Collapsible.Root
+
+Collapsible.Content
+
+Collapsible.Trigger
+
+Collapsible.Collapsible
+
+Collapsible.CollapsibleContent
+
+Collapsible.CollapsibleTrigger
+
+Empty.Root
+  ref?: HTMLElement | null | undefined
+Empty.Header
+  ref?: HTMLElement | null | undefined
+Empty.Media
+  ref?: HTMLElement | null | undefined
+  variant?: "default" | "icon" | undefined
+Empty.Title
+  ref?: HTMLElement | null | undefined
+Empty.Description
+  ref?: HTMLElement | null | undefined
+Empty.Content
+  ref?: HTMLElement | null | undefined
+Empty.Empty
+  ref?: HTMLElement | null | undefined
+Empty.EmptyHeader
+  ref?: HTMLElement | null | undefined
+Empty.EmptyMedia
+  ref?: HTMLElement | null | undefined
+  variant?: "default" | "icon" | undefined
+Empty.EmptyTitle
+  ref?: HTMLElement | null | undefined
+Empty.EmptyDescription
+  ref?: HTMLElement | null | undefined
+Empty.EmptyContent
+  ref?: HTMLElement | null | undefined
+RadioGroup.Root
+
+RadioGroup.Item
+
+RadioGroup.RadioGroup
+
+RadioGroup.RadioGroupItem
+
+ToggleGroup.Root
+  orientation?: "vertical" | "horizontal" | undefined
+  spacing?: number | undefined
+ToggleGroup.Item
+
+ToggleGroup.ToggleGroup
+  orientation?: "vertical" | "horizontal" | undefined
+  spacing?: number | undefined
+ToggleGroup.ToggleGroupItem
+
+Resizable.PaneGroup
+  this?: ({ $on?(type: string, callback: (e: any) => void): () => void; $set?(props: Partial<PaneGroupProps>): void; } & { getLayout: () => number[]; setLayout: (newLayout: number[]) => void; getId: () => string; }) | undefined
+Resizable.Pane
+
+Resizable.Handle
+  withHandle?: boolean | undefined
+Resizable.ResizablePaneGroup
+  this?: ({ $on?(type: string, callback: (e: any) => void): () => void; $set?(props: Partial<PaneGroupProps>): void; } & { getLayout: () => number[]; setLayout: (newLayout: number[]) => void; getId: () => string; }) | undefined
+Resizable.ResizablePane
+
+Resizable.ResizableHandle
+  withHandle?: boolean | undefined
+Callout
+  actions?: Snippet<[]> | undefined
+  children?: Snippet<[]> | undefined
+  class?: string | undefined
+  icon?: Component<{}, {}, string> | undefined
+  layout?: "block" | "strip" | undefined
+  text?: string | undefined
+  title?: string | undefined
+  tone?: StatusTone | undefined
+GroupLabel
+  class?: string | undefined
+  count?: number | undefined
+  icon?: Component<{}, {}, string> | undefined
+  label: string
+IconAction
+  active?: boolean | undefined
+  busy?: boolean | undefined
+  class?: string | undefined
+  disabled?: boolean | undefined
+  icon: Component<{ class?: string | undefined; "aria-hidden"?: boolean | "true" | undefined; }, {}, string>
+  label: string
+  onclick?: ((event: MouseEvent) => void) | undefined
+  side?: "top" | "right" | "bottom" | "left" | undefined
+  tone?: "destructive" | "neutral" | undefined
+  tourId?: string | undefined
+SearchInput
+  activeDescendant?: string | undefined
+  ariaLabel?: string | undefined
+  class?: string | undefined
+  clearable?: boolean | undefined
+  controls?: string | undefined
+  describedBy?: string | undefined
+  disabled?: boolean | undefined
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: "true" | undefined; }, {}, string> | undefined
+  inputClass?: string | undefined
+  invalid?: boolean | undefined
+  onValueChange?: ((value: string) => void) | undefined
+  onkeydown?: ((event: KeyboardEvent) => void) | undefined
+  placeholder?: string | undefined
+  ref?: HTMLInputElement | null | undefined
+  trailing?: Snippet<[]> | undefined
+  value?: string | undefined
+StatusDot
+  class?: string | undefined
+  label?: string | undefined
+  pulse?: boolean | undefined
+  size?: StatusDotSize | undefined
+  tone?: StatusTone | undefined
+  variant?: StatusDotVariant | undefined
+ProgressRing
+  class?: string | undefined
+  percent?: number | null | undefined
+  tone?: StatusTone | undefined
+ScrollRegion
+  ariaLabel?: string | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+  contentClass?: string | undefined
+  height?: string | undefined
+  id?: string | undefined
+  role?: "listbox" | undefined
+  surface?: "popover" | "panel" | "card" | undefined
+  viewport?: HTMLDivElement | undefined
+  viewportClass?: string | undefined
+SelectField
+  ariaLabel?: string | undefined
+  class?: string | undefined
+  contentClass?: string | undefined
+  disabled?: boolean | undefined
+  id?: string | undefined
+  items?: SelectItem[] | undefined
+  onValueChange?: ((value: string) => void) | undefined
+  placeholder?: string | undefined
+  triggerClass?: string | undefined
+  value?: string | undefined
+SwitchField
+  checked?: boolean | undefined
+  class?: string | undefined
+  description?: string | undefined
+  disabled?: boolean | undefined
+  label?: string | undefined
+  onCheckedChange?: ((checked: boolean) => void) | undefined
+RadioGroupField
+  ariaLabel?: string | undefined
+  class?: string | undefined
+  disabled?: boolean | undefined
+  items?: RadioItem[] | undefined
+  onValueChange?: ((value: string) => void) | undefined
+  orientation?: "vertical" | "horizontal" | undefined
+  value?: string | undefined
+VirtualScroller
+  anchor?: VirtualScrollerAnchor | undefined
+  atEnd?: boolean | undefined
+  class?: string | undefined
+  contentVisibility?: boolean | undefined
+  controller?: VirtualScrollerController | undefined
+  estimateSize?: ((index: number) => number) | undefined
+  followOutput?: boolean | "smooth" | undefined
+  gap?: number | undefined
+  getKey: (item: T, index: number) => string | number
+  getMeasurementVersion?: ((item: T, index: number) => unknown) | undefined
+  heightCacheKey?: string | undefined
+  horizontalScroll?: boolean | undefined
+  items: T[]
+  overscan?: number | undefined
+  paddingEnd?: number | undefined
+  paddingStart?: number | undefined
+  row: Snippet<[{ item: T; index: number; visible: boolean; }]>
+  rowClass?: string | undefined
+  scrollEndThreshold?: number | undefined
+  structureVersion?: unknown
+  viewportAriaLabel?: string | undefined
+  viewportClass?: string | undefined
+  viewportTabIndex?: number | undefined
+CommandList
+  applyLabel?: string | undefined
+  ariaLabel: string
+  autofocus?: boolean | undefined
+  empty?: string | Snippet<[]> | undefined
+  icon?: Snippet<[Item]> | undefined
+  isDisabled?: ((item: Item) => boolean) | undefined
+  isSelected?: ((item: Item) => boolean) | undefined
+  items: Item[]
+  leading?: Snippet<[]> | undefined
+  multiple?: boolean | undefined
+  onApply?: (() => void) | undefined
+  onCancel?: (() => void) | undefined
+  onChoose: (item: Item) => void
+  placeholder?: string | undefined
+  query?: string | undefined
+  row?: Snippet<[Item, { active: boolean; selected: boolean; }]> | undefined
+  rowMode?: "button" | "container" | undefined
+  searchable?: boolean | undefined
+  stableHeight?: string | undefined
+PanelView
+  banner?: Snippet<[]> | undefined
+  children: Snippet<[]>
+  contentClass?: string | undefined
+  toolbar?: Snippet<[]> | undefined
+PanelHeader
+  class?: string | undefined
+  count?: number | undefined
+  title: string
+  trailing?: Snippet<[]> | undefined
+PanelToolbarButton
+  active?: boolean | undefined
+  ariaLabel?: string | undefined
+  badge?: Snippet<[]> | undefined
+  class?: string | undefined
+  dense?: boolean | undefined
+  disabled?: boolean | undefined
+  download?: string | undefined
+  href?: string | undefined
+  icon: Component<{}, {}, string>
+  label: string
+  loading?: boolean | undefined
+  loadingVariant?: "ring" | "refresh" | undefined
+  onclick?: ((event: MouseEvent) => void) | undefined
+  showLabel?: boolean | undefined
+  title?: string | undefined
+  variant?: "link" | "default" | "outline" | "success" | "ghost" | "destructive" | undefined
+PanelSectionHeader
+  actions?: Snippet<[]> | undefined
+  count?: number | undefined
+  icon?: Component<{}, {}, string> | undefined
+  meta?: Snippet<[]> | undefined
+  title: string
+PanelList
+  ariaLabel?: string | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+  role?: "none" | "list" | undefined
+PanelRow
+  actions?: Snippet<[]> | undefined
+  active?: boolean | undefined
+  alwaysShowActions?: boolean | undefined
+  ariaExpanded?: boolean | undefined
+  ariaLabel?: string | undefined
+  ariaLevel?: number | undefined
+  ariaPosInSet?: number | undefined
+  ariaSetSize?: number | undefined
+  badges?: Snippet<[]> | undefined
+  class?: string | undefined
+  contentTabindex?: number | undefined
+  dataId?: string | undefined
+  dense?: boolean | undefined
+  description?: string | undefined
+  detail?: string | undefined
+  detailTone?: StatusTone | undefined
+  dimmed?: boolean | undefined
+  disabled?: boolean | undefined
+  draggable?: boolean | undefined
+  dropEdge?: "before" | "after" | undefined
+  dropTarget?: boolean | undefined
+  editor?: Snippet<[E]> | undefined
+  editorArg?: E | undefined
+  flush?: boolean | undefined
+  hoverable?: boolean | undefined
+  indent?: number | undefined
+  label: string
+  labelClass?: string | undefined
+  labelContent?: Snippet<[]> | undefined
+  labelLines?: 1 | 2 | undefined
+  leading?: Snippet<[]> | undefined
+  menuItems?: ContextMenuItem[] | undefined
+  meta?: Snippet<[]> | undefined
+  mono?: boolean | undefined
+  onclick?: ((event: MouseEvent) => void) | undefined
+  ondragend?: ((event: DragEvent) => void) | undefined
+  ondragenter?: ((event: DragEvent) => void) | undefined
+  ondragleave?: ((event: DragEvent) => void) | undefined
+  ondragover?: ((event: DragEvent) => void) | undefined
+  ondragstart?: ((event: DragEvent) => void) | undefined
+  ondrop?: ((event: DragEvent) => void) | undefined
+  onfocus?: ((event: FocusEvent) => void) | undefined
+  onkeydown?: ((event: KeyboardEvent) => void) | undefined
+  overlayActions?: boolean | undefined
+  role?: "none" | "listitem" | "treeitem" | undefined
+  selected?: boolean | undefined
+  tabindex?: number | undefined
+  title?: string | undefined
+  titleTrailing?: Snippet<[]> | undefined
+  tone?: StatusTone | undefined
+  trailing?: Snippet<[]> | undefined
+PanelRowCard
+  children: Snippet<[]>
+  class?: string | undefined
+  menuDisabled?: boolean | undefined
+  menuItems?: ContextMenuItem[] | undefined
+  onclick?: ((event: MouseEvent) => void) | undefined
+  role?: "none" | "listitem" | undefined
+  selected?: boolean | undefined
+PanelCard
+  actions?: Snippet<[]> | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+  icon?: Component<{}, {}, string> | undefined
+  meta?: Snippet<[]> | undefined
+  onTitleCancel?: (() => void) | undefined
+  onTitleCommit?: ((title: string) => void) | undefined
+  onTitleDblClick?: (() => void) | undefined
+  title: string
+  titleActions?: Snippet<[]> | undefined
+  titleEditing?: boolean | undefined
+  titleHint?: string | undefined
+  titleLabel?: string | undefined
+  titleMaxLength?: number | undefined
+PanelTree
+  ariaLabel: string
+  baseIndent?: number | undefined
+  class?: string | undefined
+  controller?: PanelTreeController | undefined
+  emptyAreaMenuItems?: ContextMenuItem[] | undefined
+  expandedIds?: ReadonlySet<string> | undefined
+  getGroupMenuItems?: ((path: readonly string[]) => ContextMenuItem[]) | undefined
+  getItemActive?: ((item: T) => boolean) | undefined
+  getItemDimmed?: ((item: T) => boolean) | undefined
+  getItemDraggable?: ((item: T) => boolean) | undefined
+  getItemDropTarget?: ((item: T) => boolean) | undefined
+  getItemEditing?: ((item: T) => boolean) | undefined
+  getItemMenuItems?: ((item: T) => ContextMenuItem[]) | undefined
+  getItemSelected?: ((item: T) => boolean) | undefined
+  getItemTitle?: ((item: T) => string) | undefined
+  getItemTone?: ((item: T) => StatusTone | undefined) | undefined
+  groupActions?: Snippet<[readonly string[]]> | undefined
+  groupIcon?: Snippet<[readonly string[], boolean]> | undefined
+  horizontalScroll?: boolean | undefined
+  itemActions?: Snippet<[T]> | undefined
+  itemBadges?: Snippet<[T]> | undefined
+  itemEditor?: Snippet<[T]> | undefined
+  itemLabel?: Snippet<[T]> | undefined
+  itemLeading?: Snippet<[T]> | undefined
+  itemMono?: boolean | undefined
+  multiselectable?: boolean | undefined
+  nodes: readonly PanelTreeNode<T>[]
+  onGroupExpansionChange?: ((path: readonly string[], expanded: boolean) => void) | undefined
+  onItemActivate?: ((item: T) => void) | undefined
+  onItemClick?: ((event: MouseEvent, item: T) => boolean | void) | undefined
+  onItemDragEnd?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDragEnter?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDragLeave?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDragOver?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDragStart?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDrop?: ((event: DragEvent, item: T) => void) | undefined
+  onItemExpansionChange?: ((item: T, expanded: boolean) => void) | undefined
+  onItemKeydown?: ((event: KeyboardEvent, item: T) => boolean | void) | undefined
+  overlayActions?: boolean | undefined
+  reorder?: PanelTreeReorder<T> | undefined
+  selection?: PanelSelectionState | undefined
+  showDisclosure?: boolean | undefined
+  showGroupDisclosure?: boolean | undefined
+  virtualized?: boolean | undefined
+PanelEmpty
+  action?: Snippet<[]> | undefined
+  description?: string | undefined
+  icon?: Component<{}, {}, string> | undefined
+  title: string
+PanelFilterBar
+  ariaLabel?: string | undefined
+  class?: string | undefined
+  extra?: Snippet<[]> | undefined
+  onScopeChange?: ((scope: string) => void) | undefined
+  placeholder?: string | undefined
+  query?: string | undefined
+  scope?: string | undefined
+  scopeLabel?: string | undefined
+  scopes?: PanelFilterScope[] | undefined
+PanelSection
+  actions?: Snippet<[]> | undefined
+  bodyClass?: string | undefined
+  children?: Snippet<[]> | undefined
+  class?: string | undefined
+  count?: string | number | undefined
+  headerClass?: string | undefined
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: "true" | undefined; }, {}, string> | undefined
+  keepMounted?: boolean | undefined
+  label?: Snippet<[]> | undefined
+  meta?: Snippet<[]> | undefined
+  onOpenChange?: ((open: boolean) => void) | undefined
+  open?: boolean | undefined
+  title?: string | undefined
+PanelSplit
+  area: Snippet<[PanelSplitAreaProps]>
+  areaClass?: string | undefined
+  areas: readonly PanelSplitArea[]
+  class?: string | undefined
+  keyStepPx?: number | undefined
+  layout?: PanelSplitLayout | undefined
+  onChange?: ((layout: PanelSplitLayout) => void) | undefined
+PageView
+  children: Snippet<[]>
+  class?: string | undefined
+  width?: "default" | "wide" | "full" | undefined
+PageHeader
+  actions?: Snippet<[]> | undefined
+  below?: Snippet<[]> | undefined
+  class?: string | undefined
+  description?: string | undefined
+  leading?: Snippet<[]> | undefined
+  parent?: { label: string; onBack: () => void; } | undefined
+  title: string
+PageSection
+  actions?: Snippet<[]> | undefined
+  beforeBody?: Snippet<[]> | undefined
+  bodyClass?: string | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+  description?: string | undefined
+  divided?: boolean | undefined
+  footer?: Snippet<[]> | undefined
+  id?: string | undefined
+  labels?: Snippet<[]> | undefined
+  surface?: boolean | undefined
+  title?: string | undefined
+  titleHint?: Snippet<[]> | undefined
+FieldRow
+  badges?: Snippet<[]> | undefined
+  children?: Snippet<[]> | undefined
+  class?: string | undefined
+  control?: Snippet<[]> | undefined
+  description?: string | undefined
+  hint?: Snippet<[]> | undefined
+  htmlFor?: string | undefined
+  label?: string | undefined
+  layout?: "inline" | "stacked" | "responsive" | undefined
+  mono?: boolean | undefined
+ToggleRow
+  badges?: Snippet<[]> | undefined
+  checked?: boolean | undefined
+  class?: string | undefined
+  description?: string | undefined
+  disabled?: boolean | undefined
+  label: string
+  onCheckedChange?: ((checked: boolean) => void) | undefined
+PageList
+  ariaLabel?: string | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+PageItem
+  actions?: Snippet<[]> | undefined
+  always?: boolean | undefined
+  badges?: Snippet<[]> | undefined
+  checked?: boolean | undefined
+  children?: Snippet<[]> | undefined
+  class?: string | undefined
+  compact?: boolean | undefined
+  disabled?: boolean | undefined
+  icon?: Icon | undefined
+  iconLabel?: string | undefined
+  leading?: Snippet<[]> | undefined
+  lockedBy?: string | undefined
+  meta?: Snippet<[]> | undefined
+  mono?: boolean | undefined
+  muted?: boolean | undefined
+  onCheckedChange?: ((checked: boolean) => void) | undefined
+  onOpen?: (() => void) | undefined
+  openLabel?: string | undefined
+  problem?: string | undefined
+  problemAction?: { label: string; onclick: () => void; } | undefined
+  select?: Snippet<[]> | undefined
+  summary?: string | undefined
+  switchLabel?: string | undefined
+  title: string
+  tourId?: string | undefined
+PageEmptyState
+  actions?: Snippet<[]> | undefined
+  class?: string | undefined
+  description?: string | undefined
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: "true" | undefined; }, {}, string> | undefined
+  title: string
+  variant?: "card" | "plain" | undefined
+PageStatGrid
+  class?: string | undefined
+  items: PageStat[]
+FloatingLayer
+  bottomEnd?: Snippet<[]> | undefined
+  bottomStart?: Snippet<[]> | undefined
+  class?: string | undefined
+  topEnd?: Snippet<[]> | undefined
+  topStart?: Snippet<[]> | undefined
+FloatingToolbar
+  children: Snippet<[]>
+  class?: string | undefined
+  label: string
+  orientation?: "vertical" | "horizontal" | undefined
+  reveal?: "always" | "hover" | undefined
+FloatingToolbarGroup
+  children: Snippet<[]>
+  collapse?: boolean | undefined
+  label?: string | undefined
+FloatingToolbarButton
+  busy?: boolean | undefined
+  disabled?: boolean | undefined
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: boolean | "true" | undefined; }, {}, string> | undefined
+  label: string
+  onclick?: ((event: MouseEvent) => void) | undefined
+  pressed?: boolean | undefined
+  shortcut?: string | undefined
+  side?: "top" | "right" | "bottom" | "left" | undefined
+  text?: string | undefined
+  tone?: "destructive" | "neutral" | undefined
+FloatingToolbarText
+  children: Snippet<[]>
+  class?: string | undefined
+  live?: boolean | undefined
+  title?: string | undefined
+  tone?: "destructive" | "muted" | undefined
+FloatingPanel
+  children: Snippet<[]>
+  label: string
+  onClose?: (() => void) | undefined
+  ref?: HTMLElement | null | undefined
+  role?: "search" | "group" | undefined
+  size?: "sm" | "md" | "lg" | undefined
+FloatingNotice
+  action?: Snippet<[]> | undefined
+  children: Snippet<[]>
+  onDismiss?: (() => void) | undefined
+  tone?: "info" | "warning" | undefined
+FloatingToolbarMenu
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: boolean | "true" | undefined; }, {}, string> | undefined
+  items: MenuEntry[]
+  label?: string | undefined
+  onSelect: (id: string) => void
+cn(...inputs: ClassValue[]): string
+buttonVariants(props?: ({ variant?: "link" | "default" | "outline" | "success" | "ghost" | "destructive" | undefined; size?: "default" | "sm" | "icon" | "icon-sm" | undefined; } & ClassProp<ClassNameValue>) | undefined): string
+badgeVariants(props?: ({ variant?: "success" | "destructive" | "neutral" | "brand" | "info" | "warning" | undefined; interactive?: boolean | undefined; } & ClassProp<ClassNameValue>) | undefined): string
+buildPanelTree<T>(items: readonly T[], options: BuildPanelTreeOptions<T>): PanelTreeNode<T>[]
+buildPanelItemTree<T>(items: readonly T[], options: BuildPanelItemTreeOptions<T>): PanelTreeNode<T>[]
+emptyPanelSplitLayout(): PanelSplitLayout
+type SelectItem = {    value: string;    label: string;    detail?: string | undefined;    disabled?: boolean | undefined;}
+type RadioItem = {    value: string;    label: string;    detail?: string | undefined;    disabled?: boolean | undefined;}
+type CommandItem = {    key: string;    label: string;    group: string;    keywords?: readonly string[] | undefined;}
+type ContextMenuItem = {    type?: "item" | undefined;    label: string;    icon?: any;    shortcut?: string | undefined;    checked?: boolean | undefined;    disabled?: boolean | undefined;    destructive?: boolean | undefined;    movesFocus?: boolean | undefined;    onSelect?: (() => void) | undefined;} | {    type: "separator";} | {    type: "label";    label: string;    icon?: any;} | {    type: "submenu";    label: string;    icon?: any;    disabled?: boolean | undefined;    items: ContextMenuItem[];}
+type PanelTreeNode = PanelTreeItemNode<T> | PanelTreeGroupNode<T>
+type PanelFilterScope = {    value: string;    label: string;    count?: number | undefined;    title?: string | undefined;}
+type PanelSplitArea = PanelSplitArea
+type PanelSplitLayout = PanelSplitLayout
+type PageStat = {    label: string;    value: string;    wide?: boolean | undefined;    mono?: boolean | undefined;}
 
 ===== ui bridge =====
 {
@@ -1515,35 +2095,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "mode.get": {
-      "kinds": [
-        "preview"
-      ],
-      "params": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
-      },
-      "result": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "enum": [
-              "preview",
-              "edit"
-            ]
-          }
-        },
-        "required": [
-          "mode"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "call": {
+    "backend.call": {
       "kinds": [
         "preview",
         "page",
@@ -1653,26 +2205,26 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "properties": {},
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "key"
+        ],
         "additionalProperties": false
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "values": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {
-              "$ref": "#/$defs/__schema0"
-            }
+          "value": {
+            "$ref": "#/$defs/__schema0"
           }
         },
-        "required": [
-          "values"
-        ],
         "additionalProperties": false,
         "$defs": {
           "__schema0": {
@@ -1709,7 +2261,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         }
       }
     },
-    "viewState.get": {
+    "tabState.get": {
       "kinds": [
         "preview",
         "page",
@@ -1775,7 +2327,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         }
       }
     },
-    "viewState.set": {
+    "tabState.set": {
       "kinds": [
         "preview",
         "page",
@@ -1886,7 +2438,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "ui.showMenu": {
+    "ui.menu": {
       "kinds": [
         "preview",
         "page",
@@ -1896,38 +2448,14 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "items": {
+          "entries": {
             "minItems": 1,
-            "maxItems": 32,
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 64
-                },
-                "label": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "disabled": {
-                  "type": "boolean"
-                },
-                "destructive": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "id",
-                "label"
-              ],
-              "additionalProperties": false
+              "$ref": "#/$defs/__schema0"
             }
           },
-          "position": {
+          "anchor": {
             "type": "object",
             "properties": {
               "x": {
@@ -1935,6 +2463,14 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
               },
               "y": {
                 "type": "number"
+              },
+              "width": {
+                "type": "number",
+                "minimum": 0
+              },
+              "height": {
+                "type": "number",
+                "minimum": 0
               }
             },
             "required": [
@@ -1945,9 +2481,128 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
           }
         },
         "required": [
-          "items"
+          "entries",
+          "anchor"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "item"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "icon": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  },
+                  "shortcut": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "checked": {
+                    "type": "boolean"
+                  },
+                  "disabled": {
+                    "type": "boolean"
+                  },
+                  "destructive": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "label"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "separator"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "label"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "type",
+                  "label"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "submenu"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "icon": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  },
+                  "disabled": {
+                    "type": "boolean"
+                  },
+                  "items": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "label",
+                  "items"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1962,6 +2617,153 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         },
         "required": [
           "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ui.pick": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "placeholder": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "ariaLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "single",
+              "multiple"
+            ]
+          },
+          "items": {
+            "minItems": 1,
+            "maxItems": 2000,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "group": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "detail": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "keywords": {
+                  "maxItems": 16,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "icon": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                },
+                "disabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "selected": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "anchor": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number",
+                "minimum": 0
+              },
+              "height": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ariaLabel",
+          "mode",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ids": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ids"
         ],
         "additionalProperties": false
       }
@@ -2003,7 +2805,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "openFile": {
+    "workspace.openFile": {
       "kinds": [
         "preview",
         "page",
@@ -2031,7 +2833,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "openPage": {
+    "pages.open": {
       "kinds": [
         "preview",
         "page",
@@ -2129,7 +2931,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "composer.insert": {
+    "chat.insert": {
       "kinds": [
         "preview",
         "page",
@@ -2220,7 +3022,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "conversations.start": {
+    "chat.startConversation": {
       "kinds": [
         "preview",
         "page",
@@ -2281,7 +3083,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "extensionStore.get": {
+    "store.get": {
       "kinds": [
         "preview",
         "page",
@@ -2307,22 +3109,25 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "value": {
+          "entry": {
             "anyOf": [
               {
-                "$ref": "#/$defs/__schema0"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "revision": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "value",
+                  "revision"
+                ],
+                "additionalProperties": false
               },
               {
                 "type": "null"
@@ -2331,8 +3136,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
           }
         },
         "required": [
-          "value",
-          "revision"
+          "entry"
         ],
         "additionalProperties": false,
         "$defs": {
@@ -2370,7 +3174,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         }
       }
     },
-    "extensionStore.set": {
+    "store.set": {
       "kinds": [
         "preview",
         "page",
@@ -2450,7 +3254,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "extensionStore.delete": {
+    "store.delete": {
       "kinds": [
         "preview",
         "page",
@@ -2484,7 +3288,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "extensionStore.keys": {
+    "store.keys": {
       "kinds": [
         "preview",
         "page",
@@ -2541,7 +3345,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
     }
   },
   "events": {
-    "themeChanged": {
+    "theme.changed": {
       "kinds": [
         "preview",
         "page",
@@ -2570,7 +3374,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "fileChanged": {
+    "file.changed": {
       "kinds": [
         "preview"
       ],
@@ -2593,7 +3397,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "modeChanged": {
+    "mode.changed": {
       "kinds": [
         "preview"
       ],
@@ -2615,7 +3419,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "extensionStoreChanged": {
+    "store.changed": {
       "kinds": [
         "preview",
         "page",
@@ -4442,15 +5246,23 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
             "minLength": 1
           }
         },
-        "capabilities": {
+        "models": {
           "type": "array",
           "items": {
             "type": "string",
             "enum": [
-              "models.image",
-              "models.vision",
-              "models.text",
-              "conversations.start"
+              "image",
+              "vision",
+              "text"
+            ]
+          }
+        },
+        "frame": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "chat.startConversation"
             ]
           }
         }
@@ -4769,6 +5581,10 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
               "method": {
                 "type": "string",
                 "minLength": 1
+              },
+              "present": {
+                "type": "boolean",
+                "const": true
               }
             },
             "required": [
@@ -4968,15 +5784,6 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
             "additionalProperties": false
           }
         ]
-      }
-    },
-    "limits": {
-      "type": "object",
-      "propertyNames": {
-        "type": "string"
-      },
-      "additionalProperties": {
-        "type": "number"
       }
     },
     "version": {

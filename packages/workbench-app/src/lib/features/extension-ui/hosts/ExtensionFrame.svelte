@@ -4,24 +4,24 @@
   The frame has an opaque origin, so it is identified by its window: only messages whose
   source is this iframe's `contentWindow` are read, each is validated against the contract and
   the contribution that owns the frame, and every request is answered exactly once. Methods
-  that draw UI or touch app state (dialogs, menus, toasts, tabs, composer, view state) are
+  that draw UI or touch app state (dialogs, menus, toasts, tabs, composer, tab state) are
   answered here; the rest go to the daemon as `extensions.ui.<method>`.
 -->
 <script lang="ts">
-import { tick, untrack } from "svelte";
+import { onDestroy, tick, untrack } from "svelte";
 import {
   bridgeInitSchema,
   bridgeProtocolVersion,
+  type BridgeAnchor,
   type BridgeJson,
+  type BridgeMenuEntry,
   type BridgeMethodName,
   type BridgeMode,
   type BridgeParams,
   type BridgeResult,
 } from "@nervekit/contracts/extensions";
+import type { AnchorRect } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import ContextMenuList, {
-  type ContextMenuItem,
-} from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import {
@@ -29,6 +29,8 @@ import {
   writeClipboardText,
 } from "@nervekit/ui-kit/browser/clipboard";
 import { notify } from "@nervekit/ui-kit/browser/notifications";
+import ExtensionMenuOverlay from "./ExtensionMenuOverlay.svelte";
+import ExtensionPickOverlay from "./ExtensionPickOverlay.svelte";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import { extensionThemeState } from "$lib/platform/appearance/extension-themes.svelte";
@@ -47,15 +49,17 @@ import {
   type FrameContribution,
 } from "../model/bridge-router";
 import { base64ToBlob } from "../model/clipboard-image";
+import { anchorInApp } from "../model/host-overlay";
 import { FrameErrorGate } from "../model/frame-errors";
 import { currentThemeSnapshot } from "../model/theme-snapshot";
-import { ViewStateStore, viewStateKey } from "../model/view-state-store";
+import { TabStateStore, tabStateKey } from "../model/tab-state-store";
 import { extensionHostActions } from "../state/host-actions";
 
 let {
   projectId,
   extensionId,
   extensionName,
+  extensionIconName,
   contribution,
   frameUrl,
   baseCssUrl,
@@ -70,11 +74,13 @@ let {
   projectId: string;
   extensionId: string;
   extensionName: string;
+  /** The extension's icon (a lucide name), shown on the pickers the host draws for it. */
+  extensionIconName?: string;
   contribution: FrameContribution;
   frameUrl: string;
   baseCssUrl: string;
   title: string;
-  /** Identifies this tab or panel for its persisted view state. */
+  /** Identifies this tab or panel for its persisted tab state. */
   instance: string;
   /** Previews: the project file the tab is opened on. */
   filePath?: string;
@@ -88,7 +94,7 @@ let {
   onFileWritten?: (size: number) => void;
 } = $props();
 
-const viewStates = new ViewStateStore(
+const tabStates = new TabStateStore(
   typeof localStorage === "undefined" ? undefined : localStorage,
 );
 const loadTimeoutMs = 15_000;
@@ -110,7 +116,7 @@ const scope = $derived<ExtensionFrameScope>({
   filePath,
 });
 const stateKey = $derived(
-  viewStateKey({
+  tabStateKey({
     projectId,
     extensionId,
     kind: contribution.kind,
@@ -142,11 +148,7 @@ function post(message: unknown): void {
 }
 
 function postEvent(
-  event:
-    | "themeChanged"
-    | "fileChanged"
-    | "modeChanged"
-    | "extensionStoreChanged",
+  event: "theme.changed" | "file.changed" | "mode.changed" | "store.changed",
   data: unknown,
 ) {
   const message = eventMessage(event, data, contribution.kind);
@@ -181,71 +183,76 @@ function sendInit(): void {
 // ── Host-drawn UI ────────────────────────────────────────────────────────
 
 type ConfirmParams = BridgeParams<"ui.confirm">;
-let confirmRequest = $state<{
-  params: ConfirmParams;
-  resolve: (confirmed: boolean) => void;
-}>();
-let menuItems = $state<ContextMenuItem[]>([]);
-let menuResolve: ((id: string | null) => void) | undefined;
-let menuChoice: string | null = null;
+type Overlay =
+  | {
+      kind: "confirm";
+      params: ConfirmParams;
+      resolve: (value: boolean) => void;
+    }
+  | {
+      kind: "menu";
+      entries: BridgeMenuEntry[];
+      anchor: { getBoundingClientRect(): AnchorRect };
+      resolve: (value: string | null) => void;
+    }
+  | {
+      kind: "pick";
+      params: BridgeParams<"ui.pick">;
+      anchor: { getBoundingClientRect(): AnchorRect };
+      resolve: (value: string[] | null) => void;
+    };
+// The one host-drawn overlay of this frame. Its backdrop covers the app, so no other frame can
+// open one meanwhile; a second request from this frame is `cancelled`.
+let overlay = $state.raw<Overlay>();
 
-function confirm(params: ConfirmParams): Promise<boolean> {
-  if (confirmRequest)
-    throw new HostFailure("cancelled", "Another confirmation is open");
-  return new Promise((resolve) => {
-    confirmRequest = { params, resolve };
-  });
-}
-
-function settleConfirm(confirmed: boolean): void {
-  const request = confirmRequest;
-  confirmRequest = undefined;
-  request?.resolve(confirmed);
-}
-
-function showMenu(params: BridgeParams<"ui.showMenu">): Promise<string | null> {
-  if (menuResolve) throw new HostFailure("cancelled", "Another menu is open");
-  const element = frame;
-  if (!element) throw new HostFailure("failed", "The frame is not available");
-  return new Promise((resolve) => {
-    menuResolve = resolve;
-    menuChoice = null;
-    menuItems = params.items.map((item) => ({
-      label: item.label,
-      disabled: item.disabled,
-      destructive: item.destructive,
-      onSelect: () => {
-        menuChoice = item.id;
-      },
-    }));
-    const rect = element.getBoundingClientRect();
-    const x = Math.min(Math.max(params.position?.x ?? 0, 0), rect.width);
-    const y = Math.min(Math.max(params.position?.y ?? 0, 0), rect.height);
-    // The menu list opens from its trigger's `contextmenu` event at the pointer position.
-    void tick().then(() =>
-      element.dispatchEvent(
-        new MouseEvent("contextmenu", {
-          bubbles: true,
-          cancelable: true,
-          clientX: rect.left + x,
-          clientY: rect.top + y,
-          button: 2,
-        }),
-      ),
+/** Menus, pickers and dialogs answer a click or key press, never a script that runs on its own. */
+function requireGesture(what: string): void {
+  if (!navigator.userActivation?.isActive)
+    throw new HostFailure(
+      "not_allowed",
+      `Show ${what} only in response to a click or key press`,
     );
+}
+
+function showOverlay<T>(
+  what: string,
+  create: (resolve: (value: T) => void) => Overlay,
+): Promise<T> {
+  requireGesture(what);
+  if (overlay) throw new HostFailure("cancelled", "Another request is open");
+  return new Promise<T>((resolve) => {
+    overlay = create(resolve as never);
   });
 }
 
-function menuOpenChange(open: boolean): void {
-  if (open) return;
-  // The item's action runs before the menu reports closed; wait a turn to tell them apart.
-  setTimeout(() => {
-    const resolve = menuResolve;
-    menuResolve = undefined;
-    resolve?.(menuChoice);
-    menuChoice = null;
-  }, 0);
+/** Ends the overlay with the user's answer, once, and gives the keyboard back to the frame. */
+function settle<T extends Overlay["kind"]>(
+  kind: T,
+  value: Parameters<Extract<Overlay, { kind: T }>["resolve"]>[0],
+): void {
+  const current = overlay;
+  if (current?.kind !== kind) return;
+  overlay = undefined;
+  (current.resolve as (value: unknown) => void)(value);
+  // The menu or list closes first; then the frame's own focused element takes keys again.
+  setTimeout(() => frame?.contentWindow?.focus(), 0);
 }
+
+function frameAnchor(anchor: BridgeAnchor | undefined) {
+  return {
+    getBoundingClientRect: () =>
+      anchorInApp(frame?.getBoundingClientRect() ?? emptyRect, anchor),
+  };
+}
+const emptyRect = { left: 0, top: 0, width: 0, height: 0 };
+
+// A frame that goes away (tab closed, reload) cannot answer: end its overlay as dismissed.
+onDestroy(() => {
+  const current = overlay;
+  overlay = undefined;
+  if (current?.kind === "confirm") current.resolve(false);
+  else (current?.resolve as ((value: null) => void) | undefined)?.(null);
+});
 
 function notifyUser(params: BridgeParams<"ui.notify">): void {
   const options = { description: extensionName };
@@ -289,43 +296,63 @@ async function hostRequest(
   params: unknown,
 ): Promise<unknown> {
   switch (method) {
-    case "viewState.get":
+    case "tabState.get":
       return {
-        state: viewStates.get(stateKey),
-      } satisfies BridgeResult<"viewState.get">;
-    case "viewState.set":
-      if (!viewStates.set(stateKey, (params as { state: BridgeJson }).state))
-        throw new HostFailure("too_large", "The view state is too large");
+        state: tabStates.get(stateKey),
+      } satisfies BridgeResult<"tabState.get">;
+    case "tabState.set":
+      if (!tabStates.set(stateKey, (params as { state: BridgeJson }).state))
+        throw new HostFailure("too_large", "The tab state is too large");
       return {};
-    case "mode.get":
-      return { mode: effectiveMode } satisfies BridgeResult<"mode.get">;
     case "ui.confirm":
       return {
-        confirmed: await confirm(params as ConfirmParams),
+        confirmed: await showOverlay<boolean>("a dialog", (resolve) => ({
+          kind: "confirm",
+          params: params as ConfirmParams,
+          resolve,
+        })),
       } satisfies BridgeResult<"ui.confirm">;
-    case "ui.showMenu":
+    case "ui.menu": {
+      const request = params as BridgeParams<"ui.menu">;
       return {
-        id: await showMenu(params as BridgeParams<"ui.showMenu">),
-      } satisfies BridgeResult<"ui.showMenu">;
+        id: await showOverlay<string | null>("a menu", (resolve) => ({
+          kind: "menu",
+          entries: request.entries,
+          anchor: frameAnchor(request.anchor),
+          resolve,
+        })),
+      } satisfies BridgeResult<"ui.menu">;
+    }
+    case "ui.pick": {
+      const request = params as BridgeParams<"ui.pick">;
+      return {
+        ids: await showOverlay<string[] | null>("a list", (resolve) => ({
+          kind: "pick",
+          params: request,
+          anchor: frameAnchor(request.anchor),
+          resolve,
+        })),
+      } satisfies BridgeResult<"ui.pick">;
+    }
     case "ui.notify":
       notifyUser(params as BridgeParams<"ui.notify">);
       return {};
-    case "openFile":
+    case "workspace.openFile":
       await extensionHostActions().openFile(
         projectId,
-        (params as BridgeParams<"openFile">).path,
+        (params as BridgeParams<"workspace.openFile">).path,
       );
       return {};
-    case "openPage": {
+    case "pages.open": {
       const request = params as { id: string; params?: BridgeJson };
       const { id } = request;
       if (!onOpenPage?.(id, request.params))
         throw new HostFailure("not_found", `This extension has no page ${id}`);
       return {};
     }
-    case "composer.insert":
+    case "chat.insert":
       extensionHostActions().insertIntoComposer(
-        (params as BridgeParams<"composer.insert">).text,
+        (params as BridgeParams<"chat.insert">).text,
       );
       return {};
     case "clipboard.writeText":
@@ -347,7 +374,10 @@ async function serverRequest(
       "The file can only be written in edit mode",
     );
   // Like copying: starting a conversation needs the user's click to still be active.
-  if (method === "conversations.start" && !navigator.userActivation?.isActive)
+  if (
+    method === "chat.startConversation" &&
+    !navigator.userActivation?.isActive
+  )
     throw new HostFailure(
       "not_allowed",
       "Start a conversation only in response to a click",
@@ -358,12 +388,12 @@ async function serverRequest(
     params,
     storeOrigin,
   );
-  if (method === "conversations.start") {
-    const start = params as BridgeParams<"conversations.start">;
+  if (method === "chat.startConversation") {
+    const start = params as BridgeParams<"chat.startConversation">;
     try {
       await extensionHostActions().conversationStarted(
         projectId,
-        (result as BridgeResult<"conversations.start">).conversationId,
+        (result as BridgeResult<"chat.startConversation">).conversationId,
         {
           open: start.open !== false,
           ...(start.send === false ? { draft: start.prompt } : {}),
@@ -436,7 +466,7 @@ $effect(() => {
   void extensionThemeState.cards;
   if (!untrack(() => ready)) return;
   void tick().then(() =>
-    postEvent("themeChanged", currentThemeSnapshot(document.documentElement)),
+    postEvent("theme.changed", currentThemeSnapshot(document.documentElement)),
   );
 });
 
@@ -445,7 +475,7 @@ $effect(() => {
   const next = effectiveMode;
   if (next === lastMode) return;
   lastMode = next;
-  if (untrack(() => ready)) postEvent("modeChanged", { mode: next });
+  if (untrack(() => ready)) postEvent("mode.changed", { mode: next });
 });
 
 // Files: the daemon's directory-change events are the signal; compare the file's stat to tell
@@ -480,7 +510,7 @@ async function checkFileChanged(): Promise<void> {
   const serialized = JSON.stringify(stat);
   if (serialized === knownStat) return;
   knownStat = serialized;
-  postEvent("fileChanged", stat);
+  postEvent("file.changed", stat);
 }
 
 $effect(() => {
@@ -524,7 +554,7 @@ $effect(() =>
       data.origin === storeOrigin
     )
       return;
-    postEvent("extensionStoreChanged", {
+    postEvent("store.changed", {
       key: data.key,
       revision: data.revision,
     });
@@ -538,39 +568,33 @@ function reload(): void {
 
 <svelte:window onmessage={receive} />
 
-<ContextMenuList
-  items={menuItems}
-  triggerClass="block h-full min-h-0 w-full min-w-0 flex-1"
-  onOpenChange={menuOpenChange}
->
-  <div class="relative h-full min-h-0 w-full bg-background">
-    {#key reloadKey}
-      <iframe
-        bind:this={frame}
-        {src}
-        {title}
-        sandbox="allow-scripts"
-        referrerpolicy="no-referrer"
-        class="block h-full w-full border-0"
-      ></iframe>
-    {/key}
-    {#if !ready}
-      <div
-        class="absolute inset-0 grid place-content-center gap-2 bg-background p-4 text-center text-ui text-muted-foreground"
-      >
-        {#if failed}
-          <p class="m-0">{extensionName} did not respond.</p>
-          <Button variant="outline" onclick={reload}>Retry</Button>
-        {:else}
-          <Spinner class="mx-auto size-5" />
-        {/if}
-      </div>
-    {/if}
-  </div>
-</ContextMenuList>
+<div class="relative h-full min-h-0 w-full bg-background">
+  {#key reloadKey}
+    <iframe
+      bind:this={frame}
+      {src}
+      {title}
+      sandbox="allow-scripts"
+      referrerpolicy="no-referrer"
+      class="block h-full w-full border-0"
+    ></iframe>
+  {/key}
+  {#if !ready}
+    <div
+      class="absolute inset-0 grid place-content-center gap-2 bg-background p-4 text-center text-ui text-muted-foreground"
+    >
+      {#if failed}
+        <p class="m-0">{extensionName} did not respond.</p>
+        <Button variant="outline" onclick={reload}>Retry</Button>
+      {:else}
+        <Spinner class="mx-auto size-5" />
+      {/if}
+    </div>
+  {/if}
+</div>
 
-{#if confirmRequest}
-  {@const request = confirmRequest}
+{#if overlay?.kind === "confirm"}
+  {@const request = overlay}
   {#key request}
     <ConfirmDialog
       open={true}
@@ -579,11 +603,33 @@ function reload(): void {
       confirmLabel={request.params.confirmLabel ?? "Confirm"}
       cancelLabel={request.params.cancelLabel ?? "Cancel"}
       destructive={request.params.destructive}
-      onConfirm={() => settleConfirm(true)}
-      onCancel={() => settleConfirm(false)}
+      onConfirm={() => settle("confirm", true)}
+      onCancel={() => settle("confirm", false)}
       onOpenChange={(open) => {
-        if (!open) settleConfirm(false);
+        if (!open) settle("confirm", false);
       }}
+    />
+  {/key}
+{:else if overlay?.kind === "menu"}
+  {@const request = overlay}
+  {#key request}
+    <ExtensionMenuOverlay
+      {extensionName}
+      {extensionIconName}
+      entries={request.entries}
+      anchor={request.anchor}
+      onSettle={(id) => settle("menu", id)}
+    />
+  {/key}
+{:else if overlay?.kind === "pick"}
+  {@const request = overlay}
+  {#key request}
+    <ExtensionPickOverlay
+      {extensionName}
+      {extensionIconName}
+      params={request.params}
+      anchor={request.anchor}
+      onSettle={(ids) => settle("pick", ids)}
     />
   {/key}
 {/if}

@@ -15,6 +15,8 @@ function source(relativePath: string): string {
   );
 }
 
+const PAGE = "../../../../../ui-kit/src/lib/components/composites/page/";
+
 function heading(text: string, tag: string): string {
   const match = new RegExp(`<${tag}[^>]*?class="([^"]+)"`, "s").exec(text);
   assert.ok(match, `expected a <${tag}> with a class list`);
@@ -22,8 +24,8 @@ function heading(text: string, tag: string): string {
 }
 
 describe("settings typography", () => {
-  const pageTitle = heading(source("./SettingsPageHeader.svelte"), "h2");
-  const sectionTitle = heading(source("./SettingsSection.svelte"), "h3");
+  const pageTitle = heading(source(`${PAGE}page-header.svelte`), "h2");
+  const sectionTitle = heading(source(`${PAGE}page-section.svelte`), "h3");
   const entityTitle = heading(source("./EntityCard.svelte"), "h4");
   const nav = source("./SettingsNav.svelte");
 
@@ -86,9 +88,9 @@ describe("settings typography", () => {
   });
 
   it("keeps catalog item titles regular and their status line muted", () => {
-    const item = source("./SettingsItem.svelte");
+    const item = source(`${PAGE}page-item.svelte`);
     const title = /"truncate text-ui",[^)]*\)\}>\{title\}/s.exec(item);
-    assert.ok(title, "expected a SettingsItem title span");
+    assert.ok(title, "expected a PageItem title span");
     assert.doesNotMatch(title[0], /font-(medium|semibold|bold)/);
     assert.match(
       item,
@@ -100,20 +102,20 @@ describe("settings typography", () => {
   it("keeps heading descriptions to one muted line", () => {
     /* A section may carry one text-caption muted line under its heading, never a
      * paragraph at row size; longer detail goes in an info tooltip. */
-    const section = source("./SettingsSection.svelte");
+    const section = source(`${PAGE}page-section.svelte`);
     assert.match(
       section,
       /<p class="text-caption text-muted-foreground">\{description\}<\/p>/,
     );
-    assert.match(section, /SettingsInfoHint/);
+    assert.match(section, /titleHint/);
   });
 
   it("separates sections with a surface, and nested cards sit flush in it", () => {
     /* Sections sitting straight on the page read as one undivided stream. The
      * surface separates them; cards inside it drop their own chrome so they
      * never stack card-in-card. */
-    const section = source("./SettingsSection.svelte");
-    assert.match(section, /data-settings-surface/);
+    const section = source(`${PAGE}page-section.svelte`);
+    assert.match(section, /data-page-surface/);
     assert.match(section, /rounded-lg border bg-card/);
     assert.match(
       section,
@@ -121,12 +123,12 @@ describe("settings typography", () => {
       "divided rows use hairlines",
     );
     for (const path of [
-      "./SettingsList.svelte",
-      "./SettingsEmptyState.svelte",
+      `${PAGE}page-list.svelte`,
+      `${PAGE}page-empty-state.svelte`,
     ]) {
       assert.match(
         source(path),
-        /group-data-settings-surface\/surface:/,
+        /group-data-page-surface\/surface:/,
         `${path} should sit flush inside a section surface`,
       );
     }

@@ -37,8 +37,7 @@ void test("reuses the immutable catalog after the first load", async () => {
 void test("configure-nerve extension reference mirrors the limits and runtime API it documents", async () => {
   const { readFile } = await import("node:fs/promises");
   const { dirname, join } = await import("node:path");
-  const { agentTextLimits } =
-    await import("../core-host/extensions/extension-catalog/agent-text-limits.js");
+  const { agentTextLimits } = await import("@nervekit/contracts/extensions");
   const skill = (await loadNerveSkills()).find(
     (candidate) => candidate.name === "configure-nerve",
   )!;

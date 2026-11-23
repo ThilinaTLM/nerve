@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { extensionUiLimits } from "./limits.js";
 import type { ExtensionDefinitionData } from "@nervekit/extension-api/host";
 import {
   accountKindDataSchema,
@@ -103,7 +104,11 @@ const toolBase = {
 };
 
 const toolSchema = z.union([
-  z.strictObject({ ...toolBase, method: z.string().min(1) }),
+  z.strictObject({
+    ...toolBase,
+    method: z.string().min(1),
+    present: hook.optional(),
+  }),
   z.strictObject({
     ...toolBase,
     risk,
@@ -113,15 +118,6 @@ const toolSchema = z.union([
     present: hook.optional(),
   }),
 ]);
-
-/** Limits of the `ui` section; the SDK build and the host enforce the same numbers. */
-export const extensionUiLimits = {
-  /** Contributions per kind. */
-  maxPerKind: 16,
-  maxLabelLength: 64,
-  maxExtensionsPerPreview: 32,
-  maxExtensionLength: 32,
-} as const;
 
 const uiLabelSchema = z
   .string()
@@ -274,7 +270,6 @@ export const installedExtensionManifestSchema = z.strictObject({
   permissions: extensionPermissionsSchema.optional(),
   namespaces: z.array(namespaceSchema),
   tools: z.array(toolSchema).optional(),
-  limits: z.record(z.string(), z.number()).optional(),
   version: semver,
   sdkVersion: semver,
   ui: installedExtensionUiSchema.optional(),

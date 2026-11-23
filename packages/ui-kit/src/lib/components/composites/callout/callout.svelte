@@ -1,3 +1,8 @@
+<!--
+@component
+Message box with a tone, an optional icon and title, and actions. Put longer content in `children`.
+-->
+
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
@@ -13,12 +18,18 @@ let {
   actions,
   children,
 }: {
+  /** Colour and role (default `neutral`): `neutral`, `brand`, `info`, `success`, `warning`, `destructive`. `destructive` is announced as an alert. */
   tone?: StatusTone;
+  /** `block` (default): a bordered box; `strip`: a full-width bar with a bottom border, for the top of a panel. */
   layout?: "block" | "strip";
+  /** Icon component before the text (a Lucide icon). */
   icon?: Component;
+  /** First line. */
   title?: string;
+  /** Second line, under the title. */
   text?: string;
   class?: string;
+  /** Buttons after the text. */
   actions?: Snippet;
   children?: Snippet;
 } = $props();

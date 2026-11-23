@@ -13,7 +13,7 @@ import type {
 import {
   panelTreeExpandableIds,
   type PanelTreeNode,
-} from "$lib/presentation/panels/panel-tree";
+} from "@nervekit/ui-kit/components/composites/panel/panel-tree";
 
 export function gitFileGroups(files: readonly GitFileChange[]): {
   staged: GitFileChange[];

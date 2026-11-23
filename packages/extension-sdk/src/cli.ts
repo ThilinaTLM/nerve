@@ -59,11 +59,11 @@ async function build(projectDir: string): Promise<void> {
 
 async function check(projectDir: string): Promise<number> {
   let failed = false;
-  console.log("[1/3] Type check (tsc --noEmit)");
+  console.log("[1/3] Type check (svelte-check)");
   if ((await typecheck(projectDir)) !== 0) {
     failed = true;
     console.error(
-      "error: the TypeScript check failed\n  where: the diagnostics above\n  fix: Fix each reported file and line, then run nerve-ext check again.",
+      "error: the type check failed\n  where: the diagnostics above\n  fix: Fix each reported file and line, then run nerve-ext check again.",
     );
   }
   console.log("[2/3] Build and validate");

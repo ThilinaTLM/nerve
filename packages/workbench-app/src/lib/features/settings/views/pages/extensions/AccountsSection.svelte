@@ -10,6 +10,11 @@
   accounts have no User radio.
 -->
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import KeyRound from "@lucide/svelte/icons/key-round";
 import Lock from "@lucide/svelte/icons/lock";
 import Plus from "@lucide/svelte/icons/plus";
@@ -26,9 +31,6 @@ import {
   ColumnLabels,
   LayerCells,
   SettingsChangeIndicator,
-  SettingsEmptyState,
-  SettingsItem,
-  SettingsList,
   SettingsSection,
 } from "$lib/presentation/settings";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
@@ -162,7 +164,7 @@ const accounts = $derived(
   {/snippet}
 
   {#if accounts.length === 0}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       icon={KeyRound}
       title={`No ${kind.label}s`}
@@ -175,7 +177,7 @@ const accounts = $derived(
           <Plus class="size-3.5" aria-hidden="true" />Add account
         </Button>
       {/snippet}
-    </SettingsEmptyState>
+    </PageEmptyState>
   {:else}
     {#if choice?.layers}
       {@render list()}
@@ -226,7 +228,7 @@ const accounts = $derived(
 {/snippet}
 
 {#snippet list()}
-  <SettingsList ariaLabel={`${kind.label}s`}>
+  <PageList ariaLabel={`${kind.label}s`}>
     {#each accounts as account (account.id)}
       {#snippet mark()}
         <RadioGroup.Item
@@ -266,7 +268,7 @@ const accounts = $derived(
           </div>
         {/if}
       {/snippet}
-      <SettingsItem
+      <PageItem
         title={account.name}
         summary={accountSummary({ account, kind }) ??
           (account.level === "project"
@@ -295,9 +297,9 @@ const accounts = $derived(
         select={choice && !choice.layers ? mark : undefined}
         meta={choice?.layers ? slots : undefined}
         leading={lead}
-      ></SettingsItem>
+      ></PageItem>
     {/each}
-  </SettingsList>
+  </PageList>
 {/snippet}
 
 <AccountDialog

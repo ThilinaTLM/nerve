@@ -19,7 +19,7 @@ import {
   PanelTree,
   PanelView,
   buildPanelItemTree,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import {
   formatSearchPatternError,
   type SearchPatternError,

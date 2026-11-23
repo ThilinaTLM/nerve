@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 await build({
-  entryPoints: ["src/index.ts", "src/testing.ts", "src/build.ts", "src/cli.ts"],
+  entryPoints: ["src/index.ts", "src/testing.ts", "src/cli.ts"],
   outdir: "dist",
   bundle: true,
   splitting: true,
@@ -34,10 +34,10 @@ await build({
 // runs in the extension's browser frame, where the extension's UI build (Vite) resolves what
 // stays external (Svelte, zod, the UI kit's sources).
 const uiComponents = fileURLToPath(
-  new URL("../ui/components.ts", import.meta.url),
+  new URL("../src/components/components.impl.ts", import.meta.url),
 );
 await build({
-  entryPoints: { ui: "src/ui.ts", icons: "src/icons.ts" },
+  entryPoints: { ui: "src/ui.ts" },
   outdir: "dist",
   bundle: true,
   format: "esm",
@@ -55,25 +55,31 @@ await build({
   ],
   plugins: [
     {
-      // `src/ui/components.d.ts` types the implementation that lives outside the type-checked sources.
+      // `components.impl.ts` re-exports Svelte sources, which tsc does not check; its declarations are generated from them.
       name: "ui-components",
       setup(builder) {
-        builder.onResolve({ filter: /^\.\/ui\/components\.js$/ }, () => ({
-          path: uiComponents,
-        }));
+        builder.onResolve(
+          { filter: /^\.\/components\/components\.js$/ },
+          () => ({
+            path: uiComponents,
+          }),
+        );
         // Svelte sources of the SDK stay as files next to the bundle (copied below); the
         // extension's UI build compiles them.
         builder.onResolve({ filter: /^\.\/[\w-]+\.svelte$/ }, (args) => ({
-          path: `./ui/${args.path.slice(2)}`,
+          path: `./components/${args.path.slice(2)}`,
           external: true,
         }));
       },
     },
   ],
 });
-await mkdir("dist/ui", { recursive: true });
-await copyFile("src/ui/components.d.ts", "dist/ui/components.d.ts");
-await copyFile(
-  "ui/floating-toolbar-menu.svelte",
-  "dist/ui/floating-toolbar-menu.svelte",
-);
+// `dist/components/*.d.ts` (the generated declarations of the components) come from
+// `scripts/components-dts.ts`, which runs before `tsc` in `pnpm build`.
+await mkdir("dist/components", { recursive: true });
+for (const name of [
+  "floating-toolbar-menu.svelte",
+  "item-menu.svelte",
+  "select-field.svelte",
+])
+  await copyFile(`src/components/${name}`, `dist/components/${name}`);

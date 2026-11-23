@@ -4,13 +4,13 @@
   .nerve/APPEND_SYSTEM.md. Nothing is read from the user folder.
 -->
 <script lang="ts">
-import FileText from "@lucide/svelte/icons/file-text";
 import {
-  SettingsEmptyState,
-  SettingsItem,
-  SettingsList,
-  SettingsSection,
-} from "$lib/presentation/settings";
+  PageEmptyState,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
+import FileText from "@lucide/svelte/icons/file-text";
+import { SettingsSection } from "$lib/presentation/settings";
 
 export type InstructionsFile = {
   /** Project-relative path. */
@@ -31,14 +31,14 @@ const append = $derived(files.filter((file) => file.kind === "append"));
 
 {#snippet list(items: InstructionsFile[])}
   {#if items.length === 0}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       title={loading ? "Looking for files…" : "Not found."}
     />
   {:else}
-    <SettingsList>
+    <PageList>
       {#each items as file (file.path)}
-        <SettingsItem
+        <PageItem
           title={file.path}
           icon={FileText}
           summary={file.description}
@@ -46,7 +46,7 @@ const append = $derived(files.filter((file) => file.kind === "append"));
           openLabel={`Open ${file.path}`}
         />
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 {/snippet}
 

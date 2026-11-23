@@ -1,3 +1,8 @@
+<!--
+@component
+Expanded form of a floating bar for fields (find, filter, go to). Fields (`Input`, `SearchInput`, `SelectField`) go only here, never on a `FloatingToolbar`. Full width in narrow panes; place it in a `FloatingLayer` anchor, usually `topEnd`.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";

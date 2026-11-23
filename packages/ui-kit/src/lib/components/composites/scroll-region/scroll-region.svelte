@@ -1,3 +1,8 @@
+<!--
+@component
+Vertical scroll area that shows overflow with edge shadows instead of a scrollbar. Give it a bounded height (`height`, or a flex parent).
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -19,17 +24,23 @@ let {
   contentClass,
   children,
 }: {
+  /** The scrolling element, bindable. */
   viewport?: HTMLDivElement;
   /** Surface the shadows fade into; must match the region's background. Dock
    * panels sit on `panel`, dialogs on `card`, floating layers on `popover`. */
   surface?: "panel" | "card" | "popover";
   /** Pins the region's height instead of filling its flex parent. */
   height?: string;
+  /** Id of the scrolling element, for `aria-controls`. */
   id?: string;
+  /** `listbox` when the region holds a listbox's options. */
   role?: "listbox";
+  /** Accessible name of the scrolling element. */
   ariaLabel?: string;
   class?: string;
+  /** Classes of the scrolling element. */
   viewportClass?: string;
+  /** Classes of the content wrapper inside it. */
   contentClass?: string;
   children: Snippet;
 } = $props();

@@ -3,7 +3,10 @@ import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { SCRATCH_NOTE_TITLE_MAX_LENGTH } from "@nervekit/contracts/scratch-notes";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
-import { PanelCard, PanelToolbarButton } from "$lib/presentation/panels";
+import {
+  PanelCard,
+  PanelToolbarButton,
+} from "@nervekit/ui-kit/components/composites/panel";
 import type { ScratchNoteEntry } from "../state/scratch-notes-state.svelte";
 
 let {

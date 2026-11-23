@@ -1,3 +1,8 @@
+<!--
+@component
+Multi-line text input; `bind:value`. Takes the native textarea attributes.
+-->
+
 <script lang="ts">
 import {
   cn,

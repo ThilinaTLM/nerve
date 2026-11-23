@@ -2,10 +2,9 @@
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { GithubMark } from "@nervekit/ui-kit/components/composites/github-mark";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
-import { SearchInput } from "@nervekit/ui-kit/components/composites/search-input";
+import { PanelFilterBar } from "@nervekit/ui-kit/components/composites/panel-filter-bar";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
-import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import ListFilter from "@lucide/svelte/icons/list-filter";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
@@ -14,7 +13,7 @@ import {
   PanelHeader,
   PanelList,
   PanelToolbarButton,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import GitPullRequestRow from "./GitPullRequestRow.svelte";
 import GitPullRequestRowSkeleton from "./GitPullRequestRowSkeleton.svelte";
 import type { GitPanelActions, GitPanelModel } from "./git-panel-types";
@@ -240,31 +239,29 @@ function toggleChecks(number: number) {
   {:else if overview.status === "loading"}
     {@render skeletons()}
   {:else}
-    <div class="flex shrink-0 flex-col gap-1.5 pt-1 pb-1.5">
-      <SearchInput
-        bind:value={prPanelSearch.query}
-        placeholder="Search repo, title, #number, author"
-        ariaLabel="Search pull requests"
-      />
-      <ToggleGroup.Root
-        type="single"
-        size="sm"
-        variant="chip"
-        aria-label="Quick filter"
-        value={quick}
-        onValueChange={selectQuick}
-      >
-        <ToggleGroup.Item value="all">All {quickCounts.all}</ToggleGroup.Item>
-        <ToggleGroup.Item value="mine" title="Pull requests you opened"
-          >Mine {quickCounts.mine}</ToggleGroup.Item
-        >
-        <ToggleGroup.Item
-          value="review"
-          title="Pull requests where your review is requested"
-          >Review {quickCounts.review}</ToggleGroup.Item
-        >
-      </ToggleGroup.Root>
-    </div>
+    <PanelFilterBar
+      bind:query={prPanelSearch.query}
+      placeholder="Search repo, title, #number, author"
+      ariaLabel="Search pull requests"
+      scopeLabel="Quick filter"
+      scope={quick}
+      onScopeChange={(value) => selectQuick(value)}
+      scopes={[
+        { value: "all", label: "All", count: quickCounts.all },
+        {
+          value: "mine",
+          label: "Mine",
+          count: quickCounts.mine,
+          title: "Pull requests you opened",
+        },
+        {
+          value: "review",
+          label: "Review",
+          count: quickCounts.review,
+          title: "Pull requests where your review is requested",
+        },
+      ]}
+    />
     <div class="flex min-h-0 flex-1 flex-col">
       <ScrollRegion
         ariaLabel="Pull requests"

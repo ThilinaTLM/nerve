@@ -60,7 +60,7 @@ export function resolvedAccounts(
  * How the extension runtime reaches this host: the resolved settings of the
  * conversation, the accounts store (the credential is only handed to the
  * runtime's `ctx.http`), the image generation backend and the vision model
- * an extension's settings select. `store` with a `projectId` gives `ctx.extensionStore` of that
+ * an extension's settings select. `store` with a `projectId` gives `ctx.store` of that
  * project; without a project the extension's store calls reject.
  */
 export function createExtensionPorts(input: {
@@ -105,7 +105,7 @@ export function createExtensionPorts(input: {
         }
       : {}),
     ...(input.store && input.projectId
-      ? { extensionStore: input.store.forProject(input.projectId) }
+      ? { store: input.store.forProject(input.projectId) }
       : {}),
     log: (level, extensionId, message, data) => {
       if (level === "warn") input.warn?.(extensionId, message, data);

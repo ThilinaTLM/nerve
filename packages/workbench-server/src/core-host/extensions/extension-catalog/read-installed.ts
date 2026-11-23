@@ -1,13 +1,13 @@
-import { agentTextProblems } from "./agent-text-limits.js";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
+  agentTextProblems,
+  extensionFileLimits,
   extensionIdSchema,
   installedExtensionManifestSchema,
   installedNamingDiagnostics,
   sdkCompatibilityProblem,
-  usedExtensionSurfaces,
   themeFileSchema,
   themeRuleProblems,
   type InstalledExtensionManifest,
@@ -20,16 +20,6 @@ import {
 } from "@nervekit/harness/resources";
 import { resolveExtensionIcon } from "@nervekit/tools/extension-host";
 import type { ExtensionIcon } from "@nervekit/contracts/extensions";
-
-/** Largest `manifest.json` the host reads. */
-export const maxManifestBytes = 1024 * 1024;
-/** Largest `backend.js` the host opens in a sandbox. */
-export const maxBundleBytes = 8 * 1024 * 1024;
-/** Largest doc topic file the host reads. */
-export const maxDocBytes = 256 * 1024;
-
-/** Largest theme file the host reads. */
-export const maxThemeBytes = 16 * 1024;
 
 /** A theme the manifest declares: the validated file, or why it cannot be offered. */
 export type ReadTheme =
@@ -75,7 +65,7 @@ function isInside(root: string, path: string): boolean {
 export function distReader(
   dist: string,
 ): (file: string, maxBytes?: number) => string {
-  return (file, maxBytes = maxDocBytes) => {
+  return (file, maxBytes = extensionFileLimits.docBytes) => {
     if (
       file.length === 0 ||
       file.includes("\0") ||
@@ -143,10 +133,10 @@ export async function readFolder(
     const info = await stat(manifestPath);
     if (!info.isFile())
       return fail("manifest-unreadable", "dist/manifest.json is not a file.");
-    if (info.size > maxManifestBytes)
+    if (info.size > extensionFileLimits.manifestBytes)
       return fail(
         "manifest-too-large",
-        `dist/manifest.json is larger than ${maxManifestBytes / 1024} KB.`,
+        `dist/manifest.json is larger than ${extensionFileLimits.manifestBytes / 1024} KB.`,
       );
     // A symbolic link may not lead out of dist/.
     const real = await realpath(manifestPath);
@@ -181,11 +171,7 @@ export async function readFolder(
   const builtWith = (json as { sdkVersion?: unknown } | null)?.sdkVersion;
   if (typeof builtWith === "string") {
     result.sdkVersion = builtWith;
-    const incompatible = sdkCompatibilityProblem(
-      builtWith,
-      nerveVersion,
-      usedExtensionSurfaces(json),
-    );
+    const incompatible = sdkCompatibilityProblem(builtWith, nerveVersion);
     if (incompatible) {
       result.incompatible = incompatible;
       return result;
@@ -270,7 +256,7 @@ function readTheme(
   });
   let json: unknown;
   try {
-    json = JSON.parse(readAsset(declared.file, maxThemeBytes));
+    json = JSON.parse(readAsset(declared.file, extensionFileLimits.themeBytes));
   } catch (cause) {
     return fail(
       `${declared.file} cannot be read: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -299,11 +285,6 @@ function unsupportedFields(json: unknown): string[] {
   const record = json as Record<string, unknown>;
   const settings = record.settings as Record<string, unknown> | undefined;
   return [
-    ...(record.prelude !== undefined
-      ? [
-          "dist/manifest.json: prelude: installed extensions cannot add helper code to the script sandbox.",
-        ]
-      : []),
     ...(settings &&
     typeof settings === "object" &&
     settings.migrations !== undefined

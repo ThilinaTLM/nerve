@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { previewEditModeSchema } from "./installed-manifest.js";
+import { bridgeLimits } from "./limits.js";
 import { uiContributionIdSchema } from "./ui-contribution-id.js";
 
 /*
@@ -13,43 +14,6 @@ import { uiContributionIdSchema } from "./ui-contribution-id.js";
  */
 
 export const bridgeProtocolVersion = 1;
-
-/** Limits both sides enforce; a larger message is dropped (requests get a `too_large` error). */
-export const bridgeLimits = {
-  /** Serialized size of any message, in bytes. */
-  maxMessageBytes: 8 * 1024 * 1024,
-  /** Most bytes one `file.read` returns; the frame asks for more with a new offset. */
-  maxReadChunkBytes: 1024 * 1024,
-  /** Chunk size when `length` is not given. */
-  defaultReadChunkBytes: 256 * 1024,
-  /** Most bytes of content one `file.write` carries (decoded; base64 must fit the message limit). */
-  maxWriteBytes: 5 * 1024 * 1024,
-  /** Serialized size of the JSON `viewState`. */
-  maxViewStateBytes: 64 * 1024,
-  /** Serialized size of `call` args. */
-  maxCallArgsBytes: 1024 * 1024,
-  maxRequestIdLength: 64,
-  maxMenuItems: 32,
-  maxTextLength: 20_000,
-  maxLabelLength: 200,
-  /** Characters of the prompt of one `conversations.start`. */
-  maxConversationPromptLength: 100_000,
-  maxPageParamsBytes: 4 * 1024,
-  /** Bytes of text one `clipboard.writeText` carries (UTF-8). */
-  maxClipboardTextBytes: 1024 * 1024,
-  /** Decoded bytes of one `clipboard.writeImage`. */
-  maxClipboardImageBytes: 5 * 1024 * 1024,
-  /** Characters of an `extensionStore` key. */
-  maxStoreKeyLength: 128,
-  /** Serialized size of one `extensionStore` value. */
-  maxStoreValueBytes: 4 * 1024 * 1024,
-  /** Serialized size of all values of one extension in one project. */
-  maxStoreBytesPerProject: 64 * 1024 * 1024,
-  /** Keys of one extension in one project. */
-  maxStoreKeys: 1000,
-  /** `frameError` reports the host forwards per frame load. */
-  maxFrameErrorsPerLoad: 20,
-} as const;
 
 export type BridgeJson =
   | string
@@ -98,11 +62,11 @@ export const bridgeErrorCodeSchema = z.enum([
   "not_found",
   /** A size limit was exceeded. */
   "too_large",
-  /** The user dismissed the request (confirm, menu). */
+  /** The user dismissed the request, or another host-drawn request was already open (confirm, menu, pick). */
   "cancelled",
   /** The extension's backend method failed; `message` is the (shortened) backend error. */
   "backend_error",
-  /** An `extensionStore` write's `ifRevision` no longer matches the stored revision. */
+  /** A `store` write's `ifRevision` no longer matches the stored revision. */
   "conflict",
   "failed",
 ]);
@@ -115,18 +79,135 @@ const emptyResult = z.strictObject({});
 const text = (max: number = bridgeLimits.maxLabelLength) =>
   z.string().min(1).max(max);
 
-const menuItemSchema = z.strictObject({
-  id: text(64),
+/** A lucide icon by its kebab-case name (`"file-text"`); the host resolves it and shows nothing for an unknown name. */
+const iconNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, { message: "not a lucide icon name" });
+
+/** An id the frame gets back when the user chooses an entry. */
+const choiceIdSchema = text(bridgeLimits.maxChoiceIdLength);
+
+/** A CSS-pixel rectangle in the frame's viewport; a point is a rectangle without size. */
+const anchorSchema = z.strictObject({
+  x: z.number().finite(),
+  y: z.number().finite(),
+  width: z.number().finite().nonnegative().optional(),
+  height: z.number().finite().nonnegative().optional(),
+});
+export type BridgeAnchor = z.infer<typeof anchorSchema>;
+
+/** One entry of a `ui.menu` menu. */
+export type BridgeMenuEntry =
+  | {
+      type?: "item" | undefined;
+      /** Returned when chosen; unique in the menu. */
+      id: string;
+      label: string;
+      /** Lucide icon name. */
+      icon?: string | undefined;
+      /** Display-only key hint (`Ctrl+K`). */
+      shortcut?: string | undefined;
+      checked?: boolean | undefined;
+      disabled?: boolean | undefined;
+      destructive?: boolean | undefined;
+    }
+  | { type: "separator" }
+  /** A caption above the entries that follow. */
+  | { type: "label"; label: string }
+  | {
+      type: "submenu";
+      label: string;
+      icon?: string | undefined;
+      disabled?: boolean | undefined;
+      items: BridgeMenuEntry[];
+    };
+
+const menuEntrySchema: z.ZodType<BridgeMenuEntry, BridgeMenuEntry> = z.lazy(
+  () =>
+    z.union(
+      [
+        z.strictObject({
+          type: z.literal("item").optional(),
+          id: choiceIdSchema,
+          label: text(),
+          icon: iconNameSchema.optional(),
+          shortcut: text(64).optional(),
+          checked: z.boolean().optional(),
+          disabled: z.boolean().optional(),
+          destructive: z.boolean().optional(),
+        }),
+        z.strictObject({ type: z.literal("separator") }),
+        z.strictObject({ type: z.literal("label"), label: text() }),
+        z.strictObject({
+          type: z.literal("submenu"),
+          label: text(),
+          icon: iconNameSchema.optional(),
+          disabled: z.boolean().optional(),
+          items: z.array(menuEntrySchema).min(1),
+        }),
+      ],
+      {
+        error:
+          'a menu entry is an item ({ id, label }), { type: "separator" }, { type: "label", label } or { type: "submenu", label, items }',
+      },
+    ),
+);
+
+/**
+ * What is wrong with a menu: more entries than `maxMenuEntries` (nested ones included), submenus
+ * nested deeper than `maxMenuDepth`, a repeated item id, or nothing to choose.
+ */
+function menuProblem(entries: readonly BridgeMenuEntry[]): string | undefined {
+  let count = 0;
+  let choices = 0;
+  const ids = new Set<string>();
+  let problem: string | undefined;
+  const visit = (list: readonly BridgeMenuEntry[], depth: number) => {
+    for (const entry of list) {
+      count += 1;
+      if (entry.type === "submenu") {
+        if (depth >= bridgeLimits.maxMenuDepth)
+          problem ??= `submenus nest at most ${bridgeLimits.maxMenuDepth} deep`;
+        visit(entry.items, depth + 1);
+      } else if (entry.type === undefined || entry.type === "item") {
+        choices += 1;
+        if (ids.has(entry.id))
+          problem ??= `the item id '${entry.id}' is used twice`;
+        ids.add(entry.id);
+      }
+    }
+  };
+  visit(entries, 0);
+  if (count > bridgeLimits.maxMenuEntries)
+    return `the menu has ${count} entries; the limit is ${bridgeLimits.maxMenuEntries} (submenu entries included)`;
+  return (
+    problem ?? (choices === 0 ? "the menu has no item to choose" : undefined)
+  );
+}
+
+const pickItemSchema = z.strictObject({
+  id: choiceIdSchema,
   label: text(),
+  /** Heading the item is listed under. */
+  group: text().optional(),
+  /** Muted second line. */
+  detail: z.string().max(bridgeLimits.maxLabelLength).optional(),
+  /** Search terms that are not shown. */
+  keywords: z
+    .array(z.string().max(bridgeLimits.maxLabelLength))
+    .max(bridgeLimits.maxPickKeywords)
+    .optional(),
+  icon: iconNameSchema.optional(),
   disabled: z.boolean().optional(),
-  destructive: z.boolean().optional(),
 });
 
 /** A path inside the open project, relative to its directory or absolute inside it. */
 const projectPathSchema = z.string().min(1).max(4096);
 
 /**
- * An `extensionStore` key: letters, digits, `.`, `_` and `-`, 1–128 characters, not starting with
+ * A store key: letters, digits, `.`, `_` and `-`, 1–128 characters, not starting with
  * a dot. Safe as a file name, so the daemon stores one file per key.
  */
 export const extensionStoreKeySchema = z
@@ -196,11 +277,7 @@ export const bridgeMethods = {
     }),
     result: z.strictObject({ size: z.number().int().nonnegative() }),
   },
-  "mode.get": {
-    params: emptyParams,
-    result: z.strictObject({ mode: bridgeModeSchema }),
-  },
-  call: {
+  "backend.call": {
     params: z.strictObject({
       /** One of the extension's own backend methods, as `namespace.method`. */
       method: text(128),
@@ -213,20 +290,21 @@ export const bridgeMethods = {
     result: z.strictObject({ value: bridgeJsonSchema.optional() }),
   },
   "settings.get": {
-    params: emptyParams,
-    /** Resolved, non-secret settings of the extension. */
-    result: z.strictObject({ values: z.record(z.string(), bridgeJsonSchema) }),
+    /** A field key of the extension's settings. */
+    params: z.strictObject({ key: text(128) }),
+    /** The resolved, non-secret value; absent when the field is unset or has no value for frames (secrets). */
+    result: z.strictObject({ value: bridgeJsonSchema.optional() }),
   },
-  "viewState.get": {
+  "tabState.get": {
     params: emptyParams,
     result: z.strictObject({ state: bridgeJsonSchema.nullable() }),
   },
-  "viewState.set": {
+  "tabState.set": {
     params: z.strictObject({
       state: bridgeJsonSchema.refine(
-        jsonWithin(bridgeLimits.maxViewStateBytes),
+        jsonWithin(bridgeLimits.maxTabStateBytes),
         {
-          message: `view state is larger than ${bridgeLimits.maxViewStateBytes} bytes`,
+          message: `tab state is larger than ${bridgeLimits.maxTabStateBytes} bytes`,
         },
       ),
     }),
@@ -242,14 +320,55 @@ export const bridgeMethods = {
     }),
     result: z.strictObject({ confirmed: z.boolean() }),
   },
-  "ui.showMenu": {
-    params: z.strictObject({
-      items: z.array(menuItemSchema).min(1).max(bridgeLimits.maxMenuItems),
-      /** Frame-relative position in CSS pixels; the host clamps it to the frame. */
-      position: z.strictObject({ x: z.number(), y: z.number() }).optional(),
-    }),
+  "ui.menu": {
+    params: z
+      .strictObject({
+        entries: z.array(menuEntrySchema).min(1),
+        /** Where the menu opens, in frame CSS pixels; the host keeps it inside the app window. */
+        anchor: anchorSchema,
+      })
+      .superRefine((value, ctx) => {
+        const problem = menuProblem(value.entries);
+        if (problem)
+          ctx.addIssue({ code: "custom", path: ["entries"], message: problem });
+      }),
     /** `id` of the chosen item, `null` when dismissed. */
     result: z.strictObject({ id: z.string().nullable() }),
+  },
+  "ui.pick": {
+    params: z
+      .strictObject({
+        title: text().optional(),
+        placeholder: text().optional(),
+        /** The accessible name of the list. */
+        ariaLabel: text(),
+        mode: z.enum(["single", "multiple"]),
+        items: z.array(pickItemSchema).min(1).max(bridgeLimits.maxPickItems),
+        /** Ids chosen on open; at most one in `single` mode. */
+        selected: z.array(choiceIdSchema).optional(),
+        /** Where the list opens; absent: centered in the frame. */
+        anchor: anchorSchema.optional(),
+      })
+      .superRefine((value, ctx) => {
+        const seen = new Set<string>();
+        for (const item of value.items) {
+          if (seen.has(item.id))
+            ctx.addIssue({
+              code: "custom",
+              path: ["items"],
+              message: `the item id '${item.id}' is used twice`,
+            });
+          seen.add(item.id);
+        }
+        if (value.mode === "single" && (value.selected?.length ?? 0) > 1)
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected"],
+            message: "a single pick has at most one selected id",
+          });
+      }),
+    /** The chosen ids (one in `single` mode); `null` when dismissed or cancelled. */
+    result: z.strictObject({ ids: z.array(z.string()).nullable() }),
   },
   "ui.notify": {
     params: z.strictObject({
@@ -258,11 +377,11 @@ export const bridgeMethods = {
     }),
     result: emptyResult,
   },
-  openFile: {
+  "workspace.openFile": {
     params: z.strictObject({ path: projectPathSchema }),
     result: emptyResult,
   },
-  openPage: {
+  "pages.open": {
     params: z.strictObject({
       /** Id of one of this extension's pages. */
       id: uiContributionIdSchema,
@@ -282,7 +401,7 @@ export const bridgeMethods = {
       directory: z.string(),
     }),
   },
-  "composer.insert": {
+  "chat.insert": {
     params: z.strictObject({ text: text(bridgeLimits.maxTextLength) }),
     result: emptyResult,
   },
@@ -314,7 +433,7 @@ export const bridgeMethods = {
     }),
     result: emptyResult,
   },
-  "conversations.start": {
+  "chat.startConversation": {
     params: z.strictObject({
       prompt: text(bridgeLimits.maxConversationPromptLength),
       title: text().optional(),
@@ -329,15 +448,19 @@ export const bridgeMethods = {
     }),
     result: z.strictObject({ conversationId: z.string() }),
   },
-  "extensionStore.get": {
+  "store.get": {
     params: z.strictObject({ key: extensionStoreKeySchema }),
-    /** `value` and `revision` are `null` when the key does not exist. */
+    /** `entry` is `null` when the key does not exist. */
     result: z.strictObject({
-      value: bridgeJsonSchema.nullable(),
-      revision: z.number().int().positive().nullable(),
+      entry: z
+        .strictObject({
+          value: bridgeJsonSchema,
+          revision: z.number().int().positive(),
+        })
+        .nullable(),
     }),
   },
-  "extensionStore.set": {
+  "store.set": {
     params: z.strictObject({
       key: extensionStoreKeySchema,
       value: bridgeJsonSchema.refine(
@@ -349,14 +472,14 @@ export const bridgeMethods = {
     }),
     result: z.strictObject({ revision: z.number().int().positive() }),
   },
-  "extensionStore.delete": {
+  "store.delete": {
     params: z.strictObject({
       key: extensionStoreKeySchema,
       ifRevision: storeRevisionSchema.optional(),
     }),
     result: emptyResult,
   },
-  "extensionStore.keys": {
+  "store.keys": {
     params: z.strictObject({
       prefix: z.string().max(bridgeLimits.maxStoreKeyLength).optional(),
     }),
@@ -387,8 +510,8 @@ export type BridgeResult<M extends BridgeMethodName> = z.output<
 const allKinds = ["preview", "page", "panel"] as const;
 
 /**
- * Which contribution kinds may call each method. `file.*` is for previews only; `file.write` and
- * `mode.get` additionally need a preview with `edit: "custom"` (see `isBridgeMethodAllowed`).
+ * Which contribution kinds may call each method. `file.*` is for previews only; `file.write`
+ * additionally needs a preview with `edit: "custom"` (see `isBridgeMethodAllowed`).
  */
 export const bridgeMethodKinds: Record<
   BridgeMethodName,
@@ -397,31 +520,30 @@ export const bridgeMethodKinds: Record<
   "file.info": ["preview"],
   "file.read": ["preview"],
   "file.write": ["preview"],
-  "mode.get": ["preview"],
-  call: allKinds,
+  "backend.call": allKinds,
   "settings.get": allKinds,
-  "viewState.get": allKinds,
-  "viewState.set": allKinds,
+  "tabState.get": allKinds,
+  "tabState.set": allKinds,
   "ui.confirm": allKinds,
-  "ui.showMenu": allKinds,
+  "ui.menu": allKinds,
+  "ui.pick": allKinds,
   "ui.notify": allKinds,
-  openFile: allKinds,
-  openPage: allKinds,
+  "workspace.openFile": allKinds,
+  "pages.open": allKinds,
   "project.info": allKinds,
-  "composer.insert": allKinds,
+  "chat.insert": allKinds,
   "clipboard.writeText": allKinds,
   "clipboard.writeImage": allKinds,
-  "conversations.start": allKinds,
-  "extensionStore.get": allKinds,
-  "extensionStore.set": allKinds,
-  "extensionStore.delete": allKinds,
-  "extensionStore.keys": allKinds,
+  "chat.startConversation": allKinds,
+  "store.get": allKinds,
+  "store.set": allKinds,
+  "store.delete": allKinds,
+  "store.keys": allKinds,
 };
 
 /** Methods that only exist for previews with `edit: "custom"`. */
 export const bridgeCustomEditMethods: readonly BridgeMethodName[] = [
   "file.write",
-  "mode.get",
 ];
 
 /** Whether a frame of this kind (and, for previews, edit mode) may call `method`. */
@@ -441,33 +563,33 @@ export function isBridgeMethodAllowed(
 // ── Events (host → frame) ─────────────────────────────────────────────────
 
 export const bridgeEvents = {
-  themeChanged: z.strictObject({
+  "theme.changed": z.strictObject({
     kind: bridgeThemeKindSchema,
     /** Custom-property declarations (`--background:…;`) of the active theme. */
     tokensCss: z.string().max(8192),
   }),
-  fileChanged: z.strictObject({
+  "file.changed": z.strictObject({
     size: z.number().int().nonnegative(),
     modifiedAt: z.string().optional(),
   }),
-  modeChanged: z.strictObject({ mode: bridgeModeSchema }),
+  "mode.changed": z.strictObject({ mode: bridgeModeSchema }),
   /** A key of this extension's store changed (by another frame or the backend); `revision` `null`: deleted. */
-  extensionStoreChanged: z.strictObject({
+  "store.changed": z.strictObject({
     key: z.string(),
     revision: z.number().int().positive().nullable(),
   }),
 } as const;
 export type BridgeEventName = keyof typeof bridgeEvents;
 
-/** Events each kind receives: `themeChanged` for all; file and mode events for previews. */
+/** Events each kind receives: theme, mode and store events for all; file events for previews. */
 export const bridgeEventKinds: Record<
   BridgeEventName,
   readonly BridgeContributionKind[]
 > = {
-  themeChanged: allKinds,
-  fileChanged: ["preview"],
-  modeChanged: ["preview"],
-  extensionStoreChanged: allKinds,
+  "theme.changed": allKinds,
+  "file.changed": ["preview"],
+  "mode.changed": ["preview"],
+  "store.changed": allKinds,
 };
 
 // ── Envelope ──────────────────────────────────────────────────────────────

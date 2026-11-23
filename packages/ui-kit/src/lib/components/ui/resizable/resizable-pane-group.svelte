@@ -1,3 +1,8 @@
+<!--
+@component
+Resizable panes: `PaneGroup` (`direction`) containing `Pane`s (`defaultSize`) separated by `Handle`s.
+-->
+
 <script lang="ts">
 import * as ResizablePrimitive from "paneforge";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -8,6 +13,7 @@ let {
   class: className,
   ...restProps
 }: ResizablePrimitive.PaneGroupProps & {
+  /** The pane group instance, bindable (`bind:this`), for `setLayout` and `getLayout`. */
   this?: ResizablePrimitive.PaneGroup;
 } = $props();
 </script>

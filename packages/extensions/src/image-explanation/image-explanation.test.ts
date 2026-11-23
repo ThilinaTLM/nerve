@@ -30,9 +30,7 @@ void test("the extension is off by default and asks for a vision model; its tool
   assert.equal(imageExplanationExtension.enabledByDefault, false);
   // Rule sets that allow reads run it without approval.
   assert.equal(tool.risk, "read");
-  assert.deepEqual(imageExplanationExtension.permissions?.capabilities, [
-    "models.vision",
-  ]);
+  assert.deepEqual(imageExplanationExtension.permissions?.models, ["vision"]);
   assert.deepEqual(imageExplanationExtension.settings.fields.model, {
     type: "model",
     capability: "vision",

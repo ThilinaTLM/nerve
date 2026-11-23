@@ -1,6 +1,10 @@
 <script lang="ts">
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import { PanelEmpty, PanelHeader, PanelView } from "$lib/presentation/panels";
+import {
+  PanelEmpty,
+  PanelHeader,
+  PanelView,
+} from "@nervekit/ui-kit/components/composites/panel";
 import ExtensionFrame from "./ExtensionFrame.svelte";
 import { contributionsOf } from "../state/extension-ui.svelte";
 import { openExtensionPage } from "../state/page-tabs.svelte";
@@ -22,29 +26,31 @@ const panel = $derived(
 );
 </script>
 
-<PanelView>
-  {#snippet banner()}
-    <PanelHeader title={panel?.label ?? "Extension"} />
-  {/snippet}
-  {#if panel && contributions && projectId}
-    <!-- Docks render only the active view, so a hidden panel's frame is unloaded; the frame
-         restores through its view state. -->
-    <ExtensionFrame
-      {projectId}
-      extensionId={panel.extensionId}
-      extensionName={panel.extensionName}
-      contribution={{ kind: "panel", id: panel.id }}
-      frameUrl={panel.frameUrl}
-      baseCssUrl={contributions.baseCssUrl}
-      title={panel.label}
-      instance={viewId}
-      onOpenPage={(id, params) =>
-        openExtensionPage(projectId, panel.extensionId, id, params)}
-    />
-  {:else}
+{#if panel && contributions && projectId}
+  <!-- The frame draws the whole panel, header included (`PanelView` and `PanelHeader` of the
+       SDK), like Nerve's own panels. Docks render only the active view, so a hidden panel's
+       frame is unloaded; the frame restores through its view state. -->
+  <ExtensionFrame
+    {projectId}
+    extensionId={panel.extensionId}
+    extensionName={panel.extensionName}
+    extensionIconName={panel.icon}
+    contribution={{ kind: "panel", id: panel.id }}
+    frameUrl={panel.frameUrl}
+    baseCssUrl={contributions.baseCssUrl}
+    title={panel.label}
+    instance={viewId}
+    onOpenPage={(id, params) =>
+      openExtensionPage(projectId, panel.extensionId, id, params)}
+  />
+{:else}
+  <PanelView>
+    {#snippet banner()}
+      <PanelHeader title={panel?.label ?? "Extension"} />
+    {/snippet}
     <PanelEmpty
       title="Panel unavailable"
       description="Open a project with this extension enabled."
     />
-  {/if}
-</PanelView>
+  </PanelView>
+{/if}

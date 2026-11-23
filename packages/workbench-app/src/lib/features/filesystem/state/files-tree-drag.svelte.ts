@@ -2,9 +2,12 @@ import type { FilesystemProjectEntry } from "@nervekit/contracts/filesystem";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { ApiRequestError } from "$lib/platform/http/api-client";
 import {
+  COMPOSER_REFERENCE_DRAG_MIME,
+  projectEntryDragReferences,
+  serializeComposerReferenceDrag,
+} from "$lib/presentation/dnd/composer-reference-drag";
+import {
   formatProjectEntryReference,
-  PROJECT_ENTRY_DRAG_MIME,
-  serializeProjectEntryDrag,
   type ProjectEntryDragItem,
 } from "$lib/presentation/dnd/project-entry-drag";
 import { uploadProjectFiles } from "../api/filesystem.api";
@@ -69,8 +72,8 @@ export class FilesTreeDrag {
       this.#deps.selectOnly(item.entry.path);
     this.#sources = entries;
     event.dataTransfer.setData(
-      PROJECT_ENTRY_DRAG_MIME,
-      serializeProjectEntryDrag(entries),
+      COMPOSER_REFERENCE_DRAG_MIME,
+      serializeComposerReferenceDrag(projectEntryDragReferences(entries)),
     );
     event.dataTransfer.setData(
       "text/plain",

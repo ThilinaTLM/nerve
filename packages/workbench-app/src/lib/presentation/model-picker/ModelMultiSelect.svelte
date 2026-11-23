@@ -99,7 +99,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
 </script>
 
 <div
-  class="overflow-hidden rounded-md border border-border bg-card group-data-settings-surface/surface:-mx-3 group-data-settings-surface/surface:rounded-none group-data-settings-surface/surface:border-x-0 group-data-settings-surface/surface:border-t-0"
+  class="overflow-hidden rounded-md border border-border bg-card group-data-page-surface/surface:-mx-3 group-data-page-surface/surface:rounded-none group-data-page-surface/surface:border-x-0 group-data-page-surface/surface:border-t-0"
 >
   <div class="flex items-center gap-1.5 border-b border-border-subtle p-2">
     <ToggleGroup.Root

@@ -1,3 +1,8 @@
+<!--
+@component
+Form label; `for` is the id of its control.
+-->
+
 <script lang="ts">
 import { Label as LabelPrimitive } from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";

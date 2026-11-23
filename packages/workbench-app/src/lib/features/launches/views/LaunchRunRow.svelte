@@ -14,7 +14,7 @@ import {
   PanelRow,
   PanelRowCard,
   PanelToolbarButton,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import {
   formatLaunchRunTime,
   launchRunLabel,

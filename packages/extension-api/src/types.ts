@@ -2,9 +2,9 @@
  * The `ExtensionContext` (`ctx`) the host hands to extension code, and the data its services
  * exchange (HTTP, artifacts, models).
  *
- * Every `ctx` call is async and exchanges plain data (JSON values,
- * `Uint8Array`, handles), so extension code can later run in a sandbox. An
- * extension never sees a secret: the host injects credentials into
+ * `ctx` calls exchange plain data (JSON values, `Uint8Array`, handles), so extension code can run
+ * in a sandbox. Calls that reach the host return promises; `settings.get`, `report`, `progress`
+ * and `log` are synchronous. An extension never sees a secret: the host injects credentials into
  * `ctx.http` requests.
  */
 
@@ -275,40 +275,41 @@ export type TextResult = {
 };
 
 /**
- * Model services; each exists only when the manifest's `permissions.capabilities` lists it.
+ * Model services; each exists only when the definition's `permissions.models` lists it.
  * The host never picks a model: every call names one, and it must be the value of one of this
  * extension's settings (or `defaultModel()` for text and vision), else `DENIED`. Use `ready` in
  * `availability`; in `run`, throw `ExtensionError("DENIED", …, { fix })` when the setting is unset.
  */
 export type ExtensionModels = {
-  /** Image generation (`models.image`). */
+  /** Image generation (`permissions.models: ["image"]`). */
   image?: {
     /** Generates images and writes them as artifacts; rejects when the backend fails or is not signed in. */
     generate(request: ImageRequest): Promise<ImageResult>;
     /** Whether `model` is set, known and signed in. */
     ready(request?: { model?: ImageModelSelection }): Promise<boolean>;
   };
-  /** Image explanation (`models.vision`). */
+  /** Image explanation (`permissions.models: ["vision"]`). */
   vision?: {
     /** Explains an image; streams into the sections `request.progress` names. */
     explain(request: VisionRequest): Promise<VisionResult>;
     /** Whether `model` is set, resolves with credentials and accepts images. */
     ready(request?: { model?: ModelSelection }): Promise<boolean>;
   };
-  /** Direct text completion (`models.text`): no tools, no agent loop. */
+  /** Direct text completion (`permissions.models: ["text"]`): no tools, no agent loop. */
   text?: {
     /** Asks the model once; streams into the sections `request.progress` names. */
     complete(request: TextRequest): Promise<TextResult>;
     /** Whether `model` is set and resolves with credentials. */
     ready(request?: { model?: ModelSelection }): Promise<boolean>;
   };
-  /** Nerve's default model and reasoning level for the project, for an extension without its own `model` setting. Exists with `models.text` or `models.vision`. */
+  /** Nerve's default model and reasoning level for the project, for an extension without its own `model` setting. Exists with `"text"` or `"vision"` in `permissions.models`. */
   defaultModel?(): Promise<ModelSelection>;
 };
 
 /**
- * The host services of extension code, passed to `session` and `run` as `ctx`. Every call is async
- * (except `settings.get`, `report`, `progress` and `log`) and exchanges plain data, because the
+ * The host services of extension code, passed to `session` and `run` as `ctx`. Calls that reach the
+ * host return promises (`settings.get`, `report`, `progress` and `log` are synchronous), and all
+ * of them exchange plain data, because the
  * backend of an installed extension runs in a sandbox (QuickJS) with no Node.js built-ins,
  * filesystem, network or timers. Take `ctx` from the hook's own arguments every time: a `ctx`
  * kept in a `session` belongs to the call that opened it and is not valid later. Cancellation is
@@ -317,7 +318,7 @@ export type ExtensionModels = {
 export interface ExtensionContext {
   /** Resolved values of this extension's own settings (manifest default → user → project → conversation). */
   settings: {
-    /** Value of the field `key`; `undefined` when the field has no default and no scope sets it. Cast with `T`. */
+    /** The resolved value of the field `key`; `undefined` when the field has no default and no scope sets it. Cast with `T`. Synchronous: the values are resolved before the call. */
     get<T = unknown>(key: string): T | undefined;
   };
 
@@ -360,7 +361,7 @@ export interface ExtensionContext {
 
   /**
    * Durable JSON storage for this extension in the open project, shared with its UI frames
-   * (`host.extensionStore`) and across conversations. One key holds one JSON value; every key has
+   * (`host.store`) and across conversations. One key holds one JSON value; every key has
    * a `revision` (1 on the first write, +1 on each write) for conflict detection. Limits: keys of
    * 1–128 letters, digits, `.`, `_`, `-` (no leading dot); 4 MiB per value; 1,000 keys and 64 MiB
    * per project. Not artifacts: artifacts are conversation files for tool results. Rejects with
@@ -369,7 +370,7 @@ export interface ExtensionContext {
    * the data when the extension is uninstalled and never migrates it: keep a `schemaVersion` in
    * your values.
    */
-  extensionStore: {
+  store: {
     /** The value and revision of `key`; `undefined` when it does not exist. */
     get(key: string): Promise<
       | {
@@ -467,9 +468,9 @@ export type ExtensionHookContext = Pick<
 > & {
   /** `ready` and `defaultModel` of the declared model services. */
   models: {
-    /** `ready` of image generation (`models.image`). */
+    /** `ready` of image generation (`permissions.models: ["image"]`). */
     image?: Pick<NonNullable<ExtensionModels["image"]>, "ready">;
-    /** `ready` of image explanation (`models.vision`). */
+    /** `ready` of image explanation (`permissions.models: ["vision"]`). */
     vision?: Pick<NonNullable<ExtensionModels["vision"]>, "ready">;
     /** `ready` of text completion (`models.text`). */
     text?: Pick<NonNullable<ExtensionModels["text"]>, "ready">;

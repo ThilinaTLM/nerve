@@ -1,3 +1,8 @@
+<!--
+@component
+Virtualized list for thousands of rows: only the visible rows render. Give it a bounded height. Trees use `PanelTree virtualized`.
+-->
+
 <script lang="ts" generics="T">
 import {
   createVirtualizer,

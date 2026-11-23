@@ -1,4 +1,8 @@
 <script lang="ts">
+import {
+  FieldRow,
+  ToggleRow,
+} from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { NotificationTone, Settings } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -6,12 +10,7 @@ import {
   attentionMute,
   sendTestNotification,
 } from "$lib/application/notifications";
-import {
-  SettingsRow,
-  SettingsSection,
-  SettingsSelectRow,
-  SettingsToggleRow,
-} from "$lib/presentation/settings";
+import { SettingsSection, SettingsSelectRow } from "$lib/presentation/settings";
 import type { SettingsChange } from "../settings-change";
 import NotificationTonePicker from "./NotificationTonePicker.svelte";
 
@@ -96,13 +95,13 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
 </script>
 
 <SettingsSection id="general" title="General">
-  <SettingsToggleRow
+  <ToggleRow
     label="System notifications"
     description="Show a desktop or browser notification when you're away from Nerve. While you're using Nerve, a toast appears in the app instead."
     bind:checked={settingsDraft.notifications.systemEnabled}
     onCheckedChange={setSystemEnabled}
   />
-  <SettingsToggleRow
+  <ToggleRow
     label="Notification sounds"
     description="Play a sound for the events below, unless you're already looking at that conversation."
     bind:checked={settingsDraft.notifications.soundsEnabled}
@@ -121,7 +120,7 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
       {/snippet}
     </Callout>
   {/if}
-  <SettingsRow
+  <FieldRow
     label="Test"
     description="Plays your sound and shows a notification as if you were away."
     layout="responsive"
@@ -131,7 +130,7 @@ function setEventTone(key: EventToneKey, tone: NotificationTone): void {
         >Send test notification</Button
       >
     {/snippet}
-  </SettingsRow>
+  </FieldRow>
 </SettingsSection>
 
 <SettingsSection id="sounds" title="Sounds">

@@ -28,7 +28,7 @@ import {
 import {
   visiblePanelTreeRows,
   type PanelTreeController,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import {
   activateFileExplorerItem,
   collapseAllFileExplorerItems,
@@ -54,13 +54,13 @@ import {
   topLevelPaths,
 } from "./file-explorer-paths";
 import {
-  emptyFileExplorerSelection,
+  applySelectionKey,
+  clickSelection,
+  emptyPanelSelection,
   pruneSelection,
   selectOnly,
-  selectRange,
-  toggleSelected,
-  type FileExplorerSelection,
-} from "./file-explorer-selection";
+  type PanelSelection,
+} from "@nervekit/ui-kit/components/composites/panel/panel-selection";
 import {
   fileExplorerRevealRequest,
   fileExplorerState,
@@ -126,7 +126,7 @@ export class FilesTreeController {
   gitFiles = $state<GitProjectFileStatus[]>([]);
   gitIssue = $state<string>();
   monitorIssue = $state<string>();
-  selection = $state<FileExplorerSelection>(emptyFileExplorerSelection);
+  selection = $state<PanelSelection>(emptyPanelSelection);
   editing = $state<Editing>();
   clipboard = $state<{
     mode: "cut" | "copy";
@@ -297,7 +297,7 @@ export class FilesTreeController {
     this.gitFiles = [];
     this.gitIssue = undefined;
     this.monitorIssue = undefined;
-    this.selection = emptyFileExplorerSelection;
+    this.selection = emptyPanelSelection;
     this.editing = undefined;
     this.#fileController = startFilePanelController({
       projectId,
@@ -716,7 +716,7 @@ export class FilesTreeController {
     this.pendingDelete = undefined;
     if (!entries || !context) return;
     await deleteFileExplorerEntries(context, entries, this.deleteMethod);
-    this.selection = emptyFileExplorerSelection;
+    this.selection = emptyPanelSelection;
   };
 
   mention = (entries: FilesystemProjectEntry[]): void => {
@@ -734,28 +734,24 @@ export class FilesTreeController {
     item: FileExplorerTreeItem,
   ): boolean => {
     if (item.type !== "entry") return false;
-    const path = item.entry.path;
-    if (event.shiftKey) {
-      this.selection = selectRange(this.visiblePaths, this.selection, path);
-      return true;
-    }
-    if (event.metaKey || event.ctrlKey) {
-      this.selection = toggleSelected(this.selection, path);
-      return true;
-    }
-    this.selection = selectOnly(path);
-    return false;
+    const result = clickSelection(
+      this.selection,
+      this.visiblePaths,
+      item.entry.path,
+      event,
+    );
+    this.selection = result.selection;
+    return result.consumed;
   };
 
   extendSelection(path: string, direction: 1 | -1): void {
-    const paths = this.visiblePaths;
-    const index = paths.indexOf(path);
-    const neighbor = paths[index + direction];
-    if (index < 0 || neighbor === undefined) return;
-    const base =
-      this.selection.ids.size > 0 ? this.selection : selectOnly(path);
-    this.selection = selectRange(paths, base, neighbor);
-    void this.treeController?.revealRow(this.nodeId(neighbor));
+    const result = applySelectionKey(this.selection, this.visiblePaths, path, {
+      type: "extend",
+      direction,
+    });
+    this.selection = result.selection;
+    if (result.revealId !== undefined)
+      void this.treeController?.revealRow(this.nodeId(result.revealId));
   }
 
   handleItemKeydown = (
@@ -778,7 +774,7 @@ export class FilesTreeController {
         this.requestDelete(this.actionTargets(entry));
         return true;
       case "clear-selection":
-        this.selection = emptyFileExplorerSelection;
+        this.selection = emptyPanelSelection;
         return true;
       case "clipboard":
         this.setClipboard(action.mode, this.actionTargets(entry));
@@ -790,10 +786,12 @@ export class FilesTreeController {
         void this.duplicate(this.actionTargets(entry));
         return true;
       case "select-all":
-        this.selection = {
-          ids: new Set(this.visiblePaths),
-          anchorId: this.visiblePaths[0],
-        };
+        this.selection = applySelectionKey(
+          this.selection,
+          this.visiblePaths,
+          entry.path,
+          action,
+        ).selection;
         return true;
     }
   };

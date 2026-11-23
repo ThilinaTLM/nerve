@@ -12,6 +12,8 @@ import {
   type TriggerWidthAnimation,
 } from "./animate-trigger-width.js";
 
+type AnchorRect = DOMRectReadOnly;
+
 type Props = {
   trigger?: Snippet;
   /** Compose a canonical control while preserving the primitive's trigger behavior. */
@@ -46,9 +48,10 @@ type Props = {
   /** `adaptive` opens a bottom sheet instead on phone-sized viewports, so
    * touch users get full-width rows and a pull-down to dismiss. */
   presentation?: "popover" | "adaptive";
-  /** Positions the panel against an existing element instead of rendering a
-   * trigger, e.g. when a context-menu action opens it. */
-  anchor?: HTMLElement | null;
+  /** Positions the panel against an existing element, or a virtual one (any
+   * object with `getBoundingClientRect`, e.g. a rect inside an iframe),
+   * instead of rendering a trigger, e.g. when a context-menu action opens it. */
+  anchor?: HTMLElement | { getBoundingClientRect(): AnchorRect } | null;
   onOpenChange?: (open: boolean) => void;
   /** After the open or close transition, including close focus handling. */
   onOpenChangeComplete?: (open: boolean) => void;
@@ -151,6 +154,8 @@ $effect(() => {
  * focusable descendant, since anchors are often non-focusable rows). */
 function focusReturnTarget(): HTMLElement | null {
   if (!anchor) return triggerElement;
+  // A virtual anchor has nothing to focus.
+  if (!(anchor instanceof HTMLElement)) return null;
   const focusable = "button, [href], input, textarea, select, [tabindex]";
   return anchor.matches(focusable)
     ? anchor

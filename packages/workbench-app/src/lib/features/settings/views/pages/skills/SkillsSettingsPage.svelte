@@ -1,4 +1,8 @@
 <script lang="ts">
+import {
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
@@ -19,8 +23,6 @@ import {
   LayerSwitches,
   OriginGroup,
   SETTINGS_SEARCH_MIN,
-  SettingsItem,
-  SettingsList,
   SettingsSection,
   TipBadge,
   type SettingsLayer,
@@ -289,7 +291,7 @@ function onRetry() {
     >
       {#each group.rows as row (row.entry.skill.filePath)}
         {@const entry = row.entry}
-        <SettingsItem
+        <PageItem
           title={entry.skill.name}
           icon={group.icon}
           summary={entry.skill.description || entry.skill.filePath}
@@ -328,7 +330,7 @@ function onRetry() {
               onChange={(layer, next) => change(row, layer, next)}
             />
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
     </OriginGroup>
   {/each}
@@ -357,9 +359,9 @@ function onRetry() {
           Remove all
         </Button>
       {/snippet}
-      <SettingsList ariaLabel="Unused skill entries">
+      <PageList ariaLabel="Unused skill entries">
         {#each orphans as orphan (`${orphan.layer}:${orphan.kind}:${orphan.name}`)}
-          <SettingsItem
+          <PageItem
             title={orphan.name}
             icon={orphan.kind === "agentBrowser" ? Globe : FolderOpen}
             summary={`Saved ${orphan.layer === "user" ? "for you" : "in this project"} as ${orphan.enabled ? "enabled" : "disabled"}; no skill with this name is installed.`}
@@ -372,9 +374,9 @@ function onRetry() {
                 onclick={() => clearOrphans([orphan])}
               />
             {/snippet}
-          </SettingsItem>
+          </PageItem>
         {/each}
-      </SettingsList>
+      </PageList>
     </SettingsSection>
   {/if}
 {/if}

@@ -171,7 +171,7 @@ async function runExtensionTool(
   });
   const artifacts = await withImageSizes([...env.report.artifacts.values()]);
   const code =
-    value !== undefined && !isMethodTool(tool)
+    value !== undefined
       ? await env.extensions.code(extension.definition!)
       : undefined;
   const presented: CodePresentation = (await code?.present(

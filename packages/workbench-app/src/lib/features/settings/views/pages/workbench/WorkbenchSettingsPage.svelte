@@ -1,11 +1,10 @@
 <script lang="ts">
-import type { ColorTheme, HeaderType, Settings } from "$lib/api";
 import {
-  SettingsRow,
-  SettingsSection,
-  SettingsSelectRow,
-  SettingsToggleRow,
-} from "$lib/presentation/settings";
+  FieldRow,
+  ToggleRow,
+} from "@nervekit/ui-kit/components/composites/page";
+import type { ColorTheme, HeaderType, Settings } from "$lib/api";
+import { SettingsSection, SettingsSelectRow } from "$lib/presentation/settings";
 import type { SettingsChange } from "../settings-change";
 import ThemePreviewPicker from "./ThemePreviewPicker.svelte";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
@@ -46,9 +45,9 @@ function setCloseToTray(checked: boolean): void {
 </script>
 
 <SettingsSection id="appearance" title="Appearance">
-  <SettingsRow label="Theme" layout="stacked">
+  <FieldRow label="Theme" layout="stacked">
     <ThemePreviewPicker value={theme} onValueChange={setTheme} />
-  </SettingsRow>
+  </FieldRow>
 </SettingsSection>
 
 <SettingsSection id="desktop" title="Desktop">
@@ -66,7 +65,7 @@ function setCloseToTray(checked: boolean): void {
       />
     {/snippet}
   </SettingsSelectRow>
-  <SettingsToggleRow
+  <ToggleRow
     label="Close to system tray"
     description="Hide Nerve in the tray instead of quitting."
     bind:checked={settingsDraft.desktop.closeToTray}

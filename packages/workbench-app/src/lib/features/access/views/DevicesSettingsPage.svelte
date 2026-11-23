@@ -1,4 +1,9 @@
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import Fingerprint from "@lucide/svelte/icons/fingerprint";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
@@ -13,12 +18,7 @@ import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog
 import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { onMount } from "svelte";
-import {
-  SettingsEmptyState,
-  SettingsList,
-  SettingsItem,
-  SettingsSection,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import { DevicesPageController } from "../state/devices-page.svelte";
 import {
   auditEventLabel,
@@ -92,16 +92,16 @@ const now = Date.now();
   {#if controller.loading}
     <Skeleton class="h-9 w-full" />
   {:else if controller.devices.length === 0}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       icon={QrCodeIcon}
       title="No paired devices"
       description="Pair a phone or another browser to open Nerve from it."
     />
   {:else}
-    <SettingsList ariaLabel="Devices">
+    <PageList ariaLabel="Devices">
       {#each controller.devices as device (device.id)}
-        <SettingsItem
+        <PageItem
           title={device.name}
           summary={`${kindLabel(device.kind)} · ${methodLabel(device.method)} · ${
             device.current
@@ -142,9 +142,9 @@ const now = Date.now();
               />
             {/if}
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 </SettingsSection>
 
@@ -162,16 +162,16 @@ const now = Date.now();
     </Button>
   {/snippet}
   {#if controller.passkeys.length === 0}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       icon={Fingerprint}
       title="No passkeys"
       description="Add a passkey to sign in without a pairing code."
     />
   {:else}
-    <SettingsList ariaLabel="Passkeys">
+    <PageList ariaLabel="Passkeys">
       {#each controller.passkeys as passkey (passkey.id)}
-        <SettingsItem
+        <PageItem
           title={passkey.name}
           summary={passkey.lastUsedAt
             ? `Last used ${formatLastSeen(passkey.lastUsedAt, now)}`
@@ -188,9 +188,9 @@ const now = Date.now();
               }}
             />
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 </SettingsSection>
 
@@ -203,9 +203,9 @@ const now = Date.now();
   {#if controller.audit.length === 0}
     <p class="text-ui text-muted-foreground">Nothing recorded yet.</p>
   {:else}
-    <SettingsList ariaLabel="Recent access activity">
+    <PageList ariaLabel="Recent access activity">
       {#each controller.audit as event (`${event.at}-${event.type}-${event.deviceId ?? ""}`)}
-        <SettingsItem
+        <PageItem
           title={auditEventLabel(event)}
           summary={[new Date(event.at).toLocaleString(), event.ip, event.detail]
             .filter(Boolean)
@@ -216,9 +216,9 @@ const now = Date.now();
               <Badge variant="warning">Attention</Badge>
             {/if}
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 </SettingsSection>
 

@@ -5,7 +5,7 @@ import type {
   GitFileChange,
   GithubPrHeadsResponse,
 } from "@nervekit/contracts/git";
-import { buildPanelTree } from "$lib/presentation/panels/panel-tree";
+import { buildPanelTree } from "@nervekit/ui-kit/components/composites/panel/panel-tree";
 import {
   createGitPanelActions,
   canDeleteBranch,

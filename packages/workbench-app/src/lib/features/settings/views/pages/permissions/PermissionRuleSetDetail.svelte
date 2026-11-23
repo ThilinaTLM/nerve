@@ -4,6 +4,10 @@
   their Add rule, edit and trust controls.
 -->
 <script lang="ts">
+import {
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
 import type {
@@ -14,11 +18,7 @@ import type {
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
-import {
-  SettingsItem,
-  SettingsList,
-  SettingsSection,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import PermissionRuleSetBadges from "./PermissionRuleSetBadges.svelte";
 import {
   overridesFor,
@@ -82,18 +82,18 @@ function trustLabel(): string {
     title="Rules"
     description="Its own rules, read-only. Overrides below take precedence by priority."
   >
-    <SettingsList ariaLabel={`Rules in ${ruleSet.name}`}>
+    <PageList ariaLabel={`Rules in ${ruleSet.name}`}>
       {#each rules as rule (rule.id)}
-        <SettingsItem title={ruleTitle(rule)} summary={ruleSummary(rule)}>
+        <PageItem title={ruleTitle(rule)} summary={ruleSummary(rule)}>
           {#snippet badges()}
             {#if rule.enforcement === "guardrail"}<Badge variant="neutral"
                 >Guardrail</Badge
               >{/if}
             {#if !rule.enabled}<Badge variant="neutral">Disabled</Badge>{/if}
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   </SettingsSection>
 {/if}
 
@@ -143,9 +143,9 @@ function trustLabel(): string {
       </div>
     {/if}
     {#if overrides.length > 0}
-      <SettingsList ariaLabel={`${scope} overrides for ${ruleSet.name}`}>
+      <PageList ariaLabel={`${scope} overrides for ${ruleSet.name}`}>
         {#each overrides as rule (rule.id)}
-          <SettingsItem title={ruleTitle(rule)} summary={ruleSummary(rule)}>
+          <PageItem title={ruleTitle(rule)} summary={ruleSummary(rule)}>
             {#snippet badges()}
               {#if rule.enforcement === "guardrail"}<Badge variant="neutral"
                   >Guardrail</Badge
@@ -160,9 +160,9 @@ function trustLabel(): string {
                 onclick={() => onEdit(scope, rule)}
               />
             {/snippet}
-          </SettingsItem>
+          </PageItem>
         {/each}
-      </SettingsList>
+      </PageList>
     {:else}
       <p class="text-ui text-muted-foreground">
         No {scope} overrides. This rule set applies without changes here.

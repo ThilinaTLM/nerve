@@ -1,3 +1,8 @@
+<!--
+@component
+Element a `Tooltip.Root` describes.
+-->
+
 <script lang="ts" generics="T = never">
 import { Tooltip as TooltipPrimitive } from "bits-ui";
 

@@ -1,8 +1,10 @@
 <script lang="ts">
+import {
+  FieldRow,
+  ToggleRow,
+} from "@nervekit/ui-kit/components/composites/page";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
-import SettingsRow from "$lib/presentation/settings/SettingsRow.svelte";
-import SettingsToggleRow from "$lib/presentation/settings/SettingsToggleRow.svelte";
 
 type Props = {
   open?: boolean;
@@ -37,13 +39,13 @@ function openCleanUp(): void {
   {onOpenChange}
 >
   <div class="grid gap-3">
-    <SettingsToggleRow
+    <ToggleRow
       label="Hide completed conversations"
       description="Hide conversations you marked as done."
       checked={hideCompleted}
       onCheckedChange={onHideCompletedChange}
     />
-    <SettingsRow
+    <FieldRow
       label="Clean up conversations"
       description="Remove conversations by age or keep only the most recent."
     >
@@ -56,6 +58,6 @@ function openCleanUp(): void {
           Clean up
         </Button>
       {/snippet}
-    </SettingsRow>
+    </FieldRow>
   </div>
 </Dialog>

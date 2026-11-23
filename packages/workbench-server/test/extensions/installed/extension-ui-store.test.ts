@@ -11,20 +11,19 @@ import {
 useWorldRoot();
 
 void test(
-  "extensionStore bridge methods round-trip, report conflicts and carry the frame's origin",
+  "store bridge methods round-trip, report conflicts and carry the frame's origin",
   { skip },
   async () => {
     const w = await world();
     const page = { kind: "page" as const, id: "explorer" };
     const origin = { origin: "frame-1" };
-    assert.deepEqual(await call(w, "extensionStore.get", page, { key: "a" }), {
-      value: null,
-      revision: null,
+    assert.deepEqual(await call(w, "store.get", page, { key: "a" }), {
+      entry: null,
     });
     assert.deepEqual(
       await call(
         w,
-        "extensionStore.set",
+        "store.set",
         page,
         { key: "a", value: { n: 1 }, ifRevision: 0 },
         origin,
@@ -32,28 +31,22 @@ void test(
       { revision: 1 },
     );
     await rejects(
-      call(w, "extensionStore.set", page, {
+      call(w, "store.set", page, {
         key: "a",
         value: 2,
         ifRevision: 0,
       }),
       "conflict",
     );
-    assert.deepEqual(await call(w, "extensionStore.keys", page, {}), {
+    assert.deepEqual(await call(w, "store.keys", page, {}), {
       keys: [{ key: "a", revision: 1, size: 7 }],
     });
     // The store is per project.
     assert.deepEqual(
-      await call(
-        w,
-        "extensionStore.get",
-        page,
-        { key: "a" },
-        { projectId: "p2" },
-      ),
-      { value: null, revision: null },
+      await call(w, "store.get", page, { key: "a" }, { projectId: "p2" }),
+      { entry: null },
     );
-    await call(w, "extensionStore.delete", page, { key: "a" });
+    await call(w, "store.delete", page, { key: "a" });
     assert.deepEqual(w.changes, [
       {
         extensionId: "ui-probe",

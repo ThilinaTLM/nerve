@@ -1,4 +1,5 @@
 <script lang="ts">
+import { PageItem } from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
 import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -10,7 +11,6 @@ import type {
 } from "$lib/api";
 import { deleteModelDefinition } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
@@ -128,7 +128,7 @@ async function confirmDelete(): Promise<void> {
   onAdd={openAdd}
 >
   {#snippet row(model)}
-    <SettingsItem
+    <PageItem
       title={model.name}
       summary={`${providerLabel(model.provider)} · ${model.modelId}${model.reasoning ? " · Reasoning" : ""}`}
       problem={isUnavailable(model)
@@ -149,7 +149,7 @@ async function confirmDelete(): Promise<void> {
           onclick={() => (pendingDelete = model)}
         />
       {/snippet}
-    </SettingsItem>
+    </PageItem>
   {/snippet}
   {#snippet below()}
     {#if deleteError}<Callout

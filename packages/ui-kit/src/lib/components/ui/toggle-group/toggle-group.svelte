@@ -1,3 +1,8 @@
+<!--
+@component
+Toggle button group root: `type` is `single` or `multiple`, `bind:value`. Holds `ToggleGroup.Item`s.
+-->
+
 <script lang="ts" module>
 import { getContext, setContext } from "svelte";
 import type { VariantProps } from "tailwind-variants";
@@ -55,6 +60,7 @@ let {
   ...restProps
 }: ToggleGroupPrimitive.RootProps &
   ToggleVariants & {
+    /** Gap between the buttons, in spacing units (default 0: joined buttons). */
     spacing?: number;
     orientation?: "horizontal" | "vertical";
   } = $props();

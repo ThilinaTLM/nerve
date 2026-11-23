@@ -28,7 +28,7 @@ export type ExtensionViewOptions = {
   projectDirectory?(projectId: string): string | undefined;
   accounts: AccountScopes;
   models?: ModelHosts;
-  /** The durable store behind `ctx.extensionStore` in availability hooks of a project's extensions. */
+  /** The durable store behind `ctx.store` in availability hooks of a project's extensions. */
   extensionStore?: ExtensionStore;
 };
 

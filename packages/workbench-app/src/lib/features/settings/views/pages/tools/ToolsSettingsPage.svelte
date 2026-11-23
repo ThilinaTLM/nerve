@@ -1,4 +1,5 @@
 <script lang="ts">
+import { PageItem } from "@nervekit/ui-kit/components/composites/page";
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import { visibleAccounts } from "../accounts/accounts-view";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
@@ -41,7 +42,6 @@ import {
   OriginGroup,
   ProjectOverrideMark,
   SETTINGS_SEARCH_MIN,
-  SettingsItem,
   type SettingsLayer,
 } from "$lib/presentation/settings";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
@@ -394,7 +394,7 @@ const python = $derived(status?.runtime.python);
     {#each shownRows as row (row.id)}
       {@const fromExtension = extensionState(row.id)}
       {@const link = toolSettingsLink(row.id)}
-      <SettingsItem
+      <PageItem
         title={row.label}
         icon={toolIcons[row.id] ?? Wrench}
         summary={fromExtension?.summary ?? rowSummary(row)}
@@ -437,7 +437,7 @@ const python = $derived(status?.runtime.python);
             )}
           {/if}
         {/snippet}
-      </SettingsItem>
+      </PageItem>
     {/each}
   </OriginGroup>
 
@@ -468,7 +468,7 @@ const python = $derived(status?.runtime.python);
         {#snippet mark()}
           {#if group.icon}<ExtensionMark icon={group.icon} />{/if}
         {/snippet}
-        <SettingsItem
+        <PageItem
           title={toolLabel(tool.name)}
           icon={group.icon ? undefined : Blocks}
           leading={group.icon ? mark : undefined}
@@ -506,7 +506,7 @@ const python = $derived(status?.runtime.python);
               >
             {/if}
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
     </OriginGroup>
   {/each}

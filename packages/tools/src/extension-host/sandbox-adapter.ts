@@ -192,19 +192,18 @@ const SERVICES: Record<string, Service> = {
     ctx.artifacts.freshName(text(base, "base"), text(extension, "extension")),
   "text.htmlToMarkdown": (ctx, [html]) =>
     ctx.text.htmlToMarkdown(text(html, "html")),
-  "extensionStore.get": (ctx, [key]) =>
-    ctx.extensionStore.get(text(key, "key")),
-  "extensionStore.set": (ctx, [key, value, options]) =>
-    ctx.extensionStore.set(text(key, "key"), value, ifRevisionOf(options)),
-  "extensionStore.delete": (ctx, [key, options]) =>
-    ctx.extensionStore.delete(text(key, "key"), ifRevisionOf(options)),
-  "extensionStore.keys": (ctx, [options]) => {
+  "store.get": (ctx, [key]) => ctx.store.get(text(key, "key")),
+  "store.set": (ctx, [key, value, options]) =>
+    ctx.store.set(text(key, "key"), value, ifRevisionOf(options)),
+  "store.delete": (ctx, [key, options]) =>
+    ctx.store.delete(text(key, "key"), ifRevisionOf(options)),
+  "store.keys": (ctx, [options]) => {
     const prefix = (
       options === undefined || options === null
         ? {}
         : record(options, "options")
     ).prefix;
-    return ctx.extensionStore.keys(
+    return ctx.store.keys(
       prefix === undefined || prefix === null
         ? {}
         : { prefix: text(prefix, "prefix") },

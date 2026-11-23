@@ -195,7 +195,14 @@ class InProcessExtensionCode implements ExtensionCode {
     tool: string,
     output: unknown,
   ): Promise<CodePresentation | undefined> {
-    return this.#tool(tool).present?.(output);
+    const definition = this.definition.tools?.find(
+      (candidate) => candidate.name === tool,
+    );
+    if (!definition)
+      throw new Error(`${this.definition.id}: unknown tool ${tool}.`);
+    return (
+      definition as { present?(output: unknown): CodePresentation }
+    ).present?.(output);
   }
 
   async configuration(namespace: string): Promise<string | undefined> {

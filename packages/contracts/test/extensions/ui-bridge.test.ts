@@ -22,8 +22,11 @@ const request = (method: string, params?: unknown) =>
 
 test("envelopes are versioned and strict", () => {
   assert.equal(
-    bridgeRequestSchema.safeParse({ type: "request", id: "1", method: "call" })
-      .success,
+    bridgeRequestSchema.safeParse({
+      type: "request",
+      id: "1",
+      method: "backend.call",
+    }).success,
     false,
   );
   assert.equal(
@@ -75,11 +78,7 @@ test("methods are limited by contribution kind and edit mode", () => {
     isBridgeMethodAllowed("file.write", { kind: "preview", edit: "custom" }),
     true,
   );
-  assert.equal(
-    isBridgeMethodAllowed("mode.get", { kind: "preview", edit: "custom" }),
-    true,
-  );
-  assert.equal(isBridgeMethodAllowed("call", { kind: "panel" }), true);
+  assert.equal(isBridgeMethodAllowed("backend.call", { kind: "panel" }), true);
   assert.equal(bridgeMethodNames.length, 22);
 });
 
@@ -93,19 +92,19 @@ test("requests are validated against the method", () => {
   assert.equal(!denied.ok && denied.error.code, "not_allowed");
   assert.equal(
     validateBridgeRequest(
-      request("call", { method: "csv.sum", args: { a: 1 } }),
+      request("backend.call", { method: "csv.sum", args: { a: 1 } }),
       page,
     ).ok,
     true,
   );
   const bad = validateBridgeRequest(
-    request("openPage", { id: "Bad Id" }),
+    request("pages.open", { id: "Bad Id" }),
     page,
   );
   assert.equal(!bad.ok && bad.error.code, "invalid_request");
   const big = validateBridgeRequest(
-    request("viewState.set", {
-      state: "x".repeat(bridgeLimits.maxViewStateBytes),
+    request("tabState.set", {
+      state: "x".repeat(bridgeLimits.maxTabStateBytes),
     }),
     page,
   );
@@ -121,7 +120,7 @@ test("requests are validated against the method", () => {
 
 test("store keys are file-name safe and writes take an optional revision", () => {
   const valid = (params: unknown) =>
-    validateBridgeRequest(request("extensionStore.set", params), {
+    validateBridgeRequest(request("store.set", params), {
       kind: "page",
     }).ok;
   assert.equal(valid({ key: "drawing-1.v2", value: { a: 1 } }), true);
@@ -168,6 +167,78 @@ test("frame errors are a bounded envelope without an id", () => {
       type: "frameError",
       error: { kind: "csp", message: "x".repeat(1001) },
     }).success,
+    false,
+  );
+});
+
+test("menus take the whole tree within the limits, picks take bounded items", () => {
+  const page = { kind: "page" } as const;
+  const anchor = { x: 4, y: 8, width: 20 };
+  const item = (id: string) => ({ id, label: id });
+  const menu = (entries: unknown[]) =>
+    validateBridgeRequest(request("ui.menu", { entries, anchor }), page);
+  assert.equal(
+    menu([
+      { type: "label", label: "File" },
+      { ...item("a"), icon: "file-text", checked: true, shortcut: "Ctrl+A" },
+      { type: "separator" },
+      {
+        type: "submenu",
+        label: "More",
+        items: [{ type: "submenu", label: "Deep", items: [item("b")] }],
+      },
+    ]).ok,
+    true,
+  );
+  const failure = (entries: unknown[]) => {
+    const result = menu(entries);
+    return !result.ok && result.error.code === "invalid_request"
+      ? result.error.message
+      : undefined;
+  };
+  // Three levels of submenus, duplicate ids, nothing to choose, too many entries, bad icon names.
+  const sub = (items: unknown[]) => ({ type: "submenu", label: "S", items });
+  assert.match(
+    failure([sub([sub([sub([item("a")])])])]) ?? "",
+    /nest at most 2/,
+  );
+  assert.match(failure([item("a"), item("a")]) ?? "", /used twice/);
+  assert.match(failure([{ type: "separator" }]) ?? "", /no item/);
+  assert.match(
+    failure(
+      Array.from({ length: bridgeLimits.maxMenuEntries + 1 }, (_, i) =>
+        item(`i${i}`),
+      ),
+    ) ?? "",
+    /limit is 200/,
+  );
+  assert.ok(failure([{ ...item("a"), icon: "No Such Icon!" }]));
+
+  const pick = (params: unknown) =>
+    validateBridgeRequest(request("ui.pick", params), page);
+  const items = [item("a"), item("b")];
+  assert.equal(
+    pick({ ariaLabel: "Pick", mode: "multiple", items, selected: ["a", "b"] })
+      .ok,
+    true,
+  );
+  assert.equal(
+    pick({ ariaLabel: "Pick", mode: "single", items, selected: ["a", "b"] }).ok,
+    false,
+  );
+  assert.equal(
+    pick({ ariaLabel: "Pick", mode: "single", items: [item("a"), item("a")] })
+      .ok,
+    false,
+  );
+  assert.equal(
+    pick({
+      ariaLabel: "Pick",
+      mode: "single",
+      items: Array.from({ length: bridgeLimits.maxPickItems + 1 }, (_, i) =>
+        item(`i${i}`),
+      ),
+    }).ok,
     false,
   );
 });

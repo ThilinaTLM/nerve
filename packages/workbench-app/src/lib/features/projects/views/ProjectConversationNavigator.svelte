@@ -17,7 +17,7 @@ import {
   PanelList,
   PanelToolbarButton,
   PanelView,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import {
   buildConversationSections,
   limitConversationSections,

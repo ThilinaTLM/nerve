@@ -61,4 +61,6 @@ test-results/
 
 # Raw screenshot captures (see packages/website/scripts/screenshots/README.md)
 packages/website/.screenshots/
-data
+
+# Scratch output of the SDK component declaration generator
+packages/extension-sdk/.components-*

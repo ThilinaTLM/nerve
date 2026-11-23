@@ -1,3 +1,8 @@
+<!--
+@component
+Icon button of a floating bar, with a tooltip. The tooltip is clipped by a sandboxed frame, so keep buttons off the edge it points past.
+-->
+
 <script lang="ts">
 import type { Component } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -18,12 +23,15 @@ type Props = {
   shortcut?: string;
   /** Toggle state; leave unset for a plain action. */
   pressed?: boolean;
+  /** Not activatable. */
   disabled?: boolean;
   /** Swaps the icon for a spinner and blocks activation. */
   busy?: boolean;
+  /** `neutral` (default) or `destructive`. */
   tone?: "neutral" | "destructive";
   /** Tooltip side; default: away from the anchor edge. */
   side?: "top" | "right" | "bottom" | "left";
+  /** Called on activation. */
   onclick?: (event: MouseEvent) => void;
   /** Forwarded to the button, e.g. trigger props of a popover. */
   [key: string]: unknown;

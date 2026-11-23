@@ -75,8 +75,9 @@ export interface ValidationPlan {
   commands: PlanStep[];
 }
 
+// `prepare:declarations` generates declarations `tsc` needs as inputs (the SDK's components).
 const typescriptCheck =
-  /^tsc -b(?: --pretty false)?(?: && pnpm check:native)?$/;
+  /^(?:pnpm prepare:declarations && )?tsc -b(?: --pretty false)?(?: && pnpm check:native)?$/;
 const nativeTypescriptCheck =
   /^(?:pnpm check:boundaries && )?tsc -b(?: --pretty false)?(?: && pnpm check:native)?$/;
 const hasTypescriptCheck = (name: string, scripts: Record<string, string>) =>
@@ -345,16 +346,27 @@ function prepareCommands(sel: Selection): PlanStep[] {
             .map((path) => packageForPath(path, workspace!))
             .filter((name): name is string => Boolean(name)),
         );
-  const prepare = emittedProjects(
-    root,
-    dependencyClosure(new Set([...sel.packages, ...lintOwners]), workspace!),
+  const closure = dependencyClosure(
+    new Set([...sel.packages, ...lintOwners]),
     workspace!,
   );
+  const prepare = emittedProjects(root, closure, workspace!);
   if (!prepare.length) return [];
+  // Declarations that are inputs of `tsc -b` come first.
+  const generators = sorted(closure)
+    .filter((name) => workspace!.get(name)!.scripts["prepare:declarations"])
+    .map((name) =>
+      step(
+        "prepare",
+        ["--filter", name, "run", "prepare:declarations"],
+        "Generate the declarations the package's TypeScript project reads.",
+      ),
+    );
   stages.prepare = stage("packages", prepare, [
     "Prepare incremental declarations before typed lint and consumer checks.",
   ]);
   return [
+    ...generators,
     step(
       "prepare",
       ["exec", "tsc", "-b", "--pretty", "false", ...prepare],

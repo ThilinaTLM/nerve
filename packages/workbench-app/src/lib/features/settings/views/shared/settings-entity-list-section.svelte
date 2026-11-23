@@ -1,11 +1,11 @@
 <script lang="ts" generics="T">
+import {
+  PageEmptyState,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import type { Snippet } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import {
-  SettingsEmptyState,
-  SettingsList,
-  SettingsSection,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 
 type Props<T> = {
   sectionId: string;
@@ -18,7 +18,7 @@ type Props<T> = {
   items: T[];
   listAriaLabel: string;
   itemKey: (item: T) => string;
-  /** Renders a single `SettingsItem` row for each item. */
+  /** Renders a single `PageItem` row for each item. */
   row: Snippet<[T]>;
   /** Extra content below the list/empty state (e.g. inline warnings). */
   below?: Snippet;
@@ -57,17 +57,17 @@ let {
   {/snippet}
 
   {#if items.length === 0}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       title={emptyTitle}
       description={emptyDescription}
     />
   {:else}
-    <SettingsList ariaLabel={listAriaLabel}>
+    <PageList ariaLabel={listAriaLabel}>
       {#each items as item (itemKey(item))}
         {@render row(item)}
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 
   {#if below}

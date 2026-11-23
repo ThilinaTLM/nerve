@@ -113,6 +113,25 @@ test("app edits prepare dependency declarations and run only affected package ch
   assert.equal(hasCommand(plan, "build"), false);
 });
 
+test("a package that generates declarations for its TypeScript project does so before tsc", (t) => {
+  const f = fixture(t);
+  f.pkg("sdk", [], {
+    scripts: {
+      check: "pnpm prepare:declarations && tsc -b --pretty false",
+      "prepare:declarations": "node scripts/generate.ts",
+    },
+  });
+  const plan = f.select("check", ["packages/sdk/src/index.ts"]);
+  assert.equal(plan.mode, "focused");
+  assert.deepEqual(plan.commands[0].args, [
+    "--filter",
+    "@nervekit/sdk",
+    "run",
+    "prepare:declarations",
+  ]);
+  assert.equal(plan.commands[1].args[1], "tsc");
+});
+
 test("prerequisite plan prepares dependency declarations on a clean checkout", (t) => {
   const f = fixture(t);
   f.pkg("contracts");

@@ -27,6 +27,7 @@ const page = $derived(
     {projectId}
     extensionId={page.extensionId}
     extensionName={page.extensionName}
+    extensionIconName={page.icon}
     contribution={{ kind: "page", id: page.id }}
     frameUrl={page.frameUrl}
     baseCssUrl={contributions.baseCssUrl}

@@ -9,7 +9,7 @@ An extension is one self-contained folder; `dist/` is what Nerve reads.
 
 If both have the same id, the project one wins and the user one shows as `shadowed`. A built-in id cannot be reused.
 
-`extensionStore` data is kept by the daemon under the extension id, not in the folder: it survives moving the extension between scopes and removing it, is deleted with the project, and is never shared through the repository.
+`ctx.store` data is kept by the daemon under the extension id, not in the folder: it survives moving the extension between scopes and removing it, is deleted with the project, and is never shared through the repository.
 
 ## Share with a team (project scope)
 
@@ -24,4 +24,4 @@ Send the sources without `node_modules/` and `dist/`. The receiver copies the fo
 
 ## Updates
 
-Rebuild with `nerve-ext check`, bump `version` in `package.json` for releases, and reload. After a Nerve update that breaks extensions, `extensions.status` shows `incompatible`; run `scripts/upgrade-extension.mjs`. An extension is built with the SDK of the Nerve that created or upgraded it. It loads on that Nerve version or newer, until a Nerve release changes the extension API; it then needs the upgrade script.
+Rebuild with `nerve-ext check`, bump `version` in `package.json` for releases, and reload. An extension built with an SDK newer than this Nerve, or older than its `oldestCompatibleSdkVersion`, is `incompatible` in `extensions.status` and does not load; run `scripts/upgrade-extension.mjs`, which upgrades the SDK and rebuilds.

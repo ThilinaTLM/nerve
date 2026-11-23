@@ -20,7 +20,7 @@ const focus = getContext<ContextMenuFocusControl | undefined>(
   {#if item.type === "separator"}
     <ContextMenuListSeparator />
   {:else if item.type === "label"}
-    <ContextMenuListLabel label={item.label} />
+    <ContextMenuListLabel label={item.label} icon={item.icon} />
   {:else if item.type === "submenu"}
     <ContextMenuListSub
       label={item.label}
@@ -33,6 +33,7 @@ const focus = getContext<ContextMenuFocusControl | undefined>(
       label={item.label}
       icon={item.icon}
       shortcut={item.shortcut}
+      checked={item.checked}
       disabled={item.disabled}
       destructive={item.destructive}
       onSelect={() => {

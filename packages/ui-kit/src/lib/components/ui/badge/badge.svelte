@@ -1,9 +1,15 @@
+<!--
+@component
+Small chip. Meaning is carried by its text or an icon, not by colour alone. A link with `href`, a button with `onclick`.
+-->
+
 <script lang="ts" module>
 import type { VariantProps } from "tailwind-variants";
 import { cn, tv, type WithElementRef } from "@nervekit/ui-kit/utils";
 
 /* One chip primitive: one colour axis, one height, always borderless.
  * Status meaning is carried by text or an icon, never by colour alone. */
+/** Class string of a badge for other elements: `badgeVariants({ variant, class })`. */
 export const badgeVariants = tv({
   base: "h-5 gap-1 rounded-md border border-transparent px-1.5 py-px text-caption transition-all has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&>svg]:size-3! focus-visible:border-ring focus-visible:ring-focus aria-invalid:ring-destructive-strong aria-invalid:border-destructive aria-invalid:ring-3 group/badge inline-flex w-fit shrink-0 items-center justify-center-safe overflow-hidden whitespace-nowrap transition-colors focus-visible:ring-3 [&>svg]:pointer-events-none",
   variants: {
@@ -63,6 +69,7 @@ let {
   ...restProps
 }: WithElementRef<HTMLAnchorAttributes> &
   WithElementRef<HTMLButtonAttributes> & {
+    /** Tone (default `neutral`): `neutral`, `brand`, `info`, `success`, `warning`, `destructive`. */
     variant?: BadgeVariant;
   } = $props();
 </script>

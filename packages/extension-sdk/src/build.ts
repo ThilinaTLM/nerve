@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +17,9 @@ import {
 } from "@nervekit/extension-api/host";
 import { createHash } from "node:crypto";
 import {
+  agentTextProblems,
   extensionLucideIconSchema,
+  extensionFileLimits,
   extensionUiLimits,
   installedExtensionManifestSchema,
   installedNamingDiagnostics,
@@ -48,9 +51,6 @@ export type BuildResult = {
 
 /** Limits the host enforces when it reads `dist/`; checking them here fails the build, not the install. */
 const maxBackendBytes = 8 * 1024 * 1024;
-const maxManifestBytes = 1024 * 1024;
-const maxDocBytes = 256 * 1024;
-const maxIconBytes = 16 * 1024;
 
 /** The SDK's own version, written to the manifest as `sdkVersion`. */
 export async function sdkVersion(): Promise<string> {
@@ -313,11 +313,9 @@ function manifestProblems(
     const field = unknownKeys
       ? `${path ? `${path}.` : ""}${unknownKeys.join(", ")}`
       : path || "(definition)";
-    const unsupported = unknownKeys?.includes("prelude")
-      ? "Installed extensions cannot add helper code to the script sandbox; remove `prelude`."
-      : path.startsWith("ui")
-        ? uiFix(issue.path, issue.message)
-        : undefined;
+    const unsupported = path.startsWith("ui")
+      ? uiFix(issue.path, issue.message)
+      : undefined;
     return {
       what: unknownKeys
         ? `Unknown field ${field} in the extension definition.`
@@ -400,9 +398,9 @@ async function copyAssets(
         where: `src/extension.ts: icon: ${JSON.stringify(manifest.icon)}`,
         fix: `Create ${manifest.icon} in the extension folder (a square SVG up to 16 KB), or use a lucide icon name such as "blocks".`,
       });
-    else if ((await stat(source)).size > maxIconBytes)
+    else if ((await stat(source)).size > extensionFileLimits.iconBytes)
       problems.push({
-        what: `The icon file '${manifest.icon}' is larger than ${maxIconBytes} bytes.`,
+        what: `The icon file '${manifest.icon}' is larger than ${extensionFileLimits.iconBytes} bytes.`,
         where: source,
         fix: "Simplify or optimise the SVG.",
       });
@@ -420,9 +418,9 @@ async function copyAssets(
           where: `src/extension.ts: namespace ${namespace.id}, docs[].file`,
           fix: `Create ${topic.file} in the extension folder (the docs/ folder is copied to dist/docs/).`,
         });
-      else if ((await stat(file)).size > maxDocBytes)
+      else if ((await stat(file)).size > extensionFileLimits.docBytes)
         problems.push({
-          what: `Doc topic file '${topic.file}' is larger than ${maxDocBytes} bytes.`,
+          what: `Doc topic file '${topic.file}' is larger than ${extensionFileLimits.docBytes} bytes.`,
           where: join(projectDir, topic.file),
           fix: "Split the topic into smaller topics.",
         });
@@ -522,6 +520,15 @@ export async function buildExtension(
     : manifestProblems(parsed.error.issues as never);
   if (parsed.success) problems.push(...declarationProblems(definition));
   if (parsed.success)
+    for (const message of agentTextProblems(parsed.data, (file) =>
+      readFileSync(join(projectDir, file), "utf8"),
+    ))
+      problems.push({
+        what: message,
+        where: "src/extension.ts",
+        fix: "Shorten the text; keep detail in a doc topic (docs/).",
+      });
+  if (parsed.success)
     for (const diagnostic of installedNamingDiagnostics(parsed.data))
       problems.push({
         what: diagnostic.message,
@@ -561,9 +568,9 @@ export async function buildExtension(
   if (problems.length > 0) throw new ExtensionProjectError(problems);
 
   const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
-  if (Buffer.byteLength(manifestText) > maxManifestBytes)
+  if (Buffer.byteLength(manifestText) > extensionFileLimits.manifestBytes)
     throw new ExtensionProjectError({
-      what: `dist/manifest.json would be larger than ${maxManifestBytes} bytes.`,
+      what: `dist/manifest.json would be larger than ${extensionFileLimits.manifestBytes} bytes.`,
       where: "src/extension.ts",
       fix: "Shorten the namespace `types` and descriptions, or move text into doc topics (docs/).",
     });

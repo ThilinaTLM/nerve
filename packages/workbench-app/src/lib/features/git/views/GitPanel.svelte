@@ -3,8 +3,8 @@ import type { Activity } from "@nervekit/contracts/activity";
 import type { GitRepoSummary, GitStashEntry } from "@nervekit/contracts/git";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
-import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import { SearchInput } from "@nervekit/ui-kit/components/composites/search-input";
+import { PanelFilterBar } from "@nervekit/ui-kit/components/composites/panel-filter-bar";
+import { PanelSection } from "@nervekit/ui-kit/components/composites/panel-section";
 import { GithubMark } from "@nervekit/ui-kit/components/composites/github-mark";
 import { SvelteSet } from "svelte/reactivity";
 import { tick, type Component } from "svelte";
@@ -40,7 +40,7 @@ import {
   PanelEmpty,
   PanelToolbarButton,
   PanelView,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { gitProjectView } from "../state/git-panel-view-state.svelte";
@@ -688,32 +688,6 @@ const stashesDisabled = (repo: GitRepoSummary) =>
   {/if}
 {/snippet}
 
-<!-- Section header: a button that collapses the section; the line stays
-     visible as the collapsed state. -->
-{#snippet sectionToggle(
-  open: boolean,
-  toggle: () => void,
-  label: import("svelte").Snippet,
-)}
-  <button
-    type="button"
-    class="group/section flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 self-stretch rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-focus"
-    aria-expanded={open}
-    onclick={toggle}
-  >
-    {#if open}
-      <ChevronDown
-        class="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover/section:text-foreground"
-      />
-    {:else}
-      <ChevronRight
-        class="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover/section:text-foreground"
-      />
-    {/if}
-    {@render label()}
-  </button>
-{/snippet}
-
 {#snippet branchSection(
   open: boolean,
   toggle: () => void,
@@ -721,199 +695,192 @@ const stashesDisabled = (repo: GitRepoSummary) =>
   overflows: boolean,
 )}
   {@const repo = selectedRepo}
-  <div class="flex h-full min-h-0 flex-col text-ui">
-    <div class="flex h-8 shrink-0 items-center gap-1">
-      {#snippet label()}
-        {#if repo}
-          {@render remoteIcon(repo)}
-          <!-- The name keeps priority (up to half the line) over the branch. -->
-          <span
-            class="max-w-1/2 shrink-0 truncate font-medium"
-            title={repo.absDir}>{repo.name}</span
-          >
-          <!-- Expanded, the selector below shows the branch. -->
-          {#if !open}
-            <span
-              class="min-w-0 shrink truncate text-muted-foreground"
-              title={repo.currentBranch ?? "detached"}
-              >{repo.currentBranch ?? "detached"}</span
-            >
-          {/if}
-        {:else}
-          <span class="font-medium">Selected branch</span>
-        {/if}
-      {/snippet}
-      {@render sectionToggle(open, toggle, label)}
-      {#if repo}
-        <span class="flex shrink-0 items-center gap-0.5"
-          >{@render branchActions(repo)}</span
+  {#snippet branchLabel()}
+    {#if repo}
+      {@render remoteIcon(repo)}
+      <!-- The name keeps priority (up to half the line) over the branch. -->
+      <span class="max-w-1/2 shrink-0 truncate font-medium" title={repo.absDir}
+        >{repo.name}</span
+      >
+      <!-- Expanded, the selector below shows the branch. -->
+      {#if !open}
+        <span
+          class="min-w-0 shrink truncate text-muted-foreground"
+          title={repo.currentBranch ?? "detached"}
+          >{repo.currentBranch ?? "detached"}</span
         >
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger>
-            {#snippet child({ props })}
-              <Button
-                {...props}
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Branch actions"
-                ><MoreHorizontal aria-hidden="true" /></Button
-              >
-            {/snippet}
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="end"
-            >{@render branchMenuItems(repo, false)}</DropdownMenu.Content
-          >
-        </DropdownMenu.Root>
+      {/if}
+    {:else}
+      <span class="font-medium">Selected branch</span>
+    {/if}
+  {/snippet}
+  {#snippet branchHeaderActions()}
+    {#if repo}
+      <span class="flex shrink-0 items-center gap-0.5"
+        >{@render branchActions(repo)}</span
+      >
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Branch actions"
+              ><MoreHorizontal aria-hidden="true" /></Button
+            >
+          {/snippet}
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content align="end"
+          >{@render branchMenuItems(repo, false)}</DropdownMenu.Content
+        >
+      </DropdownMenu.Root>
+    {/if}
+  {/snippet}
+  <PanelSection
+    {open}
+    onOpenChange={toggle}
+    keepMounted
+    class="h-full min-h-0"
+    bodyClass={cn(
+      "min-h-0 flex-1",
+      overflows ? "overflow-y-auto" : "overflow-hidden",
+    )}
+    label={branchLabel}
+    actions={branchHeaderActions}
+  >
+    <!-- Natural content height: the layout fits the section to it. -->
+    <div class="flex flex-col gap-1.5 pb-2" {@attach measure}>
+      {#if repo}
+        <GitBranchSelector
+          bind:this={selector}
+          {model}
+          {actions}
+          {repo}
+          checkedOutIn={selectedElsewhere}
+        />
+        {@const failure = model.lastRemoteFailure?.(repo.relativePath)}
+        {#if failure}
+          <p class="text-caption break-words text-destructive">
+            {failure.error?.message ?? failure.message ?? "Operation failed."}
+          </p>
+        {/if}
+        {#if model.currentBranchPr}
+          {@const pr = model.currentBranchPr}
+          <GitPullRequestRow
+            {pr}
+            expanded={expandedPr === pr.number}
+            checkedOut
+            disabled={!model.capabilities.openPullRequest.enabled}
+            disabledReason={model.capabilities.openPullRequest.enabled
+              ? undefined
+              : model.capabilities.openPullRequest.reason}
+            onOpen={() =>
+              void actions.openPullRequest(model.selectedRepository, pr.number)}
+            onToggleChecks={() =>
+              (expandedPr = expandedPr === pr.number ? undefined : pr.number)}
+          />
+        {:else if model.awaitingPullRequest}
+          <p class="text-ui text-muted-foreground">
+            {#if model.expectedPullRequestUrl}<a
+                class="hover:text-foreground"
+                href={model.expectedPullRequestUrl}
+                target="_blank"
+                rel="noreferrer">Waiting for pull request…</a
+              >{:else}Waiting for pull request…{/if}
+          </p>
+        {/if}
       {/if}
     </div>
-    <div
-      class={cn(
-        "min-h-0 flex-1",
-        overflows ? "overflow-y-auto" : "overflow-hidden",
-      )}
-      inert={!open}
-    >
-      <!-- Natural content height: the layout fits the section to it. -->
-      <div class="flex flex-col gap-1.5 pb-2" {@attach measure}>
-        {#if repo}
-          <GitBranchSelector
-            bind:this={selector}
-            {model}
-            {actions}
-            {repo}
-            checkedOutIn={selectedElsewhere}
-          />
-          {@const failure = model.lastRemoteFailure?.(repo.relativePath)}
-          {#if failure}
-            <p class="text-caption break-words text-destructive">
-              {failure.error?.message ?? failure.message ?? "Operation failed."}
-            </p>
-          {/if}
-          {#if model.currentBranchPr}
-            {@const pr = model.currentBranchPr}
-            <GitPullRequestRow
-              {pr}
-              expanded={expandedPr === pr.number}
-              checkedOut
-              disabled={!model.capabilities.openPullRequest.enabled}
-              disabledReason={model.capabilities.openPullRequest.enabled
-                ? undefined
-                : model.capabilities.openPullRequest.reason}
-              onOpen={() =>
-                void actions.openPullRequest(
-                  model.selectedRepository,
-                  pr.number,
-                )}
-              onToggleChecks={() =>
-                (expandedPr = expandedPr === pr.number ? undefined : pr.number)}
-            />
-          {:else if model.awaitingPullRequest}
-            <p class="text-ui text-muted-foreground">
-              {#if model.expectedPullRequestUrl}<a
-                  class="hover:text-foreground"
-                  href={model.expectedPullRequestUrl}
-                  target="_blank"
-                  rel="noreferrer">Waiting for pull request…</a
-                >{:else}Waiting for pull request…{/if}
-            </p>
-          {/if}
-        {/if}
-      </div>
-    </div>
-  </div>
+  </PanelSection>
 {/snippet}
 
 {#snippet changesSection(open: boolean, toggle: () => void)}
   {@const count = model.changes?.files.length ?? selectedRepo?.changeCount ?? 0}
   {@const staged = model.changes?.stagedCount ?? 0}
-  <div class="flex h-full min-h-0 flex-col text-ui">
-    <div class="flex h-8 shrink-0 items-center gap-1.5">
-      {#snippet label()}
-        <span class="font-medium">Changes</span>
-        <span class="text-muted-foreground tabular-nums">{count || "none"}</span
-        >
-        <span class="flex-1"></span>
-        {#if staged > 0}
-          <span class="pr-1 text-caption text-muted-foreground"
-            >{staged} staged</span
-          >
-        {/if}
-      {/snippet}
-      {@render sectionToggle(open, toggle, label)}
-      <!-- Stashes sit with the changes they came from and are shared by every
+  {#snippet stagedMeta()}{staged} staged{/snippet}
+  {#snippet changesHeaderActions()}
+    <!-- Stashes sit with the changes they came from and are shared by every
            worktree of the repository. -->
-      {#if selectedRepo && stashCountOf(selectedRepo) > 0}
-        {@const repo = selectedRepo}
-        {@const stashCount = stashCountOf(repo)}
-        {@const noun = stashCount === 1 ? "stash" : "stashes"}
-        <Tooltip.Root>
-          <Tooltip.Trigger>
-            {#snippet child({ props })}
-              <Button
-                {...props}
-                variant="ghost"
-                size="sm"
-                class="gap-1 px-1.5 text-muted-foreground tabular-nums hover:text-foreground"
-                disabled={stashesDisabled(repo)}
-                aria-label={`${stashCount} ${noun} in ${repo.name} (shared by all worktrees). Open stashes`}
-                onclick={() => void openStashes(repo)}
-                ><Archive aria-hidden="true" />{stashCount}</Button
-              >
-            {/snippet}
-          </Tooltip.Trigger>
-          <Tooltip.Content
-            >{stashCount}
-            {noun} in {repo.name} (shared by all worktrees). Open stashes</Tooltip.Content
-          >
-        </Tooltip.Root>
-      {/if}
-    </div>
-    <div
-      class="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2"
-      inert={!open}
-    >
-      {#if count > 0 || (model.changes?.files.length ?? 0) > 0}
-        <GitChangesArea
-          changes={model.changes}
-          stagedFiles={fileGroups.staged}
-          unstagedFiles={fileGroups.unstaged}
-          fileMutation={model.operations.fileMutation}
-          bulkMutation={model.operations.bulkMutation}
-          stashMutation={model.operations.stashMutation}
-          collapsedFolders={model.collapsedChangeTreeFolders}
-          selectedRepo={model.selectedRepository}
-          capabilities={model.capabilities}
-          onOpenDiff={(repository, file, area) =>
-            void actions.openDiff(repository, file, area)}
-          onMutateFile={(repository, file, action) =>
-            void actions.mutateFile(repository, file, action)}
-          onMutateScope={(repository, area, action, path) =>
-            void actions.mutateFileScope(repository, area, action, path)}
-          onCreateStash={(repository, area, path) =>
-            void actions.createStash(repository, area, path)}
-          onFolderExpansionChange={(repository, key, expanded) =>
-            void actions.setChangeTreeFolderExpanded(repository, key, expanded)}
-          onRequestDiscard={(file) =>
-            requestDiscard({
-              kind: "file",
-              repository: model.selectedRepository,
-              file,
-            })}
-          onRequestDiscardScope={(area, path) =>
-            requestDiscard({
-              kind: "scope",
-              repository: model.selectedRepository,
-              area,
-              ...(path ? { path } : {}),
-              count: gitFilesInScope(model.changes?.files ?? [], area, path)
-                .length,
-            })}
-        />
-      {:else}
-        <p class="py-1 text-ui text-muted-foreground">Working tree clean.</p>
-      {/if}
-    </div>
-  </div>
+    {#if selectedRepo && stashCountOf(selectedRepo) > 0}
+      {@const repo = selectedRepo}
+      {@const stashCount = stashCountOf(repo)}
+      {@const noun = stashCount === 1 ? "stash" : "stashes"}
+      <Tooltip.Root>
+        <Tooltip.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              variant="ghost"
+              size="sm"
+              class="gap-1 px-1.5 text-muted-foreground tabular-nums hover:text-foreground"
+              disabled={stashesDisabled(repo)}
+              aria-label={`${stashCount} ${noun} in ${repo.name} (shared by all worktrees). Open stashes`}
+              onclick={() => void openStashes(repo)}
+              ><Archive aria-hidden="true" />{stashCount}</Button
+            >
+          {/snippet}
+        </Tooltip.Trigger>
+        <Tooltip.Content
+          >{stashCount}
+          {noun} in {repo.name} (shared by all worktrees). Open stashes</Tooltip.Content
+        >
+      </Tooltip.Root>
+    {/if}
+  {/snippet}
+  <PanelSection
+    {open}
+    onOpenChange={toggle}
+    keepMounted
+    title="Changes"
+    count={count || "none"}
+    meta={staged > 0 ? stagedMeta : undefined}
+    class="h-full min-h-0"
+    headerClass="gap-1.5"
+    bodyClass="flex min-h-0 flex-1 flex-col overflow-y-auto pb-2"
+    actions={changesHeaderActions}
+  >
+    {#if count > 0 || (model.changes?.files.length ?? 0) > 0}
+      <GitChangesArea
+        changes={model.changes}
+        stagedFiles={fileGroups.staged}
+        unstagedFiles={fileGroups.unstaged}
+        fileMutation={model.operations.fileMutation}
+        bulkMutation={model.operations.bulkMutation}
+        stashMutation={model.operations.stashMutation}
+        collapsedFolders={model.collapsedChangeTreeFolders}
+        selectedRepo={model.selectedRepository}
+        capabilities={model.capabilities}
+        onOpenDiff={(repository, file, area) =>
+          void actions.openDiff(repository, file, area)}
+        onMutateFile={(repository, file, action) =>
+          void actions.mutateFile(repository, file, action)}
+        onMutateScope={(repository, area, action, path) =>
+          void actions.mutateFileScope(repository, area, action, path)}
+        onCreateStash={(repository, area, path) =>
+          void actions.createStash(repository, area, path)}
+        onFolderExpansionChange={(repository, key, expanded) =>
+          void actions.setChangeTreeFolderExpanded(repository, key, expanded)}
+        onRequestDiscard={(file) =>
+          requestDiscard({
+            kind: "file",
+            repository: model.selectedRepository,
+            file,
+          })}
+        onRequestDiscardScope={(area, path) =>
+          requestDiscard({
+            kind: "scope",
+            repository: model.selectedRepository,
+            area,
+            ...(path ? { path } : {}),
+            count: gitFilesInScope(model.changes?.files ?? [], area, path)
+              .length,
+          })}
+      />
+    {:else}
+      <p class="py-1 text-ui text-muted-foreground">Working tree clean.</p>
+    {/if}
+  </PanelSection>
 {/snippet}
 
 {#snippet repositoryList({
@@ -1012,35 +979,30 @@ const stashesDisabled = (repo: GitRepoSummary) =>
       </PanelHeader>
 
       {#if model.availability.available && model.repositories.length > 0 && showList}
-        <div class="flex flex-col gap-1.5 pt-1 pb-1.5">
-          <SearchInput
-            bind:value={view.search}
-            placeholder="Filter repos or branches"
-            ariaLabel="Filter repositories and branches"
-          />
-          <ToggleGroup.Root
-            type="single"
-            variant="chip"
-            size="sm"
-            value={view.filter}
-            aria-label="Show"
-            onValueChange={(value) => {
-              if (value) view.setFilter(value as GitPanelFilter);
-            }}
-          >
-            <ToggleGroup.Item value="all">All {counts.all}</ToggleGroup.Item>
-            <ToggleGroup.Item
-              value="changed"
-              title="Branches with uncommitted changes"
-              >Changed {counts.changed}</ToggleGroup.Item
-            >
-            <ToggleGroup.Item
-              value="attention"
-              title="Failed operations, failing checks, merged branches, or behind with local work"
-              >Attention {counts.attention}</ToggleGroup.Item
-            >
-          </ToggleGroup.Root>
-        </div>
+        <PanelFilterBar
+          bind:query={view.search}
+          placeholder="Filter repos or branches"
+          ariaLabel="Filter repositories and branches"
+          scopeLabel="Show"
+          scope={view.filter}
+          onScopeChange={(value) => view.setFilter(value as GitPanelFilter)}
+          scopes={[
+            { value: "all", label: "All", count: counts.all },
+            {
+              value: "changed",
+              label: "Changed",
+              count: counts.changed,
+              title: "Branches with uncommitted changes",
+            },
+            {
+              value: "attention",
+              label: "Attention",
+              count: counts.attention,
+              title:
+                "Failed operations, failing checks, merged branches, or behind with local work",
+            },
+          ]}
+        />
       {/if}
     {/snippet}
 

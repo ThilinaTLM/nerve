@@ -1,0 +1,425 @@
+<!--
+@component
+The row of every panel list and tree: a label with optional leading icon, badges, description and hover actions. Rows in a `PanelRowCard` take `hoverable={false}`.
+-->
+
+<script lang="ts" generics="E = undefined">
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import type { Snippet } from "svelte";
+import ItemMenu, {
+  type ContextMenuItem,
+} from "@nervekit/ui-kit/components/composites/item-menu";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
+import { cn } from "@nervekit/ui-kit/utils";
+
+let {
+  label,
+  labelLines = 1,
+  labelContent,
+  labelClass,
+  titleTrailing,
+  meta,
+  ariaLabel,
+  description,
+  detail,
+  detailTone = "neutral",
+  title,
+  mono = false,
+  tone = "neutral",
+  indent = 0,
+  flush = false,
+  selected = false,
+  active = false,
+  disabled = false,
+  dense = false,
+  hoverable = true,
+  alwaysShowActions = false,
+  overlayActions = false,
+  ariaExpanded,
+  role = "listitem",
+  tabindex,
+  contentTabindex,
+  ariaLevel,
+  ariaPosInSet,
+  ariaSetSize,
+  dataId,
+  draggable,
+  dimmed = false,
+  dropTarget = false,
+  dropEdge,
+  editor,
+  editorArg,
+  ondragstart,
+  ondragend,
+  ondragenter,
+  ondragover,
+  ondragleave,
+  ondrop,
+  onkeydown,
+  onfocus,
+  leading,
+  badges,
+  trailing,
+  actions,
+  menuItems,
+  class: className,
+  onclick,
+}: {
+  /** Primary text. */
+  label: string;
+  /** Segmented title (e.g. search highlights); label remains the plain accessible fallback. */
+  labelContent?: Snippet;
+  /** Classes of the label. */
+  labelClass?: string;
+  /** Inline metadata alongside the first title line, inside the row target. */
+  titleTrailing?: Snippet;
+  /** Replaces detail and trailing with a single full-width metadata line. */
+  meta?: Snippet;
+  /** Accessible name when it should differ from `label`. */
+  ariaLabel?: string;
+  /** Maximum visible lines for the primary label. */
+  labelLines?: 1 | 2;
+  /** Muted text after the label. */
+  description?: string;
+  /** Second line under a two-line label, coloured by `detailTone`. */
+  detail?: string;
+  /** Colour of `detail`: `neutral`, `brand`, `info`, `success`, `warning`, `destructive`. */
+  detailTone?: StatusTone;
+  /** Tooltip. */
+  title?: string;
+  /** Monospace label, for paths. */
+  mono?: boolean;
+  /** Colour of the label: `neutral`, `brand`, `info`, `success`, `warning`, `destructive`. */
+  tone?: StatusTone;
+  /** Indentation steps for tree-like lists. */
+  indent?: number;
+  /** Drops the base row inset so the row aligns with the panel's outer padding. */
+  flush?: boolean;
+  /** Selected look. */
+  selected?: boolean;
+  /** Current item (`aria-current`), independent of selection. */
+  active?: boolean;
+  /** Not activatable. */
+  disabled?: boolean;
+  /** Uses the compact row rhythm intended for dense file/status lists. */
+  dense?: boolean;
+  /** Enables the shared row background on pointer hover. */
+  hoverable?: boolean;
+  /** Keeps trailing actions visible instead of revealing them on hover. */
+  alwaysShowActions?: boolean;
+  /** Reveals actions over the row so hidden controls reserve no width. */
+  overlayActions?: boolean;
+  /** Disclosure state when the row expands children. */
+  ariaExpanded?: boolean;
+  /** Outer row semantics. Tree rows opt into `treeitem`; list rows keep the default. */
+  role?: "listitem" | "treeitem" | "none";
+  /** Optional roving focus index for semantic row containers. */
+  tabindex?: number;
+  /** Overrides the primary content button's tab index. */
+  contentTabindex?: number;
+  /** Depth in a tree (`aria-level`). */
+  ariaLevel?: number;
+  /** Position among siblings (`aria-posinset`). */
+  ariaPosInSet?: number;
+  /** Number of siblings (`aria-setsize`). */
+  ariaSetSize?: number;
+  /** Stable DOM lookup key for composite widgets such as trees. */
+  dataId?: string;
+  /** Makes the row draggable; the `ondrag*` handlers receive the events. */
+  draggable?: boolean;
+  /** Recedes the row content (e.g. ignored files) without changing its tone. */
+  dimmed?: boolean;
+  /** Highlights the row as the current drop target while dragging. */
+  dropTarget?: boolean;
+  /** Shows an insertion line on the row's top or bottom edge while dragging. */
+  dropEdge?: "before" | "after";
+  /**
+   * Inline editor replacing the label (rename, create). The row content stops
+   * being a button so the field can live inside it.
+   */
+  editor?: Snippet<[E]>;
+  /**
+   * Passed to `editor`. Keep the snippet itself stable (a prop of the owner,
+   * not one declared per render): a new snippet identity re-mounts the field
+   * and drops its focus and text.
+   */
+  editorArg?: E;
+  /** Drag started on the row. */
+  ondragstart?: (event: DragEvent) => void;
+  /** Drag ended. */
+  ondragend?: (event: DragEvent) => void;
+  /** A drag entered the row. */
+  ondragenter?: (event: DragEvent) => void;
+  /** A drag is over the row. */
+  ondragover?: (event: DragEvent) => void;
+  /** A drag left the row. */
+  ondragleave?: (event: DragEvent) => void;
+  /** Something was dropped on the row. */
+  ondrop?: (event: DragEvent) => void;
+  /** Key pressed while the row has focus. */
+  onkeydown?: (event: KeyboardEvent) => void;
+  /** The row received focus. */
+  onfocus?: (event: FocusEvent) => void;
+  /** Compact content rendered before the primary label. */
+  leading?: Snippet;
+  /** Badges after the label. */
+  badges?: Snippet;
+  /**
+   * Two-line rows only: facts aligned with the first label line. On
+   * hover-capable pointers they give way to `actions` while the row is hovered
+   * or keyboard-focused.
+   */
+  trailing?: Snippet;
+  /** Icon actions (`PanelToolbarButton dense`), revealed on hover or focus unless `alwaysShowActions`. */
+  actions?: Snippet;
+  /** Right-click menu; a host that cannot draw menus in place draws it. */
+  menuItems?: ContextMenuItem[];
+  class?: string;
+  /** Called when the row is activated. */
+  onclick?: (event: MouseEvent) => void;
+} = $props();
+
+const rowStyle = $derived(
+  [
+    indent > 0 ? `--panel-indent:${indent}` : undefined,
+    flush ? "--panel-row-inset:0px" : undefined,
+  ]
+    .filter(Boolean)
+    .join(";") || undefined,
+);
+
+const labelLayoutClass = $derived(
+  labelLines === 2
+    ? "line-clamp-2 min-w-0 break-words whitespace-normal leading-4"
+    : "truncate",
+);
+
+function toneTextClass(tone: StatusTone): string {
+  return tone === "destructive"
+    ? "text-destructive"
+    : tone === "success"
+      ? "text-success"
+      : tone === "warning"
+        ? "text-warning"
+        : tone === "info"
+          ? "text-info"
+          : tone === "brand"
+            ? "text-primary"
+            : "text-muted-foreground";
+}
+
+const toneClass = $derived(toneTextClass(tone));
+const rowStyles = $derived(selectRowVariants({ selected }));
+/* Selected: a neutral label turns foreground, while a status tone keeps its
+ * colour. Selection never changes the weight. */
+const labelStateClass = $derived(
+  selected
+    ? rowStyles.label({ class: tone === "neutral" ? undefined : toneClass })
+    : undefined,
+);
+const twoLine = $derived(labelLines === 2);
+</script>
+
+{#snippet body()}
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <div
+    class={rowStyles.base({
+      class: cn(
+        "group/panel-row flex min-w-0 items-center",
+        // One indent step per nesting level on top of the base inset; `flush`
+        // zeroes the inset via `--panel-row-inset`.
+        "pl-[calc(var(--panel-row-inset,0.5rem)+var(--panel-indent,0)*0.75rem)]",
+        // Hover comes from the global `panel-row-hoverable` contract; it is
+        // unlayered, so it is left off selected rows to keep their tint.
+        hoverable && !selected && "panel-row-hoverable",
+        !hoverable && !selected && "hover:bg-transparent",
+        ((actions && overlayActions && !twoLine) || dropEdge) && "relative",
+        twoLine
+          ? "items-start gap-1.5 py-1 pr-0 text-ui"
+          : dense
+            ? "h-5 gap-1 pr-1 text-ui"
+            : "h-7 gap-1.5 pr-1.5 text-ui",
+        selected && "text-foreground",
+        dropTarget && "bg-primary-subtle ring-1 ring-primary-strong ring-inset",
+        className,
+      ),
+    })}
+    style={rowStyle}
+    {role}
+    {tabindex}
+    aria-expanded={role === "treeitem" ? ariaExpanded : undefined}
+    aria-selected={role === "treeitem" ? selected : undefined}
+    aria-level={ariaLevel}
+    aria-posinset={ariaPosInSet}
+    aria-setsize={ariaSetSize}
+    data-panel-row-id={dataId}
+    {draggable}
+    {ondragstart}
+    {ondragend}
+    {ondragenter}
+    {ondragover}
+    {ondragleave}
+    {ondrop}
+    {onkeydown}
+    {onfocus}
+  >
+    {#if dropEdge}
+      <span
+        aria-hidden="true"
+        class={cn(
+          "pointer-events-none absolute right-1 z-10 h-0.5 rounded-full bg-primary-strong",
+          dropEdge === "before" ? "-top-px" : "-bottom-px",
+        )}
+        style="left: calc(var(--panel-row-inset, 0.5rem) + var(--panel-indent, 0) * 0.75rem)"
+      ></span>
+    {/if}
+    {#if editor}
+      <div class="flex min-w-0 flex-1 items-center gap-1">
+        {#if leading}
+          <span class={rowStyles.icon({ class: "flex shrink-0 items-center" })}>
+            {@render leading()}
+          </span>
+        {/if}
+        {@render editor(editorArg as E)}
+      </div>
+    {:else}
+      <button
+        type="button"
+        {disabled}
+        tabindex={contentTabindex}
+        aria-expanded={role === "treeitem" ? undefined : ariaExpanded}
+        aria-current={active ? "true" : undefined}
+        aria-label={ariaLabel}
+        title={title ?? description ?? label}
+        class={cn(
+          "flex min-w-0 flex-1 cursor-pointer items-center rounded-md text-left focus-visible:ring-3 focus-visible:ring-focus focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
+          twoLine
+            ? titleTrailing
+              ? "items-start gap-2"
+              : "items-start gap-1"
+            : dense
+              ? "gap-1"
+              : "gap-1.5",
+          dimmed && "opacity-60",
+        )}
+        {onclick}
+      >
+        {#if leading}
+          <span
+            class={rowStyles.icon({
+              class: cn("flex shrink-0 items-center", twoLine && "h-4"),
+            })}
+          >
+            {@render leading()}
+          </span>
+        {/if}
+        {#if twoLine}
+          <span
+            class={cn(
+              "flex min-w-0 flex-1 flex-col",
+              meta && !titleTrailing ? "gap-1" : "gap-0.5",
+            )}
+          >
+            {#if titleTrailing}
+              <span class="flex min-w-0 items-start gap-2">
+                <span
+                  class={cn(
+                    labelLayoutClass,
+                    "flex-1",
+                    toneClass,
+                    labelStateClass,
+                    labelClass,
+                  )}
+                  >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
+                >
+                {@render titleTrailing()}
+              </span>
+            {:else}
+              <span
+                class={cn(
+                  labelLayoutClass,
+                  toneClass,
+                  labelStateClass,
+                  labelClass,
+                )}
+                >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
+              >
+            {/if}
+            {#if meta}
+              {@render meta()}
+            {:else if detail}
+              <span class={cn("truncate leading-4", toneTextClass(detailTone))}
+                >{detail}</span
+              >
+            {/if}
+          </span>
+        {:else}
+          <span
+            class={cn(
+              labelLayoutClass,
+              toneClass,
+              mono && "font-mono",
+              labelStateClass,
+            )}
+            >{#if labelContent}{@render labelContent()}{:else}{label}{/if}</span
+          >
+          {#if description}
+            <span class="min-w-0 flex-1 truncate text-muted-foreground"
+              >{description}</span
+            >
+          {/if}
+        {/if}
+      </button>
+    {/if}
+    {#if badges}
+      <div class="flex shrink-0 items-center gap-1 text-muted-foreground">
+        {@render badges()}
+      </div>
+    {/if}
+    {#if twoLine && (trailing || actions)}
+      <!-- Facts and actions stack in one grid cell, so the column is as wide as
+           the wider of the two and the label never reflows or gets covered. -->
+      <div class="grid shrink-0 items-center justify-items-end">
+        {#if trailing && !meta}
+          <span
+            class={cn(
+              "col-start-1 row-start-1 flex h-4 items-center gap-1.5 text-muted-foreground tabular-nums",
+              actions &&
+                "pointer-fine:group-hover/panel-row:invisible pointer-fine:group-has-[:focus-visible]/panel-row:invisible",
+            )}
+          >
+            {@render trailing()}
+          </span>
+        {/if}
+        {#if actions}
+          <div
+            class="invisible col-start-1 row-start-1 flex items-center gap-0.5 group-hover/panel-row:visible group-has-[:focus-visible]/panel-row:visible pointer-coarse:hidden"
+          >
+            {@render actions()}
+          </div>
+        {/if}
+      </div>
+    {:else if actions}
+      <div
+        class={cn(
+          "flex shrink-0 items-center gap-0.5",
+          !alwaysShowActions &&
+            "opacity-0 transition-opacity duration-120 ease-[ease] group-focus-within/panel-row:opacity-100 group-hover/panel-row:opacity-100 pointer-coarse:opacity-100",
+          !alwaysShowActions &&
+            overlayActions &&
+            "pointer-events-none absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-sm bg-panel pl-1 shadow-sm group-focus-within/panel-row:pointer-events-auto group-hover/panel-row:pointer-events-auto",
+        )}
+      >
+        {@render actions()}
+      </div>
+    {/if}
+  </div>
+{/snippet}
+
+{#if menuItems && menuItems.length > 0}
+  <ItemMenu items={menuItems} triggerClass="block min-w-0">
+    {@render body()}
+  </ItemMenu>
+{:else}
+  {@render body()}
+{/if}

@@ -11,7 +11,7 @@ import {
 import { createQuickScriptRegistry } from "../quick-script/registry.js";
 import { createExtensionToolDefinitions } from "./direct-tools.js";
 
-const extension = (tool: ExtensionTool, capabilities?: ["models.vision"]) =>
+const extension = (tool: ExtensionTool, models?: ["vision"]) =>
   defineExtension({
     id: "viewer",
     name: "Viewer",
@@ -22,7 +22,7 @@ const extension = (tool: ExtensionTool, capabilities?: ["models.vision"]) =>
       version: 1,
       fields: { model: { type: "model", label: "Model" } },
     },
-    ...(capabilities ? { permissions: { capabilities } } : {}),
+    ...(models ? { permissions: { models } } : {}),
     namespaces: [],
     tools: [tool],
   });
@@ -63,7 +63,7 @@ type Executor = (
 
 void test("live sections receive the vision model's deltas as progress streams; the result fills the declared sections", async () => {
   const [definition] = createExtensionToolDefinitions(
-    createQuickScriptRegistry([extension(tool, ["models.vision"])]),
+    createQuickScriptRegistry([extension(tool, ["vision"])]),
   );
   const updates: { stream: string; chunk: string }[] = [];
   const warnings: string[] = [];

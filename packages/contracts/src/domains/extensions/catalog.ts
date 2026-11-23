@@ -25,7 +25,8 @@ export const extensionConsentItemSchema = z.strictObject({
   kind: z.enum([
     "network",
     "account",
-    "capability",
+    "model",
+    "frame",
     "tools",
     "namespace",
     "ui",
@@ -58,7 +59,10 @@ export type ExtensionConsent = z.infer<typeof extensionConsentSchema>;
 export const extensionGrantSnapshotSchema = z.strictObject({
   /** Origins the extension may call, its accounts' credential origins included. */
   network: z.array(z.string()),
-  capabilities: z.array(z.string()),
+  /** Model services (`image`, `vision`, `text`). */
+  models: z.array(z.string()),
+  /** Frame services (`conversations.start`). */
+  frame: z.array(z.string()),
   /** Account kinds the extension defines or requires. */
   accounts: z.array(z.string()),
   /** Namespace id → its operations (method ids). */

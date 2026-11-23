@@ -32,7 +32,7 @@ import {
   PanelList,
   PanelRow,
   PanelView,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import DockPanel from "$lib/presentation/shell/DockPanel.svelte";
 import DockTabStrip from "$lib/presentation/shell/DockTabStrip.svelte";
 import EditorArea from "$lib/presentation/shell/EditorArea.svelte";

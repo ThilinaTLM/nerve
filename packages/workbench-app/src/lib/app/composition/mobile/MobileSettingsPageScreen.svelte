@@ -1,10 +1,10 @@
 <script lang="ts">
+import { PageEmptyState } from "@nervekit/ui-kit/components/composites/page";
 import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import { untrack } from "svelte";
 import type { Project } from "@nervekit/contracts/core";
 import Monitor from "@lucide/svelte/icons/monitor";
 import { MobileScreen } from "$lib/presentation/shell";
-import { SettingsEmptyState } from "$lib/presentation/settings";
 import { settingsPageFor } from "$lib/features/settings/registry/settings-pages";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
@@ -108,7 +108,7 @@ $effect(() => {
 
   <div class="grid gap-4 px-3 py-3">
     {#if desktopOnly}
-      <SettingsEmptyState
+      <PageEmptyState
         icon={Monitor}
         title="Available on desktop"
         description={`Open ${page.label} in Nerve on a computer to change it.`}

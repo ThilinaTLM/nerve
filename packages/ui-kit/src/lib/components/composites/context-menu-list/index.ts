@@ -1,4 +1,8 @@
-export type { ContextMenuItem, MenuIcon } from "./context-menu-list.svelte";
+export type {
+  AnchorRect,
+  ContextMenuItem,
+  MenuIcon,
+} from "./context-menu-list.svelte";
 export {
   default,
   default as ContextMenuList,

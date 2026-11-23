@@ -1,13 +1,6 @@
-export const PROJECT_ENTRY_DRAG_MIME = "application/x-nerve-project-entries";
-
 export type ProjectEntryDragItem = {
   path: string;
   kind: "file" | "directory";
-};
-
-type ProjectEntryDragPayload = {
-  version: 1;
-  entries: readonly ProjectEntryDragItem[];
 };
 
 function normalizeRelativeProjectPath(path: string): string | undefined {
@@ -27,7 +20,7 @@ function normalizeRelativeProjectPath(path: string): string | undefined {
     : undefined;
 }
 
-function normalizeProjectEntryDragItem(
+export function normalizeProjectEntryDragItem(
   value: unknown,
 ): ProjectEntryDragItem | undefined {
   if (!value || typeof value !== "object") return undefined;
@@ -40,54 +33,6 @@ function normalizeProjectEntryDragItem(
   }
   const path = normalizeRelativeProjectPath(item.path);
   return path ? { path, kind: item.kind } : undefined;
-}
-
-export function serializeProjectEntryDrag(
-  entries: readonly ProjectEntryDragItem[],
-): string {
-  const normalized = entries.map(normalizeProjectEntryDragItem);
-  if (
-    normalized.length === 0 ||
-    !normalized.every(
-      (entry): entry is ProjectEntryDragItem => entry !== undefined,
-    )
-  ) {
-    throw new Error("Project entry drag payload contains invalid entries.");
-  }
-  return JSON.stringify({
-    version: 1,
-    entries: normalized,
-  } satisfies ProjectEntryDragPayload);
-}
-
-export function parseProjectEntryDrag(
-  value: string,
-): ProjectEntryDragItem[] | undefined {
-  if (!value) return undefined;
-  try {
-    const payload: unknown = JSON.parse(value);
-    if (!payload || typeof payload !== "object") return undefined;
-    const { version, entries: rawEntries } = payload as Record<string, unknown>;
-    if (
-      version !== 1 ||
-      !Array.isArray(rawEntries) ||
-      rawEntries.length === 0
-    ) {
-      return undefined;
-    }
-    const entries = rawEntries.map(normalizeProjectEntryDragItem);
-    return entries.every(
-      (entry): entry is ProjectEntryDragItem => entry !== undefined,
-    )
-      ? entries
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export function hasProjectEntryDragType(types: readonly string[]): boolean {
-  return types.includes(PROJECT_ENTRY_DRAG_MIME);
 }
 
 export function formatProjectEntryReference(

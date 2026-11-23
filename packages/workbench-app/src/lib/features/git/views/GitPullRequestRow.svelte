@@ -20,7 +20,7 @@ import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/con
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
-import { ItemSurface } from "$lib/presentation/items";
+import { ItemSurface } from "@nervekit/ui-kit/components/composites/item-surface";
 import { checksTone, formatCompactAge, stateTone } from "./pr-pane-helpers";
 import {
   checksBreakdown,

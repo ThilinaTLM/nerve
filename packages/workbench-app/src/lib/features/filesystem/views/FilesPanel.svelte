@@ -31,14 +31,14 @@ import {
 import type {
   PanelTreeController,
   PanelTreeNode,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import {
   PanelEmpty,
   PanelHeader,
   PanelToolbarButton,
   PanelTree,
   PanelView,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import FileExplorerNameEditor from "./FileExplorerNameEditor.svelte";
 import { MaterialFileIcon } from "$lib/presentation/files";
 

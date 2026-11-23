@@ -1,3 +1,8 @@
+<!--
+@component
+One toggle button of a `ToggleGroup.Root`; `value` is what the group reports.
+-->
+
 <script lang="ts">
 import { ToggleGroup as ToggleGroupPrimitive } from "bits-ui";
 import {

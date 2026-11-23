@@ -17,7 +17,7 @@ describe("Checklist panel", () => {
   it("restores its items from the view state", async () => {
     const bridge = createFakeBridge({
       kind: "panel",
-      viewState: { items: [{ text: "Write tests", done: false }] },
+      tabState: { items: [{ id: "1", text: "Write tests", done: false }] },
     });
     const component = mount(Checklist, { target: document.body });
     cleanup = () => {
@@ -26,6 +26,43 @@ describe("Checklist panel", () => {
     };
     await vi.waitFor(() =>
       expect(document.body.textContent).toContain("Write tests"),
+    );
+  });
+
+  it("deletes an item from its right-click menu", async () => {
+    const bridge = createFakeBridge({
+      kind: "panel",
+      tabState: { items: [{ id: "1", text: "Write tests", done: false }] },
+      // The menu arrives as the author wrote it: items, separators, submenus.
+      menu: (entries) => {
+        const found = entries.find(
+          (entry) => entry.type !== "separator" && entry.label === "Delete",
+        );
+        return found && "id" in found ? found.id : null;
+      },
+    });
+    const component = mount(Checklist, { target: document.body });
+    cleanup = () => {
+      void unmount(component);
+      bridge.close();
+    };
+    const row = await vi.waitFor(() => {
+      const found = [...document.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("Write tests"),
+      );
+      if (!found) throw new Error("row not rendered");
+      return found;
+    });
+    row.dispatchEvent(
+      new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 5,
+        clientY: 5,
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain("No items yet"),
     );
   });
 });

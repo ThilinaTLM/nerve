@@ -5,6 +5,7 @@
   full width, then the User and project controls in two halves.
 -->
 <script lang="ts" module>
+import { FieldRow } from "@nervekit/ui-kit/components/composites/page";
 import type { FieldItem } from "./extensions-view";
 
 /** The User layer of a row shown in two cells; `item` is then the project's. */
@@ -27,11 +28,7 @@ export type FieldLayers = {
 import type { ExtensionsView } from "@nervekit/contracts/extensions";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { ModelInfo } from "$lib/api";
-import {
-  LayerRow,
-  SettingsChangeIndicator,
-  SettingsRow,
-} from "$lib/presentation/settings";
+import { LayerRow, SettingsChangeIndicator } from "$lib/presentation/settings";
 import ExtensionFieldControl from "./ExtensionFieldControl.svelte";
 import {
   controlFor,
@@ -146,7 +143,7 @@ const labelFor = $derived(
     {/snippet}
   </LayerRow>
 {:else}
-  <SettingsRow
+  <FieldRow
     hint={feature?.problem ? problemHint : undefined}
     label={feature?.id ?? field.label}
     description={feature?.summary ?? field.description}
@@ -171,5 +168,5 @@ const labelFor = $derived(
         {onChange}
       />
     {/snippet}
-  </SettingsRow>
+  </FieldRow>
 {/if}

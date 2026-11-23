@@ -6,6 +6,10 @@
   once there are many accounts.
 -->
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+} from "@nervekit/ui-kit/components/composites/page";
 import Copy from "@lucide/svelte/icons/copy";
 import Ellipsis from "@lucide/svelte/icons/ellipsis";
 import KeyRound from "@lucide/svelte/icons/key-round";
@@ -38,10 +42,8 @@ import {
 import AccountHealthIcon from "$lib/presentation/integrations/AccountHealthIcon.svelte";
 import { accountHealthBadge } from "$lib/presentation/integrations/account-health";
 import {
-  SettingsEmptyState,
   OriginGroup,
   SETTINGS_SEARCH_MIN,
-  SettingsItem,
   SettingsSection,
   SettingsToolbar,
 } from "$lib/presentation/settings";
@@ -218,14 +220,14 @@ const levelName = (level: AccountLevel) =>
   {/if}
 
   {#if rows.length === 0}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       icon={KeyRound}
       title="No accounts"
       description="Add an account from the page of the extension that uses it."
     />
   {:else if shown.length === 0}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       title="No matching accounts"
       description="Try a different search term."
@@ -325,7 +327,7 @@ const levelName = (level: AccountLevel) =>
       onclick={() => (pendingDelete = account)}
     />
   {/snippet}
-  <SettingsItem
+  <PageItem
     title={account.name}
     summary={[row.extension?.name, accountSummary(row)]
       .filter(Boolean)
@@ -346,7 +348,7 @@ const levelName = (level: AccountLevel) =>
     leading={mark}
     {badges}
     actions={rowActions}
-  ></SettingsItem>
+  ></PageItem>
 {/snippet}
 
 <ConfirmDialog

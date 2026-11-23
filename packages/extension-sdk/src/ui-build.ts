@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   defaultPreviewEdit,
+  extensionFileLimits,
   themeFileSchema,
   themeRuleProblems,
   themeFilePath,
@@ -25,9 +26,6 @@ const contributionKeys = {
   themes: ["id", "label", "file"],
 } as const;
 type Kind = keyof typeof contributionKeys;
-
-/** Frame limits the host and this build share: one frame's built files. */
-const maxFrameBytes = 32 * 1024 * 1024;
 
 async function exists(path: string): Promise<boolean> {
   return stat(path).then(
@@ -223,7 +221,12 @@ async function readThemeFile(
 
 // ── Frame compatibility ───────────────────────────────────────────────────
 
-const frameForbidden: {
+/**
+ * Imports a frame cannot use, with the fix each error names. The one list of what a frame cannot
+ * draw: the build rejects them in an extension's sources, and `test/ui-components.test.ts`
+ * checks that `src/components/components.impl.ts` and the SDK's own components import none.
+ */
+export const frameForbidden: readonly {
   pattern: RegExp;
   name: string;
   fix: string;
@@ -248,7 +251,13 @@ const frameForbidden: {
     pattern:
       /^@nervekit\/ui-kit\/components\/(ui\/(context-menu|dropdown-menu)|composites\/context-menu-list)(\/|$)/,
     name: "menu",
-    fix: "A frame cannot draw menus outside its rectangle. Call `await host.ui.showMenu([{ id, label }], { x, y })`; the host draws the menu and returns the chosen id.",
+    fix: "A frame cannot draw menus outside its rectangle. In a click handler call `await host.ui.menu([{ id, label }], { anchor: button })`; the host draws the menu (separators, icons, checks, submenus) and returns the chosen id. Rows and trees take `menuItems`.",
+  },
+  {
+    pattern:
+      /^@nervekit\/ui-kit\/components\/(ui\/select|composites\/select-field)(\/|$)/,
+    name: "select",
+    fix: "A frame cannot draw a select list outside its rectangle. Use `SelectField` from '@nervekit/extension-sdk/ui' (the host draws the list), or call `await host.ui.pick({ mode: 'single', ariaLabel, items, anchor })` from a click handler.",
   },
   {
     pattern: /^(@nervekit\/ui-kit\/components\/ui\/sonner|svelte-sonner)(\/|$)/,
@@ -313,13 +322,13 @@ const target = document.getElementById("app");
 if (!target) throw new Error("The frame page has no #app element.");
 void startFrame({
   target,
-  render(element) {
+  render(element, init) {
     const component = (entry as { default?: unknown }).default;
     if (${JSON.stringify(entry.endsWith(".svelte"))}) {
       const instance = mount(component as never, { target: element });
       return () => void unmount(instance);
     }
-    if (typeof component === "function") return (component as (target: HTMLElement) => void | (() => void))(element);
+    if (typeof component === "function") return (component as (target: HTMLElement, init: unknown) => void | (() => void))(element, init);
   },
 });
 `;
@@ -387,8 +396,6 @@ export async function buildFrames(
         return this.resolve(source, anchor, { ...options, skipSelf: true });
       if (source === "@nervekit/extension-sdk/ui")
         return join(sdkRoot, "dist", "ui.js");
-      if (source === "@nervekit/extension-sdk/icons")
-        return join(sdkRoot, "dist", "icons.js");
       // JSX of a .tsx entry uses the extension's own React.
       if (/^react\/jsx(-dev)?-runtime$/.test(source)) {
         const resolved = await this.resolve(source, importer, {
@@ -505,7 +512,7 @@ function viteProblems(
       fix: /react\/jsx(-dev)?-runtime/.test(message)
         ? "A .tsx or .jsx file needs React: run `npm install --ignore-scripts react react-dom` in the extension folder."
         : unresolved && message.includes("@lucide/svelte")
-          ? 'Import icons from "@nervekit/extension-sdk/icons" (for example `import { Copy } from "@nervekit/extension-sdk/icons"`) instead of installing @lucide/svelte.'
+          ? 'Import icons from "@nervekit/extension-sdk/ui" (for example `import { Copy } from "@nervekit/extension-sdk/ui"`) instead of installing @lucide/svelte.'
           : unresolved
             ? "Install the package as a dependency of the extension (npm install --ignore-scripts <name>), or correct the import path. Frames run in the browser: Node.js built-ins are not available."
             : "Fix the code at that location; UI components are Svelte 5 components (or a .ts module) that run in a browser frame.",
@@ -547,9 +554,9 @@ async function checkFrameOutput(outDir: string, id: string): Promise<void> {
     }
   };
   await walk(outDir);
-  if (bytes > maxFrameBytes)
+  if (bytes > extensionFileLimits.frameBytes)
     throw new ExtensionProjectError({
-      what: `The UI of '${id}' is ${bytes} bytes; the host accepts at most ${maxFrameBytes} bytes per frame.`,
+      what: `The UI of '${id}' is ${bytes} bytes; the host accepts at most ${extensionFileLimits.frameBytes} bytes per frame.`,
       where: outDir,
       fix: "Remove large dependencies or assets from the UI.",
     });

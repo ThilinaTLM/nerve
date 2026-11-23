@@ -2,6 +2,7 @@
  * Names for the host that runs extensions (`@nervekit/extension-api/host`). Authors never import
  * these: the author surface is `index.ts`, re-exported by `@nervekit/extension-sdk`.
  */
+import type { ExtensionDefinition } from "./definition.js";
 import type {
   ImageModelSelection,
   ModelSelection,
@@ -19,6 +20,24 @@ export { nonEmptyString, parseOptions } from "./options.js";
 export { credentialOperations } from "./credentials.js";
 export { extensionDefinitionData } from "./data.js";
 export type { ExtensionData, ExtensionDefinitionData } from "./data.js";
+
+/**
+ * A built-in extension's definition: an `ExtensionDefinition` plus what only host code may set.
+ * Installed extensions cannot (the manifest schema rejects both fields).
+ */
+export type HostExtensionDefinition = ExtensionDefinition & {
+  /** Pure sandbox-side helper source (storage builders), evaluated after the SDK prelude; no host access. */
+  prelude?: string;
+  /** Numbers (typically byte limits) filled into `{{limit:<name>}}` placeholders of docs and rules. */
+  limits?: Readonly<Record<string, number>>;
+};
+
+/** Declares a built-in extension; returns the definition unchanged. */
+export function defineHostExtension(
+  definition: HostExtensionDefinition,
+): HostExtensionDefinition {
+  return definition;
+}
 
 /** A model's streamed output, as the host's model adapters report it. */
 export type ModelDelta = { kind: "thinking" | "text"; delta: string };
