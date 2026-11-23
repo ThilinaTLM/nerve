@@ -70,34 +70,32 @@ const launchpad = $derived(variant === "launchpad");
         aria-label="Start a conversation"
       >
         {#each starters as starter (starter.profile)}
-          <!-- The art alone identifies each profile at rest, so users learn
-               it; hover and focus fade it into a backdrop behind the name and
-               tagline. Touch has no hover, so coarse pointers always show the
-               text. -->
+          <!-- At rest the art sits above the name, centred at the bottom;
+               hover and focus swap the name for the tagline and fade the art
+               into a backdrop. Touch has no hover, so coarse pointers keep
+               the rest state. -->
           <button
             type="button"
-            class="group relative size-32 cursor-pointer overflow-hidden rounded-lg border bg-card bg-linear-to-b from-well to-card shadow-sm transition-colors duration-300 outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
+            class="group relative size-28 cursor-pointer overflow-hidden rounded-lg border bg-card bg-linear-to-b from-well to-card shadow-sm transition-colors duration-300 outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >
             <span
-              class="starter-art absolute inset-0 flex items-center justify-center p-3"
+              class="starter-art absolute inset-0 flex items-center justify-center px-4 pt-1.5 pb-6"
             >
               <ProfileStarterArt
                 profile={starter.profile}
-                class="relative w-full transition duration-300 ease-out group-hover:scale-110 group-hover:opacity-20 group-hover:blur-xs group-focus-visible:scale-110 group-focus-visible:opacity-20 group-focus-visible:blur-xs motion-reduce:transition-none pointer-coarse:opacity-20 pointer-coarse:blur-xs"
+                class="relative w-full transition duration-300 ease-out group-hover:scale-110 group-hover:opacity-20 group-hover:blur-xs group-focus-visible:scale-110 group-focus-visible:opacity-20 group-focus-visible:blur-xs motion-reduce:transition-none"
               />
             </span>
             <span
-              class="absolute inset-0 flex scale-95 flex-col items-center justify-center gap-0.5 px-2.5 text-center opacity-0 transition duration-300 ease-out group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:scale-100 pointer-coarse:opacity-100"
+              class="absolute inset-x-2 bottom-2 text-ui font-medium text-foreground transition-opacity duration-200 ease-out group-hover:opacity-0 group-focus-visible:opacity-0 motion-reduce:transition-none pointer-coarse:opacity-100"
+              >{starter.label}</span
             >
-              <span class="text-ui font-medium text-foreground"
-                >{starter.label}</span
-              >
-              <span class="text-caption leading-snug text-muted-foreground"
-                >{starter.tagline}</span
-              >
-            </span>
+            <span
+              class="absolute inset-0 flex scale-95 items-center justify-center px-2.5 text-caption leading-snug text-muted-foreground opacity-0 transition duration-300 ease-out group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-0"
+              >{starter.tagline}</span
+            >
             {#if starter.profile === defaultStarter}
               <span class="absolute top-2 right-2" title="Default">
                 <StarIcon
