@@ -530,9 +530,9 @@ describe("private tunnel requests", () => {
     access.tunnelOrigin = new URL(`https://${HOST}:8443`);
     const links = (await access.createPairingCode("mobile", 120)).links;
     assert.equal(links[0]?.kind, "tunnel");
-    assert.match(
-      links[0]?.url ?? "",
-      new RegExp(`^https://${HOST}:8443/#pair=`),
+    assert.ok(
+      links[0]?.url.startsWith(`https://${HOST}:8443/#pair=`),
+      links[0]?.url,
     );
   });
 });
