@@ -1,4 +1,4 @@
-import type { AddressInfo, Server as NetServer } from "node:net";
+import type { AddressInfo, Server as NetServer, Socket } from "node:net";
 import { serve } from "@hono/node-server";
 import type { WebSocketServer } from "ws";
 import type { HostAllowlist } from "../../adapters/http/host-allowlist.js";
@@ -95,11 +95,19 @@ export async function openTunnelListener(
   port: number | undefined,
   create: (port: number) => unknown,
 ): Promise<TunnelListener> {
+  // Every socket, including upgraded WebSockets the HTTP server no longer
+  // tracks: turning the tunnel off must cut tunnel clients off at once, and
+  // server.close() would wait for them otherwise.
+  const sockets = new Set<Socket>();
   const listen = (candidate: number) =>
     new Promise<NetServer>((resolve, reject) => {
       const server = create(candidate) as NetServer;
       // Marked before it accepts anything, so every socket carries the mark.
       markTunnelListener(server);
+      server.on("connection", (socket: Socket) => {
+        sockets.add(socket);
+        socket.once("close", () => sockets.delete(socket));
+      });
       server.once("error", reject);
       server.once("listening", () => resolve(server));
     });
@@ -116,10 +124,7 @@ export async function openTunnelListener(
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());
-        // Keep-alive and upgraded sockets would hold close() open.
-        (
-          server as unknown as { closeAllConnections?: () => void }
-        ).closeAllConnections?.();
+        for (const socket of sockets) socket.destroy();
       }),
   };
 }

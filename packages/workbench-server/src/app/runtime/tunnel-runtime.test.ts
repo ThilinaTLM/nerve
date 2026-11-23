@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import { connect, type AddressInfo } from "node:net";
 import { describe, it } from "node:test";
 import { isTunnelSocket } from "../../infrastructure/network/tunnel-sockets.js";
 import { openTunnelListener } from "./tunnel-runtime.js";
@@ -41,5 +41,30 @@ void describe("openTunnelListener", () => {
       await listener.close();
       await new Promise((resolve) => taken.close(resolve));
     }
+  });
+
+  void it("closes even with an upgraded socket open, and cuts it off", async () => {
+    // A WebSocket client outlives server.close() unless the socket is destroyed.
+    const listener = await openTunnelListener(undefined, (port) => {
+      const server = probe(port);
+      server.on("upgrade", (_request, socket) =>
+        socket.write("HTTP/1.1 101 Switching Protocols\r\n\r\n"),
+      );
+      return server;
+    });
+    const client = connect(listener.port, "127.0.0.1");
+    const upgraded = new Promise((resolve) => client.once("data", resolve));
+    client.write(
+      "GET / HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n",
+    );
+    await upgraded;
+    const ended = new Promise((resolve) => client.once("close", resolve));
+    await Promise.race([
+      listener.close(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("close() hung")), 2_000),
+      ),
+    ]);
+    await ended;
   });
 });
