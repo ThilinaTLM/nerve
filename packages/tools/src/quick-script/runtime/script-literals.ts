@@ -59,7 +59,7 @@ export function callTargets(args: Token[][]): string[] {
 }
 
 /** Top-level properties of an object literal: key text (undefined when computed, spread or otherwise not a plain key) and the value tokens. */
-function objectProperties(
+export function objectProperties(
   options: Token[],
 ): Array<{ key?: string; value: Token[] }> | undefined {
   if (options[0]?.text !== "{" || options[options.length - 1]?.text !== "}")
@@ -171,4 +171,30 @@ export function literalValue(tokens: Token[]): unknown {
   };
   const value = parse();
   return at === tokens.length ? value : NOT_LITERAL;
+}
+
+/**
+ * The argument of a method with `scanOptions`: the literal values of those options from an
+ * object literal, with every other option present as `null`. NOT_LITERAL when the argument is
+ * not a plain object literal (spread, computed key) or one of `keys` is not literal.
+ */
+export function scanOptionsValue(
+  args: Token[][],
+  keys: readonly string[],
+): unknown {
+  if (args.length !== 1) return NOT_LITERAL;
+  const properties = objectProperties(args[0]);
+  if (!properties || properties.some((property) => property.key === undefined))
+    return NOT_LITERAL;
+  const value: Record<string, unknown> = {};
+  for (const property of properties) {
+    if (!keys.includes(property.key!)) {
+      value[property.key!] = null;
+      continue;
+    }
+    const literal = literalValue(property.value);
+    if (literal === NOT_LITERAL) return NOT_LITERAL;
+    value[property.key!] = literal;
+  }
+  return value;
 }

@@ -98,7 +98,7 @@ export const runtimeNamespaces: SdkNamespace[] = [
     id: "mcp",
     listedWhenConfigured: true,
     summary:
-      "tools and resources of the user's MCP servers: servers.list, tools.search/get/call",
+      "tools and resources of the user's MCP servers: servers.list(), tools.list(server?), tools.search(query), tools.get, tools.call, resources.list/get",
     methods: mcpMethods,
     types: MCP_DTS_TYPES,
     docs: [

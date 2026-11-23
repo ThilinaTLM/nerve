@@ -10,14 +10,14 @@ const FAKE_SERVER = fileURLToPath(
   new URL("../../../test/fixtures/mcp/fake-mcp-server.mjs", import.meta.url),
 );
 
-async function setup(servers: Record<string, unknown>) {
+async function setup(servers: Record<string, unknown>, idleMs?: number) {
   const home = await mkdtemp(join(tmpdir(), "nerve-mcp-"));
   await mkdir(join(home, "config"));
   await writeFile(
     join(home, "config", "mcp.json"),
     JSON.stringify({ mcpServers: servers }),
   );
-  const hub = new McpServerHub({ home, version: "0.0.0-test" });
+  const hub = new McpServerHub({ home, version: "0.0.0-test", idleMs });
   return {
     hub,
     home,
@@ -50,7 +50,7 @@ void test("starts a stdio server on first use, lists and calls its tools, and re
   const tools = await port.listTools("fake");
   assert.deepEqual(
     tools.map((tool) => tool.name),
-    ["echo", "add", "pixel", "fail", "whereami"],
+    ["echo", "add", "pixel", "fail", "crash", "whereami"],
   );
   assert.equal(tools[0].annotations?.readOnlyHint, true);
   const sum = await port.callTool("fake", "add", { a: 2, b: 3 });
@@ -94,7 +94,37 @@ void test("unknown, disabled and failing servers fail with the reason", async ()
   );
   assert.equal(broken?.state, "failed");
   await assert.rejects(port.callTool("fake", "nope", {}), {
+    code: "NOT_FOUND",
+    message: /has no tool "nope"\. Its tools: echo, add/,
+  });
+});
+
+void test("a server that exits or idles out is started again on the next call", async () => {
+  await using env = await setup({ fake: fake() }, 200);
+  const port = env.hub.port(env.home);
+  await port.callTool("fake", "echo", { text: "a" });
+  await assert.rejects(port.callTool("fake", "crash", {}), {
     code: "SERVER_ERROR",
-    message: /Unknown tool: nope.*inputSchema/,
+  });
+  const echoed = await port.callTool("fake", "echo", { text: "b" });
+  assert.deepEqual(echoed.content, [{ type: "text", text: "b" }]);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal((await port.listServers())[0].state, "idle");
+  const again = await port.callTool("fake", "echo", { text: "c" });
+  assert.deepEqual(again.content, [{ type: "text", text: "c" }]);
+});
+
+void test("a missing variable shows as failed, and an invalid file says so", async () => {
+  await using env = await setup({
+    needs: fake({ env: { T: "${NERVE_TEST_UNSET_VARIABLE}" } }),
+  });
+  const port = env.hub.port(env.home);
+  const [server] = await port.listServers();
+  assert.equal(server.state, "failed");
+  assert.match(server.error ?? "", /NERVE_TEST_UNSET_VARIABLE is not set/);
+  await writeFile(join(env.home, "config", "mcp.json"), "{ nope");
+  await assert.rejects(port.listTools("needs"), {
+    code: "NOT_FOUND",
+    message: /mcp\.json is invalid: not valid JSON/,
   });
 });

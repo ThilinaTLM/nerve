@@ -105,9 +105,41 @@ void test("a script calling an MCP tool is classified destructive and names the 
       targets: ["mcp:tool/fake/echo"],
     },
   ]);
+  const computed = await classifyQuickScriptScript(
+    `const text = String(Date.now());
+     await mcp.tools.call({ server: "fake", tool: "echo", arguments: { text } });`,
+    registry,
+  );
+  assert.equal(computed.admissible, true);
+  assert.deepEqual(computed.calls[0].targets, ["mcp:tool/fake/echo"]);
+  const computedTool = await classifyQuickScriptScript(
+    `const tool = "echo"; await mcp.tools.call({ server: "fake", tool });`,
+    registry,
+  );
+  assert.deepEqual(computedTool.calls[0].targets, undefined);
   const listing = await classifyQuickScriptScript(
     `await mcp.tools.list("fake");`,
     registry,
   );
   assert.equal(listing.risk, "external_read");
+});
+
+void test("a listing without a server checks each server and skips a refused one", async () => {
+  const result = await executeQuickScript(
+    { code: `return (await mcp.tools.list()).length;` },
+    {
+      cwd: home,
+      conversationDir: join(home, "conversation"),
+      mcpAgent: hub.port(home),
+      authorizeNested: async (request: Nested) => {
+        if (
+          "operation" in request &&
+          request.targets.includes("mcp:server/fake")
+        )
+          throw new Error("denied by rule");
+      },
+    },
+  );
+  assert.match(result.content, /^0\n/);
+  assert.match(result.content, /MCP server "fake" skipped: denied by rule/);
 });

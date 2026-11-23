@@ -46,9 +46,14 @@ const SERVER_REQUIRED =
 const serverTarget = (server: string) => `mcp:server/${server}`;
 const signal = (env: SdkEnvironment) => ({ signal: env.context.signal });
 
-/** Servers a call without `server` covers: every enabled one. Failures become notes, not errors. */
+/**
+ * Servers a call without `server` covers: every enabled one, each checked as the call would be
+ * with that server named, so a rule on `mcp:server/<name>` applies. A server that is refused or
+ * fails becomes a note, not an error.
+ */
 async function eachServer<T>(
   env: SdkEnvironment,
+  operation: string,
   server: string | undefined,
   read: (server: string) => Promise<T[]>,
 ): Promise<T[]> {
@@ -57,7 +62,16 @@ async function eachServer<T>(
     (entry) => entry.state !== "disabled",
   );
   const results = await Promise.allSettled(
-    servers.map((entry) => read(entry.name)),
+    servers.map(async (entry) => {
+      if (!env.context.authorizeNested)
+        throw new Error("nested authorization is unavailable");
+      await env.context.authorizeNested({
+        operation,
+        targets: [serverTarget(entry.name)],
+        risk: "external_read",
+      });
+      return await read(entry.name);
+    }),
   );
   return results.flatMap((result, index) => {
     if (result.status === "fulfilled") return result.value;
@@ -209,6 +223,7 @@ export const mcpMethods: SdkMethod[] = [
     run: async (server, env) =>
       await eachServer(
         env,
+        "mcp.tools.list",
         server,
         async (name) => await port(env).listTools(name, signal(env)),
       ),
@@ -233,6 +248,7 @@ export const mcpMethods: SdkMethod[] = [
       const words = query.toLowerCase().split(/\s+/).filter(Boolean);
       const tools = await eachServer(
         env,
+        "mcp.tools.search",
         server,
         async (name) => await port(env).listTools(name, signal(env)),
       );
@@ -256,49 +272,65 @@ export const mcpMethods: SdkMethod[] = [
     }),
     run: async ({ server, tool }, env) => await findTool(env, server, tool),
   }),
-  defineMethod({
-    product: "mcp",
-    path: "tools.call",
-    risk: "destructive",
-    options: ["server", "tool", "arguments"],
-    signature:
-      "/** Call a tool with `arguments` matching its input schema. Text blocks are joined into `text`; images, audio and binary resources are saved as artifacts in `files`. A tool that reports an error throws SERVER_ERROR with its message. Checked per tool (`mcp:tool/<server>/<tool>`); its effect is unknown, so approval treats it as destructive. */ call(options: { server: string; tool: string; arguments?: Record<string, unknown> }): Promise<McpToolResult>",
-    parse: (options) => {
-      const args = options.arguments ?? {};
-      if (typeof args !== "object" || args === null || Array.isArray(args))
-        throw new Error(
-          "arguments must be an object matching the tool's input schema (see mcp.tools.get).",
+  {
+    ...defineMethod({
+      product: "mcp",
+      path: "tools.call",
+      risk: "destructive",
+      options: ["server", "tool", "arguments"],
+      signature:
+        "/** Call a tool with `arguments` matching its input schema. Text blocks are joined into `text`; images, audio and binary resources are saved as artifacts in `files`. A tool that reports an error throws SERVER_ERROR with its message. Checked per tool (`mcp:tool/<server>/<tool>`); its effect is unknown, so approval treats it as destructive. */ call(options: { server: string; tool: string; arguments?: Record<string, unknown> }): Promise<McpToolResult>",
+      parse: (options) => {
+        const args = options.arguments ?? {};
+        if (typeof args !== "object" || args === null || Array.isArray(args))
+          throw new Error(
+            "arguments must be an object matching the tool's input schema (see mcp.tools.get).",
+          );
+        return {
+          server: text(options, "server", SERVER_REQUIRED),
+          tool: text(
+            options,
+            "tool",
+            "tool is required: a tool name from mcp.tools.list(server).",
+          ),
+          args: args as Record<string, unknown>,
+        };
+      },
+      authorize: ({ server, tool }) => ({
+        targets: [`mcp:tool/${server}/${tool}`],
+        summary: `Call MCP tool ${server}/${tool}`,
+      }),
+      resource: ({ server, tool }) => `MCP tool ${server}/${tool}`,
+      run: async ({ server, tool, args }, env) => {
+        const result = await port(env).callTool(
+          server,
+          tool,
+          args,
+          signal(env),
         );
-      return {
-        server: text(options, "server", SERVER_REQUIRED),
-        tool: text(
-          options,
-          "tool",
-          "tool is required: a tool name from mcp.tools.list(server).",
-        ),
-        args: args as Record<string, unknown>,
-      };
-    },
-    authorize: ({ server, tool }) => ({
-      targets: [`mcp:tool/${server}/${tool}`],
-      summary: `Call MCP tool ${server}/${tool}`,
+        if (result.isError) {
+          const message = result.content
+            .flatMap((block) =>
+              block.type === "text" && typeof block.text === "string"
+                ? [block.text]
+                : [],
+            )
+            .join("\n");
+          throw codedError(
+            "SERVER_ERROR",
+            `MCP tool ${server}/${tool} reported an error: ${message || "(no message)"}`,
+          );
+        }
+        return await toToolResult(
+          env,
+          artifactBase("mcp", server, tool),
+          result,
+        );
+      },
     }),
-    resource: ({ server, tool }) => `MCP tool ${server}/${tool}`,
-    run: async ({ server, tool, args }, env) => {
-      const result = await port(env).callTool(server, tool, args, signal(env));
-      const converted = await toToolResult(
-        env,
-        artifactBase("mcp", server, tool),
-        result,
-      );
-      if (result.isError)
-        throw codedError(
-          "SERVER_ERROR",
-          `MCP tool ${server}/${tool} reported an error: ${converted.text || "(no message)"}`,
-        );
-      return converted;
-    },
-  }),
+    // The arguments may be computed; the server and tool alone decide the check.
+    scanOptions: ["server", "tool"],
+  },
   defineMethod({
     product: "mcp",
     path: "resources.list",
@@ -315,6 +347,7 @@ export const mcpMethods: SdkMethod[] = [
     run: async (server, env) =>
       await eachServer(
         env,
+        "mcp.resources.list",
         server,
         async (name) => await port(env).listResources(name, signal(env)),
       ),

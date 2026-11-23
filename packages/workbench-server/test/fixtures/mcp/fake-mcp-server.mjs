@@ -1,5 +1,6 @@
 // A small MCP server over stdio for tests and manual QA: newline-delimited JSON-RPC.
-// Tools: echo (text), add (structured), pixel (image), fail (tool error), whereami (cwd and env).
+// Tools: echo (text), add (structured), pixel (image), fail (tool error), whereami (cwd and env),
+// crash (the process exits).
 import { createInterface } from "node:readline";
 
 const PIXEL =
@@ -36,6 +37,11 @@ const tools = [
     inputSchema: { type: "object", properties: {} },
   },
   {
+    name: "crash",
+    description: "Exits the server",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
     name: "whereami",
     description: "The server's cwd and FAKE_MCP_TOKEN",
     inputSchema: { type: "object", properties: {} },
@@ -65,6 +71,9 @@ function call(name, args) {
         content: [{ type: "text", text: "the fake tool failed" }],
         isError: true,
       };
+    case "crash":
+      process.exit(1);
+      return undefined;
     case "whereami":
       return {
         content: [

@@ -54,10 +54,14 @@ export function parseMcpConfig(path: string, text: string): McpConfigFile {
   try {
     raw = JSON.parse(text);
   } catch (error) {
+    // Only the position: the message can quote the text around it, which may hold a token.
+    const position = /position \d+(?: \(line \d+ column \d+\))?/.exec(
+      (error as Error).message,
+    )?.[0];
     return {
       path,
       servers: [],
-      problems: [`not valid JSON (${(error as Error).message})`],
+      problems: [`not valid JSON${position ? ` (at ${position})` : ""}`],
     };
   }
   if (!isRecord(raw))

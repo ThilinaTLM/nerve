@@ -145,6 +145,12 @@ export type SdkMethod = {
   risk: MethodRisk;
   /** The risk depends on argument values; the scanner needs literal arguments to decide it (see `MethodDefinition.riskFromArgs`). */
   riskFromArgs?: boolean;
+  /**
+   * Options that alone decide the method's authorization (operation, targets, risk). The scan
+   * reads them from an object literal and passes every other option as `null`, so a call whose
+   * other options are computed (`mcp.tools.call`'s `arguments`) still names its targets.
+   */
+  scanOptions?: readonly string[];
   /** Checked as this direct tool at run time (`launches.start` as `bash`), not as an operation; operation rules cannot admit it. */
   directTool?: string;
   /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates the declarations `sdk.describe` serves (sdk-dts.ts). */
