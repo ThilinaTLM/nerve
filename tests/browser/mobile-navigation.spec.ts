@@ -50,7 +50,8 @@ test.describe("phone shell", () => {
     await primaryTabs(page).getByRole("button", { name: "Activity" }).click();
     await page.getByRole("button", { name: "Settings" }).first().click();
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-    await page.locator(".mobile-row-main:visible").first().click();
+    // A row that opens a page (sign-out and notification rows act in place).
+    await page.getByRole("button", { name: /^Devices\b/ }).click();
     const title = page.locator("h1:visible");
     await expect(title).not.toHaveText("Settings");
     const pageTitle = await title.innerText();
@@ -59,7 +60,7 @@ test.describe("phone shell", () => {
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await page.goForward();
     await expect(
-      page.getByRole("heading", { name: pageTitle, exact: true }),
+      page.getByRole("heading", { level: 1, name: pageTitle, exact: true }),
     ).toBeVisible();
 
     await page.goBack();

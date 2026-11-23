@@ -86,7 +86,7 @@ async function fixture(initial: ConversationSummary[] = [summary()]) {
   });
   const change = async (next: ConversationSummary) => {
     listener({ kind: "conversation_changed", summary: next });
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await push.settled();
   };
   return { push, sent, subscriptions, failures, warnings, clock, change, dir };
 }

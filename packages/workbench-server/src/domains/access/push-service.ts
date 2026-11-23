@@ -89,6 +89,7 @@ export interface PushServiceOptions {
 export class PushService {
   readonly #devices: PushDevices;
   readonly #send: PushSender;
+  readonly #inflight = new Set<Promise<void>>();
   readonly #now: () => number;
   readonly #logger: { warn(message: string): void } | undefined;
   readonly #vapidPath: string;
@@ -216,9 +217,15 @@ export class PushService {
   #observe(summary: ConversationSummary): void {
     const edge = this.#tracker.observe(summary);
     if (!edge || this.#anyoneWatching()) return;
-    void this.#push(summary, edge).catch((error: unknown) =>
-      this.#warn("Push dispatch failed", error),
-    );
+    const dispatch = this.#push(summary, edge)
+      .catch((error: unknown) => this.#warn("Push dispatch failed", error))
+      .finally(() => this.#inflight.delete(dispatch));
+    this.#inflight.add(dispatch);
+  }
+
+  /** Resolves once every push dispatched so far has been delivered or dropped. */
+  async settled(): Promise<void> {
+    while (this.#inflight.size) await Promise.all(this.#inflight);
   }
 
   async #push(
