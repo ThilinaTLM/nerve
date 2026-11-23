@@ -26,6 +26,7 @@ import { AccessGate, type ClientInfo, type Principal } from "./access-gate.js";
 import { PeerMatcher } from "../../infrastructure/network/client-address.js";
 import { DeviceSockets } from "./device-sockets.js";
 import { DeviceStore } from "./device-store.js";
+import { PushService } from "./push-service.js";
 import { FailureLimiter } from "./failure-limiter.js";
 import type { ShareOrigin } from "../../infrastructure/network/share-origins.js";
 import {
@@ -67,7 +68,10 @@ export function accessSettingsFromSnapshot(
 }
 
 export interface AccessServiceOptions {
-  paths: Pick<StoragePaths, "home" | "devicesPath" | "accessAuditPath">;
+  paths: Pick<
+    StoragePaths,
+    "home" | "devicesPath" | "vapidKeysPath" | "accessAuditPath"
+  >;
   localToken: string;
   settings?: AccessSettings;
   now?: () => number;
@@ -97,6 +101,7 @@ export class AccessService {
   readonly sockets = new DeviceSockets();
   readonly gate: AccessGate;
   readonly passkeys: PasskeyService;
+  readonly push: PushService;
   notifier: AccessNotifier = noopNotifier;
   /** Late-bound so the service can exist before the logger does. */
   logger: { warn(message: string): void } | undefined;
@@ -124,6 +129,12 @@ export class AccessService {
       options.settings?.trustProxyPeers ?? DEFAULT_TRUST_PROXY_PEERS,
     );
     this.store = new DeviceStore(options.paths.devicesPath, { now: this.#now });
+    this.push = new PushService({
+      devices: this.store,
+      vapidKeysPath: options.paths.vapidKeysPath,
+      now: this.#now,
+      logger: { warn: (message) => this.logger?.warn(message) },
+    });
     this.pairing = new PairingCodes({ now: this.#now });
     this.audit = new AccessAuditLog(options.paths.accessAuditPath, {
       now: this.#now,

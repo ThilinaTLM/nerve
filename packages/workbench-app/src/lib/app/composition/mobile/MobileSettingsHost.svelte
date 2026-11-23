@@ -30,6 +30,7 @@ import {
   backFromMobileScreen,
   pushMobileScreen,
 } from "$lib/app/shell/mobile/mobile-shell.svelte";
+import MobilePushSection from "./MobilePushSection.svelte";
 import { phoneSettingsItems } from "./mobile-settings";
 
 /**
@@ -81,6 +82,10 @@ async function signOut(): Promise<void> {
         onclick={() => (confirmSignOut = true)}
       />
     </MobileSection>
+  {/if}
+
+  {#if device}
+    <MobilePushSection />
   {/if}
 
   <MobileSection title="Remote access">

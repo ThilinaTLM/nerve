@@ -169,6 +169,7 @@ export function createLocalProtocolSession(
     updateActiveSessions(state, -1);
     try {
       unsubscribeNotify();
+      state.operationContexts.platform.push.releaseOwner(monitorOwner);
       state.operationContexts.git.prSync.releaseOwner(monitorOwner);
       state.operationContexts.git.workspaceSync.releaseOwner(monitorOwner);
       session.dispose();
@@ -267,6 +268,7 @@ export function createLocalProtocolSession(
     async shutdown(message = "Daemon shutting down") {
       if (disposed) return;
       unsubscribeNotify();
+      state.operationContexts.platform.push.releaseOwner(monitorOwner);
       state.operationContexts.git.prSync.releaseOwner(monitorOwner);
       state.operationContexts.git.workspaceSync.releaseOwner(monitorOwner);
       let failure: unknown;

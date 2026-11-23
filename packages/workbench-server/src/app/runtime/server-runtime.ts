@@ -306,6 +306,18 @@ export function composeServerRuntime(
   access.onLocalTokenRotated = (token) => {
     storage.localToken = token;
   };
+  const pushCore = services.conversationCore;
+  access.push.start({
+    subscribe: (listener) => pushCore.subscribe(listener),
+    listSummaries: () =>
+      pushCore.projects.list().flatMap((project) =>
+        pushCore.listConversations({
+          projectId: project.id,
+          parentConversationId: null,
+        }),
+      ),
+    projectName: (projectId) => pushCore.projects.get(projectId)?.name,
+  });
   const tunnelRuntime = createTunnelRuntime({
     storage,
     access,
@@ -340,6 +352,7 @@ export function composeServerRuntime(
     performanceDiagnostics,
     applicationConfiguration,
     tunnel: tunnelRuntime.tunnel,
+    push: access.push,
     statusResponse: () => statusResponse(runtime),
   };
   const runtime: ServerRuntime = {

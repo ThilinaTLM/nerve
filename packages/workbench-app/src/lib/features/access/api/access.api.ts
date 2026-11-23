@@ -9,6 +9,8 @@ import type {
   PairingPurpose,
   Passkey,
   PasskeyRegisterVerifyResponse,
+  PushState,
+  PushSubscriptionData,
 } from "@nervekit/contracts/access";
 import {
   apiDelete,
@@ -16,6 +18,7 @@ import {
   apiPatch,
   apiPathSegment,
   apiPost,
+  apiPut,
 } from "$lib/platform/http/api-client";
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -139,4 +142,22 @@ export async function listAuditEvents(limit = 50): Promise<AccessAuditEvent[]> {
       `/api/access/audit?limit=${limit}`,
     )
   ).events;
+}
+
+export function getPushState(): Promise<PushState> {
+  return apiGet<PushState>("/api/access/push");
+}
+
+export async function putPushSubscription(
+  subscription: PushSubscriptionData,
+): Promise<void> {
+  await apiPut<{ ok: true }>("/api/access/push/subscription", subscription);
+}
+
+export async function deletePushSubscription(): Promise<void> {
+  await apiDelete<{ ok: true }>("/api/access/push/subscription");
+}
+
+export async function sendPushTest(): Promise<void> {
+  await apiPost<{ ok: true }>("/api/access/push/test", {});
 }

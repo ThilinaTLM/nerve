@@ -42,6 +42,7 @@ import {
   conversationAttention,
   startConversationAttention,
 } from "$lib/application/activity/conversation-attention.svelte";
+import { startPresenceReporting } from "$lib/application/notifications/presence-reporting.svelte";
 import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 const usagePoll = createPoll({
   run: refreshSubscriptionUsage,
@@ -50,6 +51,7 @@ const usagePoll = createPoll({
 let unobserve: (() => void) | undefined;
 let stopAppearanceSync: (() => void) | undefined;
 let stopAttention: (() => void) | undefined;
+let stopPresence: (() => void) | undefined;
 
 export async function initializeWorkbench(): Promise<boolean> {
   const generation = beginWorkbenchStartup();
@@ -116,6 +118,8 @@ export async function initializeWorkbench(): Promise<boolean> {
     conversationAttention.seed(workspaceState.conversations);
     stopAttention?.();
     stopAttention = startConversationAttention();
+    stopPresence?.();
+    stopPresence = startPresenceReporting();
     workspaceState.connection = "connected";
     workspaceState.error = undefined;
     transitionWorkbenchStartup(generation, "core-ready");
@@ -142,6 +146,8 @@ export function disconnectWorkbench(): void {
   unobserve = undefined;
   stopAttention?.();
   stopAttention = undefined;
+  stopPresence?.();
+  stopPresence = undefined;
   stopReleasePolling();
   workspaceMonitorDemand.reset();
   disconnectWorkbenchChannel();

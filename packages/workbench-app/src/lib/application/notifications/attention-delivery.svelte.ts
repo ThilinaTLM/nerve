@@ -117,6 +117,11 @@ export function attentionPresence(conversationId: string): AttentionPresence {
   });
 }
 
+/** This window is focused with recent input (what the daemon calls active). */
+export function isPresenceActive(): boolean {
+  return attentionPresence("") !== "away";
+}
+
 export function deliverAttention(
   event: AttentionEvent,
   options: DeliveryOptions = {},

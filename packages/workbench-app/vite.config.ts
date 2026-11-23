@@ -86,6 +86,11 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       VitePWA({
         registerType: "prompt",
+        // A custom worker (src/sw.ts) adds Web Push to the precache + shell
+        // navigation that generateSW used to provide.
+        strategies: "injectManifest",
+        srcDir: "src",
+        filename: "sw.ts",
         injectRegister: false,
         // Keep the service worker out of `pnpm dev` so it cannot shadow the
         // Vite `/api` + `/ws` proxy below.
@@ -121,25 +126,13 @@ export default defineConfig(({ mode }) => {
             },
           ],
         },
-        workbox: {
+        injectManifest: {
           globPatterns: ["**/*.{js,css,html,svg,png,webp,mp3,woff2,json}"],
           // The complete file-icon sprite is emitted locally but loaded on
           // demand rather than turning service-worker installation into a
           // multi-megabyte prerequisite.
           globIgnores: ["**/material-file-icons-*.svg"],
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-          cleanupOutdatedCaches: true,
-          // Serve the cached app shell for in-app navigations (fast + offline),
-          // but never hijack the CA download,
-          // the mobile setup page, or the dynamic API/WS endpoints.
-          navigateFallback: "/index.html",
-          navigateFallbackDenylist: [
-            /^\/api\//,
-            /^\/html-preview\//,
-            /^\/ws\b/,
-            /^\/mobile-setup\b/,
-            /^\/nerve-local-ca\.pem$/,
-          ],
         },
       }),
     ],

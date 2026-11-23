@@ -3,3 +3,10 @@ export { default as DevicesSettingsPage } from "./views/DevicesSettingsPage.svel
 export { registerAccessEventHandlers } from "./state/access-events";
 export { signOutThisDevice } from "./state/access-actions";
 export { accessGate } from "./state/access-gate.svelte";
+export {
+  disablePushNotifications,
+  enablePushNotifications,
+  loadPushNotifications,
+  pushNotifications,
+  sendTestPushNotification,
+} from "./state/push-notifications.svelte";

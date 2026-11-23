@@ -44,6 +44,7 @@ import type { SubscriptionUsageService } from "../domains/usage/subscription-usa
 import type { PerformanceDiagnosticsPort } from "../core/ports/diagnostics.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { WorkbenchNoticePublisher } from "../infrastructure/events/index.js";
+import type { PushService } from "../domains/access/push-service.js";
 import type { TunnelService } from "../domains/access/tunnel-service.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage-bootstrap/index.js";
@@ -83,6 +84,8 @@ export interface AdapterInfrastructure {
   performanceDiagnostics: PerformanceDiagnosticsPort;
   applicationConfiguration: ApplicationConfigurationSnapshot;
   tunnel: TunnelService;
+  /** Presence reports and Stop suppression for Web Push. */
+  push: PushService;
   statusResponse(): StatusResponse;
 }
 
@@ -247,6 +250,7 @@ export function createServerAdapterContexts(
         projectDirectory: (id) =>
           services.conversationCore.projects.get(id)?.directory,
       }),
+      push: infrastructure.push,
       host: infrastructure.host,
       port: infrastructure.port,
       events: infrastructure.events,

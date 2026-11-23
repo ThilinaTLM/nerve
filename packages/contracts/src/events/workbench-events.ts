@@ -79,5 +79,6 @@ export function isWorkbenchOperation(method: string): boolean {
     "status.",
     "usage.",
     "applicationLog.",
+    "access.",
   ].some((prefix) => method.startsWith(prefix));
 }

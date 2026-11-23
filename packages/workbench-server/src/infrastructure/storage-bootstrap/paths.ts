@@ -21,6 +21,8 @@ export interface StoragePaths {
   localTokenPath: string;
   /** Per-device credential hashes and owner passkeys (0600). */
   devicesPath: string;
+  /** Web Push VAPID key pair (0600). */
+  vapidKeysPath: string;
   dataPath: string;
   sqlitePath: string;
   conversationsPath: string;
@@ -80,6 +82,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     credentialsPath: join(secretsPath, "credentials.enc"),
     localTokenPath: join(secretsPath, "daemon-token"),
     devicesPath: join(secretsPath, "devices.json"),
+    vapidKeysPath: join(secretsPath, "vapid-keys.json"),
     dataPath,
     sqlitePath: join(dataPath, "nerve.sqlite"),
     conversationsPath: join(dataPath, "conversations"),

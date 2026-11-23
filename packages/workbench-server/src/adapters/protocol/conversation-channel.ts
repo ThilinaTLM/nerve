@@ -322,6 +322,7 @@ export function createConversationProtocolSession(
       return null;
     },
     "conversation.stop": async ({ conversationId }) => {
+      state.push.noteUserStop(conversationId);
       await core.stop(conversationId);
       return null;
     },

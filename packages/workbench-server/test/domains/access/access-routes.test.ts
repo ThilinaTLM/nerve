@@ -467,4 +467,17 @@ describe("passkey gate with publicUrl", () => {
       "PUBLIC_URL_REQUIRED",
     );
   });
+
+  it("serves push only to paired devices", async () => {
+    const { app } = await fixture();
+    const peer = withPeer(app);
+    for (const [method, path] of [
+      ["GET", "/api/access/push"],
+      ["DELETE", "/api/access/push/subscription"],
+      ["POST", "/api/access/push/test"],
+    ] as const) {
+      const response = await peer.request(path, { method, headers: local });
+      assert.equal(response.status, 403, `${method} ${path}`);
+    }
+  });
 });

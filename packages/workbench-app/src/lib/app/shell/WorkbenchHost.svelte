@@ -5,6 +5,7 @@ import MobileWorkbenchHost from "$lib/app/shell/mobile/MobileWorkbenchHost.svelt
 import DesktopShutdownOverlay from "$lib/app/shell/DesktopShutdownOverlay.svelte";
 import SettingsHealthWatcher from "$lib/app/shell/SettingsHealthWatcher.svelte";
 import ProjectConfigurationHealthWatcher from "$lib/app/shell/ProjectConfigurationHealthWatcher.svelte";
+import OpenLinkHost from "$lib/app/shell/OpenLinkHost.svelte";
 import ConfigurationAttentionWatcher from "$lib/app/shell/ConfigurationAttentionWatcher.svelte";
 import WorkbenchEditorHost from "$lib/app/shell/WorkbenchEditorHost.svelte";
 import WorkbenchPanelHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
@@ -134,6 +135,7 @@ $effect(() => {
   <SettingsHealthWatcher />
   <ProjectConfigurationHealthWatcher />
   <ConfigurationAttentionWatcher />
+  <OpenLinkHost />
   <BrowserNotificationPrompt />
   <CriticalErrorDialog />
   <DiscoverStartupHost />
