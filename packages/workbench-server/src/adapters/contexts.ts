@@ -3,8 +3,7 @@ import type {
   CoreStorage,
   ConversationCore,
 } from "@nervekit/conversation-core";
-import type { VisionHost } from "../core-host/vision-models.js";
-import type { TextHost } from "../core-host/text-models.js";
+import type { ModelHosts } from "../core-host/model-hosts.js";
 import type { GitOperationService, GitService } from "@nervekit/tools/git";
 import type { UnreadableConversationActivity } from "../domains/activity/unreadable-conversation-activity.js";
 import type { UnifiedCompletionService } from "../domains/completions/unified-completion-service.js";
@@ -99,10 +98,8 @@ export interface AdapterServices {
   conversationCore: ConversationCore;
   agentConfiguration: AgentConfigurationService;
   extensionSettings: ExtensionSettingsService;
-  /** The vision model behind extensions' `ctx.models.vision`. */
-  vision: VisionHost;
-  /** The text model behind extensions' `ctx.models.text`. */
-  text: TextHost;
+  /** The hosts behind extensions' `ctx.models`. */
+  models: ModelHosts;
   configurationOperations: ReturnType<typeof agentConfigurationOperations>;
   admissionPolicy: ScopedPermissionPolicySource;
   configurationResources: ConfigurationResourceRegistry;
@@ -142,16 +139,14 @@ export function createServerAdapterContexts(
     projectDirectory: (projectId) =>
       services.conversationCore.projects.get(projectId)?.directory,
     accounts: services.accounts,
-    vision: services.vision,
-    text: services.text,
+    models: services.models,
     extensionStore: services.extensionStore,
   });
   const extensionUi = new ExtensionUiService({
     catalog: services.extensionCatalog,
     extensions: services.extensionSettings,
     accounts: services.accounts,
-    vision: services.vision,
-    text: services.text,
+    models: services.models,
     store: services.extensionStore,
     conversations: {
       create: (input) => services.conversationCore.createConversation(input),

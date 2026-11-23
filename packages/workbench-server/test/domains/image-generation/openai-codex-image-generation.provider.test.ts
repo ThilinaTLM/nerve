@@ -13,15 +13,10 @@ function accessToken(accountId = "account-test"): string {
 }
 
 const request = {
+  model: { provider: "openai-codex", modelId: "gpt-image-2.5-flare" },
   prompt: "A coral nerve cell",
   inputs: [],
-  options: {
-    backend: "openai-codex" as const,
-    model: "gpt-image-2.5-flare",
-    quality: "xhigh",
-    size: "1024x1024",
-    background: "transparent",
-  },
+  options: { quality: "xhigh", size: "1024x1024", background: "transparent" },
 };
 
 function auth(): AuthManager {
@@ -70,8 +65,7 @@ describe("OpenAI Codex image generation provider", () => {
         () => (usageTouches += 1),
       );
       const response = await provider.generate(request);
-      assert.equal(response.provider, "openai-codex");
-      assert.equal(response.model, "gpt-image-2.5-flare");
+      assert.equal(response.model, "openai-codex/gpt-image-2.5-flare");
       assert.deepEqual(Buffer.from(response.images[0]!.data), image);
       assert.equal(
         response.images[0]?.revisedPrompt,

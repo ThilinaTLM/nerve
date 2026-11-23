@@ -83,6 +83,12 @@ export function validateField(
         return fail("This model setting has no reasoning level.");
       return { ok: true, value: parsed.data };
     }
+    case "imageModel": {
+      const parsed = modelSelectionSchema.strict().safeParse(value);
+      return parsed.success
+        ? { ok: true, value: parsed.data }
+        : fail("Expected an image model selection.");
+    }
     case "agentProfile":
       return typeof value === "string" && value.trim().length > 0
         ? { ok: true, value: value.trim() }

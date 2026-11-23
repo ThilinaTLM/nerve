@@ -107,6 +107,15 @@ export const extensionsViewSchema = z.strictObject({
   diagnostics: z.array(settingsDiagnosticSchema),
   /** Every extension the host knows of at the target (built-in, user and the target project's), loaded or not, with its state and diagnostics. */
   catalog: z.array(extensionCatalogEntrySchema),
+  /** The host's image generation models, offered by `imageModel` fields; `ready`: the backend is signed in. */
+  imageModels: z.array(
+    z.strictObject({
+      provider: z.string(),
+      modelId: z.string(),
+      label: z.string(),
+      ready: z.boolean(),
+    }),
+  ),
   /** Entries of extensions that are not registered; kept in the file. */
   unknown: z.array(
     z.strictObject({

@@ -2,6 +2,7 @@
 export type {
   Risk,
   OperationTarget,
+  OperationCheck,
   OperationAuthorization,
   ToolAuthorization,
   Authorization,
@@ -9,6 +10,7 @@ export type {
 } from "./authorization.js";
 export type {
   SettingScope,
+  AccountField,
   SettingField,
   SettingsSchema,
   ExtensionSettings,
@@ -28,17 +30,21 @@ export type {
   HttpRequest,
   HttpArtifactOptions,
   HttpResponse,
-  ReportEntry,
-  ImageOptions,
+  HttpBody,
+  ReasoningLevel,
+  ModelSelection,
+  ImageModelSelection,
+  ModelProgress,
   ImageRequest,
   ImageResult,
   VisionRequest,
   VisionResult,
-  VisionExplainRequest,
   TextRequest,
   TextResult,
-  TextCompleteRequest,
+  ExtensionModels,
   ExtensionContext,
+  ExtensionHookContext,
+  AccountTestContext,
 } from "./types.js";
 export type {
   CredentialAccount,

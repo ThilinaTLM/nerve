@@ -91,9 +91,15 @@ describe("model, agent profile and permission rule set fields", () => {
       deep: { type: "model", label: "Deep", reasoning: true },
       profile: { type: "agentProfile", label: "Profile" },
       rules: { type: "permissionRuleSet", label: "Rules" },
+      image: { type: "imageModel", label: "Image" },
     },
   });
   const model = { provider: "p", modelId: "m" };
+  it("takes an image model as provider and model id only", () => {
+    assert.deepEqual(validate({ image: model }).value, { image: model });
+    for (const image of [{ ...model, reasoningLevel: "high" }, "m", {}])
+      assert.equal(validate({ image }).issues.length, 1, JSON.stringify(image));
+  });
   it("accepts a reasoning level only on a field with `reasoning`", () => {
     const ok = validate({
       plain: model,
@@ -303,7 +309,8 @@ describe("accountKindSchema", () => {
   it("rejects account and model fields, which the account dialog cannot show", () => {
     for (const field of [
       { type: "account", kind: "demo", label: "Other" },
-      { type: "model", label: "Model", capability: "image" },
+      { type: "model", label: "Model", capability: "vision" },
+      { type: "imageModel", label: "Image model" },
     ]) {
       const result = accountKindSchema.safeParse(kind({ x: field }));
       assert.equal(result.success, false);

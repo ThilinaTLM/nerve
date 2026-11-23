@@ -17,8 +17,7 @@ import type { AccountScopes } from "../../domains/accounts/accounts.service.js";
 import { extensionAvailability } from "./extension-availability.js";
 import { createExtensionPorts } from "./extension-ports.js";
 import type { ExtensionStore } from "./extension-store/extension-store.js";
-import type { VisionHost } from "../vision-models.js";
-import type { TextHost } from "../text-models.js";
+import type { ModelHosts } from "../model-hosts.js";
 
 export type ExtensionViewOptions = {
   extensions: ExtensionSettingsService;
@@ -28,8 +27,7 @@ export type ExtensionViewOptions = {
   /** The directory of a project, to find its own extensions. */
   projectDirectory?(projectId: string): string | undefined;
   accounts: AccountScopes;
-  vision?: VisionHost;
-  text?: TextHost;
+  models?: ModelHosts;
   /** The durable store behind `ctx.extensionStore` in availability hooks of a project's extensions. */
   extensionStore?: ExtensionStore;
 };
@@ -69,8 +67,7 @@ export function createExtensionViews(options: ExtensionViewOptions) {
         ports: createExtensionPorts({
           resolution,
           accounts,
-          ...(options.vision ? { vision: options.vision } : {}),
-          ...(options.text ? { text: options.text } : {}),
+          models: options.models,
           store: options.extensionStore,
           projectId: ctx.projectId,
         }),
@@ -139,6 +136,7 @@ export function createExtensionViews(options: ExtensionViewOptions) {
         // Diagnostics name a layer; the schema's layer set matches the resolver's.
       })),
       catalog,
+      imageModels: (await options.models?.images?.listModels()) ?? [],
       unknown: resolution.unknown.map(({ id, layer }) => ({ id, layer })),
     };
   }

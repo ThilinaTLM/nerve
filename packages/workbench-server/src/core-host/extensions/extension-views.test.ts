@@ -60,6 +60,7 @@ void test("the user view lists every built-in extension with sources, availabili
     ),
   });
   const view = await views.view({ scope: "user" });
+  assert.deepEqual(view.imageModels, []);
   assert.deepEqual(
     view.extensions.map((extension) => extension.metadata.id),
     ["web-search", "atlassian", "diagram", "imagegen", "image-explanation"],
@@ -109,6 +110,15 @@ void test("a fresh home's view survives JSON and parses: unset fields have no va
     agents: {} as never,
     catalog: fixedRegistryProvider(hostRegistry),
     accounts: fakeAccountScopes(),
+    models: {
+      images: {
+        generate: async () => ({ model: "p/m", images: [] }),
+        ready: async () => true,
+        listModels: async () => [
+          { provider: "p", modelId: "m", label: "M", ready: true },
+        ],
+      },
+    },
   });
   const wire = JSON.parse(JSON.stringify(await views.view({ scope: "user" })));
   assert.equal(extensionsViewSchema.safeParse(wire).success, true);

@@ -95,7 +95,9 @@ const toolBase = {
   description: z.string().min(1),
   parameters: parametersSchema,
   view: extensionToolViewSchema.optional(),
-  enabledBy: z.string().min(1).optional(),
+  enabledBy: z
+    .union([z.string().min(1), z.array(z.string().min(1))])
+    .optional(),
   requires: requiresSchema.optional(),
   availability: hook.optional(),
 };
@@ -247,8 +249,14 @@ export const installedExtensionUiSchema = z.strictObject({
 export const installedExtensionCredentialsSchema = z.strictObject({
   /** Hex SHA-256 of `dist/credentials.js`: part of what the user consents to. */
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
-  /** The operations the provider implements. */
-  operations: z.array(z.enum(["signIn", "refresh", "apply", "revoke"])).min(2),
+  /** The operations the provider implements; `signIn` and `apply` are required. */
+  operations: z
+    .array(z.enum(["signIn", "refresh", "apply", "revoke"]))
+    .refine(
+      (operations) =>
+        operations.includes("signIn") && operations.includes("apply"),
+      "A credential provider must implement signIn and apply.",
+    ),
 });
 
 export const installedExtensionManifestSchema = z.strictObject({

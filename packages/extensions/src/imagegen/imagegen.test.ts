@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ImageRequest } from "@nervekit/extension-api";
 import { createFakeContext } from "@nervekit/extension-api/testing";
-import { assertOpenAiCodexSize, resolveRequest } from "./backends.js";
+import { assertOpenAiCodexSize } from "./backends.js";
 import { imagegenMethods } from "./imagegen-methods.js";
 import { imagegenExtension } from "./manifest.js";
 
@@ -12,18 +12,18 @@ const PIXEL_PNG = Uint8Array.from(
     "base64",
   ),
 );
+const MODEL = { provider: "openai-codex", modelId: "gpt-image-2.5-sunburst" };
 
-function setup(settings: Record<string, string> = {}) {
+function setup(settings: Record<string, unknown> = { model: MODEL }) {
   const requests: ImageRequest[] = [];
   const fake = createFakeContext({
-    settings: { backend: "openai-codex", ...settings },
-    image: (request) => {
-      requests.push(request);
-      return {
-        provider: "openai-codex",
-        model: request.options.model,
-        images: [{ data: PIXEL_PNG }],
-      };
+    settings,
+    image: {
+      generate: (request) => {
+        requests.push(request);
+        return { images: [{ bytes: PIXEL_PNG, mediaType: "image/png" }] };
+      },
+      ready: settings.model !== undefined,
     },
   });
   return { ...fake, requests };
@@ -41,15 +41,13 @@ const generate = (
   };
 };
 
-void test("imagegen.generate applies call options over settings and stores an artifact", async () => {
-  const { ctx, record, requests } = setup({
-    model: "gpt-image-2.5-sunburst",
-    quality: "high",
-  });
+void test("imagegen.generate passes the selected model and call options over settings", async () => {
+  const { ctx, record, requests } = setup({ model: MODEL, quality: "high" });
   const call = generate(ctx, {
     prompt: "  A coral nerve cell  ",
     size: "1536x1024",
     name: "hero",
+    inputs: ["artifact:ref.png"],
     backendOptions: { background: "transparent" },
   });
   assert.deepEqual(call.authorization, [
@@ -60,17 +58,26 @@ void test("imagegen.generate applies call options over settings and stores an ar
     record.artifacts.get("artifact:hero.png")?.mediaType,
     "image/png",
   );
-  assert.equal(requests[0]?.prompt, "A coral nerve cell");
-  assert.deepEqual(requests[0]?.options, {
-    backend: "openai-codex",
-    model: "gpt-image-2.5-sunburst",
-    quality: "high",
+  assert.deepEqual(requests[0], {
+    model: MODEL,
+    prompt: "A coral nerve cell",
+    inputs: ["artifact:ref.png"],
     size: "1536x1024",
+    quality: "high",
     background: "transparent",
+    artifact: { name: "hero" },
   });
 });
 
-void test("workspace references are authorized as reads", async () => {
+void test("without a selected model the call is refused and the namespace unavailable", async () => {
+  const { ctx, requests } = setup({});
+  await assert.rejects(generate(ctx, { prompt: "x" }).run(), /No image model/);
+  assert.equal(requests.length, 0);
+  const verdict = await imagegenExtension.namespaces[0].availability?.(ctx);
+  assert.equal(verdict?.available, false);
+});
+
+void test("workspace references are authorized as reads", () => {
   const { ctx } = setup();
   const call = generate(ctx, {
     prompt: "x",
@@ -82,7 +89,7 @@ void test("workspace references are authorized as reads", async () => {
   ]);
 });
 
-void test("bad options fail before any call is authorized and spend nothing", async () => {
+void test("bad options fail before any call is authorized and spend nothing", () => {
   const { ctx, requests } = setup();
   for (const [options, message] of [
     [{ prompt: "x", size: "100x100" }, /multiples of 16/],
@@ -102,11 +109,6 @@ void test("bad options fail before any call is authorized and spend nothing", as
       message,
       JSON.stringify(options),
     );
-  // Reference images are a settings-dependent refusal: caught before the backend is called.
-  await assert.rejects(
-    generate(ctx, { prompt: "x", inputs: ["a.png"] }).run(),
-    /cannot take reference images/,
-  );
   assert.equal(requests.length, 0);
 });
 
@@ -115,26 +117,28 @@ void test("size rules match the openai-codex backend", () => {
   assert.equal(assertOpenAiCodexSize("1536x1024"), "1536x1024");
   for (const size of ["1000x1000", "4096x1024", "3840x1024", "640x480", "x"])
     assert.throws(() => assertOpenAiCodexSize(size), /size must be/, size);
-  assert.throws(
-    () =>
-      resolveRequest(
-        {
-          backend: "openai-codex",
-          model: "m",
-          quality: "auto",
-          size: "auto",
-          background: "auto",
-        },
-        { inputs: 0 },
-      ),
-    /model must be one of/,
+});
+
+void test("the namespace describes the selected model and its options", () => {
+  const { ctx } = setup({ model: MODEL, quality: "low" });
+  assert.match(
+    imagegenExtension.namespaces[0].configuration?.(ctx) ?? "",
+    /Configured model: openai-codex\/gpt-image-2\.5-sunburst, defaults quality low, size auto/,
   );
 });
 
-void test("the namespace describes the configured backend and its options", () => {
-  const { ctx } = setup({ quality: "low" });
-  assert.match(
-    imagegenExtension.namespaces[0].configuration?.(ctx) ?? "",
-    /Configured backend: openai-codex, model gpt-image-2\.5-flare, defaults quality low, size auto/,
+void test("settings v2 fold the backend and model enums into the image model", () => {
+  const migrate = imagegenExtension.settings.migrations![2]!;
+  assert.deepEqual(
+    migrate({
+      backend: "openai-codex",
+      model: "gpt-image-2.5-sunburst",
+      quality: "high",
+    }),
+    { quality: "high", model: MODEL },
   );
+  assert.deepEqual(migrate({ model: "gpt-image-2.5-flare" }), {
+    model: { provider: "openai-codex", modelId: "gpt-image-2.5-flare" },
+  });
+  assert.deepEqual(migrate({ size: "auto" }), { size: "auto" });
 });

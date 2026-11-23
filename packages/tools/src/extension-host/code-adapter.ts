@@ -13,6 +13,7 @@ import {
   type Risk,
 } from "@nervekit/extension-api";
 import { isMethodTool } from "@nervekit/extension-api/host";
+import { accountTestContext, hookContext } from "./hook-context.js";
 
 /**
  * How the host talks to an extension's code. Every operation is asynchronous
@@ -73,6 +74,8 @@ export interface ExtensionCode {
 export type ExtensionCodeHost = {
   /** The extension's `ctx`; inside a call (`call`) `ctx.authorize` is bound to the call's declared risk. */
   context(call?: CodeCall): ExtensionContext;
+  /** The run's cancellation: a sandbox cancels its invocations natively when it aborts. */
+  signal: AbortSignal;
 };
 
 /**
@@ -196,7 +199,9 @@ class InProcessExtensionCode implements ExtensionCode {
   }
 
   async configuration(namespace: string): Promise<string | undefined> {
-    return this.#namespace(namespace).configuration?.(this.host.context());
+    return this.#namespace(namespace).configuration?.(
+      hookContext(this.host.context()),
+    );
   }
 
   async availability(
@@ -207,7 +212,7 @@ class InProcessExtensionCode implements ExtensionCode {
         ? this.#namespace(target.id).availability
         : this.definition.tools?.find((tool) => tool.name === target.name)
             ?.availability;
-    return await hook?.(this.host.context());
+    return await hook?.(hookContext(this.host.context()));
   }
 
   async testAccount(
@@ -219,7 +224,7 @@ class InProcessExtensionCode implements ExtensionCode {
       throw new Error(
         `${this.definition.id}: account kind ${kind} has no test.`,
       );
-    return await test(account, this.host.context());
+    return await test(account, accountTestContext(this.host.context()));
   }
 
   async dispose(): Promise<void> {

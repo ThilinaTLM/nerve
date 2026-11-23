@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type {
   AccountAuth,
+  AccountField as ApiAccountField,
   AccountKindData,
   AccountOAuth2Provider,
   AccountSecretField,
@@ -103,9 +104,11 @@ export const settingFieldSchema = z.discriminatedUnion("type", [
   z.strictObject({
     ...fieldBase,
     type: z.literal("model"),
-    capability: z.enum(["image", "vision"]).optional(),
+    capability: z.literal("vision").optional(),
     reasoning: z.boolean().optional(),
   }),
+  /** An image generation model of the host's image backends: `{ provider, modelId }`. */
+  z.strictObject({ ...fieldBase, type: z.literal("imageModel") }),
   z.strictObject({ ...fieldBase, type: z.literal("agentProfile") }),
   z.strictObject({ ...fieldBase, type: z.literal("permissionRuleSet") }),
 ]) as unknown as z.ZodType<ApiSettingField>;
@@ -241,28 +244,32 @@ export const accountClientIdField = (provider: {
   clientIdField?: string | undefined;
 }): string => provider.clientIdField ?? "clientId";
 
+/** The field types an account kind's `fields` may use (`AccountField`). */
+const ACCOUNT_FIELD_TYPES: ReadonlySet<string> = new Set([
+  "boolean",
+  "string",
+  "number",
+  "enum",
+]);
+
 const accountKindObjectSchema = z.strictObject({
   kind: z.string().min(1),
   label: z.string().min(1),
   /** The platform the account is for; shared between definitions. */
   platform: z.string().regex(PLATFORM_NAME).optional(),
   /** Non-secret fields stored with the account. */
+  // Parsed as any setting field so a wrong type gets a message that names the allowed ones.
   fields: z
     .record(fieldKeySchema, settingFieldSchema)
     .superRefine((fields, context) => {
       for (const [key, field] of Object.entries(fields))
-        if (
-          field.type === "account" ||
-          field.type === "model" ||
-          field.type === "agentProfile" ||
-          field.type === "permissionRuleSet"
-        )
+        if (!ACCOUNT_FIELD_TYPES.has(field.type))
           context.addIssue({
             code: "custom",
             path: [key, "type"],
             message: `Account kinds cannot have ${field.type} fields: the account dialog cannot show them. Use string, number, boolean or enum.`,
           });
-    }),
+    }) as unknown as z.ZodType<Record<string, ApiAccountField>>,
   secret: accountSecretFieldSchema.optional(),
   secrets: z.record(secretNameSchema, accountSecretFieldSchema).optional(),
   /** How the host sends the secrets with `ctx.http` requests. Absent: the kind has no injected credential. */

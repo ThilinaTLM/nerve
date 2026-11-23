@@ -4,34 +4,14 @@ import {
   nonEmptyString,
   parseOptions,
 } from "@nervekit/extension-api/host";
-import {
-  assertCallOptions,
-  imagegenSettingsOf,
-  resolveImagegenSettings,
-  resolveRequest,
-} from "./backends.js";
-import { supportedImageType } from "./image-type.js";
+import { assertCallOptions, imagegenSettingsOf } from "./backends.js";
 
 export const MAX_PROMPT_CHARS = 32_000;
-const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 const MAX_INPUTS = 8;
 
-const EXTENSIONS: Record<string, string> = {
-  "image/png": ".png",
-  "image/jpeg": ".jpg",
-  "image/webp": ".webp",
-};
-
-/** The artifact name with the extension of the data the backend returned. */
-function nameFor(name: string, extension: string): string {
-  const dot = name.lastIndexOf(".");
-  const current = dot > 0 ? name.slice(dot).toLowerCase() : "";
-  if (current === extension) return name;
-  const stem = [".png", ".jpg", ".jpeg", ".webp"].includes(current)
-    ? name.slice(0, -current.length)
-    : name;
-  return `${stem}${extension}`;
-}
+/** What the user does when no image model is usable. */
+export const IMAGEGEN_FIX =
+  "Ask the user to choose an image model in Settings → Extensions → Image generation.";
 
 /** The artifact name of a given name or `artifact:` handle. */
 function artifactNameOf(value: unknown): string {
@@ -102,61 +82,30 @@ export const imagegenMethods = {
     ],
     resource: () => "the image backend",
     async run(_session, { prompt, size, name, inputs, backendOptions }, ctx) {
-      const generate = ctx.models.image?.generate;
-      if (!generate)
-        throw new ExtensionError(
-          "BAD_REQUEST",
-          "Image generation is not configured in Settings.",
-        );
-      const options = resolveRequest(
-        resolveImagegenSettings(imagegenSettingsOf(ctx)),
-        {
-          size,
-          backendOptions,
-          inputs: inputs.length,
-        },
-      );
-      const references = [];
-      for (const input of inputs) {
-        const { bytes } = await ctx.artifacts.read(input);
-        const mimeType = supportedImageType(bytes);
-        if (!mimeType)
-          throw new ExtensionError(
-            "BAD_REQUEST",
-            `inputs: ${input} is not a PNG, JPEG or WebP image.`,
-          );
-        references.push({ data: bytes, mimeType });
-      }
-      const response = await generate({ prompt, inputs: references, options });
-      const image = response.images[0];
-      if (!image)
+      const image = ctx.models.image;
+      const settings = imagegenSettingsOf(ctx);
+      if (!image || !settings.model)
+        throw new ExtensionError("DENIED", "No image model is selected.", {
+          fix: IMAGEGEN_FIX,
+        });
+      const extra = backendOptions ?? {};
+      const { images } = await image.generate({
+        model: settings.model,
+        prompt,
+        inputs,
+        size: size ?? settings.size,
+        quality: (extra.quality as string | undefined) ?? settings.quality,
+        background:
+          (extra.background as string | undefined) ?? settings.background,
+        artifact: name ? { name } : { baseName: "image" },
+      });
+      const first = images[0];
+      if (!first)
         throw new ExtensionError(
           "SERVER_ERROR",
           "The image backend returned no images.",
         );
-      if (
-        image.data.byteLength === 0 ||
-        image.data.byteLength > MAX_IMAGE_BYTES
-      )
-        throw new ExtensionError(
-          "SERVER_ERROR",
-          `The image backend returned an invalid size (${image.data.byteLength} bytes).`,
-        );
-      const mimeType = supportedImageType(image.data);
-      const extension = mimeType ? EXTENSIONS[mimeType] : undefined;
-      if (!mimeType || !extension)
-        throw new ExtensionError(
-          "SERVER_ERROR",
-          "The image backend returned an unsupported image format.",
-        );
-      const written = await ctx.artifacts.write(
-        name
-          ? nameFor(name, extension)
-          : await ctx.artifacts.freshName("image", extension),
-        image.data,
-        mimeType,
-      );
-      return written.handle;
+      return first.artifact.handle;
     },
   }),
 };

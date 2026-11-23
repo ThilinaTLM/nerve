@@ -1,5 +1,6 @@
 import type {
   AccountInfo,
+  AccountTestContext,
   AccountTestResult,
   ExtensionContext,
 } from "@nervekit/extension-api";
@@ -36,9 +37,11 @@ const SERVICES = [
  * network blip as an invalid token.
  */
 export async function checkAtlassianConnection(
-  ctx: ExtensionContext,
+  testContext: AccountTestContext,
   service: AtlassianCheckService,
 ): Promise<AtlassianConnectionCheck> {
+  // A connection holds a full `ctx`; the probe below reaches only `accounts` and `http`.
+  const ctx = testContext as ExtensionContext;
   try {
     if (service === "jira") {
       await jiraRequest(await jiraConnection(ctx), {
@@ -98,7 +101,7 @@ const field = (value: unknown): string =>
  */
 export async function testAtlassianAccount(
   account: AccountInfo,
-  ctx: ExtensionContext,
+  ctx: AccountTestContext,
   check: typeof checkAtlassianConnection = checkAtlassianConnection,
 ): Promise<AccountTestResult> {
   if (!field(account.fields.siteUrl) || !field(account.fields.email))

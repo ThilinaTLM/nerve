@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { VisionRequest } from "@nervekit/extension-api";
 import { createFakeContext } from "@nervekit/extension-api/testing";
-import { EXPLAIN_IMAGE_MAX_BYTES, explainImageTool } from "./explain-image.js";
+import { explainImageTool } from "./explain-image.js";
 import { imageExplanationExtension } from "./manifest.js";
 
 const tool = explainImageTool;
 
-function setup(options: { ready?: boolean; bytes?: number } = {}) {
+const MODEL = { provider: "p", modelId: "vision", reasoningLevel: "low" };
+
+function setup(options: { ready?: boolean; model?: unknown } = {}) {
   const requests: VisionRequest[] = [];
   const fake = createFakeContext({
+    settings: { model: "model" in options ? options.model : MODEL },
     vision: {
       ready: options.ready ?? true,
       explain: (request, progress) => {
@@ -19,11 +22,6 @@ function setup(options: { ready?: boolean; bytes?: number } = {}) {
         return { text: " A red square. ", model: "p/m" };
       },
     },
-  });
-  fake.record.artifacts.set("artifact:shot.png", {
-    bytes: new Uint8Array(options.bytes ?? 4),
-    mediaType: "image/png",
-    name: "shot.png",
   });
   return { ...fake, requests };
 }
@@ -55,7 +53,15 @@ void test("explain_image reads the file as a read and streams thinking and the e
   });
   const output = await tool.run(input, ctx);
   assert.equal(output, "A red square.");
-  assert.equal(requests[0].prompt, "colors");
+  // The handle goes to the host, which reads it under the declared read; the model is the setting's.
+  assert.deepEqual(
+    {
+      model: requests[0].model,
+      image: requests[0].image,
+      prompt: requests[0].prompt,
+    },
+    { model: MODEL, image: "artifact:shot.png", prompt: "colors" },
+  );
   assert.deepEqual(record.progress, [
     { section: "thinking", chunk: "looking" },
     { section: "explanation", chunk: "A red " },
@@ -71,15 +77,6 @@ void test("explain_image reads the file as a read and streams thinking and the e
   ]);
 });
 
-void test("explain_image refuses images over the limit before reading them", async () => {
-  const { ctx, requests } = setup({ bytes: EXPLAIN_IMAGE_MAX_BYTES + 1 });
-  await assert.rejects(
-    tool.run({ path: "artifact:shot.png" }, ctx),
-    /too large for explain_image/,
-  );
-  assert.equal(requests.length, 0);
-});
-
 void test("without a usable model the tool is unavailable and a call says how to fix it", async () => {
   const { ctx } = setup({ ready: false });
   assert.deepEqual(await tool.availability(ctx), {
@@ -87,8 +84,9 @@ void test("without a usable model the tool is unavailable and a call says how to
     reason: "No usable image-capable model is selected.",
     fix: "Ask the user to choose an image-capable model in Settings → Extensions → Image explanation.",
   });
+  const { ctx: unset } = setup({ model: undefined });
   await assert.rejects(
-    tool.run({ path: "artifact:shot.png" }, ctx),
+    tool.run({ path: "artifact:shot.png" }, unset),
     (error) => {
       assert.equal((error as { code?: string }).code, "DENIED");
       return true;

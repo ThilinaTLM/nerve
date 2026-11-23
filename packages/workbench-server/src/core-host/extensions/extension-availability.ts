@@ -15,8 +15,7 @@ import {
 } from "./extension-ports.js";
 import type { ExtensionStore } from "./extension-store/extension-store.js";
 import type { AccountsReader } from "../../domains/accounts/accounts.service.js";
-import type { VisionHost } from "../vision-models.js";
-import type { TextHost } from "../text-models.js";
+import type { ModelHosts } from "../model-hosts.js";
 
 /**
  * Which extension namespaces and direct tools are configured and usable, from
@@ -62,9 +61,8 @@ export async function assertExtensionToolOffered(
   toolName: string,
   resolution: ExtensionResolution,
   accounts: AccountsReader,
-  vision?: VisionHost,
+  models?: ModelHosts,
   store?: { store: ExtensionStore; projectId: string },
-  text?: TextHost,
 ): Promise<void> {
   if (!registry.tools.some((tool) => tool.definition.name === toolName)) {
     // A tool another project's extension contributed is in the global catalog but not offered here.
@@ -80,8 +78,7 @@ export async function assertExtensionToolOffered(
     ports: createExtensionPorts({
       resolution,
       accounts,
-      ...(vision ? { vision } : {}),
-      ...(text ? { text } : {}),
+      models,
       store: store?.store,
       projectId: store?.projectId,
     }),

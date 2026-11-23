@@ -21,6 +21,7 @@ import {
   type ExtensionCodeAdapter,
   type ExtensionCodeHost,
 } from "./code-adapter.js";
+import { HOOK_HOST_METHODS } from "./hook-context.js";
 
 /*
  * The sandbox adapter: an extension's code runs in a persistent QuickJS runtime
@@ -147,6 +148,8 @@ const record = (value: unknown, what: string): Record<string, unknown> => {
     throw new ExtensionError("BAD_REQUEST", `${what} must be an object.`);
   return value as Record<string, unknown>;
 };
+const optionalRecord = (value: unknown) =>
+  value === undefined || value === null ? undefined : record(value, "request");
 /** `{ ifRevision }` from a call's options argument; `{}` when absent. */
 const ifRevisionOf = (options: unknown): { ifRevision?: number } => {
   const value = (
@@ -212,22 +215,26 @@ const SERVICES: Record<string, Service> = {
     modelService(ctx.models.image, "models.image").generate(
       record(request, "request") as never,
     ),
+  "models.image.ready": (ctx, [request]) =>
+    modelService(ctx.models.image, "models.image").ready(
+      optionalRecord(request),
+    ),
   "models.vision.explain": (ctx, [request]) =>
     modelService(ctx.models.vision, "models.vision").explain(
       record(request, "request") as never,
     ),
-  "models.vision.ready": (ctx) =>
-    modelService(ctx.models.vision, "models.vision").ready(),
+  "models.vision.ready": (ctx, [request]) =>
+    modelService(ctx.models.vision, "models.vision").ready(
+      optionalRecord(request),
+    ),
   "models.text.complete": (ctx, [request]) =>
     modelService(ctx.models.text, "models.text").complete(
       record(request, "request") as never,
     ),
   "models.text.ready": (ctx, [request]) =>
-    modelService(ctx.models.text, "models.text").ready(
-      request === undefined || request === null
-        ? undefined
-        : record(request, "request"),
-    ),
+    modelService(ctx.models.text, "models.text").ready(optionalRecord(request)),
+  "models.defaultModel": (ctx) =>
+    modelService(ctx.models.defaultModel, "models.defaultModel")(),
   progress: (ctx, [section, chunk]) =>
     ctx.progress(text(section, "section"), text(chunk, "chunk")),
   "report.created": (ctx, [entry]) => ctx.report.created(text(entry, "entry")),
@@ -295,7 +302,7 @@ export async function readSandboxedDefinitionData(options: {
         op: "describe",
         token: "describe",
         settings: {},
-        models: { image: false, vision: false, text: false },
+        models: NO_MODELS,
       }),
     );
     const reply = JSON.parse(json) as
@@ -334,14 +341,31 @@ type Operation = Record<string, unknown> & { op: string };
 /** How long a runtime without session state may stay idle before the host releases it. */
 const IDLE_DISPOSE_MS = 1_000;
 
+/** Which `ctx.models` members the sandbox builds. */
+type ModelFlags = {
+  image: boolean;
+  vision: boolean;
+  text: boolean;
+  defaultModel: boolean;
+};
+const NO_MODELS: ModelFlags = {
+  image: false,
+  vision: false,
+  text: false,
+  defaultModel: false,
+};
+
 /** Operations that run extension code needing no `ctx` (pure hooks): they work outside a run. */
 const PURE_OPERATIONS = new Set(["parse", "authorize", "resource", "present"]);
 
 class SandboxExtensionCode implements ExtensionCode {
   #handle: Promise<sandbox.SandboxHandle> | undefined;
   #disposed = false;
-  /** Invocations in flight by token: how their host calls reach the real `ctx` (built on first use). */
-  readonly #invocations = new Map<string, () => ExtensionContext>();
+  /** Invocations in flight by token: how their host calls reach the real `ctx` (built on first use) and which host methods the operation may call (absent: all). */
+  readonly #invocations = new Map<
+    string,
+    { context: () => ExtensionContext; allowed?: ReadonlySet<string> }
+  >();
   #nextToken = 0;
   #inFlight = 0;
   /** The runtime holds session state: only `dispose` ends it. */
@@ -411,16 +435,24 @@ class SandboxExtensionCode implements ExtensionCode {
         token: string;
         args: unknown[];
       };
-      const context = this.#invocations.get(token);
+      const invocation = this.#invocations.get(token);
       const service = SERVICES[method];
-      if (!context || !service)
+      if (!invocation || !service)
         throw new ExtensionError(
           "DENIED",
-          context
+          invocation
             ? `Unknown host method ${method}.`
             : "The call is no longer active.",
         );
-      const value = await service(context(), decodeWire(args) as unknown[]);
+      if (invocation.allowed && !invocation.allowed.has(method))
+        throw new ExtensionError(
+          "DENIED",
+          `ctx.${method} is not available in this hook.`,
+        );
+      const value = await service(
+        invocation.context(),
+        decodeWire(args) as unknown[],
+      );
       return JSON.stringify({ ok: true, value: encodeWire(value) });
     } catch (error) {
       return JSON.stringify({ ok: false, error: toWireError(error) });
@@ -440,30 +472,39 @@ class SandboxExtensionCode implements ExtensionCode {
       const handle = await this.#open();
       const pure = PURE_OPERATIONS.has(operation.op);
       const settings: Record<string, unknown> = {};
-      let models = { image: false, vision: false, text: false };
-      let ctx: ExtensionContext | undefined;
+      let models = NO_MODELS;
       if (pure) {
         // Pure hooks get no `ctx`: they run outside a run (the script scan) as well.
-        this.#invocations.set(token, () => {
-          throw new ExtensionError(
-            "DENIED",
-            `ctx is not available in ${operation.op}.`,
-          );
+        this.#invocations.set(token, {
+          context: () => {
+            throw new ExtensionError(
+              "DENIED",
+              `ctx is not available in ${operation.op}.`,
+            );
+          },
         });
       } else {
         const bound = this.host.context(call);
-        ctx = bound;
-        this.#invocations.set(token, () => bound);
-        this.#watch(handle, bound.signal);
-        for (const key of Object.keys(this.definition.settings.fields)) {
-          const value = bound.settings.get(key);
-          if (value !== undefined) settings[key] = value;
-        }
-        models = {
-          image: !!bound.models.image,
-          vision: !!bound.models.vision,
-          text: !!bound.models.text,
-        };
+        const allowed = HOOK_HOST_METHODS[operation.op];
+        this.#invocations.set(token, {
+          context: () => bound,
+          ...(allowed ? { allowed } : {}),
+        });
+        this.#watch(handle, this.host.signal);
+        if (operation.op !== "testAccount")
+          for (const key of Object.keys(this.definition.settings.fields)) {
+            const value = bound.settings.get(key);
+            if (value !== undefined) settings[key] = value;
+          }
+        models =
+          operation.op === "testAccount"
+            ? NO_MODELS
+            : {
+                image: !!bound.models.image,
+                vision: !!bound.models.vision,
+                text: !!bound.models.text,
+                defaultModel: !!bound.models.defaultModel,
+              };
       }
       try {
         const json = await handle.invoke(
@@ -478,8 +519,8 @@ class SandboxExtensionCode implements ExtensionCode {
         return decodeWire(reply.value) as T;
       } catch (error) {
         if (!(error instanceof sandbox.SandboxInvocationError)) throw error;
-        if (error.status === "cancelled" && ctx?.signal.aborted)
-          throw ctx.signal.reason ?? error;
+        if (error.status === "cancelled" && !pure && this.host.signal.aborted)
+          throw this.host.signal.reason ?? error;
         throw new Error(`${this.definition.id}: ${error.message}`, {
           cause: error,
         });

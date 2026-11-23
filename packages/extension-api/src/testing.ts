@@ -24,30 +24,24 @@ import type {
   ExtensionContext,
   HttpRequest,
   HttpResponse,
+  ImageModelSelection,
   ImageRequest,
-  ImageResult,
+  ModelSelection,
   VisionRequest,
   VisionResult,
   TextRequest,
   TextResult,
 } from "./types.js";
 import { ExtensionError } from "./errors.js";
-import type { Risk } from "./authorization.js";
+import type { OperationCheck } from "./authorization.js";
 import type { AccountInfo } from "./settings.js";
 
 /** What a fake `ctx` recorded, for assertions. */
 export type FakeContextRecord = {
   /** Every `ctx.http.request` the code made, as given. */
   requests: HttpRequest[];
-  /** Checks made through `ctx.authorize`. */
-  authorized: {
-    /** `operation` as passed. */
-    operation: string;
-    /** `targets` as passed. */
-    targets: readonly string[];
-    /** `risk` as passed. */
-    risk: Risk;
-  }[];
+  /** Checks made through `ctx.authorize`, as passed (the fake applies no defaults). */
+  authorized: OperationCheck[];
   /** Entries of `ctx.report.created`. */
   created: string[];
   /** Entries of `ctx.report.updated`. */
@@ -111,9 +105,23 @@ export type FakeContextOptions = {
    * For `response: "artifact"` the fake does not stream: return the artifact reference as `body`.
    */
   http?: (request: HttpRequest) => HttpResponse | Promise<HttpResponse>;
-  /** Present: `ctx.models.image` exists. */
-  image?: (request: ImageRequest) => ImageResult | Promise<ImageResult>;
-  /** Present: `ctx.models.vision` exists; `ready` defaults to true. */
+  /**
+   * Present: `ctx.models.image` exists. `generate` returns the image bytes; the fake writes them
+   * to `record.artifacts` (named like the host: `artifact.name`, else `<baseName or image>-<n><ext>`)
+   * and returns their references. Input handles are passed as given.
+   */
+  image?: {
+    /** Answers `ctx.models.image.generate`. */
+    generate: (
+      request: ImageRequest,
+    ) => FakeImageOutput | Promise<FakeImageOutput>;
+    /** Answer of `ctx.models.image.ready()`; default `true`. */
+    ready?: boolean;
+  };
+  /**
+   * Present: `ctx.models.vision` exists. `request.image` is the handle as passed; read seeded
+   * bytes from `record.artifacts` when the answer depends on them.
+   */
   vision?: {
     /** Answers `ctx.models.vision.explain`; call `progress(section, chunk)` to stream into live sections (recorded in `record.progress`). */
     explain: (
@@ -123,7 +131,7 @@ export type FakeContextOptions = {
     /** Answer of `ctx.models.vision.ready()`; default `true`. */
     ready?: boolean;
   };
-  /** Present: `ctx.models.text` exists; `ready` defaults to true. */
+  /** Present: `ctx.models.text` exists. */
   text?: {
     /** Answers `ctx.models.text.complete`; call `progress(section, chunk)` to stream into live sections. */
     complete: (
@@ -133,12 +141,34 @@ export type FakeContextOptions = {
     /** Answer of `ctx.models.text.ready()`; default `true`. */
     ready?: boolean;
   };
+  /** What `ctx.models.defaultModel()` returns (present with `vision` or `text`); default `{ provider: "test", modelId: "default" }`. */
+  defaultModel?: ModelSelection;
   /** Answers `ctx.text.htmlToMarkdown`; throws when a test uses it without one. */
   htmlToMarkdown?: (html: string) => string | Promise<string>;
   /** Seeds `ctx.extensionStore`: values by key, each at revision 1. Read the result in `record.store`. */
   store?: Record<string, unknown>;
-  /** Becomes `ctx.signal`; default: a signal that never aborts. */
-  signal?: AbortSignal;
+};
+
+/** What a fake image backend returns: the images' bytes. */
+export type FakeImageOutput = {
+  /** Model that produced them; default `provider/modelId` of the request. */
+  model?: string;
+  /** The images in order. */
+  images: {
+    /** Image bytes. */
+    bytes: Uint8Array;
+    /** MIME type (`image/png`); decides the artifact's extension. */
+    mediaType: string;
+    /** The rewritten prompt, when the test wants one. */
+    revisedPrompt?: string;
+  }[];
+};
+
+const imageExtensions: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
 };
 
 const encoder = new TextEncoder();
@@ -148,7 +178,8 @@ const storeKeyPattern = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$/;
 /**
  * A `ctx` that keeps everything in memory; extension unit tests use it instead of the host.
  * Returns `ctx` and a `record` of what the code did. It does not enforce `permissions.network`,
- * redirects, size limits or credential injection: only the answers you configure. Call a
+ * redirects, size limits, credential injection or that a model is one of the extension's
+ * settings: only the answers you configure. Call a
  * method as `method.run(session, method.parse(args), ctx)` and check `method.authorize(input)` directly.
  */
 export function createFakeContext(options: FakeContextOptions = {}): {
@@ -209,6 +240,20 @@ export function createFakeContext(options: FakeContextOptions = {}): {
         `Store key '${key}' is at revision ${current?.revision ?? 0}, not ${expected}.`,
       );
   };
+  const freshName = (base: string, extension: string) => {
+    for (let index = 1; ; index++) {
+      const name = `${base}-${index}${extension}`;
+      if (!record.artifacts.has(`artifact:${name}`)) return name;
+    }
+  };
+  const write = (name: string, bytes: Uint8Array, mediaType: string) => {
+    record.artifacts.set(`artifact:${name}`, { bytes, mediaType, name });
+    return ref(name);
+  };
+  const defaultModel = async (): Promise<ModelSelection> =>
+    options.defaultModel ?? { provider: "test", modelId: "default" };
+  const label = (model: ModelSelection | ImageModelSelection) =>
+    `${model.provider}/${model.modelId}`;
   const ctx: ExtensionContext = {
     settings: {
       get: <T>(key: string) => options.settings?.[key] as T | undefined,
@@ -217,33 +262,26 @@ export function createFakeContext(options: FakeContextOptions = {}): {
       selected: async (field) => options.accounts?.[field],
     },
     http: {
-      request: async (request) => {
+      request: (async (request: HttpRequest) => {
         record.requests.push(request);
         if (!options.http)
           throw new Error(`Unexpected http request: ${request.url}`);
         return await options.http(request);
-      },
+      }) as ExtensionContext["http"]["request"],
     },
     artifacts: {
-      write: async (name, data, mediaType = "application/octet-stream") => {
-        record.artifacts.set(`artifact:${name}`, {
-          bytes: typeof data === "string" ? encoder.encode(data) : data,
-          mediaType,
+      write: async (name, data, mediaType = "application/octet-stream") =>
+        write(
           name,
-        });
-        return ref(name);
-      },
+          typeof data === "string" ? encoder.encode(data) : data,
+          mediaType,
+        ),
       read: async (handle) => lookup(handle),
       info: async (handle): Promise<ArtifactInfo> => {
         lookup(handle);
         return ref(handle.replace(/^artifact:/, ""));
       },
-      freshName: async (base, extension) => {
-        for (let index = 1; ; index++) {
-          const name = `${base}-${index}${extension}`;
-          if (!record.artifacts.has(`artifact:${name}`)) return name;
-        }
-      },
+      freshName: async (base, extension) => freshName(base, extension),
     },
     extensionStore: {
       get: async (key) => {
@@ -295,7 +333,31 @@ export function createFakeContext(options: FakeContextOptions = {}): {
       ...(options.image
         ? {
             image: {
-              generate: async (request) => await options.image!(request),
+              generate: async (request) => {
+                const output = await options.image!.generate(request);
+                return {
+                  model: output.model ?? label(request.model),
+                  images: output.images.map((image, index) => {
+                    const extension =
+                      imageExtensions[image.mediaType] ?? ".bin";
+                    const given =
+                      index === 0 ? request.artifact?.name : undefined;
+                    const name = given
+                      ? `${given.replace(/\.(png|jpe?g|webp|gif)$/i, "")}${extension}`
+                      : freshName(
+                          request.artifact?.baseName ?? "image",
+                          extension,
+                        );
+                    return {
+                      artifact: write(name, image.bytes, image.mediaType),
+                      ...(image.revisedPrompt !== undefined
+                        ? { revisedPrompt: image.revisedPrompt }
+                        : {}),
+                    };
+                  }),
+                };
+              },
+              ready: async () => options.image!.ready ?? true,
             },
           }
         : {}),
@@ -317,9 +379,9 @@ export function createFakeContext(options: FakeContextOptions = {}): {
             },
           }
         : {}),
+      ...(options.vision || options.text ? { defaultModel } : {}),
     },
     progress,
-    signal: options.signal ?? new AbortController().signal,
     log: {
       debug: (message, data) =>
         void record.logs.push({ level: "debug", message, data }),

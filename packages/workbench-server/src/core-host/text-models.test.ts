@@ -52,52 +52,57 @@ function host(options: { reasoning?: boolean } = {}) {
   return { textHost, calls };
 }
 
-void test("without a named setting the project's default model and reasoning level run", async () => {
+void test("the request's model and reasoning level run", async () => {
   const { textHost, calls } = host();
   const deltas: string[] = [];
+  const model = {
+    provider: "q",
+    modelId: "chosen",
+    reasoningLevel: "low",
+  } as const;
   const result = await textHost.complete({
-    projectId: "project",
+    model,
     system: "be brief",
     prompt: "hi",
     maxTokens: 50,
     onDelta: ({ kind, delta }) => deltas.push(`${kind}:${delta}`),
   });
-  assert.deepEqual(result, { text: "ok", model: "p/default" });
+  assert.deepEqual(result, { text: "ok", model: "q/chosen" });
   assert.deepEqual(deltas, ["thinking:hm", "text:ok"]);
-  assert.equal(calls[0].options.reasoning, "high");
+  assert.equal(calls[0].options.reasoning, "low");
   assert.equal(calls[0].options.maxTokens, 50);
   assert.equal(
     (calls[0].options.context as { systemPrompt: string }).systemPrompt,
     "be brief",
   );
+  assert.equal(await textHost.ready(model), true);
 });
 
-void test("a named setting's value selects the model and its reasoning level", async () => {
-  const { textHost, calls } = host();
-  const selection = { provider: "q", modelId: "chosen", reasoningLevel: "low" };
-  const result = await textHost.complete({
-    selection,
-    projectId: "project",
+void test("reasoning is left off for a model without it", async () => {
+  const { textHost, calls } = host({ reasoning: false });
+  await textHost.complete({
+    model: { provider: "q", modelId: "m", reasoningLevel: "high" },
     prompt: "hi",
   });
-  assert.equal(result.model, "q/chosen");
-  assert.equal(calls[0].options.reasoning, "low");
-  assert.equal(await textHost.ready({ selection }), true);
-});
-
-void test("reasoning is left off for a model without it or at level off", async () => {
-  const { textHost, calls } = host({ reasoning: false });
-  await textHost.complete({ projectId: "project", prompt: "hi" });
   assert.equal("reasoning" in calls[0].options, false);
 });
 
 void test("an unusable model is not ready and denies the call", async () => {
   const { textHost } = host();
-  const selection = { provider: "q", modelId: "missing" };
-  assert.equal(await textHost.ready({ selection }), false);
-  assert.equal(await textHost.ready({}), false); // no project, no default
+  const model = { provider: "q", modelId: "missing" };
+  assert.equal(await textHost.ready(model), false);
   await assert.rejects(
-    textHost.complete({ selection, prompt: "hi" }),
+    textHost.complete({ model, prompt: "hi" }),
     (error: { code?: string }) => error.code === "DENIED",
   );
+});
+
+void test("defaultModel is the project's lead model and reasoning level", async () => {
+  const { textHost } = host();
+  assert.deepEqual(await textHost.defaultModel("project"), {
+    provider: "p",
+    modelId: "default",
+    reasoningLevel: "high",
+  });
+  assert.equal(await textHost.defaultModel("other"), undefined);
 });

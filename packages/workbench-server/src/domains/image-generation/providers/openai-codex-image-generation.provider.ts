@@ -1,5 +1,5 @@
+import { ExtensionError } from "@nervekit/extension-api";
 import type {
-  ImageBackendRequest,
   ImageGenerateRequest,
   ImageGenerateResponse,
 } from "@nervekit/extension-api/host";
@@ -15,6 +15,100 @@ const CHATGPT_IMAGE_GENERATION_URL =
 const OPENAI_CODEX_PROVIDER = "openai-codex";
 const MAX_ERROR_BODY_CHARS = 2_000;
 
+export const OPENAI_CODEX_IMAGE_MODELS = [
+  "gpt-image-2.5-flare",
+  "gpt-image-2.5-sunburst",
+] as const;
+export const OPENAI_CODEX_QUALITIES = [
+  "auto",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
+export const OPENAI_CODEX_BACKGROUNDS = [
+  "auto",
+  "opaque",
+  "transparent",
+] as const;
+
+type CodexImageOptions = {
+  model: string;
+  quality: string;
+  size: string;
+  background: string;
+};
+
+function oneOf(
+  name: string,
+  value: unknown,
+  allowed: readonly string[],
+): string {
+  if (typeof value !== "string" || !allowed.includes(value))
+    throw new ExtensionError(
+      "BAD_REQUEST",
+      `${name} must be one of: ${allowed.join(", ")}.`,
+    );
+  return value;
+}
+
+/** `auto` or `<width>x<height>`: multiples of 16, long edge up to 3840, ratio up to 3:1, 0.65 to 8.3 megapixels. */
+export function assertOpenAiCodexSize(size: unknown): string {
+  const text = typeof size === "string" ? size.trim() : "";
+  if (text === "auto") return text;
+  const match = /^(\d+)x(\d+)$/.exec(text);
+  const hint =
+    'size must be "auto" or "<width>x<height>": multiples of 16, long edge up to 3840, ratio at most 3:1, 655360 to 8294400 pixels (for example "1536x1024").';
+  if (!match) throw new ExtensionError("BAD_REQUEST", hint);
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  const pixels = width * height;
+  if (
+    !width ||
+    !height ||
+    width % 16 !== 0 ||
+    height % 16 !== 0 ||
+    Math.max(width, height) > 3840 ||
+    Math.max(width, height) / Math.min(width, height) > 3 ||
+    pixels < 655_360 ||
+    pixels > 8_294_400
+  )
+    throw new ExtensionError("BAD_REQUEST", hint);
+  return text;
+}
+
+/** Validates a request for the codex backend; absent options default to `auto`. */
+export function resolveOpenAiCodexOptions(
+  request: ImageGenerateRequest,
+): CodexImageOptions {
+  const model = oneOf(
+    "model",
+    request.model.modelId,
+    OPENAI_CODEX_IMAGE_MODELS,
+  );
+  if (request.inputs.length > 0)
+    throw new ExtensionError(
+      "BAD_REQUEST",
+      "The openai-codex backend cannot take reference images (inputs). Describe the image in the prompt instead.",
+    );
+  const options = request.options;
+  return {
+    model,
+    quality: oneOf(
+      "quality",
+      options.quality ?? "auto",
+      OPENAI_CODEX_QUALITIES,
+    ),
+    size: assertOpenAiCodexSize(options.size ?? "auto"),
+    background: oneOf(
+      "background",
+      options.background ?? "auto",
+      OPENAI_CODEX_BACKGROUNDS,
+    ),
+  };
+}
+
 type ChatGptImageResponse = {
   data?: Array<{ b64_json?: unknown; revised_prompt?: unknown }>;
 };
@@ -25,20 +119,36 @@ export class OpenAiCodexImageGenerationProvider implements ImageGenerationProvid
   constructor(
     private readonly auth: AuthManager,
     private readonly onUsed?: () => void,
+    private readonly fetchImpl: typeof fetch = fetch,
   ) {}
+
+  models() {
+    return [
+      { modelId: "gpt-image-2.5-flare", label: "GPT Image 2.5 Flare" },
+      { modelId: "gpt-image-2.5-sunburst", label: "GPT Image 2.5 Sunburst" },
+    ];
+  }
+
+  async ready(): Promise<boolean> {
+    return (
+      (await this.auth.getCredential(OPENAI_CODEX_PROVIDER))?.type === "oauth"
+    );
+  }
 
   async generate(
     request: ImageGenerateRequest,
   ): Promise<ImageGenerateResponse> {
+    const options = resolveOpenAiCodexOptions(request);
     this.onUsed?.();
-    return generateWithOpenAiCodex(this.auth, request, request.options);
+    return generateWithOpenAiCodex(this.auth, request, options, this.fetchImpl);
   }
 }
 
 async function generateWithOpenAiCodex(
   auth: AuthManager,
   request: ImageGenerateRequest,
-  settings: ImageBackendRequest,
+  settings: CodexImageOptions,
+  fetchImpl: typeof fetch,
 ): Promise<ImageGenerateResponse> {
   const credential = await auth.getCredential(OPENAI_CODEX_PROVIDER);
   if (credential?.type !== "oauth") {
@@ -67,7 +177,7 @@ async function generateWithOpenAiCodex(
     );
   }
 
-  const response = await fetch(CHATGPT_IMAGE_GENERATION_URL, {
+  const response = await fetchImpl(CHATGPT_IMAGE_GENERATION_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -131,7 +241,10 @@ async function generateWithOpenAiCodex(
       "ChatGPT returned no generated image data.",
     );
   }
-  return { provider: OPENAI_CODEX_PROVIDER, model: settings.model, images };
+  return {
+    model: `${OPENAI_CODEX_PROVIDER}/${settings.model}`,
+    images,
+  };
 }
 
 function responseErrorMessage(status: number, body: string): string {

@@ -1,14 +1,16 @@
 import type { AccountKind } from "@nervekit/contracts/extensions";
 import type {
   AccountInfo,
-  TextCompleteRequest,
+  ImageModelSelection,
+  ModelSelection,
   TextResult,
-  VisionExplainRequest,
   VisionResult,
 } from "@nervekit/extension-api";
 import type {
   ImageGenerateRequest,
   ImageGenerateResponse,
+  TextCompleteRequest,
+  VisionExplainRequest,
 } from "@nervekit/extension-api/host";
 
 /** An `account` setting of an extension, as the selection of an account. */
@@ -104,23 +106,29 @@ export type ExtensionHostPorts = {
     message: string,
     data?: unknown,
   ) => void;
-  /** The image generation backend behind `ctx.models.image`. */
+  /**
+   * The model services behind `ctx.models`. The runtime checks every selection against the
+   * extension's own settings (and `defaultModel`) before it reaches these; they never read
+   * settings themselves.
+   */
+  /** Image generation by the backend `request.model.provider` names; validates the options. */
   generateImage?: (
     request: ImageGenerateRequest,
   ) => Promise<ImageGenerateResponse>;
-  /** The vision model behind `ctx.models.vision`, selected by the extension's `model` and `thinkingLevel` settings. */
+  /** Whether the image model is known and its backend signed in. */
+  imageReady?: (model: ImageModelSelection) => Promise<boolean>;
+  /** The vision model call behind `ctx.models.vision`. */
   explainImage?: (request: VisionExplainRequest) => Promise<VisionResult>;
-  /** The model behind `ctx.models.text`: the named `model` setting's value, else the project's default. */
+  /** Whether the model resolves with credentials and accepts images. */
+  visionReady?: (model: ModelSelection) => Promise<boolean>;
+  /** The direct model call behind `ctx.models.text`. */
   completeText?: (request: TextCompleteRequest) => Promise<TextResult>;
-  /** Whether that model resolves with credentials; `selection` is the named setting's value. */
-  textReady?: (request: {
-    extensionId: string;
-    selection?: unknown;
-  }) => Promise<boolean>;
+  /** Whether the model resolves with credentials. */
+  textReady?: (model: ModelSelection) => Promise<boolean>;
+  /** Nerve's default model and reasoning level for the open project; undefined when there is none. */
+  defaultModel?: () => Promise<ModelSelection | undefined>;
   /** The durable store of the open project; absent when the call has no project (`ctx.extensionStore` then rejects). */
   extensionStore?: ExtensionStorePort;
-  /** Whether the extension's selected vision model resolves with credentials and accepts images. */
-  visionReady?: (extensionId: string) => Promise<boolean>;
 };
 
 /** Why a store operation failed; the runtime maps it to an `ExtensionError`. */

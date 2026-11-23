@@ -4,10 +4,12 @@ export type OperationTarget = {
     kind: "resource";
     value: string;
 };
-export type OperationAuthorization = {
+export type OperationCheck = {
     operation?: string;
     targets: readonly (OperationTarget | string)[];
     risk?: Risk;
+};
+export type OperationAuthorization = OperationCheck & {
     summary: string;
 };
 export type ToolAuthorization = {
@@ -160,7 +162,7 @@ export declare function defineTool<const T extends ToolDefinition>(definition: T
 ===== declarations extension-api/src/definition.d.ts =====
 import type { AuthorizeResult, Risk } from "./authorization.js";
 import type { AccountKind, ExtensionSettings, PlatformUse } from "./settings.js";
-import type { ExtensionContext } from "./types.js";
+import type { ExtensionContext, ExtensionHookContext } from "./types.js";
 export type MethodDefinition<Session = unknown, Input = unknown, Output = unknown> = {
     risk: Risk;
     riskFromArgs?: boolean;
@@ -197,8 +199,8 @@ export type NamespaceDefinition<Session = unknown> = {
     docs?: readonly DocTopic[];
     session?: (ctx: ExtensionContext) => Promise<Session> | Session;
     methods: Readonly<Record<string, MethodDefinition<Session, any, any>>>;
-    configuration?: (ctx: ExtensionContext) => string | undefined;
-    availability?: (ctx: ExtensionContext) => Promise<Availability> | Availability;
+    configuration?: (ctx: ExtensionHookContext) => string | undefined;
+    availability?: (ctx: ExtensionHookContext) => Promise<Availability> | Availability;
 };
 export type ViewSectionType = "text" | "markdown" | "links" | "table" | "artifacts";
 export declare const VIEW_SECTION_TYPES: readonly ViewSectionType[];
@@ -231,9 +233,9 @@ type ToolBase = {
     description: string;
     parameters: JsonSchemaObject;
     view?: ToolView;
-    enabledBy?: string;
+    enabledBy?: string | readonly string[];
     requires?: Requires;
-    availability?: (ctx: ExtensionContext) => Promise<Availability> | Availability;
+    availability?: (ctx: ExtensionHookContext) => Promise<Availability> | Availability;
 };
 export type MethodToolDefinition = ToolBase & {
     method: string;
@@ -325,9 +327,9 @@ export declare class ExtensionError extends Error {
 }
 
 ===== declarations extension-api/src/index.d.ts =====
-export type { Risk, OperationTarget, OperationAuthorization, ToolAuthorization, Authorization, AuthorizeResult, } from "./authorization.js";
-export type { SettingScope, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountOAuth2Provider, AccountSecretField, AccountInfo, AccountTestResult, AccountKindData, AccountKind, PlatformUse, } from "./settings.js";
-export type { ArtifactRef, ArtifactInfo, FormPart, HttpRequest, HttpArtifactOptions, HttpResponse, ReportEntry, ImageOptions, ImageRequest, ImageResult, VisionRequest, VisionResult, VisionExplainRequest, TextRequest, TextResult, TextCompleteRequest, ExtensionContext, } from "./types.js";
+export type { Risk, OperationTarget, OperationCheck, OperationAuthorization, ToolAuthorization, Authorization, AuthorizeResult, } from "./authorization.js";
+export type { SettingScope, AccountField, SettingField, SettingsSchema, ExtensionSettings, AccountAuth, AccountOAuth2Provider, AccountSecretField, AccountInfo, AccountTestResult, AccountKindData, AccountKind, PlatformUse, } from "./settings.js";
+export type { ArtifactRef, ArtifactInfo, FormPart, HttpRequest, HttpArtifactOptions, HttpResponse, HttpBody, ReasoningLevel, ModelSelection, ImageModelSelection, ModelProgress, ImageRequest, ImageResult, VisionRequest, VisionResult, TextRequest, TextResult, ExtensionModels, ExtensionContext, ExtensionHookContext, AccountTestContext, } from "./types.js";
 export type { CredentialAccount, CredentialApplyContext, CredentialApplyResult, CredentialChoice, CredentialContextBase, CredentialCrypto, CredentialHashAlgorithm, CredentialHttp, CredentialHttpRequest, CredentialHttpResponse, CredentialLoopback, CredentialLoopbackOptions, CredentialLoopbackResult, CredentialNeedsSignIn, CredentialProviderDefinition, CredentialRefreshContext, CredentialRefreshResult, CredentialRequest, CredentialRequestBody, CredentialResult, CredentialRevokeContext, CredentialSignAlgorithm, CredentialSignInContext, CredentialUi, } from "./credentials.js";
 export { defineCredentialProvider } from "./credentials.js";
 export { ExtensionError } from "./errors.js";
@@ -336,7 +338,7 @@ export type { MethodDefinition, Availability, DocTopic, Requires, NamespaceDefin
 export { defineExtension, defineNamespace, method, defineTool, } from "./define.js";
 
 ===== declarations extension-api/src/settings.d.ts =====
-import type { ExtensionContext } from "./types.js";
+import type { AccountTestContext } from "./types.js";
 export type SettingScope = "user" | "project" | "conversation";
 type FieldBase = {
     label: string;
@@ -349,7 +351,7 @@ type FieldBase = {
     };
     advanced?: boolean;
 };
-export type SettingField = (FieldBase & {
+export type AccountField = (FieldBase & {
     type: "boolean";
     default: boolean;
 }) | (FieldBase & {
@@ -373,7 +375,8 @@ export type SettingField = (FieldBase & {
         label: string;
         description?: string;
     }[];
-}) | (FieldBase & {
+});
+export type SettingField = AccountField | (FieldBase & {
     type: "account";
     kind: string | string[];
     platform?: never;
@@ -383,8 +386,11 @@ export type SettingField = (FieldBase & {
     kind?: never;
 }) | (FieldBase & {
     type: "model";
-    capability?: "image" | "vision";
+    capability?: "vision";
     reasoning?: boolean;
+}) | (FieldBase & {
+    type: "imageModel";
+    default?: never;
 }) | (FieldBase & {
     type: "agentProfile";
     default?: never;
@@ -463,7 +469,7 @@ export type AccountOAuth2Provider = {
 export type AccountKindData = {
     label: string;
     platform?: string;
-    fields: Record<string, SettingField>;
+    fields: Record<string, AccountField>;
     secret?: AccountSecretField;
     secrets?: Record<string, AccountSecretField>;
     auth?: AccountAuth | AccountAuth[];
@@ -477,22 +483,18 @@ export type PlatformUse = {
     origins?: string[];
 };
 export type AccountKind = AccountKindData & {
-    test?: (account: AccountInfo, ctx: ExtensionContext) => Promise<AccountTestResult>;
+    test?: (account: AccountInfo, ctx: AccountTestContext) => Promise<AccountTestResult>;
 };
 export {};
 
 ===== declarations extension-api/src/testing.d.ts =====
 import type { CredentialAccount, CredentialApplyContext, CredentialHttpRequest, CredentialHttpResponse, CredentialRefreshContext, CredentialRevokeContext, CredentialSignInContext } from "./credentials.js";
-import type { ExtensionContext, HttpRequest, HttpResponse, ImageRequest, ImageResult, VisionRequest, VisionResult, TextRequest, TextResult } from "./types.js";
-import type { Risk } from "./authorization.js";
+import type { ExtensionContext, HttpRequest, HttpResponse, ImageRequest, ModelSelection, VisionRequest, VisionResult, TextRequest, TextResult } from "./types.js";
+import type { OperationCheck } from "./authorization.js";
 import type { AccountInfo } from "./settings.js";
 export type FakeContextRecord = {
     requests: HttpRequest[];
-    authorized: {
-        operation: string;
-        targets: readonly string[];
-        risk: Risk;
-    }[];
+    authorized: OperationCheck[];
     created: string[];
     updated: string[];
     deleted: string[];
@@ -521,7 +523,10 @@ export type FakeContextOptions = {
     accounts?: Record<string, AccountInfo>;
     authorize?: (check: FakeContextRecord["authorized"][number]) => void | Promise<void>;
     http?: (request: HttpRequest) => HttpResponse | Promise<HttpResponse>;
-    image?: (request: ImageRequest) => ImageResult | Promise<ImageResult>;
+    image?: {
+        generate: (request: ImageRequest) => FakeImageOutput | Promise<FakeImageOutput>;
+        ready?: boolean;
+    };
     vision?: {
         explain: (request: VisionRequest, progress: (section: string, chunk: string) => void) => VisionResult | Promise<VisionResult>;
         ready?: boolean;
@@ -530,9 +535,17 @@ export type FakeContextOptions = {
         complete: (request: TextRequest, progress: (section: string, chunk: string) => void) => TextResult | Promise<TextResult>;
         ready?: boolean;
     };
+    defaultModel?: ModelSelection;
     htmlToMarkdown?: (html: string) => string | Promise<string>;
     store?: Record<string, unknown>;
-    signal?: AbortSignal;
+};
+export type FakeImageOutput = {
+    model?: string;
+    images: {
+        bytes: Uint8Array;
+        mediaType: string;
+        revisedPrompt?: string;
+    }[];
 };
 export declare function createFakeContext(options?: FakeContextOptions): {
     ctx: ExtensionContext;
@@ -567,7 +580,7 @@ export declare function createFakeCredentialContext(options?: FakeCredentialCont
 };
 
 ===== declarations extension-api/src/types.d.ts =====
-import type { Risk } from "./authorization.js";
+import type { OperationCheck } from "./authorization.js";
 import type { AccountInfo } from "./settings.js";
 export type ArtifactRef = {
     handle: string;
@@ -613,84 +626,88 @@ export type HttpArtifactOptions = {
     extension?: string;
     inlineText?: boolean;
 };
-export type HttpResponse = {
+export type HttpBody<Mode> = Mode extends "artifact" ? ArtifactRef | undefined : Mode extends "bytes" ? Uint8Array : Mode extends "text" ? string : unknown;
+export type HttpResponse<Body = unknown> = {
     status: number;
     ok: boolean;
     headers: Record<string, string>;
     url: string;
-    body: unknown;
+    body: Body;
 };
-export type ReportEntry = string;
-export type ImageOptions = {
-    backend: string;
-    model: string;
-    quality: string;
-    size: string;
-    background: string;
+export type ReasoningLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type ModelSelection = {
+    provider: string;
+    modelId: string;
+    reasoningLevel?: ReasoningLevel;
+};
+export type ImageModelSelection = {
+    provider: string;
+    modelId: string;
+};
+export type ModelProgress = {
+    thinking?: string;
+    text?: string;
 };
 export type ImageRequest = {
+    model: ImageModelSelection;
     prompt: string;
-    inputs: readonly {
-        data: Uint8Array;
-        mimeType: string;
-    }[];
-    options: ImageOptions;
+    inputs?: readonly string[];
+    size?: string;
+    quality?: string;
+    background?: string;
+    artifact?: {
+        name?: string;
+        baseName?: string;
+    };
 };
 export type ImageResult = {
-    provider: string;
     model: string;
     images: readonly {
-        data: Uint8Array;
+        artifact: ArtifactRef;
         revisedPrompt?: string;
     }[];
 };
 export type VisionRequest = {
-    image: Uint8Array;
+    model: ModelSelection;
+    image: string;
     prompt?: string;
-    progress?: {
-        thinking?: string;
-        text?: string;
-    };
+    progress?: ModelProgress;
 };
 export type VisionResult = {
     text: string;
     model: string;
 };
-export type VisionExplainRequest = {
-    extensionId: string;
-    image: Uint8Array;
-    prompt?: string;
-    onDelta?: (update: {
-        kind: "thinking" | "text";
-        delta: string;
-    }) => void;
-    signal?: AbortSignal;
-};
 export type TextRequest = {
-    model?: string;
+    model: ModelSelection;
     system?: string;
     prompt: string;
     maxTokens?: number;
-    progress?: {
-        thinking?: string;
-        text?: string;
-    };
+    progress?: ModelProgress;
 };
 export type TextResult = {
     text: string;
     model: string;
 };
-export type TextCompleteRequest = {
-    extensionId: string;
-    selection?: unknown;
-    system?: string;
-    prompt: string;
-    maxTokens?: number;
-    onDelta?: (update: {
-        kind: "thinking" | "text";
-        delta: string;
-    }) => void;
-    signal?: AbortSignal;
+export type ExtensionModels = {
+    image?: {
+        generate(request: ImageRequest): Promise<ImageResult>;
+        ready(request?: {
+            model?: ImageModelSelection;
+        }): Promise<boolean>;
+    };
+    vision?: {
+        explain(request: VisionRequest): Promise<VisionResult>;
+        ready(request?: {
+            model?: ModelSelection;
+        }): Promise<boolean>;
+    };
+    text?: {
+        complete(request: TextRequest): Promise<TextResult>;
+        ready(request?: {
+            model?: ModelSelection;
+        }): Promise<boolean>;
+    };
+    defaultModel?(): Promise<ModelSelection>;
 };
 export interface ExtensionContext {
     settings: {
@@ -700,7 +717,7 @@ export interface ExtensionContext {
         selected(field: string): Promise<AccountInfo | undefined>;
     };
     http: {
-        request(request: HttpRequest): Promise<HttpResponse>;
+        request<Request extends HttpRequest>(request: Request): Promise<HttpResponse<HttpBody<Request["response"]>>>;
     };
     artifacts: {
         write(name: string, data: Uint8Array | string, mediaType?: string): Promise<ArtifactRef>;
@@ -736,39 +753,29 @@ export interface ExtensionContext {
     text: {
         htmlToMarkdown(html: string): Promise<string>;
     };
-    authorize(check: {
-        operation: string;
-        targets: readonly string[];
-        risk: Risk;
-    }): Promise<void>;
+    authorize(check: OperationCheck): Promise<void>;
     report: {
-        created(entry: ReportEntry): void;
-        updated(entry: ReportEntry): void;
-        deleted(entry: ReportEntry): void;
+        created(entry: string): void;
+        updated(entry: string): void;
+        deleted(entry: string): void;
         note(text: string): void;
     };
-    models: {
-        image?: {
-            generate(request: ImageRequest): Promise<ImageResult>;
-        };
-        vision?: {
-            explain(request: VisionRequest): Promise<VisionResult>;
-            ready(): Promise<boolean>;
-        };
-        text?: {
-            complete(request: TextRequest): Promise<TextResult>;
-            ready(request?: {
-                model?: string;
-            }): Promise<boolean>;
-        };
-    };
+    models: ExtensionModels;
     progress(section: string, chunk: string): void;
-    signal: AbortSignal;
     log: {
         debug(message: string, data?: unknown): void;
         warn(message: string, data?: unknown): void;
     };
 }
+export type ExtensionHookContext = Pick<ExtensionContext, "settings" | "accounts" | "log"> & {
+    models: {
+        image?: Pick<NonNullable<ExtensionModels["image"]>, "ready">;
+        vision?: Pick<NonNullable<ExtensionModels["vision"]>, "ready">;
+        text?: Pick<NonNullable<ExtensionModels["text"]>, "ready">;
+        defaultModel?: ExtensionModels["defaultModel"];
+    };
+};
+export type AccountTestContext = Pick<ExtensionContext, "accounts" | "http" | "log">;
 
 ===== declarations extension-sdk/src/index.d.ts =====
 export * from "@nervekit/extension-api";
@@ -3145,13 +3152,70 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                   },
                   "capability": {
                     "type": "string",
-                    "enum": [
-                      "image",
-                      "vision"
-                    ]
+                    "const": "vision"
                   },
                   "reasoning": {
                     "type": "boolean"
+                  }
+                },
+                "required": [
+                  "label",
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "section": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "project",
+                        "conversation"
+                      ]
+                    }
+                  },
+                  "visibleWhen": {
+                    "type": "object",
+                    "properties": {
+                      "field": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[a-z][A-Za-z0-9]*$"
+                      },
+                      "equals": {
+                        "type": [
+                          "string",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "field",
+                      "equals"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "advanced": {
+                    "type": "boolean"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "imageModel"
                   }
                 },
                 "required": [
@@ -3762,13 +3826,70 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                     },
                     "capability": {
                       "type": "string",
-                      "enum": [
-                        "image",
-                        "vision"
-                      ]
+                      "const": "vision"
                     },
                     "reasoning": {
                       "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "section": {
+                      "type": "string"
+                    },
+                    "scopes": {
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "user",
+                          "project",
+                          "conversation"
+                        ]
+                      }
+                    },
+                    "visibleWhen": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "maxLength": 64,
+                          "pattern": "^[a-z][A-Za-z0-9]*$"
+                        },
+                        "equals": {
+                          "type": [
+                            "string",
+                            "boolean"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "equals"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "advanced": {
+                      "type": "boolean"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "imageModel"
                     }
                   },
                   "required": [
@@ -4617,8 +4738,19 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                 "additionalProperties": false
               },
               "enabledBy": {
-                "type": "string",
-                "minLength": 1
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                ]
               },
               "requires": {
                 "type": "object",
@@ -4769,8 +4901,19 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
                 "additionalProperties": false
               },
               "enabledBy": {
-                "type": "string",
-                "minLength": 1
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                ]
               },
               "requires": {
                 "type": "object",
@@ -5023,7 +5166,6 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
           "pattern": "^[a-f0-9]{64}$"
         },
         "operations": {
-          "minItems": 2,
           "type": "array",
           "items": {
             "type": "string",

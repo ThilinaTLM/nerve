@@ -70,7 +70,7 @@ import {
 } from "@nervekit/tools/quick-script";
 import { listAvailableSkills } from "../../core-host/resources/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
-import { createModelHosts } from "../../core-host/text-models.js";
+import { createModelHosts } from "../../core-host/model-hosts.js";
 import { createPermissionPort } from "../../core-host/permissions/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
 import { createToolHostPort } from "../../core-host/tool-host.adapter.js";
@@ -131,10 +131,15 @@ export function createConversationCore(
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(deps.auth),
   ]);
-  const { vision, text } = createModelHosts({
+  const modelHosts = createModelHosts({
     models,
     configuration: () => deps.storage.configuration.providers,
     agents: () => agentConfiguration,
+    images: {
+      generate: (request) => imageGeneration.generate(request),
+      ready: (model) => imageGeneration.ready(model),
+      listModels: () => imageGeneration.listModels(),
+    },
   });
   const launchTool = new LaunchTool({
     ...launchServices,
@@ -278,9 +283,7 @@ export function createConversationCore(
         const extensionPorts = createExtensionPorts({
           resolution: extensions,
           accounts,
-          generateImage: (request) => imageGeneration.generate(request),
-          vision,
-          text,
+          models: modelHosts,
           store: deps.extensionStore,
           projectId: resources.projectId,
           warn: (extensionId, message, data) =>
@@ -297,9 +300,8 @@ export function createConversationCore(
           input.toolName,
           extensions,
           accounts,
-          vision,
+          modelHosts,
           { store: deps.extensionStore, projectId: resources.projectId },
-          text,
         );
         if (input.toolName === "python_exec" && (!python || !python.available))
           throw new ToolExecutionError(
@@ -629,8 +631,7 @@ export function createConversationCore(
       hasChildren: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
       registry: (projectDir) => extensionCatalog.registryFor(projectDir),
-      vision,
-      text,
+      models: modelHosts,
       extensionStore: deps.extensionStore,
       extensions: async (id, projectId) => ({
         resolution: await conversationExtensionSettings(id, projectId),
@@ -787,8 +788,7 @@ export function createConversationCore(
     storage,
     agentConfiguration,
     extensionSettings,
-    vision,
-    text,
+    models: modelHosts,
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,

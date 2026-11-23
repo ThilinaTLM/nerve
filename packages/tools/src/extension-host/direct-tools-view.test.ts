@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -18,7 +18,10 @@ const extension = (tool: ExtensionTool, capabilities?: ["models.vision"]) =>
     description: "Test.",
     icon: "eye",
     enabledByDefault: true,
-    settings: { version: 1, fields: {} },
+    settings: {
+      version: 1,
+      fields: { model: { type: "model", label: "Model" } },
+    },
     ...(capabilities ? { permissions: { capabilities } } : {}),
     namespaces: [],
     tools: [tool],
@@ -43,7 +46,8 @@ const tool = defineTool({
   parse: () => ({}),
   run: async (_input, ctx) => {
     const result = await ctx.models.vision!.explain({
-      image: new Uint8Array([1]),
+      model: { provider: "p", modelId: "vision" },
+      image: "artifact:pic.png",
       progress: { thinking: "thinking", text: "explanation" },
     });
     ctx.progress("elsewhere", "dropped");
@@ -64,6 +68,8 @@ void test("live sections receive the vision model's deltas as progress streams; 
   const updates: { stream: string; chunk: string }[] = [];
   const warnings: string[] = [];
   const dir = await mkdtemp(join(tmpdir(), "view-"));
+  await mkdir(join(dir, "quick-script"));
+  await writeFile(join(dir, "quick-script", "pic.png"), "image bytes");
   const result = await (
     definition as unknown as { executor: Executor }
   ).executor(
@@ -74,19 +80,22 @@ void test("live sections receive the vision model's deltas as progress streams; 
       onUpdate: (update: { stream: string; chunk: string }) =>
         void updates.push({ stream: update.stream, chunk: update.chunk }),
       extensionPorts: {
-        settings: () => ({}),
+        settings: () => ({ model: { provider: "p", modelId: "vision" } }),
         accounts: {},
         log: (_level: string, _id: string, message: string) =>
           void warnings.push(message),
         visionReady: async () => true,
         explainImage: async (request: {
-          extensionId: string;
+          model: unknown;
+          image: Uint8Array;
           onDelta?: (update: {
             kind: "thinking" | "text";
             delta: string;
           }) => void;
         }) => {
-          assert.equal(request.extensionId, "viewer");
+          // The host read the handle and checked the selection.
+          assert.deepEqual(request.model, { provider: "p", modelId: "vision" });
+          assert.equal(Buffer.from(request.image).toString(), "image bytes");
           request.onDelta?.({ kind: "thinking", delta: "hmm" });
           request.onDelta?.({ kind: "text", delta: "A cat." });
           return { text: "A cat.", model: "p/m" };

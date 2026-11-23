@@ -6,7 +6,7 @@ import type {
   ExtensionSettings,
   PlatformUse,
 } from "./settings.js";
-import type { ExtensionContext } from "./types.js";
+import type { ExtensionContext, ExtensionHookContext } from "./types.js";
 
 // ── Methods, namespaces, tools ───────────────────────────────────────────────
 
@@ -113,10 +113,10 @@ export type NamespaceDefinition<Session = unknown> = {
   /** Methods by name; created with `method()`. */
   methods: Readonly<Record<string, MethodDefinition<Session, any, any>>>;
   /** One line `sdk.describe` prints above the declarations: how the namespace is configured now. Hook: written as `true` in the manifest. */
-  configuration?: (ctx: ExtensionContext) => string | undefined;
+  configuration?: (ctx: ExtensionHookContext) => string | undefined;
   /** Extra checks the declarations cannot express (a service unreachable, a missing model). Hook: written as `true` in the manifest. */
   availability?: (
-    ctx: ExtensionContext,
+    ctx: ExtensionHookContext,
   ) => Promise<Availability> | Availability;
 };
 
@@ -213,13 +213,13 @@ type ToolBase = {
   parameters: JsonSchemaObject;
   /** How the transcript shows the call; `DEFAULT_TOOL_VIEW` when absent. */
   view?: ToolView;
-  /** Boolean setting of the extension that switches this tool, in addition to the extension. */
-  enabledBy?: string;
+  /** Boolean setting of the extension that switches this tool, or several (any one enables it), in addition to the extension. */
+  enabledBy?: string | readonly string[];
   /** The tool is offered only while this holds. */
   requires?: Requires;
   /** Extra checks the declaration cannot express. Hook: written as `true` in the manifest. */
   availability?: (
-    ctx: ExtensionContext,
+    ctx: ExtensionHookContext,
   ) => Promise<Availability> | Availability;
 };
 
@@ -271,7 +271,11 @@ export function isMethodTool(
   return "method" in tool;
 }
 
-/** A host capability an extension may use: image generation or image explanation. Declare it in `permissions.capabilities`. */
+/**
+ * A host capability an extension may use, declared in `permissions.capabilities`: `models.image`
+ * (image generation), `models.vision` (image explanation), `models.text` (direct text completion)
+ * and `conversations.start` (UI frames start conversations; not a `ctx` service).
+ */
 export type Capability =
   | "models.image"
   | "models.vision"
@@ -289,7 +293,7 @@ export type ExtensionPermissions = {
    * List each origin by name; use `*` only for a tool that must reach arbitrary sites.
    */
   network?: string[];
-  /** Host capabilities: `models.image` → `ctx.models.image`, `models.vision` → `ctx.models.vision`, `models.text` → `ctx.models.text`. */
+  /** Host capabilities: `models.image` → `ctx.models.image`, `models.vision` → `ctx.models.vision`, `models.text` → `ctx.models.text`, `conversations.start` → `host.conversations.start` in UI frames. */
   capabilities?: Capability[];
 };
 

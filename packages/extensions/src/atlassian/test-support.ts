@@ -283,12 +283,15 @@ export function createHarness(options: HarnessOptions = {}) {
       ...options.settings,
     },
     accounts: { account },
+    // The fake applies no defaults; Atlassian always names the operation and risk.
     authorize: (check) =>
       authorize({
-        operation: check.operation,
-        targets: [...check.targets],
-        risk: check.risk,
-      }),
+        operation: check.operation ?? "<method operation>",
+        targets: check.targets.map((target) =>
+          typeof target === "string" ? target : target.value,
+        ),
+        risk: check.risk ?? "<declared risk>",
+      } as Nested),
     http: async (request) => {
       if (!options.fetch) throw new Error(`Unexpected request: ${request.url}`);
       const url = new URL(request.url);

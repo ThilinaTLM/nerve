@@ -24,6 +24,7 @@ export type FieldLayers = {
 </script>
 
 <script lang="ts">
+import type { ExtensionsView } from "@nervekit/contracts/extensions";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { ModelInfo } from "$lib/api";
 import {
@@ -50,6 +51,8 @@ type Props = {
   kindLabels?: Readonly<Record<string, string>>;
   /** Authenticated models for `model` fields. */
   models?: ModelInfo[];
+  /** The host's image generation models for `imageModel` fields. */
+  imageModels?: ExtensionsView["imageModels"];
   /** Differs from the inherited value. */
   change?: ExtensionChange;
   disabled?: boolean;
@@ -73,6 +76,7 @@ let {
   accounts,
   kindLabels,
   models = [],
+  imageModels = [],
   change,
   disabled = false,
   layers,
@@ -120,6 +124,7 @@ const labelFor = $derived(
           {accounts}
           {kindLabels}
           {models}
+          {imageModels}
           {disabled}
           onChange={layers.onUserChange}
         />
@@ -134,6 +139,7 @@ const labelFor = $derived(
         {accounts}
         {kindLabels}
         {models}
+        {imageModels}
         disabled={disabled || layers.locked === true}
         {onChange}
       />
@@ -160,6 +166,7 @@ const labelFor = $derived(
         {accounts}
         {kindLabels}
         {models}
+        {imageModels}
         {disabled}
         {onChange}
       />
