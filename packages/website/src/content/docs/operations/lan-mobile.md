@@ -41,6 +41,19 @@ Do not share a pairing QR or code in screenshots, issue reports or chat while it
 
 Use firewall rules and a trusted network. Stop remote binding when it is no longer needed.
 
+## Private access with Tailscale
+
+To use Nerve from your phone away from home, turn on **Settings → System → Network → Private access (Tailscale)**. Nerve serves itself through [Tailscale Serve](https://tailscale.com/kb/1312/serve) at `https://<machine>.<tailnet>.ts.net`, reachable only from devices on your tailnet. The certificate is a normal trusted one, so the phone needs no CA install, and Nerve itself keeps listening only on this computer: `--allow-remote` and mobile HTTPS are not needed.
+
+You need Tailscale installed and signed in on the computer and the phone, with MagicDNS on. The first time, Nerve may ask you to:
+
+- **Enable Serve for your tailnet.** Nerve shows a link to approve it, then **Try again**.
+- **Allow Serve without sudo (Linux).** Run `sudo tailscale set --operator=$USER` once, then **Try again**. Nerve never runs `sudo` itself.
+
+The first connection waits for Tailscale to issue the certificate (up to a minute, once). Then pair the phone as usual: **Pair a device** preselects the Tailscale address. Being on the tailnet grants nothing by itself; every phone still pairs and can be revoked.
+
+Port 443 gives an address without a port number. If another service already uses it on Tailscale, Nerve leaves it alone and asks you to pick 8443 or 10000. Nerve only ever removes its own Serve entry, and refuses to run if Tailscale Funnel would make that entry public. Turning private access off removes the entry and disconnects phones using it immediately.
+
 ## Next steps
 
 - [Security model](/operations/security/)

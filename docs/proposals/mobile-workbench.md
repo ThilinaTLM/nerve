@@ -1,6 +1,6 @@
 # Mobile workbench: focused scope, private tunnel, push
 
-Status: proposal. Delete this file when implemented (see [docs/README.md](../README.md#where-documentation-belongs)).
+Status: phases 1 and 2 implemented; phase 3 in progress. Delete this file when implemented (see [docs/README.md](../README.md#where-documentation-belongs)).
 
 ## Problem
 
@@ -135,7 +135,7 @@ Drift detection reads `tailscale serve status --json`. Nerve's entry is `TCP["<p
 
 ### Storage
 
-- **Tunnel settings** (`enabled`, provider, Serve HTTPS port, tunnel listener port) go in the [scoped configuration](../architecture/configuration.md) under `application.network`, next to `publicUrl`. Unlike the other `network` settings, they apply immediately (restart target `none`): the tunnel service opens or closes its listener and Serve entry on save.
+- **Tunnel settings** (`enabled`, Serve HTTPS port, tunnel listener port; Tailscale is the only provider, so there is no provider field yet) go in the [scoped configuration](../architecture/configuration.md) under `application.network`, next to `publicUrl`. Unlike the other `network` settings, they apply immediately (restart target `none`): the tunnel service opens or closes its listener and Serve entry on save.
 - **Tunnel origin and health** are runtime state, exposed in the status contract.
 - No database change.
 
