@@ -71,29 +71,29 @@ const launchpad = $derived(variant === "launchpad");
       >
         {#each starters as starter (starter.profile)}
           <!-- At rest the art sits above the name, centred at the bottom;
-               hover and focus slide the name to the top, reveal the tagline
-               below it and fade the art into a backdrop. Touch has no hover,
-               so coarse pointers always show the revealed state. -->
+               hover and focus swap the name for the tagline and fade the art
+               into a backdrop. Touch has no hover, so coarse pointers keep
+               the rest state. -->
           <button
             type="button"
-            class="group relative size-32 cursor-pointer overflow-hidden rounded-lg border bg-card bg-linear-to-b from-well to-card shadow-sm transition-colors duration-300 outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
+            class="group relative size-28 cursor-pointer overflow-hidden rounded-lg border bg-card bg-linear-to-b from-well to-card shadow-sm transition-colors duration-300 outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}
           >
             <span
-              class="starter-art absolute inset-0 flex items-center justify-center px-5 pt-2 pb-7"
+              class="starter-art absolute inset-0 flex items-center justify-center px-4 pt-1.5 pb-6"
             >
               <ProfileStarterArt
                 profile={starter.profile}
-                class="relative w-full transition duration-300 ease-out group-hover:scale-110 group-hover:opacity-20 group-hover:blur-xs group-focus-visible:scale-110 group-focus-visible:opacity-20 group-focus-visible:blur-xs motion-reduce:transition-none pointer-coarse:opacity-20 pointer-coarse:blur-xs"
+                class="relative w-full transition duration-300 ease-out group-hover:scale-110 group-hover:opacity-20 group-hover:blur-xs group-focus-visible:scale-110 group-focus-visible:opacity-20 group-focus-visible:blur-xs motion-reduce:transition-none"
               />
             </span>
             <span
-              class="absolute inset-x-2.5 top-[calc(100%-1.875rem)] text-ui font-medium text-foreground transition-[top] duration-300 ease-out group-hover:top-3 group-focus-visible:top-3 motion-reduce:transition-none pointer-coarse:top-3"
+              class="absolute inset-x-2 bottom-2 text-ui font-medium text-foreground transition-opacity duration-200 ease-out group-hover:opacity-0 group-focus-visible:opacity-0 motion-reduce:transition-none pointer-coarse:opacity-100"
               >{starter.label}</span
             >
             <span
-              class="absolute inset-x-2.5 top-9 translate-y-1 text-caption leading-snug text-muted-foreground opacity-0 transition duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:translate-y-0 pointer-coarse:opacity-100"
+              class="absolute inset-0 flex scale-95 items-center justify-center px-2.5 text-caption leading-snug text-muted-foreground opacity-0 transition duration-300 ease-out group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-0"
               >{starter.tagline}</span
             >
             {#if starter.profile === defaultStarter}
