@@ -1,6 +1,7 @@
 <script lang="ts">
 import { untrack } from "svelte";
 import Compass from "@lucide/svelte/icons/compass";
+import Globe from "@lucide/svelte/icons/globe";
 import LogOut from "@lucide/svelte/icons/log-out";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { toast } from "svelte-sonner";
@@ -19,6 +20,7 @@ import {
   loadSettingsPanel,
   setTheme,
 } from "$lib/application/settings/settings-actions.svelte";
+import { tunnelPhoneSummary } from "$lib/application/access/tunnel-view";
 import { workspaceSelectors } from "$lib/application/workspace";
 import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import type { ColorTheme } from "$lib/api";
@@ -80,6 +82,15 @@ async function signOut(): Promise<void> {
       />
     </MobileSection>
   {/if}
+
+  <MobileSection title="Remote access">
+    <MobileListRow
+      title="Private access"
+      detail={tunnelPhoneSummary(status?.tunnel)}
+      icon={Globe}
+      chevron={false}
+    />
+  </MobileSection>
 
   <MobileSection>
     {#each items as item (item.id)}

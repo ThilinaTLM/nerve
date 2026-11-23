@@ -21,6 +21,7 @@ import {
   MAX_PARALLEL_TOOLS_PER_RUN,
   MIN_DAEMON_MAX_OLD_SPACE_MB,
 } from "@nervekit/contracts/settings";
+import PrivateAccessRows from "./PrivateAccessRows.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 
@@ -289,6 +290,12 @@ const diagnostics = $derived<PageStat[]>([
         saveNumber(value, 1, (httpsPort) => ({
           application: { network: { httpsPort } },
         }))}
+    />
+    <PrivateAccessRows
+      enabled={configuration.application.network.tunnelEnabled}
+      httpsPort={configuration.application.network.tunnelHttpsPort}
+      status={status?.tunnel}
+      onSave={(tunnel) => save({ application: { network: { tunnel } } })}
     />
   </SettingsSection>
 

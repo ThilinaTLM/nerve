@@ -18,8 +18,8 @@ export function pairingLinks(code: PairingCode, origin: string): PairingLink[] {
 }
 
 /**
- * Initial choice: the remembered network, else the network this page is open
- * on, else the daemon's best link.
+ * Initial choice: the remembered network, else the private tunnel, else the
+ * network this page is open on, else the daemon's best link.
  */
 export function defaultPairingLink(
   links: readonly PairingLink[],
@@ -27,6 +27,7 @@ export function defaultPairingLink(
 ): PairingLink | undefined {
   return (
     links.find((link) => link.label === input.remembered) ??
+    links.find((link) => link.kind === "tunnel") ??
     links.find((link) => new URL(link.url).origin === input.origin) ??
     links[0]
   );
