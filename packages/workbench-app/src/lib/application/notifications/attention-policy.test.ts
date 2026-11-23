@@ -5,9 +5,8 @@ import {
   classifyPresence,
   createSoundThrottle,
   decideDelivery,
-  mostUrgent,
-  type AttentionInputKind,
 } from "./attention-policy";
+import type { AttentionInputKind } from "@nervekit/contracts/core";
 
 const base = { focused: true, lastInputAt: 1_000, now: 1_000, viewing: true };
 
@@ -48,19 +47,6 @@ test("sound event mapping", () => {
   assert.equal(attentionSoundEvent({ kind: "finished" }), "completed");
   assert.equal(attentionSoundEvent({ kind: "failed" }), "failed");
   assert.equal(attentionSoundEvent({ kind: "interrupted" }), "failed");
-});
-
-test("most urgent coinciding event wins: input > failure > finished", () => {
-  assert.equal(
-    mostUrgent([{ kind: "finished" }, { kind: "failed" }, { kind: "input" }])
-      ?.kind,
-    "input",
-  );
-  assert.equal(
-    mostUrgent([{ kind: "finished" }, { kind: "interrupted" }])?.kind,
-    "interrupted",
-  );
-  assert.equal(mostUrgent([]), undefined);
 });
 
 test("sound throttle allows one sound per interval", () => {

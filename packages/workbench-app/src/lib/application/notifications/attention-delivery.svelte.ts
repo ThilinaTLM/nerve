@@ -3,12 +3,14 @@ import {
   classifyPresence,
   createSoundThrottle,
   decideDelivery,
-  mostUrgent,
   MUTE_DURATION_MS,
-  type AttentionInputKind,
-  type AttentionKind,
   type AttentionPresence,
 } from "./attention-policy";
+import {
+  mostUrgent,
+  type AttentionInputKind,
+  type AttentionKind,
+} from "@nervekit/contracts/core";
 import {
   notificationState,
   notifyNative,

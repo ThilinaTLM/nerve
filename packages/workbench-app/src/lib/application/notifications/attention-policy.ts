@@ -1,14 +1,14 @@
+import type {
+  AttentionInputKind,
+  AttentionKind,
+} from "@nervekit/contracts/core";
+
 /**
  * Pure decision logic for attention delivery (see
- * docs/architecture/conversation-state-and-attention.md).
+ * docs/architecture/conversation-state-and-attention.md). Which edges deserve
+ * attention is shared with the daemon in `@nervekit/contracts/core`.
  */
 
-export type AttentionKind = "input" | "finished" | "failed" | "interrupted";
-export type AttentionInputKind =
-  | "approval"
-  | "user_input"
-  | "plan_review"
-  | "configuration_blocked";
 export type AttentionPresence = "watching" | "elsewhere" | "away";
 export type AttentionSoundEvent =
   | "question"
@@ -66,25 +66,6 @@ export function decideDelivery(
     surface: presence === "away" ? "system" : "toast",
     sound: true,
   };
-}
-
-/** Higher is more urgent: input > failure > finished. */
-export function attentionUrgency(kind: AttentionKind): number {
-  if (kind === "input") return 2;
-  return kind === "finished" ? 0 : 1;
-}
-
-/** The most urgent event among coinciding ones (first wins ties). */
-export function mostUrgent<T extends { kind: AttentionKind }>(
-  events: readonly T[],
-): T | undefined {
-  let best: T | undefined;
-  for (const event of events) {
-    if (!best || attentionUrgency(event.kind) > attentionUrgency(best.kind)) {
-      best = event;
-    }
-  }
-  return best;
 }
 
 /** Allows at most one sound per interval. */
