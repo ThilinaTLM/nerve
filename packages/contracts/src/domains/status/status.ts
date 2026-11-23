@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { tunnelStatusSchema } from "../access/tunnel.js";
 
 export const pythonRuntimeStatusSchema = z.object({
   available: z.boolean(),
@@ -58,6 +59,7 @@ export const statusResponseSchema = z.object({
   startedAt: z.string().datetime(),
   dataDir: z.string(),
   mobileHttps: mobileHttpsInfoSchema.optional(),
+  tunnel: tunnelStatusSchema,
   storage: z.object({
     home: z.string(),
     userHome: z.string(),

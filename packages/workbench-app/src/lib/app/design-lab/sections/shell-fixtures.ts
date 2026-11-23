@@ -106,6 +106,7 @@ export const labStatus: StatusResponse = {
   version: labVersion,
   startedAt: stamp,
   dataDir: `${labHomeDir}/.nerve`,
+  tunnel: { state: "off" },
   storage: {
     home: `${labHomeDir}/.nerve`,
     userHome: labHomeDir,

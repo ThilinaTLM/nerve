@@ -44,6 +44,7 @@ import type { SubscriptionUsageService } from "../domains/usage/subscription-usa
 import type { PerformanceDiagnosticsPort } from "../core/ports/diagnostics.js";
 import type { ApplicationLogger } from "../infrastructure/diagnostics/index.js";
 import type { WorkbenchNoticePublisher } from "../infrastructure/events/index.js";
+import type { TunnelService } from "../domains/access/tunnel-service.js";
 import type { SecretProvider } from "../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../infrastructure/storage-bootstrap/index.js";
 import type {
@@ -81,6 +82,7 @@ export interface AdapterInfrastructure {
   agentBrowserSkills: AgentBrowserSkillCatalog;
   performanceDiagnostics: PerformanceDiagnosticsPort;
   applicationConfiguration: ApplicationConfigurationSnapshot;
+  tunnel: TunnelService;
   statusResponse(): StatusResponse;
 }
 

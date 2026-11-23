@@ -53,6 +53,7 @@ import {
   isWildcardHost,
 } from "./infrastructure/network/host.js";
 import { listShareOrigins } from "./infrastructure/network/share-origins.js";
+import { startTunnel } from "./app/runtime/tunnel-runtime.js";
 import {
   firstEnvValue,
   mergeNoProxy,
@@ -560,6 +561,7 @@ async function main() {
     const appMountDurationMs = Math.round(
       performance.now() - appMountStartedAt,
     );
+    startTunnel({ app, state, webSockets, sessionSets, isAllowedHost });
     runtime = { state, webSockets, httpsServer, sessionSets };
     await leaseMonitor?.publish(toDaemonFile(state));
     await state.events.publish("daemon.started", {

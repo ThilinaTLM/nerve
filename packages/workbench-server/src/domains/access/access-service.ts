@@ -104,6 +104,8 @@ export class AccessService {
   onLocalTokenRotated: ((token: string) => void) | undefined;
   /** Late-bound: per-network HTTPS origins, known once mobile HTTPS is up. */
   shareOrigins: () => readonly ShareOrigin[] = () => [];
+  /** Late-bound: the private tunnel's origin while it serves requests. */
+  tunnelOrigin: URL | undefined;
 
   readonly #now: () => number;
   readonly #loginLimiter: FailureLimiter;
@@ -143,6 +145,7 @@ export class AccessService {
       config: () => ({
         publicUrl: this.#publicUrl,
         trustedPeers: this.#trustedPeers,
+        tunnelOrigin: this.tunnelOrigin,
       }),
       limiter: new FailureLimiter({
         perKey: 20,
@@ -179,6 +182,10 @@ export class AccessService {
   /** Hosts the Host allowlist must accept in addition to loopback and bound addresses. */
   get publicHost(): string | undefined {
     return this.#publicUrl?.host;
+  }
+
+  get tunnelHost(): string | undefined {
+    return this.tunnelOrigin?.host;
   }
 
   async enrollmentGateClosed(): Promise<boolean> {
@@ -306,15 +313,20 @@ export class AccessService {
 
   #withLinks(code: IssuedPairingCode): PairingCode {
     const fragment = `/#pair=${code.code}`;
-    const links: PairingLink[] = this.#publicUrl
-      ? [
-          {
-            kind: "public",
-            label: "Public URL",
-            url: `${this.#publicUrl.origin}${fragment}`,
-          },
-        ]
-      : [];
+    const links: PairingLink[] = [];
+    // Trusted HTTPS with no CA install: the best link whenever it is on.
+    if (this.tunnelOrigin)
+      links.push({
+        kind: "tunnel",
+        label: "Tailscale (private HTTPS)",
+        url: `${this.tunnelOrigin.origin}${fragment}`,
+      });
+    if (this.#publicUrl)
+      links.push({
+        kind: "public",
+        label: "Public URL",
+        url: `${this.#publicUrl.origin}${fragment}`,
+      });
     for (const share of this.shareOrigins()) {
       if (share.origin === this.#publicUrl?.origin) continue;
       links.push({

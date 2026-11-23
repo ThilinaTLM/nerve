@@ -525,6 +525,17 @@ export function resolveApplicationConfiguration(
           restartTarget: "daemon",
           active: active?.network.trustProxyPeers.activeValue,
         }),
+        // The tunnel applies on save, so its active value is the saved one.
+        tunnelEnabled: leaf({
+          selected: select({ saved: saved.network.tunnel?.enabled ?? false }),
+          saved: saved.network.tunnel?.enabled ?? false,
+          restartTarget: "none",
+        }),
+        tunnelHttpsPort: leaf({
+          selected: select({ saved: saved.network.tunnel?.httpsPort ?? 443 }),
+          saved: saved.network.tunnel?.httpsPort ?? 443,
+          restartTarget: "none",
+        }),
       },
       diagnostics: {
         loggingEnabled: leaf({

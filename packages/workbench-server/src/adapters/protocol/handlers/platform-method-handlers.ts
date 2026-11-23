@@ -287,6 +287,9 @@ async function updateApplicationConfiguration(
     activeSnapshot: state.applicationConfiguration,
   });
   state.applicationConfiguration = resolved.snapshot;
+  // The tunnel applies on save; its progress arrives as tunnel events.
+  if (patch.application?.network?.tunnel)
+    void state.tunnel.apply(settings.application.network.tunnel);
   await publishSettingsChanged(state.events, settings);
   await state.events.publish("applicationConfiguration.updated", {
     snapshot: resolved.snapshot,

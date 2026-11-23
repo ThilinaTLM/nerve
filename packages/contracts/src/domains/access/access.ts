@@ -68,6 +68,8 @@ export type PairingCodeCreateRequest = z.input<
 /** Which network a pairing link reaches the daemon through. */
 export const pairingLinkKindSchema = z.enum([
   "public",
+  /** The private Tailscale Serve tunnel: trusted HTTPS, no CA install. */
+  "tunnel",
   "lan",
   "tailscale",
   "vpn",

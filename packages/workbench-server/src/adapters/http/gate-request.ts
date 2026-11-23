@@ -2,6 +2,7 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import type { Context } from "hono";
 import type { IncomingMessage } from "node:http";
 import type { GateRequest } from "../../domains/access/client-info.js";
+import { isTunnelSocket } from "../../infrastructure/network/tunnel-sockets.js";
 
 /** TCP peer of an in-flight request; empty when the runtime exposes none (never treated as loopback). */
 export function peerAddressOf(c: Context): string {
@@ -20,6 +21,9 @@ export function gateRequestFromContext(c: Context): GateRequest {
     headers: c.req.raw.headers,
     peerAddress: peerAddressOf(c),
     secureTransport: url.protocol === "https:",
+    viaTunnel: isTunnelSocket(
+      (c.env as { incoming?: IncomingMessage } | undefined)?.incoming?.socket,
+    ),
   };
 }
 
@@ -43,5 +47,6 @@ export function gateRequestFromUpgrade(request: IncomingMessage): GateRequest {
     headers,
     peerAddress: request.socket.remoteAddress ?? "",
     secureTransport,
+    viaTunnel: isTunnelSocket(request.socket),
   };
 }

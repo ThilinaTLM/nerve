@@ -15,7 +15,7 @@ export interface InterfaceAddress {
 
 export type InterfacesSnapshot = Record<string, InterfaceAddress[] | undefined>;
 
-export type ShareNetworkKind = Exclude<PairingLinkKind, "public">;
+export type ShareNetworkKind = Exclude<PairingLinkKind, "public" | "tunnel">;
 
 export interface ShareOrigin {
   kind: ShareNetworkKind;

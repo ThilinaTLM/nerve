@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { definePublicEvent } from "../../events/definition.js";
 import { deviceSchema } from "./access.js";
+import { tunnelStatusSchema } from "./tunnel.js";
 
 const workbenchRoles = ["workbench_server"] as const;
 
@@ -21,6 +22,12 @@ export const accessEventDefinitions = [
       reason: z.enum(["revoked", "logout", "all"]),
     }),
     { allowedSourceRoles: workbenchRoles, scope: ["deviceId"] },
+  ),
+  /** The private tunnel changed state (starting, ready, a problem, off). */
+  definePublicEvent(
+    "access.tunnel_changed",
+    z.object({ status: tunnelStatusSchema }),
+    { allowedSourceRoles: workbenchRoles },
   ),
   /** Passkey list or enrollment state changed. */
   definePublicEvent(
