@@ -48,6 +48,13 @@ import PullRequestsPanel from "$lib/features/git/views/PullRequestsPanel.svelte"
 import LaunchesPanel from "$lib/features/launches/views/LaunchesPanel.svelte";
 import NotesPanel from "$lib/features/scratch-notes/views/NotesPanel.svelte";
 import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
+import { ItemMenu } from "@nervekit/ui-kit/components/composites/item-menu";
+import { PanelFilterBar } from "@nervekit/ui-kit/components/composites/panel-filter-bar";
+import { PanelSection } from "@nervekit/ui-kit/components/composites/panel-section";
+import {
+  PanelSplit,
+  emptyPanelSplitLayout,
+} from "@nervekit/ui-kit/components/composites/panel-split";
 import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 import {
@@ -213,6 +220,15 @@ const activityExamples: {
     pulse: indicator === "running",
   },
 }));
+
+let filterQuery = $state("");
+let filterScope = $state("all");
+let sectionOpen = $state(true);
+let splitLayout = $state(emptyPanelSplitLayout());
+const splitAreas = [
+  { id: "jobs", minPx: 64, headerPx: 32, resizeLabel: "Resize jobs" },
+  { id: "logs", minPx: 96, headerPx: 32 },
+];
 </script>
 
 {#snippet rowActions()}
@@ -356,6 +372,99 @@ const activityExamples: {
           />
         </div>
       </div>
+    </GallerySpecimen>
+  </GalleryGroup>
+
+  <GalleryGroup
+    title="Filter, sections & split"
+    description="Panel building blocks generalized from the Git panel; extensions get the same ones through the SDK."
+  >
+    <GallerySpecimen
+      title="PanelFilterBar"
+      source="ui-kit composites/panel-filter-bar"
+      usage="GitPanel · GitPullRequestsContent"
+      surface="panel"
+      layout="stack"
+      description="Search field and scope chips with counts, under a PanelHeader."
+    >
+      <div class="w-70 max-w-full">
+        <PanelFilterBar
+          bind:query={filterQuery}
+          bind:scope={filterScope}
+          placeholder="Filter repos or branches"
+          ariaLabel="Filter repositories"
+          scopeLabel="Show"
+          scopes={[
+            { value: "all", label: "All", count: 6 },
+            { value: "changed", label: "Changed", count: 2 },
+            { value: "attention", label: "Attention", count: 0 },
+          ]}
+        />
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="PanelSection"
+      source="ui-kit composites/panel-section"
+      usage="GitPanel"
+      surface="panel"
+      layout="stack"
+      description="Collapsible section; the header line stays as the collapsed state and its actions do not toggle it."
+    >
+      <div class="w-70 max-w-full">
+        <PanelSection title="Changes" count={3} bind:open={sectionOpen}>
+          {#snippet actions()}
+            <IconAction icon={RefreshCwIcon} label="Refresh" onclick={noop} />
+          {/snippet}
+          <p class="py-1 text-ui text-muted-foreground">Working tree clean.</p>
+        </PanelSection>
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="PanelSplit"
+      source="ui-kit composites/panel-split"
+      usage="GitSplitLayout"
+      surface="panel"
+      layout="bare"
+      description="Stacked collapsible areas sharing the height, with draggable dividers (arrows move, Enter resets)."
+    >
+      <div class="h-80 w-70 overflow-hidden rounded-md border">
+        <PanelSplit areas={splitAreas} bind:layout={splitLayout}>
+          {#snippet area({ area, open, toggle, measure, overflows })}
+            <PanelSection
+              title={area.id === "jobs" ? "Jobs" : "Logs"}
+              {open}
+              onOpenChange={toggle}
+              keepMounted
+              class="h-full min-h-0 px-2"
+              bodyClass={overflows
+                ? "min-h-0 flex-1 overflow-y-auto"
+                : "min-h-0 flex-1 overflow-hidden"}
+            >
+              <div {@attach measure} class="pb-2 text-ui text-muted-foreground">
+                {area.id === "jobs"
+                  ? "build · test · deploy"
+                  : "No output yet."}
+              </div>
+            </PanelSection>
+          {/snippet}
+        </PanelSplit>
+      </div>
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ItemMenu"
+      source="ui-kit composites/item-menu"
+      usage="PanelRow · PanelTree · PanelRowCard · ItemSurface"
+      surface="panel"
+      layout="stack"
+      description="Right-click menu of an item through a swappable renderer; extension frames register one that asks the host to draw it."
+    >
+      <ItemMenu items={menuItems} triggerClass="block w-70 max-w-full">
+        <div
+          class="rounded-md border border-dashed px-3 py-2 text-ui text-muted-foreground"
+        >
+          Right-click here
+        </div>
+      </ItemMenu>
     </GallerySpecimen>
   </GalleryGroup>
 

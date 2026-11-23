@@ -26,8 +26,9 @@ const shims = require.resolve("svelte2tsx/svelte-shims-v4.d.ts");
 const virtualSuffix = ".virtual.ts";
 const isSvelte = (path: string) => path.endsWith(".svelte");
 const isVirtual = (path: string) => path.endsWith(`.svelte${virtualSuffix}`);
+/** The source behind a (virtual) file name, as a native path: TypeScript reports `/` separators on Windows. */
 const real = (path: string) =>
-  isVirtual(path) ? path.slice(0, -virtualSuffix.length) : path;
+  resolve(isVirtual(path) ? path.slice(0, -virtualSuffix.length) : path);
 
 type Config = {
   /** The implementation module (`components.impl.ts`). */
@@ -43,7 +44,10 @@ type Config = {
 export async function generateComponentDeclarations(
   config: Config,
 ): Promise<string[]> {
-  const { entry, outDir, uiKitRoot, sdkRoot } = config;
+  const entry = resolve(config.entry);
+  const uiKitRoot = resolve(config.uiKitRoot);
+  const sdkRoot = resolve(config.sdkRoot);
+  const { outDir } = config;
   const options: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2022,
     module: ts.ModuleKind.ESNext,

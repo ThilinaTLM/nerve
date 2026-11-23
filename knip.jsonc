@@ -73,7 +73,19 @@
       "ignore": ["templates/**", "examples/**"],
       // shadcn-svelte, tw-animate-css, tailwindcss: imported by
       // ui-kit's app.css, which the generated Vite/Tailwind build resolves from this package.
-      "ignoreDependencies": ["shadcn-svelte", "tw-animate-css", "tailwindcss"],
+      // bits-ui, clsx, paneforge, tailwind-variants: imported only by the generated component
+      // declarations in dist/components, so an extension that installs the SDK resolves them.
+      "ignoreDependencies": [
+        "shadcn-svelte",
+        "tw-animate-css",
+        "tailwindcss",
+        "bits-ui",
+        "clsx",
+        "paneforge",
+        "tailwind-variants",
+      ],
+      // Generated into dist/components by `pnpm prepare:declarations` (tsconfig rootDirs).
+      "ignoreUnresolved": ["./components/components.js"],
     },
     "packages/extensions": {
       // Bundled into a browser asset by the build, not imported.
