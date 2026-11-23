@@ -88,7 +88,8 @@ export function grantSnapshot(
   const ui = uiGrants(manifest);
   return {
     network: sorted(network),
-    capabilities: sorted(manifest.permissions?.capabilities ?? []),
+    models: sorted(manifest.permissions?.models ?? []),
+    frame: sorted(manifest.permissions?.frame ?? []),
     accounts: sorted(accounts),
     namespaces: Object.fromEntries(
       Object.entries(namespaces).sort(([a], [b]) => a.localeCompare(b)),
@@ -103,7 +104,8 @@ export function grantSnapshot(
 export function isEmptyGrant(grants: GrantSnapshot): boolean {
   return (
     grants.network.length === 0 &&
-    grants.capabilities.length === 0 &&
+    grants.models.length === 0 &&
+    grants.frame.length === 0 &&
     grants.accounts.length === 0 &&
     Object.keys(grants.namespaces).length === 0 &&
     grants.tools.length === 0 &&
@@ -132,7 +134,8 @@ export function newGrants(
   }
   return {
     network: only(previous?.network, next.network),
-    capabilities: only(previous?.capabilities, next.capabilities),
+    models: only(previous?.models, next.models),
+    frame: only(previous?.frame, next.frame),
     accounts: only(previous?.accounts, next.accounts),
     namespaces,
     tools: only(previous?.tools, next.tools),
@@ -225,11 +228,13 @@ export function platformItems(
   }));
 }
 
-const capabilityText: Record<string, string> = {
-  "models.vision": "Uses a vision model",
-  "models.text": "Uses a text model",
-  "models.image": "Uses the image generation model",
-  "conversations.start": "Starts conversations in your project",
+const modelText: Record<string, string> = {
+  vision: "Uses a vision model",
+  text: "Uses a text model",
+  image: "Uses the image generation model",
+};
+const frameText: Record<string, string> = {
+  "chat.startConversation": "Starts conversations in your project",
 };
 
 const list = (values: readonly string[]) => values.join(", ");
@@ -265,11 +270,10 @@ export function consentItems(
       text: `Uses your ${/account$/i.test(label) ? label : `${label} account`} (account kind ${kind})`,
     });
   }
-  for (const capability of grants.capabilities)
-    items.push({
-      kind: "capability",
-      text: capabilityText[capability] ?? `Uses ${capability}`,
-    });
+  for (const model of grants.models)
+    items.push({ kind: "model", text: modelText[model] ?? `Uses ${model}` });
+  for (const grant of grants.frame)
+    items.push({ kind: "frame", text: frameText[grant] ?? `Uses ${grant}` });
   if (grants.tools.length > 0)
     items.push({
       kind: "tools",

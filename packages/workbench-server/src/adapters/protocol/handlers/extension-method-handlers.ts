@@ -53,18 +53,18 @@ export const extensionMethodHandlers = define({
     state.extensionUi.bridge("settings.get", input),
   "extensions.ui.project.info": (state, input) =>
     state.extensionUi.bridge("project.info", input),
-  "extensions.ui.call": (state, input) =>
-    state.extensionUi.bridge("call", input),
-  "extensions.ui.conversations.start": (state, input) =>
-    state.extensionUi.bridge("conversations.start", input),
-  "extensions.ui.extensionStore.get": (state, input) =>
-    state.extensionUi.bridge("extensionStore.get", input),
-  "extensions.ui.extensionStore.set": (state, input) =>
-    state.extensionUi.bridge("extensionStore.set", input),
-  "extensions.ui.extensionStore.delete": (state, input) =>
-    state.extensionUi.bridge("extensionStore.delete", input),
-  "extensions.ui.extensionStore.keys": (state, input) =>
-    state.extensionUi.bridge("extensionStore.keys", input),
+  "extensions.ui.backend.call": (state, input) =>
+    state.extensionUi.bridge("backend.call", input),
+  "extensions.ui.chat.startConversation": (state, input) =>
+    state.extensionUi.bridge("chat.startConversation", input),
+  "extensions.ui.store.get": (state, input) =>
+    state.extensionUi.bridge("store.get", input),
+  "extensions.ui.store.set": (state, input) =>
+    state.extensionUi.bridge("store.set", input),
+  "extensions.ui.store.delete": (state, input) =>
+    state.extensionUi.bridge("store.delete", input),
+  "extensions.ui.store.keys": (state, input) =>
+    state.extensionUi.bridge("store.keys", input),
   "extensions.ui.reportFrameError": (state, input) =>
     state.extensionUi.reportFrameError(input),
   "extensions.get": (state, { target }) => state.extensionViews.view(target),

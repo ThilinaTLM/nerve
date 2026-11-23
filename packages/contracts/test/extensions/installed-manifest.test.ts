@@ -8,8 +8,6 @@ import {
   manifestDefinitionData,
   oldestCompatibleSdkVersion,
   sdkCompatibilityProblem,
-  usedExtensionSurfaces,
-  type ExtensionSurface,
 } from "../../src/domains/extensions/index.js";
 
 const definition = {
@@ -150,46 +148,24 @@ void test("built ui contributions have fixed output paths, unique ids and no ext
   assert.equal(defaultPreviewEdit([".pdf"]), "none");
 });
 
-void test("SDK compatibility is checked per used surface: floor <= sdk <= running version", () => {
+void test("SDK compatibility: oldest <= sdk <= running version", () => {
   assert.equal(compareVersions("0.41.1", "0.41.1"), 0);
   assert.ok(compareVersions("0.41.1-beta.1", "0.41.1")! < 0);
-  const all = ["manifest", "backend", "ui", "themes"] as const;
   assert.equal(
-    sdkCompatibilityProblem(oldestCompatibleSdkVersion.manifest, "0.41.1", all),
+    sdkCompatibilityProblem(oldestCompatibleSdkVersion, "0.41.1"),
     undefined,
   );
-  assert.equal(sdkCompatibilityProblem("0.41.1", "0.41.1", all), undefined);
+  assert.equal(sdkCompatibilityProblem("0.41.1", "0.41.1"), undefined);
   assert.match(
-    sdkCompatibilityProblem("0.38.0", "0.41.1", ["manifest", "backend"])!,
-    /Built with SDK 0\.38\.0; the manifest format and the backend API changed in SDK 0\.41\.0.*Ask the agent in the Forge profile to upgrade it\./,
+    sdkCompatibilityProblem("0.38.0", "0.41.1")!,
+    /older than the 0\.41\.0.*nerve-ext build/,
   );
   assert.match(
-    sdkCompatibilityProblem("0.50.0", "0.41.1", ["manifest"])!,
-    /newer than this Nerve/,
-  );
-  // A floor applies only to extensions that use its surface.
-  const floors = {
-    manifest: "0.41.0",
-    backend: "0.41.0",
-    ui: "0.43.0",
-    themes: "0.42.0",
-  };
-  const problem = (surfaces: ExtensionSurface[]) =>
-    sdkCompatibilityProblem("0.41.5", "0.50.0", surfaces, floors);
-  assert.equal(problem(["manifest", "backend"]), undefined);
-  assert.match(
-    problem(["manifest", "themes"])!,
-    /theme tokens changed in SDK 0\.42\.0/,
+    sdkCompatibilityProblem("0.50.0", "0.41.1")!,
+    /newer than this Nerve.*nerve-ext build/,
   );
   assert.match(
-    problem(["ui", "themes"])!,
-    /UI bridge.*0\.43\.0; the theme tokens.*0\.42\.0/,
-  );
-  assert.deepEqual(
-    usedExtensionSurfaces({
-      namespaces: [{}],
-      ui: { themes: [{}], pages: [] },
-    }),
-    ["manifest", "backend", "themes"],
+    sdkCompatibilityProblem("0.41.5", "0.50.0", "0.43.0")!,
+    /older than the 0\.43\.0/,
   );
 });

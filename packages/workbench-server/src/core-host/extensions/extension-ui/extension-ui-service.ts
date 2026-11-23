@@ -384,13 +384,11 @@ export class ExtensionUiService {
       }
       case "settings.get": {
         const resolved = active.resolution.extensions[extension.id];
-        const values: Record<string, unknown> = {};
-        for (const key of Object.keys(resolved?.fields ?? {})) {
-          const value = fieldValue(resolved, key);
-          const json = bridgeJsonSchema.safeParse(value);
-          if (value !== undefined && json.success) values[key] = json.data;
-        }
-        return { values };
+        const key = params.key as string;
+        if (!Object.hasOwn(resolved?.fields ?? {}, key)) return {};
+        const value = fieldValue(resolved, key);
+        const json = bridgeJsonSchema.safeParse(value);
+        return value !== undefined && json.success ? { value: json.data } : {};
       }
       case "file.info":
       case "file.read":
@@ -407,14 +405,14 @@ export class ExtensionUiService {
           params.encoding as "utf8" | "base64",
         );
       }
-      case "call":
+      case "backend.call":
         return await this.#call(active, extension, params, input.projectId);
-      case "conversations.start":
+      case "chat.startConversation":
         return await this.#startConversation(active, extension, params, input);
-      case "extensionStore.get":
-      case "extensionStore.set":
-      case "extensionStore.delete":
-      case "extensionStore.keys":
+      case "store.get":
+      case "store.set":
+      case "store.delete":
+      case "store.keys":
         return await this.#store(method, params, input);
     }
   }
@@ -427,13 +425,11 @@ export class ExtensionUiService {
     input: { projectId: string },
   ): Promise<{ conversationId: string }> {
     if (
-      !extension.manifest.permissions?.capabilities?.includes(
-        "conversations.start",
-      )
+      !extension.manifest.permissions?.frame?.includes("chat.startConversation")
     )
       throw new ExtensionUiError(
         "not_allowed",
-        'This extension did not declare the "conversations.start" capability.',
+        'This extension did not declare "chat.startConversation" in permissions.frame.',
       );
     const resolved = active.resolution.extensions[extension.id];
     // The named setting must be declared by this extension with the matching type.
@@ -503,7 +499,7 @@ export class ExtensionUiService {
   }
 
   async #store(
-    method: Extract<ServerBridgeMethod, `extensionStore.${string}`>,
+    method: Extract<ServerBridgeMethod, `store.${string}`>,
     params: Record<string, unknown>,
     input: {
       projectId: string;
@@ -522,21 +518,21 @@ export class ExtensionUiService {
     const store = this.#options.store;
     try {
       switch (method) {
-        case "extensionStore.get": {
+        case "store.get": {
           const stored = await store.get(scope, params.key as string);
-          return stored ?? { value: null, revision: null };
+          return { entry: stored ?? null };
         }
-        case "extensionStore.set":
+        case "store.set":
           return await store.set(
             scope,
             params.key as string,
             params.value,
             write,
           );
-        case "extensionStore.delete":
+        case "store.delete":
           await store.delete(scope, params.key as string, write);
           return {};
-        case "extensionStore.keys":
+        case "store.keys":
           return {
             keys: await store.keys(scope, params.prefix as string | undefined),
           };

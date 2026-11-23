@@ -238,7 +238,8 @@ void test("an oauth2 kind lists the hosts it signs in at, its scopes and the ide
 void test("grants saved before credentials existed compare as having none", () => {
   const next = {
     network: [],
-    capabilities: [],
+    models: [],
+    frame: [],
     accounts: [],
     namespaces: {},
     tools: [],
@@ -247,7 +248,8 @@ void test("grants saved before credentials existed compare as having none", () =
   };
   const old = {
     network: [],
-    capabilities: [],
+    models: [],
+    frame: [],
     accounts: [],
     namespaces: {},
     tools: [],

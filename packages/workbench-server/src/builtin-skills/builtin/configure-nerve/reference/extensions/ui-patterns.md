@@ -1,6 +1,6 @@
 # UI patterns
 
-Build frames from the patterns of Nerve's own panels, settings pages and viewers. Users then already know how an extension works, and it follows every theme and density. Exact props: `reference/extensions/api/extension-sdk/ui/components.d.ts`. Icons: `@nervekit/extension-sdk/icons` (lucide: `import { Plus } from "@nervekit/extension-sdk/icons"`).
+Build frames from the patterns of Nerve's own panels, settings pages and viewers. Users then already know how an extension works, and it follows every theme and density. Exact props: `reference/extensions/api/extension-sdk/components/components.d.ts`. Icons: lucide, from the same entry (`import { Plus } from "@nervekit/extension-sdk/ui"`; `Badge` is the component, its icon is `BadgeIcon`).
 
 Compose these components instead of styling raw `<button>`, `<input>`, `<select>`, lists or headers. Raw elements look close but drift from Nerve's spacing, focus rings and states. Add Tailwind classes only for layout (flex, gap, width), with theme tokens (`bg-background`, `bg-card`, `bg-panel`, `text-foreground`, `text-muted-foreground`, `border-border`, `text-destructive`, `text-success`, `text-ui`), never fixed colors.
 
@@ -68,7 +68,7 @@ The frame draws the whole panel, header included; the host adds nothing around i
 - Start every panel with one `PanelHeader`: title, count, then at most three icon actions. Put further actions behind a `PanelToolbarButton` (`Ellipsis` icon) whose click opens `host.ui.showMenu(items, { x: rect.right, y: rect.bottom })`, with `rect` from `event.currentTarget.getBoundingClientRect()`.
 - Filtering: one `PanelFilterBar` under the header (search, scope chips with counts, or both). The panel filters its own rows.
 - Rows: `PanelRow` in a `PanelList`, nested data in `PanelTree` (`buildPanelTree` for paths, `buildPanelItemTree` for parent keys), multi-row items in `PanelRowCard`. Row actions show on hover; secondary ones go in `menuItems`, which the host draws on right click.
-- Groups: `PanelSectionHeader` for static headings, `PanelSection` when the user collapses groups, `PanelSplit` when several collapsible areas share the height with draggable dividers (Git's repository list, branch, changes). Persist `open` and the split `layout` with `host.viewState`; start `layout` from `emptyPanelSplitLayout()` or the saved value, never `undefined`:
+- Groups: `PanelSectionHeader` for static headings, `PanelSection` when the user collapses groups, `PanelSplit` when several collapsible areas share the height with draggable dividers (Git's repository list, branch, changes). Persist `open` and the split `layout` with `host.tabState`; start `layout` from `emptyPanelSplitLayout()` or the saved value, never `undefined`:
 
   ```svelte
   <PanelSplit

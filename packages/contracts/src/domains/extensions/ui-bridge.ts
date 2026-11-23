@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { previewEditModeSchema } from "./installed-manifest.js";
+import { bridgeLimits } from "./limits.js";
 import { uiContributionIdSchema } from "./ui-contribution-id.js";
 
 /*
@@ -13,43 +14,6 @@ import { uiContributionIdSchema } from "./ui-contribution-id.js";
  */
 
 export const bridgeProtocolVersion = 1;
-
-/** Limits both sides enforce; a larger message is dropped (requests get a `too_large` error). */
-export const bridgeLimits = {
-  /** Serialized size of any message, in bytes. */
-  maxMessageBytes: 8 * 1024 * 1024,
-  /** Most bytes one `file.read` returns; the frame asks for more with a new offset. */
-  maxReadChunkBytes: 1024 * 1024,
-  /** Chunk size when `length` is not given. */
-  defaultReadChunkBytes: 256 * 1024,
-  /** Most bytes of content one `file.write` carries (decoded; base64 must fit the message limit). */
-  maxWriteBytes: 5 * 1024 * 1024,
-  /** Serialized size of the JSON `viewState`. */
-  maxViewStateBytes: 64 * 1024,
-  /** Serialized size of `call` args. */
-  maxCallArgsBytes: 1024 * 1024,
-  maxRequestIdLength: 64,
-  maxMenuItems: 32,
-  maxTextLength: 20_000,
-  maxLabelLength: 200,
-  /** Characters of the prompt of one `conversations.start`. */
-  maxConversationPromptLength: 100_000,
-  maxPageParamsBytes: 4 * 1024,
-  /** Bytes of text one `clipboard.writeText` carries (UTF-8). */
-  maxClipboardTextBytes: 1024 * 1024,
-  /** Decoded bytes of one `clipboard.writeImage`. */
-  maxClipboardImageBytes: 5 * 1024 * 1024,
-  /** Characters of an `extensionStore` key. */
-  maxStoreKeyLength: 128,
-  /** Serialized size of one `extensionStore` value. */
-  maxStoreValueBytes: 4 * 1024 * 1024,
-  /** Serialized size of all values of one extension in one project. */
-  maxStoreBytesPerProject: 64 * 1024 * 1024,
-  /** Keys of one extension in one project. */
-  maxStoreKeys: 1000,
-  /** `frameError` reports the host forwards per frame load. */
-  maxFrameErrorsPerLoad: 20,
-} as const;
 
 export type BridgeJson =
   | string
@@ -102,7 +66,7 @@ export const bridgeErrorCodeSchema = z.enum([
   "cancelled",
   /** The extension's backend method failed; `message` is the (shortened) backend error. */
   "backend_error",
-  /** An `extensionStore` write's `ifRevision` no longer matches the stored revision. */
+  /** A `store` write's `ifRevision` no longer matches the stored revision. */
   "conflict",
   "failed",
 ]);
@@ -126,7 +90,7 @@ const menuItemSchema = z.strictObject({
 const projectPathSchema = z.string().min(1).max(4096);
 
 /**
- * An `extensionStore` key: letters, digits, `.`, `_` and `-`, 1–128 characters, not starting with
+ * A store key: letters, digits, `.`, `_` and `-`, 1–128 characters, not starting with
  * a dot. Safe as a file name, so the daemon stores one file per key.
  */
 export const extensionStoreKeySchema = z
@@ -196,11 +160,7 @@ export const bridgeMethods = {
     }),
     result: z.strictObject({ size: z.number().int().nonnegative() }),
   },
-  "mode.get": {
-    params: emptyParams,
-    result: z.strictObject({ mode: bridgeModeSchema }),
-  },
-  call: {
+  "backend.call": {
     params: z.strictObject({
       /** One of the extension's own backend methods, as `namespace.method`. */
       method: text(128),
@@ -213,20 +173,21 @@ export const bridgeMethods = {
     result: z.strictObject({ value: bridgeJsonSchema.optional() }),
   },
   "settings.get": {
-    params: emptyParams,
-    /** Resolved, non-secret settings of the extension. */
-    result: z.strictObject({ values: z.record(z.string(), bridgeJsonSchema) }),
+    /** A field key of the extension's settings. */
+    params: z.strictObject({ key: text(128) }),
+    /** The resolved, non-secret value; absent when the field is unset or has no value for frames (secrets). */
+    result: z.strictObject({ value: bridgeJsonSchema.optional() }),
   },
-  "viewState.get": {
+  "tabState.get": {
     params: emptyParams,
     result: z.strictObject({ state: bridgeJsonSchema.nullable() }),
   },
-  "viewState.set": {
+  "tabState.set": {
     params: z.strictObject({
       state: bridgeJsonSchema.refine(
-        jsonWithin(bridgeLimits.maxViewStateBytes),
+        jsonWithin(bridgeLimits.maxTabStateBytes),
         {
-          message: `view state is larger than ${bridgeLimits.maxViewStateBytes} bytes`,
+          message: `tab state is larger than ${bridgeLimits.maxTabStateBytes} bytes`,
         },
       ),
     }),
@@ -258,11 +219,11 @@ export const bridgeMethods = {
     }),
     result: emptyResult,
   },
-  openFile: {
+  "workspace.openFile": {
     params: z.strictObject({ path: projectPathSchema }),
     result: emptyResult,
   },
-  openPage: {
+  "pages.open": {
     params: z.strictObject({
       /** Id of one of this extension's pages. */
       id: uiContributionIdSchema,
@@ -282,7 +243,7 @@ export const bridgeMethods = {
       directory: z.string(),
     }),
   },
-  "composer.insert": {
+  "chat.insert": {
     params: z.strictObject({ text: text(bridgeLimits.maxTextLength) }),
     result: emptyResult,
   },
@@ -314,7 +275,7 @@ export const bridgeMethods = {
     }),
     result: emptyResult,
   },
-  "conversations.start": {
+  "chat.startConversation": {
     params: z.strictObject({
       prompt: text(bridgeLimits.maxConversationPromptLength),
       title: text().optional(),
@@ -329,15 +290,19 @@ export const bridgeMethods = {
     }),
     result: z.strictObject({ conversationId: z.string() }),
   },
-  "extensionStore.get": {
+  "store.get": {
     params: z.strictObject({ key: extensionStoreKeySchema }),
-    /** `value` and `revision` are `null` when the key does not exist. */
+    /** `entry` is `null` when the key does not exist. */
     result: z.strictObject({
-      value: bridgeJsonSchema.nullable(),
-      revision: z.number().int().positive().nullable(),
+      entry: z
+        .strictObject({
+          value: bridgeJsonSchema,
+          revision: z.number().int().positive(),
+        })
+        .nullable(),
     }),
   },
-  "extensionStore.set": {
+  "store.set": {
     params: z.strictObject({
       key: extensionStoreKeySchema,
       value: bridgeJsonSchema.refine(
@@ -349,14 +314,14 @@ export const bridgeMethods = {
     }),
     result: z.strictObject({ revision: z.number().int().positive() }),
   },
-  "extensionStore.delete": {
+  "store.delete": {
     params: z.strictObject({
       key: extensionStoreKeySchema,
       ifRevision: storeRevisionSchema.optional(),
     }),
     result: emptyResult,
   },
-  "extensionStore.keys": {
+  "store.keys": {
     params: z.strictObject({
       prefix: z.string().max(bridgeLimits.maxStoreKeyLength).optional(),
     }),
@@ -387,8 +352,8 @@ export type BridgeResult<M extends BridgeMethodName> = z.output<
 const allKinds = ["preview", "page", "panel"] as const;
 
 /**
- * Which contribution kinds may call each method. `file.*` is for previews only; `file.write` and
- * `mode.get` additionally need a preview with `edit: "custom"` (see `isBridgeMethodAllowed`).
+ * Which contribution kinds may call each method. `file.*` is for previews only; `file.write`
+ * additionally needs a preview with `edit: "custom"` (see `isBridgeMethodAllowed`).
  */
 export const bridgeMethodKinds: Record<
   BridgeMethodName,
@@ -397,31 +362,29 @@ export const bridgeMethodKinds: Record<
   "file.info": ["preview"],
   "file.read": ["preview"],
   "file.write": ["preview"],
-  "mode.get": ["preview"],
-  call: allKinds,
+  "backend.call": allKinds,
   "settings.get": allKinds,
-  "viewState.get": allKinds,
-  "viewState.set": allKinds,
+  "tabState.get": allKinds,
+  "tabState.set": allKinds,
   "ui.confirm": allKinds,
   "ui.showMenu": allKinds,
   "ui.notify": allKinds,
-  openFile: allKinds,
-  openPage: allKinds,
+  "workspace.openFile": allKinds,
+  "pages.open": allKinds,
   "project.info": allKinds,
-  "composer.insert": allKinds,
+  "chat.insert": allKinds,
   "clipboard.writeText": allKinds,
   "clipboard.writeImage": allKinds,
-  "conversations.start": allKinds,
-  "extensionStore.get": allKinds,
-  "extensionStore.set": allKinds,
-  "extensionStore.delete": allKinds,
-  "extensionStore.keys": allKinds,
+  "chat.startConversation": allKinds,
+  "store.get": allKinds,
+  "store.set": allKinds,
+  "store.delete": allKinds,
+  "store.keys": allKinds,
 };
 
 /** Methods that only exist for previews with `edit: "custom"`. */
 export const bridgeCustomEditMethods: readonly BridgeMethodName[] = [
   "file.write",
-  "mode.get",
 ];
 
 /** Whether a frame of this kind (and, for previews, edit mode) may call `method`. */
@@ -441,33 +404,33 @@ export function isBridgeMethodAllowed(
 // ── Events (host → frame) ─────────────────────────────────────────────────
 
 export const bridgeEvents = {
-  themeChanged: z.strictObject({
+  "theme.changed": z.strictObject({
     kind: bridgeThemeKindSchema,
     /** Custom-property declarations (`--background:…;`) of the active theme. */
     tokensCss: z.string().max(8192),
   }),
-  fileChanged: z.strictObject({
+  "file.changed": z.strictObject({
     size: z.number().int().nonnegative(),
     modifiedAt: z.string().optional(),
   }),
-  modeChanged: z.strictObject({ mode: bridgeModeSchema }),
+  "mode.changed": z.strictObject({ mode: bridgeModeSchema }),
   /** A key of this extension's store changed (by another frame or the backend); `revision` `null`: deleted. */
-  extensionStoreChanged: z.strictObject({
+  "store.changed": z.strictObject({
     key: z.string(),
     revision: z.number().int().positive().nullable(),
   }),
 } as const;
 export type BridgeEventName = keyof typeof bridgeEvents;
 
-/** Events each kind receives: `themeChanged` for all; file and mode events for previews. */
+/** Events each kind receives: theme, mode and store events for all; file events for previews. */
 export const bridgeEventKinds: Record<
   BridgeEventName,
   readonly BridgeContributionKind[]
 > = {
-  themeChanged: allKinds,
-  fileChanged: ["preview"],
-  modeChanged: ["preview"],
-  extensionStoreChanged: allKinds,
+  "theme.changed": allKinds,
+  "file.changed": ["preview"],
+  "mode.changed": ["preview"],
+  "store.changed": allKinds,
 };
 
 // ── Envelope ──────────────────────────────────────────────────────────────

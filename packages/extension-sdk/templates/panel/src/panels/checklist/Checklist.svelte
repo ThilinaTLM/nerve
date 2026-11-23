@@ -5,7 +5,7 @@ import {
   ListChecks,
   Plus,
   Trash2,
-} from "@nervekit/extension-sdk/icons";
+} from "@nervekit/extension-sdk/ui";
 import {
   host,
   Input,
@@ -36,14 +36,14 @@ const shown = $derived(
 
 // The host keeps the panel's view state; read it back when the panel opens.
 $effect(() => {
-  void host.viewState.get().then((state) => {
+  void host.tabState.get().then((state) => {
     if (state && typeof state === "object" && "items" in state)
       items = state.items as Item[];
   });
 });
 
 function save() {
-  void host.viewState.set({ items });
+  void host.tabState.set({ items });
 }
 
 function add() {

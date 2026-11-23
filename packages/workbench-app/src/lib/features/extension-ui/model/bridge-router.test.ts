@@ -24,11 +24,11 @@ test("routes the handshake and valid requests to the right handler", () => {
     type: "ready",
   });
   assert.deepEqual(
-    routeFrameMessage(request("call", { method: "a.b" }), page),
+    routeFrameMessage(request("backend.call", { method: "a.b" }), page),
     {
       type: "request",
       id: "1",
-      method: "call",
+      method: "backend.call",
       params: { method: "a.b" },
       handler: "server",
     },
@@ -38,8 +38,8 @@ test("routes the handshake and valid requests to the right handler", () => {
     page,
   );
   assert.equal(confirm.type === "request" && confirm.handler, "host");
-  const viewState = routeFrameMessage(request("viewState.get"), page);
-  assert.equal(viewState.type === "request" && viewState.handler, "host");
+  const tabState = routeFrameMessage(request("tabState.get"), page);
+  assert.equal(tabState.type === "request" && tabState.handler, "host");
 });
 
 test("rejects methods the contribution may not call, and bad params", () => {
@@ -60,7 +60,10 @@ test("rejects methods the contribution may not call, and bad params", () => {
     ).type,
     "request",
   );
-  const invalid = routeFrameMessage(request("openFile", { path: 3 }), page);
+  const invalid = routeFrameMessage(
+    request("workspace.openFile", { path: 3 }),
+    page,
+  );
   assert.equal(
     invalid.type === "reject" && invalid.error.code,
     "invalid_request",
@@ -85,7 +88,7 @@ test("drops garbage and answers oversized or malformed requests by id", () => {
   assert.equal(malformed.type === "reject" && malformed.id, "9");
   const big = routeFrameMessage(
     request(
-      "viewState.set",
+      "tabState.set",
       { state: "x".repeat(bridgeLimits.maxMessageBytes) },
       "7",
     ),
@@ -100,27 +103,27 @@ test("drops garbage and answers oversized or malformed requests by id", () => {
 test("events respect the kind and their schema", () => {
   const data = { size: 3 };
   assert.equal(
-    eventMessage("fileChanged", data, "preview")?.event,
-    "fileChanged",
+    eventMessage("file.changed", data, "preview")?.event,
+    "file.changed",
   );
-  assert.equal(eventMessage("fileChanged", data, "page"), undefined);
+  assert.equal(eventMessage("file.changed", data, "page"), undefined);
   assert.equal(
-    eventMessage("modeChanged", { mode: "edit" }, "preview")?.type,
+    eventMessage("mode.changed", { mode: "edit" }, "preview")?.type,
     "event",
   );
   assert.equal(
-    eventMessage("modeChanged", { mode: "x" }, "preview"),
+    eventMessage("mode.changed", { mode: "x" }, "preview"),
     undefined,
   );
   assert.equal(
-    eventMessage("themeChanged", { kind: "dark", tokensCss: "" }, "panel")
+    eventMessage("theme.changed", { kind: "dark", tokensCss: "" }, "panel")
       ?.type,
     "event",
   );
 });
 
 test("maps request failures to bridge errors", () => {
-  assert.deepEqual(failureOf(new Error("boom"), "call"), {
+  assert.deepEqual(failureOf(new Error("boom"), "backend.call"), {
     code: "backend_error",
     message: "boom",
   });
@@ -156,7 +159,7 @@ test("routes frame errors and offers clipboard and store to every kind", () => {
     );
     assert.deepEqual(copy.type === "request" && copy.handler, "host");
     const get = routeFrameMessage(
-      request("extensionStore.get", { key: "a" }),
+      request("store.get", { key: "a" }),
       contribution,
     );
     assert.deepEqual(get.type === "request" && get.handler, "server");
@@ -165,8 +168,7 @@ test("routes frame errors and offers clipboard and store to every kind", () => {
 
 test("passes conflict errors through", () => {
   assert.equal(
-    failureOf({ code: "conflict", message: "stale" }, "extensionStore.set")
-      .code,
+    failureOf({ code: "conflict", message: "stale" }, "store.set").code,
     "conflict",
   );
 });

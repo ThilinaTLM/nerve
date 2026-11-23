@@ -22,8 +22,11 @@ const request = (method: string, params?: unknown) =>
 
 test("envelopes are versioned and strict", () => {
   assert.equal(
-    bridgeRequestSchema.safeParse({ type: "request", id: "1", method: "call" })
-      .success,
+    bridgeRequestSchema.safeParse({
+      type: "request",
+      id: "1",
+      method: "backend.call",
+    }).success,
     false,
   );
   assert.equal(
@@ -75,12 +78,8 @@ test("methods are limited by contribution kind and edit mode", () => {
     isBridgeMethodAllowed("file.write", { kind: "preview", edit: "custom" }),
     true,
   );
-  assert.equal(
-    isBridgeMethodAllowed("mode.get", { kind: "preview", edit: "custom" }),
-    true,
-  );
-  assert.equal(isBridgeMethodAllowed("call", { kind: "panel" }), true);
-  assert.equal(bridgeMethodNames.length, 22);
+  assert.equal(isBridgeMethodAllowed("backend.call", { kind: "panel" }), true);
+  assert.equal(bridgeMethodNames.length, 21);
 });
 
 test("requests are validated against the method", () => {
@@ -93,19 +92,19 @@ test("requests are validated against the method", () => {
   assert.equal(!denied.ok && denied.error.code, "not_allowed");
   assert.equal(
     validateBridgeRequest(
-      request("call", { method: "csv.sum", args: { a: 1 } }),
+      request("backend.call", { method: "csv.sum", args: { a: 1 } }),
       page,
     ).ok,
     true,
   );
   const bad = validateBridgeRequest(
-    request("openPage", { id: "Bad Id" }),
+    request("pages.open", { id: "Bad Id" }),
     page,
   );
   assert.equal(!bad.ok && bad.error.code, "invalid_request");
   const big = validateBridgeRequest(
-    request("viewState.set", {
-      state: "x".repeat(bridgeLimits.maxViewStateBytes),
+    request("tabState.set", {
+      state: "x".repeat(bridgeLimits.maxTabStateBytes),
     }),
     page,
   );
@@ -121,7 +120,7 @@ test("requests are validated against the method", () => {
 
 test("store keys are file-name safe and writes take an optional revision", () => {
   const valid = (params: unknown) =>
-    validateBridgeRequest(request("extensionStore.set", params), {
+    validateBridgeRequest(request("store.set", params), {
       kind: "page",
     }).ok;
   assert.equal(valid({ key: "drawing-1.v2", value: { a: 1 } }), true);

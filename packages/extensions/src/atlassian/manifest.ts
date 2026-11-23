@@ -1,4 +1,5 @@
-import { defineExtension, defineNamespace } from "@nervekit/extension-api";
+import { defineNamespace } from "@nervekit/extension-api";
+import { defineHostExtension } from "@nervekit/extension-api/host";
 import { AtlassianSession, atlassianMethods } from "./shared/defaults.js";
 import { testAtlassianAccount } from "./shared/connection-check.js";
 import { methodTable } from "./shared/define-method.js";
@@ -14,7 +15,7 @@ import {
 } from "./declarations.js";
 
 /** Jira and Confluence behind one Atlassian account; the `jira` and `confluence` switches enable each namespace. */
-export const atlassianExtension = defineExtension({
+export const atlassianExtension = defineHostExtension({
   id: "atlassian",
   name: "Atlassian",
   description: "Jira and Confluence through one Atlassian account.",

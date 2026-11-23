@@ -9,4 +9,4 @@ export {
   createFakeBridge,
   type FakeBridge,
   type FakeBridgeOptions,
-} from "./ui/testing.js";
+} from "./frame/testing.js";

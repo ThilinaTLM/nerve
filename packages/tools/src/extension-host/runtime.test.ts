@@ -221,7 +221,7 @@ void test("ctx.models accept only the extension's own model settings and Nerve's
         image: { type: "imageModel", label: "Image" },
       },
     },
-    permissions: { capabilities: ["models.text" as const] },
+    permissions: { models: ["text" as const] },
   } as typeof demoExtension;
   const { models } = new ExtensionRuntime(env).context(extension);
   // Only the declared capability: no vision although the host offers it.

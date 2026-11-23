@@ -66,14 +66,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./messages",
     ],
     "@nervekit/extension-api": [".", "./host", "./testing"],
-    "@nervekit/extension-sdk": [
-      ".",
-      "./testing",
-      "./build",
-      "./ui",
-      "./icons",
-      "./env",
-    ],
+    "@nervekit/extension-sdk": [".", "./testing", "./ui", "./env"],
     "@nervekit/native": ["."],
     "@nervekit/protocol": [
       ".",
@@ -119,6 +112,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./terminal/*",
       "./components/ui/*",
       "./components/composites/panel/panel-tree",
+      "./components/composites/panel/panel-selection",
       "./components/composites/*",
     ],
     "@nervekit/website": [],

@@ -496,7 +496,7 @@ void test("icons import through the SDK, stay tree-shaken and one copy is bundle
       folder,
       "src/pages/overview/Overview.svelte",
       `<script lang="ts">
-  import { Copy } from "@nervekit/extension-sdk/icons";
+  import { Copy } from "@nervekit/extension-sdk/ui";
 </script>
 <Copy />
 `,
@@ -527,7 +527,7 @@ void test("floating toolbars, including the host-menu overflow button, build ins
       folder,
       "src/pages/overview/Overview.svelte",
       `<script lang="ts">
-  import { Copy } from "@nervekit/extension-sdk/icons";
+  import { Copy } from "@nervekit/extension-sdk/ui";
   import {
     FloatingLayer,
     FloatingToolbar,

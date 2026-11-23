@@ -16,3 +16,4 @@ export * from "./theme-file.js";
 export * from "./ui-bridge.js";
 export * from "./extension-ui-operations.js";
 export * from "./theme-rules.js";
+export * from "./limits.js";

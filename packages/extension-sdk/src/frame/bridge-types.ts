@@ -30,11 +30,11 @@ export type PreviewEdit = "source" | "custom" | "none";
 /**
  * The `code` of a `BridgeError`. `invalid_request`: parameters do not match the method (the
  * message names the field). `not_allowed`: this kind of frame or edit mode may not call the method
- * (`file.*` in a page; `file.write` or `mode.get` in a preview without `edit: "custom"`).
+ * (`file.*` in a page; `file.write` in a preview without `edit: "custom"`).
  * `unknown_method`: no such bridge method. `not_found`: the file, page or backend method does not
  * exist. `too_large`: a message or value is over its size limit. `cancelled`: the user dismissed
  * the request. `backend_error`: the extension's backend method failed (the message is its
- * shortened error). `conflict`: an `extensionStore` write's `ifRevision` no longer matches the
+ * shortened error). `conflict`: a `store` write's `ifRevision` no longer matches the
  * stored revision. `failed`: anything else, including a closed bridge or a host that did not answer.
  */
 export type BridgeErrorCode =
@@ -136,7 +136,7 @@ export type FrameInit = {
   pageParams?: BridgeJson;
 };
 
-/** Payload of `host.onFileChange`: the previewed file changed on disk. */
+/** Payload of `host.file.onChange`: the previewed file changed on disk. */
 export type FileChange = {
   /** New size in bytes. */
   size: number;
@@ -144,7 +144,7 @@ export type FileChange = {
   modifiedAt?: string | undefined;
 };
 
-/** Payload of `host.onThemeChange`. */
+/** Payload of `host.theme.onChange`. */
 export type ThemeChange = {
   /** Colour mode of the new theme. */
   kind: ThemeKind;
@@ -152,8 +152,8 @@ export type ThemeChange = {
   tokensCss: string;
 };
 
-/** Payload of `host.onExtensionStoreChange`: a key of the extension's store changed. */
-export type ExtensionStoreChange = {
+/** Payload of `host.store.onChange`: a key of the extension's store changed. */
+export type StoreChange = {
   /** The changed key. */
   key: string;
   /** The key's new revision; `null` when it was deleted. */
@@ -180,25 +180,23 @@ type Methods = {
     params: { content: string; encoding: "utf8" | "base64" };
     result: { size: number };
   };
-  /** Previews with `edit: "custom"` only. The current mode. */
-  "mode.get": { params: Record<string, never>; result: { mode: Mode } };
   /** Calls one of the extension's own backend methods (`namespace.method`, at most 128 characters); `args` is its single argument (JSON, at most 1 MiB), `value` its result. The result must be JSON (at most about 8 MiB). Times out after 60 s with `backend_error`. */
-  call: {
+  "backend.call": {
     params: { method: string; args?: BridgeJson | undefined };
     result: { value?: BridgeJson | undefined };
   };
-  /** The extension's resolved, non-secret settings by field key. */
+  /** One of the extension's resolved, non-secret settings by field key; `value` is absent when it is unset. */
   "settings.get": {
-    params: Record<string, never>;
-    result: { values: Record<string, BridgeJson> };
+    params: { key: string };
+    result: { value?: BridgeJson | undefined };
   };
-  /** State saved with `viewState.set`, kept with the tab; `null` when none. */
-  "viewState.get": {
+  /** State saved with `tabState.set`, kept with the tab; `null` when none. */
+  "tabState.get": {
     params: Record<string, never>;
     result: { state: BridgeJson | null };
   };
   /** Saves JSON state with the tab (at most 64 KiB serialized). Hidden tabs and panels unload their frame, so save what must survive. */
-  "viewState.set": {
+  "tabState.set": {
     params: { state: BridgeJson };
     result: Record<string, never>;
   };
@@ -218,16 +216,19 @@ type Methods = {
     result: Record<string, never>;
   };
   /** Opens a project file (relative, or absolute inside the project; at most 4096 characters) in a tab. */
-  openFile: { params: { path: string }; result: Record<string, never> };
-  /** Opens one of the extension's pages by its manifest `id`; `params` (JSON, at most 4 KiB) reaches the page as `host.pageParams`. */
-  openPage: {
+  "workspace.openFile": {
+    params: { path: string };
+    result: Record<string, never>;
+  };
+  /** Opens one of the extension's pages by its manifest `id`; `params` (JSON, at most 4 KiB) reaches the page as `host.pages.params()`. */
+  "pages.open": {
     params: { id: string; params?: BridgeJson | undefined };
     result: Record<string, never>;
   };
   /** The open project. */
   "project.info": { params: Record<string, never>; result: ProjectInfo };
   /** Appends text (1–20,000 characters) to the chat composer. */
-  "composer.insert": {
+  "chat.insert": {
     params: { text: string };
     result: Record<string, never>;
   };
@@ -241,8 +242,8 @@ type Methods = {
     params: { dataBase64: string; mediaType: ClipboardImageType };
     result: Record<string, never>;
   };
-  /** Starts a conversation in the open project. Needs `"conversations.start"` in `permissions.capabilities` and a user click in the frame, else `not_allowed`. */
-  "conversations.start": {
+  /** Starts a conversation in the open project. Needs `"chat.startConversation"` in `permissions.frame` and a user click in the frame, else `not_allowed`. */
+  "chat.startConversation": {
     params: {
       prompt: string;
       title?: string | undefined;
@@ -254,13 +255,13 @@ type Methods = {
     };
     result: { conversationId: string };
   };
-  /** One value of the extension's store; `value` and `revision` are `null` when the key does not exist. */
-  "extensionStore.get": {
+  /** One entry of the extension's store; `entry` is `null` when the key does not exist. */
+  "store.get": {
     params: { key: string };
-    result: { value: BridgeJson | null; revision: number | null };
+    result: { entry: { value: BridgeJson; revision: number } | null };
   };
   /** Writes a value (JSON, at most 4 MiB) and returns its new revision. With `ifRevision`, writes only when the stored revision matches (`0`: only when the key does not exist), else `conflict`. */
-  "extensionStore.set": {
+  "store.set": {
     params: {
       key: string;
       value: BridgeJson;
@@ -269,17 +270,17 @@ type Methods = {
     result: { revision: number };
   };
   /** Deletes a key; deleting a missing key succeeds. With `ifRevision`, `conflict` when it does not match. */
-  "extensionStore.delete": {
+  "store.delete": {
     params: { key: string; ifRevision?: number | undefined };
     result: Record<string, never>;
   };
   /** Keys of the store (optionally those starting with `prefix`) with their revision and serialized size in bytes. */
-  "extensionStore.keys": {
+  "store.keys": {
     params: { prefix?: string | undefined };
     result: { keys: { key: string; revision: number; size: number }[] };
   };
 };
-/** Params and result of every bridge method, by method name (`file.info`, `file.read`, …, `composer.insert`). */
+/** Params and result of every bridge method, by method name (`file.info`, `file.read`, …, `chat.insert`). */
 export type BridgeMethods = Methods;
 /** Name of a bridge method. */
 export type MethodName = keyof Methods;

@@ -9,5 +9,6 @@
     "sourceMap": false,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/components/components.impl.ts"]
 }

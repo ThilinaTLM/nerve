@@ -1,10 +1,10 @@
 import { assertUniqueAccountKinds } from "@nervekit/contracts/settings";
 import type { ExtensionSource } from "@nervekit/contracts/extensions";
+import type { ToolDefinition as ExtensionToolDefinition } from "@nervekit/extension-api";
 import {
-  type ExtensionDefinition,
-  type ToolDefinition as ExtensionToolDefinition,
-} from "@nervekit/extension-api";
-import { VIEW_SECTION_ID } from "@nervekit/extension-api/host";
+  VIEW_SECTION_ID,
+  type HostExtensionDefinition,
+} from "@nervekit/extension-api/host";
 import { resolveExtensionIcon } from "../extension-host/icon.js";
 import { fromDefinition } from "../extension-host/from-definition.js";
 import { createSdkNamespace } from "./runtime/discovery.js";
@@ -47,7 +47,7 @@ export type QuickScriptRegistryOptions = {
   /** Where each extension's code runs (`routedExtensionCode`); absent: every extension runs in the host process. */
   extensionCodeAdapter?: ExtensionCodeAdapter;
   /** Where an installed extension comes from; absent: every extension is built in. */
-  extensionSource?: (definition: ExtensionDefinition) => ExtensionSource;
+  extensionSource?: (definition: HostExtensionDefinition) => ExtensionSource;
 };
 
 /**
@@ -55,7 +55,7 @@ export type QuickScriptRegistryOptions = {
  * definitions built on `@nervekit/extension-api`.
  */
 export function createQuickScriptRegistry(
-  input: readonly ExtensionDefinition[],
+  input: readonly HostExtensionDefinition[],
   options: QuickScriptRegistryOptions = {},
 ): QuickScriptRegistry {
   const extensions = input.map((definition) =>

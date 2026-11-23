@@ -32,11 +32,11 @@ import ContextMenuList, {
 import { contextSelection } from "$lib/presentation/code/codemirror-context-menu";
 import { viewerShortcut } from "$lib/presentation/code/code-viewer-helpers";
 import {
-  formatProjectEntryReferences,
-  hasProjectEntryDragType,
-  parseProjectEntryDrag,
-  PROJECT_ENTRY_DRAG_MIME,
-} from "$lib/presentation/dnd/project-entry-drag";
+  COMPOSER_REFERENCE_DRAG_MIME,
+  hasComposerReferenceDragType,
+  parseComposerReferenceDrag,
+} from "$lib/presentation/dnd/composer-reference-drag";
+import { composerReferencesFromDrag } from "./composer-drag-references";
 import ComposerCompletionPopup from "./ComposerCompletionPopup.svelte";
 import { externalValueChange } from "./composer-external-value";
 import { quoteBlockHighlighter } from "./composer-quote-blocks";
@@ -278,16 +278,17 @@ function hasNativeFileItems(dataTransfer: DataTransfer | null): boolean {
   );
 }
 
-function hasProjectEntryItems(dataTransfer: DataTransfer | null): boolean {
+function hasComposerReferenceItems(dataTransfer: DataTransfer | null): boolean {
   return Boolean(
-    dataTransfer && hasProjectEntryDragType(Array.from(dataTransfer.types)),
+    dataTransfer &&
+    hasComposerReferenceDragType(Array.from(dataTransfer.types)),
   );
 }
 
 function canHandleFileDrag(event: DragEvent): boolean {
   if (disabled) return false;
   return (
-    hasProjectEntryItems(event.dataTransfer) ||
+    hasComposerReferenceItems(event.dataTransfer) ||
     Boolean(onDropFiles && hasNativeFileItems(event.dataTransfer))
   );
 }
@@ -323,11 +324,20 @@ function handleFileDrop(event: DragEvent): void {
   fileDragActive = false;
 
   const { from, to } = view.state.selection.main;
-  const internalPayload = event.dataTransfer?.getData(PROJECT_ENTRY_DRAG_MIME);
+  const internalPayload = event.dataTransfer?.getData(
+    COMPOSER_REFERENCE_DRAG_MIME,
+  );
   if (internalPayload) {
-    const entries = parseProjectEntryDrag(internalPayload);
-    if (entries) {
-      insertPathMentions(formatProjectEntryReferences(entries), { from, to });
+    const references = parseComposerReferenceDrag(internalPayload);
+    if (references) {
+      view.dispatch(
+        insertMentionsTransaction(
+          view.state,
+          composerReferencesFromDrag(references),
+          { from, to },
+        ),
+      );
+      view.focus();
     }
     return;
   }

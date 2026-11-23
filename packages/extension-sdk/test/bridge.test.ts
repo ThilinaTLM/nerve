@@ -7,9 +7,9 @@ import {
   createBridgeClient,
   startFrameErrorReporting,
   type BridgeTransport,
-} from "../src/ui/client.ts";
-import { host, mode, themeKind } from "../src/ui/host.ts";
-import { createFakeBridge } from "../src/ui/testing.ts";
+} from "../src/frame/client.ts";
+import { host } from "../src/frame/host.ts";
+import { createFakeBridge } from "../src/frame/testing.ts";
 
 const envelope = { nerveBridge: bridgeProtocolVersion };
 const initMessage = {
@@ -72,7 +72,7 @@ void test("requests are validated, correlated and answered with results or error
   );
 
   const first = client.request("project.info", {});
-  const second = client.request("settings.get", {});
+  const second = client.request("settings.get", { key: "a" });
   const [a, b] = posted.filter((message) => message["type"] === "request");
   assert.notEqual(a!["id"], b!["id"]);
   // Answered out of order.
@@ -81,7 +81,7 @@ void test("requests are validated, correlated and answered with results or error
     type: "response",
     id: b!["id"],
     ok: true,
-    result: { values: { limit: 3 } },
+    result: { value: 3 },
   });
   deliver({
     ...envelope,
@@ -90,7 +90,7 @@ void test("requests are validated, correlated and answered with results or error
     ok: false,
     error: { code: "not_found", message: "no project" },
   });
-  assert.deepEqual(await second, { values: { limit: 3 } });
+  assert.deepEqual(await second, { value: 3 });
   await assert.rejects(
     first,
     (error: unknown) =>
@@ -118,17 +118,17 @@ void test("events reach listeners with validated payloads", async () => {
   deliver(initMessage);
   await client.ready;
   const seen: unknown[] = [];
-  const stop = client.on("fileChanged", (change) => seen.push(change));
+  const stop = client.on("file.changed", (change) => seen.push(change));
   deliver({
     ...envelope,
     type: "event",
-    event: "fileChanged",
+    event: "file.changed",
     data: { size: 4 },
   });
   deliver({
     ...envelope,
     type: "event",
-    event: "fileChanged",
+    event: "file.changed",
     data: { size: "x" },
   });
   deliver({ ...envelope, type: "event", event: "nope", data: {} });
@@ -136,7 +136,7 @@ void test("events reach listeners with validated payloads", async () => {
   deliver({
     ...envelope,
     type: "event",
-    event: "fileChanged",
+    event: "file.changed",
     data: { size: 5 },
   });
   assert.deepEqual(seen, [{ size: 4 }]);
@@ -152,7 +152,7 @@ void test("host with the fake bridge: handshake, theme, files, host UI and event
     edit: "custom",
     file: { path: "data/a.csv", content: "x,y\n1,2\n" },
     settings: { limit: 3 },
-    call: (method, args) => ({ method, args: args ?? null }),
+    backend: (method, args) => ({ method, args: args ?? null }),
     themeKind: "light",
     tokensCss: "--background:#fff;--foreground:#111;",
   });
@@ -161,8 +161,10 @@ void test("host with the fake bridge: handshake, theme, files, host UI and event
     const root = dom.window.document.documentElement;
     assert.equal(root.dataset["colorMode"], "light");
     assert.equal(root.style.getPropertyValue("--background"), "#fff");
-    assert.equal(host.extensionId, "test-extension");
-    assert.equal(host.contribution.kind, "preview");
+    const init = await host.ready;
+    assert.equal(init.extensionId, "test-extension");
+    assert.equal(init.contribution.kind, "preview");
+    assert.equal(await host.pages.params(), undefined);
 
     assert.equal((await host.file.info()).extension, ".csv");
     assert.equal(await host.file.text(), "x,y\n1,2\n");
@@ -170,17 +172,17 @@ void test("host with the fake bridge: handshake, theme, files, host UI and event
     assert.equal(bridge.fileText, "a,b\n");
     await host.file.write(new Uint8Array([1, 2, 3]));
     assert.deepEqual([...bridge.fileBytes], [1, 2, 3]);
-    assert.equal(await host.mode.get(), "preview");
-    assert.deepEqual(await host.settings.get(), { limit: 3 });
-    assert.deepEqual(await host.call("ns.run", { a: 1 }), {
+    assert.equal(await host.settings.get("limit"), 3);
+    assert.equal(await host.settings.get("missing"), undefined);
+    assert.deepEqual(await host.backend.call("ns.run", { a: 1 }), {
       method: "ns.run",
       args: { a: 1 },
     });
     assert.equal(await host.ui.confirm({ title: "Sure?" }), true);
     assert.equal(await host.ui.showMenu([{ id: "a", label: "A" }]), "a");
     await host.ui.notify("hi", "success");
-    await host.openFile("b.txt");
-    await host.composer.insert("text");
+    await host.workspace.openFile("b.txt");
+    await host.chat.insert("text");
     assert.deepEqual(bridge.notifications, [
       { message: "hi", level: "success" },
     ]);
@@ -188,25 +190,24 @@ void test("host with the fake bridge: handshake, theme, files, host UI and event
 
     // Events: theme tokens are applied by the SDK, mode and file changes reach the handlers.
     let kind: string | undefined;
-    const modes: string[] = [];
     const changes: number[] = [];
-    host.onThemeChange((change) => (kind = change.kind));
-    host.onModeChange((change) => modes.push(change.mode));
-    host.onFileChange((change) => changes.push(change.size));
+    host.theme.onChange((change) => (kind = change.kind));
+    host.file.onChange((change) => changes.push(change.size));
     const modeValues: string[] = [];
-    const stopMode = mode.subscribe((value) => modeValues.push(value));
+    const stopMode = host.mode.subscribe((value) => modeValues.push(value));
     const themeValues: string[] = [];
-    const stopTheme = themeKind.subscribe((value) => themeValues.push(value));
-    bridge.emitThemeChanged("dark", "--background:#000;");
-    bridge.emitModeChanged("edit");
-    bridge.emitFileChanged({ size: 9 });
+    const stopTheme = host.theme.kind.subscribe((value) =>
+      themeValues.push(value),
+    );
+    bridge.emitThemeChange("dark", "--background:#000;");
+    bridge.emitModeChange("edit");
+    bridge.emitFileChange({ size: 9 });
     await new Promise((resolve) => setTimeout(resolve, 0));
     stopMode();
     stopTheme();
     assert.equal(kind, "dark");
     assert.equal(root.dataset["colorMode"], "dark");
     assert.equal(root.style.getPropertyValue("--background"), "#000");
-    assert.deepEqual(modes, ["edit"]);
     assert.equal(modeValues.at(-1), "edit");
     assert.equal(themeValues.at(-1), "dark");
     assert.deepEqual(changes, [9]);
@@ -229,7 +230,7 @@ void test("the fake bridge refuses what Nerve refuses", async () => {
       (error: unknown) =>
         error instanceof BridgeError && error.code === "not_allowed",
     );
-    await assert.rejects(host.call("a.b"), /backend_error|no `call` handler/);
+    await assert.rejects(host.backend.call("a.b"), /backend_error|no backend/);
   } finally {
     preview.close();
   }
@@ -351,45 +352,37 @@ void test("the fake bridge store keeps revisions, detects conflicts and emits ch
   const bridge = createFakeBridge({ kind: "panel", store: { "a.seed": 1 } });
   try {
     await bridge.ready;
-    assert.deepEqual(await host.extensionStore.get("missing"), {
-      value: null,
-      revision: null,
-    });
-    assert.deepEqual(await host.extensionStore.get("a.seed"), {
+    assert.equal(await host.store.get("missing"), undefined);
+    assert.deepEqual(await host.store.get("a.seed"), {
       value: 1,
       revision: 1,
     });
-    assert.deepEqual(
-      await host.extensionStore.set("doc", { n: 1 }, { ifRevision: 0 }),
-      { revision: 1 },
-    );
+    assert.deepEqual(await host.store.set("doc", { n: 1 }, { ifRevision: 0 }), {
+      revision: 1,
+    });
     await assert.rejects(
-      host.extensionStore.set("doc", { n: 2 }, { ifRevision: 0 }),
+      host.store.set("doc", { n: 2 }, { ifRevision: 0 }),
+      (error: unknown) =>
+        error instanceof BridgeError && error.code === "conflict",
+    );
+    assert.deepEqual(await host.store.set("doc", { n: 2 }, { ifRevision: 1 }), {
+      revision: 2,
+    });
+    await assert.rejects(
+      host.store.delete("doc", { ifRevision: 1 }),
       (error: unknown) =>
         error instanceof BridgeError && error.code === "conflict",
     );
     assert.deepEqual(
-      await host.extensionStore.set("doc", { n: 2 }, { ifRevision: 1 }),
-      { revision: 2 },
-    );
-    await assert.rejects(
-      host.extensionStore.delete("doc", { ifRevision: 1 }),
-      (error: unknown) =>
-        error instanceof BridgeError && error.code === "conflict",
-    );
-    assert.deepEqual(
-      (await host.extensionStore.keys("d")).map((entry) => [
-        entry.key,
-        entry.revision,
-      ]),
+      (await host.store.keys("d")).map((entry) => [entry.key, entry.revision]),
       [["doc", 2]],
     );
-    await host.extensionStore.delete("doc", { ifRevision: 2 });
+    await host.store.delete("doc", { ifRevision: 2 });
     assert.equal(bridge.store.has("doc"), false);
 
     const changes: unknown[] = [];
-    host.onExtensionStoreChange((change) => changes.push(change));
-    bridge.emitExtensionStoreChanged("doc", 3);
+    host.store.onChange((change) => changes.push(change));
+    bridge.emitStoreChange("doc", 3);
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.deepEqual(changes, [{ key: "doc", revision: 3 }]);
   } finally {

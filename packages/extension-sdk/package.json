@@ -35,17 +35,9 @@
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
     },
-    "./build": {
-      "types": "./dist/build.d.ts",
-      "import": "./dist/build.js"
-    },
     "./ui": {
       "types": "./dist/ui.d.ts",
       "import": "./dist/ui.js"
-    },
-    "./icons": {
-      "types": "./dist/icons.d.ts",
-      "import": "./dist/icons.js"
     },
     "./env": {
       "types": "./env.d.ts"

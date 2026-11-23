@@ -5,6 +5,7 @@ import type {
   NamespaceDefinition,
   OwnToolDefinition,
 } from "@nervekit/extension-api";
+import type { HostExtensionDefinition } from "@nervekit/extension-api/host";
 import type {
   AccountKind,
   ExtensionIcon,
@@ -148,7 +149,7 @@ function toSdkNamespace(
 
 /** The registry's view of an extension built on the extension API. */
 export function fromDefinition(
-  definition: ExtensionDefinition,
+  definition: HostExtensionDefinition,
   icon: ExtensionIcon,
   source: ExtensionSource = "builtin",
 ): ExtensionManifest {

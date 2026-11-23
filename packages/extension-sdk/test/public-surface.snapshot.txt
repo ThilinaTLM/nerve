@@ -227,7 +227,7 @@ export type JsonSchemaObject = {
     additionalProperties?: boolean;
     [key: string]: unknown;
 };
-type ToolBase = {
+type ToolBase<Output = unknown> = {
     name: string;
     label?: string;
     description: string;
@@ -236,15 +236,6 @@ type ToolBase = {
     enabledBy?: string | readonly string[];
     requires?: Requires;
     availability?: (ctx: ExtensionHookContext) => Promise<Availability> | Availability;
-};
-export type MethodToolDefinition = ToolBase & {
-    method: string;
-};
-export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
-    risk: Risk;
-    parse(args: Record<string, unknown>): Input;
-    authorize?(input: Input): AuthorizeResult;
-    run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
     present?(output: Output): {
         text: string;
         sections?: Record<string, unknown>;
@@ -254,12 +245,23 @@ export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
         };
     };
 };
+export type MethodToolDefinition = ToolBase<unknown> & {
+    method: string;
+};
+export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase<Output> & {
+    risk: Risk;
+    parse(args: Record<string, unknown>): Input;
+    authorize?(input: Input): AuthorizeResult;
+    run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
+};
 export type ToolDefinition = MethodToolDefinition | OwnToolDefinition;
 export declare function isMethodTool(tool: ToolDefinition): tool is MethodToolDefinition;
-export type Capability = "models.image" | "models.vision" | "models.text" | "conversations.start";
+export type ModelGrant = "image" | "vision" | "text";
+export type FrameGrant = "chat.startConversation";
 export type ExtensionPermissions = {
     network?: string[];
-    capabilities?: Capability[];
+    models?: ModelGrant[];
+    frame?: FrameGrant[];
 };
 export type PreviewEditMode = "source" | "custom" | "none";
 export type PreviewContribution = {
@@ -307,9 +309,7 @@ export type ExtensionDefinition = {
     permissions?: ExtensionPermissions;
     namespaces: readonly NamespaceDefinition<any>[];
     tools?: readonly ToolDefinition[];
-    prelude?: string;
     ui?: ExtensionUi;
-    limits?: Readonly<Record<string, number>>;
 };
 export {};
 
@@ -334,7 +334,7 @@ export type { CredentialAccount, CredentialApplyContext, CredentialApplyResult, 
 export { defineCredentialProvider } from "./credentials.js";
 export { ExtensionError } from "./errors.js";
 export type { ExtensionErrorCode } from "./errors.js";
-export type { MethodDefinition, Availability, DocTopic, Requires, NamespaceDefinition, ViewSectionType, ViewSection, ToolView, JsonSchemaObject, MethodToolDefinition, OwnToolDefinition, ToolDefinition, Capability, ExtensionPermissions, PreviewEditMode, PreviewContribution, PageContribution, PanelContribution, ThemeContribution, ExtensionUi, ExtensionDefinition, } from "./definition.js";
+export type { MethodDefinition, Availability, DocTopic, Requires, NamespaceDefinition, ViewSectionType, ViewSection, ToolView, JsonSchemaObject, MethodToolDefinition, OwnToolDefinition, ToolDefinition, FrameGrant, ModelGrant, ExtensionPermissions, PreviewEditMode, PreviewContribution, PageContribution, PanelContribution, ThemeContribution, ExtensionUi, ExtensionDefinition, } from "./definition.js";
 export { defineExtension, defineNamespace, method, defineTool, } from "./define.js";
 
 ===== declarations extension-api/src/settings.d.ts =====
@@ -777,308 +777,8 @@ export type ExtensionHookContext = Pick<ExtensionContext, "settings" | "accounts
 };
 export type AccountTestContext = Pick<ExtensionContext, "accounts" | "http" | "log">;
 
-===== declarations extension-sdk/src/index.d.ts =====
-export * from "@nervekit/extension-api";
-
-===== declarations extension-sdk/src/testing.d.ts =====
-export * from "@nervekit/extension-api/testing";
-export { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
-export { flushSync, mount, tick, unmount } from "svelte";
-export { createFakeBridge, type FakeBridge, type FakeBridgeOptions, } from "./ui/testing.js";
-
-===== declarations extension-sdk/src/ui.d.ts =====
-export { host, mode, themeKind, startFrame, type Host } from "./ui/host.js";
-export { BridgeError, createBridgeClient, type BridgeClient, type BridgeTransport, } from "./ui/client.js";
-export type { BridgeErrorCode, BridgeJson, BridgeMethods, ClipboardImageType, ConfirmOptions, ContributionKind, ExtensionStoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, MethodName, Mode, NotifyLevel, PreviewEdit, ProjectInfo, ThemeChange, ThemeKind, } from "./ui/bridge-types.js";
-export * from "./ui/components.js";
-
-===== declarations extension-sdk/src/ui/bridge-types.d.ts =====
-export type BridgeJson = string | number | boolean | null | BridgeJson[] | {
-    [key: string]: BridgeJson;
-};
-export type ThemeKind = "light" | "dark";
-export type Mode = "preview" | "edit";
-export type ContributionKind = "preview" | "page" | "panel";
-export type PreviewEdit = "source" | "custom" | "none";
-export type BridgeErrorCode = "invalid_request" | "not_allowed" | "unknown_method" | "not_found" | "too_large" | "cancelled" | "backend_error" | "conflict" | "failed";
-export type FileInfo = {
-    path: string;
-    name: string;
-    extension: string;
-    size: number;
-    modifiedAt?: string | undefined;
-};
-export type FileChunk = {
-    offset: number;
-    dataBase64: string;
-    length: number;
-    size: number;
-    eof: boolean;
-};
-export type MenuItem = {
-    id: string;
-    label: string;
-    disabled?: boolean | undefined;
-    destructive?: boolean | undefined;
-};
-export type ConfirmOptions = {
-    title: string;
-    message?: string | undefined;
-    confirmLabel?: string | undefined;
-    cancelLabel?: string | undefined;
-    destructive?: boolean | undefined;
-};
-export type NotifyLevel = "info" | "success" | "warning" | "error";
-export type ProjectInfo = {
-    id: string;
-    name: string;
-    directory: string;
-};
-export type FrameInit = {
-    extensionId: string;
-    contribution: {
-        kind: ContributionKind;
-        id: string;
-        edit?: PreviewEdit;
-    };
-    mode: Mode;
-    themeKind: ThemeKind;
-    pageParams?: BridgeJson;
-};
-export type FileChange = {
-    size: number;
-    modifiedAt?: string | undefined;
-};
-export type ThemeChange = {
-    kind: ThemeKind;
-    tokensCss: string;
-};
-export type ExtensionStoreChange = {
-    key: string;
-    revision: number | null;
-};
-export type ClipboardImageType = "image/png" | "image/jpeg" | "image/webp";
-type Methods = {
-    "file.info": {
-        params: Record<string, never>;
-        result: FileInfo;
-    };
-    "file.read": {
-        params: {
-            offset?: number | undefined;
-            length?: number | undefined;
-        };
-        result: FileChunk;
-    };
-    "file.write": {
-        params: {
-            content: string;
-            encoding: "utf8" | "base64";
-        };
-        result: {
-            size: number;
-        };
-    };
-    "mode.get": {
-        params: Record<string, never>;
-        result: {
-            mode: Mode;
-        };
-    };
-    call: {
-        params: {
-            method: string;
-            args?: BridgeJson | undefined;
-        };
-        result: {
-            value?: BridgeJson | undefined;
-        };
-    };
-    "settings.get": {
-        params: Record<string, never>;
-        result: {
-            values: Record<string, BridgeJson>;
-        };
-    };
-    "viewState.get": {
-        params: Record<string, never>;
-        result: {
-            state: BridgeJson | null;
-        };
-    };
-    "viewState.set": {
-        params: {
-            state: BridgeJson;
-        };
-        result: Record<string, never>;
-    };
-    "ui.confirm": {
-        params: ConfirmOptions;
-        result: {
-            confirmed: boolean;
-        };
-    };
-    "ui.showMenu": {
-        params: {
-            items: MenuItem[];
-            position?: {
-                x: number;
-                y: number;
-            } | undefined;
-        };
-        result: {
-            id: string | null;
-        };
-    };
-    "ui.notify": {
-        params: {
-            message: string;
-            level?: NotifyLevel | undefined;
-        };
-        result: Record<string, never>;
-    };
-    openFile: {
-        params: {
-            path: string;
-        };
-        result: Record<string, never>;
-    };
-    openPage: {
-        params: {
-            id: string;
-            params?: BridgeJson | undefined;
-        };
-        result: Record<string, never>;
-    };
-    "project.info": {
-        params: Record<string, never>;
-        result: ProjectInfo;
-    };
-    "composer.insert": {
-        params: {
-            text: string;
-        };
-        result: Record<string, never>;
-    };
-    "clipboard.writeText": {
-        params: {
-            text: string;
-        };
-        result: Record<string, never>;
-    };
-    "clipboard.writeImage": {
-        params: {
-            dataBase64: string;
-            mediaType: ClipboardImageType;
-        };
-        result: Record<string, never>;
-    };
-    "conversations.start": {
-        params: {
-            prompt: string;
-            title?: string | undefined;
-            model?: string | undefined;
-            agentProfile?: string | undefined;
-            permissionRuleSet?: string | undefined;
-            send?: boolean | undefined;
-            open?: boolean | undefined;
-        };
-        result: {
-            conversationId: string;
-        };
-    };
-    "extensionStore.get": {
-        params: {
-            key: string;
-        };
-        result: {
-            value: BridgeJson | null;
-            revision: number | null;
-        };
-    };
-    "extensionStore.set": {
-        params: {
-            key: string;
-            value: BridgeJson;
-            ifRevision?: number | undefined;
-        };
-        result: {
-            revision: number;
-        };
-    };
-    "extensionStore.delete": {
-        params: {
-            key: string;
-            ifRevision?: number | undefined;
-        };
-        result: Record<string, never>;
-    };
-    "extensionStore.keys": {
-        params: {
-            prefix?: string | undefined;
-        };
-        result: {
-            keys: {
-                key: string;
-                revision: number;
-                size: number;
-            }[];
-        };
-    };
-};
-export type BridgeMethods = Methods;
-export type MethodName = keyof Methods;
-export {};
-
-===== declarations extension-sdk/src/ui/client.d.ts =====
-import type { BridgeErrorCode, BridgeMethods, ExtensionStoreChange, FileChange, FrameInit, Mode, MethodName, ThemeChange, ThemeKind } from "./bridge-types.js";
-export declare class BridgeError extends Error {
-    readonly code: BridgeErrorCode;
-    constructor(code: BridgeErrorCode, message: string);
-}
-export type BridgeTransport = {
-    post(message: unknown): void;
-    listen(handler: (data: unknown) => void): () => void;
-};
-type Listeners = {
-    themeChanged: ((change: ThemeChange) => void)[];
-    fileChanged: ((change: FileChange) => void)[];
-    modeChanged: ((change: {
-        mode: Mode;
-    }) => void)[];
-    extensionStoreChanged: ((change: ExtensionStoreChange) => void)[];
-};
-export type BridgeClient = {
-    readonly ready: Promise<FrameInit & {
-        baseCssUrl: string;
-        tokensCss: string;
-    }>;
-    request<M extends MethodName>(method: M, params: BridgeMethods[M]["params"]): Promise<BridgeMethods[M]["result"]>;
-    on<E extends keyof Listeners>(event: E, handler: Listeners[E][number]): () => void;
-    close(): void;
-};
-export declare function createBridgeClient(transport: BridgeTransport): BridgeClient;
-export declare function windowTransport(): BridgeTransport;
-export declare function applyTheme(root: HTMLElement, kind: ThemeKind, tokensCss: string): void;
-type FrameErrorKind = "error" | "unhandledrejection" | "csp";
-type FrameErrorReport = {
-    kind: FrameErrorKind;
-    message: string;
-    source?: string;
-};
-export declare function shortUrl(value: string): string;
-export declare function startFrameErrorReporting(target: EventTarget, post: (message: unknown) => void): {
-    report(error: FrameErrorReport): void;
-    stop(): void;
-};
-export declare const frameErrors: {
-    report(error: FrameErrorReport): void;
-    stop(): void;
-} | undefined;
-export {};
-
-===== declarations extension-sdk/src/ui/components.d.ts =====
-// Types of `ui/components.ts` (the implementation is compiled by the extension's UI build and
+===== declarations extension-sdk/src/components/components.d.ts =====
+// Types of `components.impl.ts` (the implementation is compiled by the extension's UI build and
 // stays out of this program: the UI kit's sources need the Svelte compiler to type-check).
 // `test/ui-components.test.ts` keeps both files' export names equal.
 import type { Component } from "svelte";
@@ -1136,8 +836,6 @@ export const Progress: Part;
 export const ScrollArea: Part;
 
 export const Tabs: Parts<"Root" | "List" | "Trigger" | "Content">;
-
-export const Select: Parts<"Root" | "Item" | "Content" | "Trigger" | "Portal">;
 
 export const Tooltip: Parts<
   "Root" | "Trigger" | "Content" | "Provider" | "Portal"
@@ -1405,23 +1103,315 @@ export const FloatingNotice: Part;
 
 export const FloatingToolbarMenu: Part;
 
-===== declarations extension-sdk/src/ui/host.d.ts =====
-import { type Readable } from "svelte/store";
-import { type BridgeClient } from "./client.js";
-import type { BridgeJson, ClipboardImageType, ConfirmOptions, ExtensionStoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, Mode, NotifyLevel, PreviewEdit, ProjectInfo, ThemeChange, ThemeKind, ContributionKind } from "./bridge-types.js";
-export declare const mode: Readable<Mode>;
-export declare const themeKind: Readable<ThemeKind>;
-export declare function attach(next: BridgeClient): BridgeClient;
-declare function readAll(): Promise<Uint8Array>;
-export declare const host: {
-    readonly ready: Promise<FrameInit>;
-    readonly extensionId: string;
-    readonly contribution: {
+===== declarations extension-sdk/src/frame/bridge-types.d.ts =====
+export type BridgeJson = string | number | boolean | null | BridgeJson[] | {
+    [key: string]: BridgeJson;
+};
+export type ThemeKind = "light" | "dark";
+export type Mode = "preview" | "edit";
+export type ContributionKind = "preview" | "page" | "panel";
+export type PreviewEdit = "source" | "custom" | "none";
+export type BridgeErrorCode = "invalid_request" | "not_allowed" | "unknown_method" | "not_found" | "too_large" | "cancelled" | "backend_error" | "conflict" | "failed";
+export type FileInfo = {
+    path: string;
+    name: string;
+    extension: string;
+    size: number;
+    modifiedAt?: string | undefined;
+};
+export type FileChunk = {
+    offset: number;
+    dataBase64: string;
+    length: number;
+    size: number;
+    eof: boolean;
+};
+export type MenuItem = {
+    id: string;
+    label: string;
+    disabled?: boolean | undefined;
+    destructive?: boolean | undefined;
+};
+export type ConfirmOptions = {
+    title: string;
+    message?: string | undefined;
+    confirmLabel?: string | undefined;
+    cancelLabel?: string | undefined;
+    destructive?: boolean | undefined;
+};
+export type NotifyLevel = "info" | "success" | "warning" | "error";
+export type ProjectInfo = {
+    id: string;
+    name: string;
+    directory: string;
+};
+export type FrameInit = {
+    extensionId: string;
+    contribution: {
         kind: ContributionKind;
         id: string;
         edit?: PreviewEdit;
     };
-    readonly pageParams: BridgeJson | undefined;
+    mode: Mode;
+    themeKind: ThemeKind;
+    pageParams?: BridgeJson;
+};
+export type FileChange = {
+    size: number;
+    modifiedAt?: string | undefined;
+};
+export type ThemeChange = {
+    kind: ThemeKind;
+    tokensCss: string;
+};
+export type StoreChange = {
+    key: string;
+    revision: number | null;
+};
+export type ClipboardImageType = "image/png" | "image/jpeg" | "image/webp";
+type Methods = {
+    "file.info": {
+        params: Record<string, never>;
+        result: FileInfo;
+    };
+    "file.read": {
+        params: {
+            offset?: number | undefined;
+            length?: number | undefined;
+        };
+        result: FileChunk;
+    };
+    "file.write": {
+        params: {
+            content: string;
+            encoding: "utf8" | "base64";
+        };
+        result: {
+            size: number;
+        };
+    };
+    "backend.call": {
+        params: {
+            method: string;
+            args?: BridgeJson | undefined;
+        };
+        result: {
+            value?: BridgeJson | undefined;
+        };
+    };
+    "settings.get": {
+        params: {
+            key: string;
+        };
+        result: {
+            value?: BridgeJson | undefined;
+        };
+    };
+    "tabState.get": {
+        params: Record<string, never>;
+        result: {
+            state: BridgeJson | null;
+        };
+    };
+    "tabState.set": {
+        params: {
+            state: BridgeJson;
+        };
+        result: Record<string, never>;
+    };
+    "ui.confirm": {
+        params: ConfirmOptions;
+        result: {
+            confirmed: boolean;
+        };
+    };
+    "ui.showMenu": {
+        params: {
+            items: MenuItem[];
+            position?: {
+                x: number;
+                y: number;
+            } | undefined;
+        };
+        result: {
+            id: string | null;
+        };
+    };
+    "ui.notify": {
+        params: {
+            message: string;
+            level?: NotifyLevel | undefined;
+        };
+        result: Record<string, never>;
+    };
+    "workspace.openFile": {
+        params: {
+            path: string;
+        };
+        result: Record<string, never>;
+    };
+    "pages.open": {
+        params: {
+            id: string;
+            params?: BridgeJson | undefined;
+        };
+        result: Record<string, never>;
+    };
+    "project.info": {
+        params: Record<string, never>;
+        result: ProjectInfo;
+    };
+    "chat.insert": {
+        params: {
+            text: string;
+        };
+        result: Record<string, never>;
+    };
+    "clipboard.writeText": {
+        params: {
+            text: string;
+        };
+        result: Record<string, never>;
+    };
+    "clipboard.writeImage": {
+        params: {
+            dataBase64: string;
+            mediaType: ClipboardImageType;
+        };
+        result: Record<string, never>;
+    };
+    "chat.startConversation": {
+        params: {
+            prompt: string;
+            title?: string | undefined;
+            model?: string | undefined;
+            agentProfile?: string | undefined;
+            permissionRuleSet?: string | undefined;
+            send?: boolean | undefined;
+            open?: boolean | undefined;
+        };
+        result: {
+            conversationId: string;
+        };
+    };
+    "store.get": {
+        params: {
+            key: string;
+        };
+        result: {
+            entry: {
+                value: BridgeJson;
+                revision: number;
+            } | null;
+        };
+    };
+    "store.set": {
+        params: {
+            key: string;
+            value: BridgeJson;
+            ifRevision?: number | undefined;
+        };
+        result: {
+            revision: number;
+        };
+    };
+    "store.delete": {
+        params: {
+            key: string;
+            ifRevision?: number | undefined;
+        };
+        result: Record<string, never>;
+    };
+    "store.keys": {
+        params: {
+            prefix?: string | undefined;
+        };
+        result: {
+            keys: {
+                key: string;
+                revision: number;
+                size: number;
+            }[];
+        };
+    };
+};
+export type BridgeMethods = Methods;
+export type MethodName = keyof Methods;
+export {};
+
+===== declarations extension-sdk/src/frame/client.d.ts =====
+import type { BridgeErrorCode, BridgeMethods, StoreChange, FileChange, FrameInit, Mode, MethodName, ThemeChange, ThemeKind } from "./bridge-types.js";
+export declare class BridgeError extends Error {
+    readonly code: BridgeErrorCode;
+    constructor(code: BridgeErrorCode, message: string);
+}
+export type BridgeTransport = {
+    post(message: unknown): void;
+    listen(handler: (data: unknown) => void): () => void;
+};
+type Listeners = {
+    "theme.changed": ((change: ThemeChange) => void)[];
+    "file.changed": ((change: FileChange) => void)[];
+    "mode.changed": ((change: {
+        mode: Mode;
+    }) => void)[];
+    "store.changed": ((change: StoreChange) => void)[];
+};
+export type BridgeClient = {
+    readonly ready: Promise<FrameInit & {
+        baseCssUrl: string;
+        tokensCss: string;
+    }>;
+    request<M extends MethodName>(method: M, params: BridgeMethods[M]["params"]): Promise<BridgeMethods[M]["result"]>;
+    on<E extends keyof Listeners>(event: E, handler: Listeners[E][number]): () => void;
+    close(): void;
+};
+export declare function createBridgeClient(transport: BridgeTransport): BridgeClient;
+export declare function windowTransport(): BridgeTransport;
+export declare function applyTheme(root: HTMLElement, kind: ThemeKind, tokensCss: string): void;
+type FrameErrorKind = "error" | "unhandledrejection" | "csp";
+type FrameErrorReport = {
+    kind: FrameErrorKind;
+    message: string;
+    source?: string;
+};
+export declare function shortUrl(value: string): string;
+export declare function startFrameErrorReporting(target: EventTarget, post: (message: unknown) => void): {
+    report(error: FrameErrorReport): void;
+    stop(): void;
+};
+export declare const frameErrors: {
+    report(error: FrameErrorReport): void;
+    stop(): void;
+} | undefined;
+export {};
+
+===== declarations extension-sdk/src/frame/host.d.ts =====
+import { type Readable } from "svelte/store";
+import { type BridgeClient } from "./client.js";
+import type { BridgeJson, ClipboardImageType, ConfirmOptions, StoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, Mode, NotifyLevel, ProjectInfo, ThemeChange, ThemeKind } from "./bridge-types.js";
+export declare function attach(next: BridgeClient): BridgeClient;
+declare function readAll(): Promise<Uint8Array>;
+export declare const host: {
+    readonly ready: Promise<FrameInit>;
+    backend: {
+        call: (method: string, args?: BridgeJson) => Promise<BridgeJson | undefined>;
+    };
+    pages: {
+        open: (id: string, params?: BridgeJson) => Promise<void>;
+        params: () => Promise<BridgeJson | undefined>;
+    };
+    workspace: {
+        openFile: (path: string) => Promise<void>;
+    };
+    project: {
+        info: () => Promise<ProjectInfo>;
+    };
+    theme: {
+        kind: Readable<ThemeKind>;
+        onChange: (handler: (change: ThemeChange) => void) => (() => void);
+    };
+    mode: Readable<Mode>;
     file: {
         info: () => Promise<FileInfo>;
         read: (options?: {
@@ -1433,33 +1423,13 @@ export declare const host: {
         write: (content: string | Uint8Array) => Promise<{
             size: number;
         }>;
+        onChange: (handler: (change: FileChange) => void) => (() => void);
     };
-    mode: {
-        get: () => Promise<Mode>;
-    };
-    call: (method: string, args?: BridgeJson) => Promise<BridgeJson | undefined>;
-    clipboard: {
-        writeText: (text: string) => Promise<void>;
-        writeImage: (image: Blob | Uint8Array, mediaType?: ClipboardImageType) => Promise<void>;
-    };
-    conversations: {
-        start: (options: {
-            prompt: string;
-            title?: string;
-            model?: string;
-            agentProfile?: string;
-            permissionRuleSet?: string;
-            send?: boolean;
-            open?: boolean;
-        }) => Promise<{
-            conversationId: string;
-        }>;
-    };
-    extensionStore: {
+    store: {
         get: (key: string) => Promise<{
-            value: BridgeJson | null;
-            revision: number | null;
-        }>;
+            value: BridgeJson;
+            revision: number;
+        } | undefined>;
         set: (key: string, value: BridgeJson, options?: {
             ifRevision?: number;
         }) => Promise<{
@@ -1473,13 +1443,32 @@ export declare const host: {
             revision: number;
             size: number;
         }[]>;
+        onChange: (handler: (change: StoreChange) => void) => (() => void);
     };
-    settings: {
-        get: () => Promise<Record<string, BridgeJson>>;
-    };
-    viewState: {
+    tabState: {
         get: () => Promise<BridgeJson | null>;
         set: (state: BridgeJson) => Promise<void>;
+    };
+    chat: {
+        insert: (text: string) => Promise<void>;
+        startConversation: (options: {
+            prompt: string;
+            title?: string;
+            model?: string;
+            agentProfile?: string;
+            permissionRuleSet?: string;
+            send?: boolean;
+            open?: boolean;
+        }) => Promise<{
+            conversationId: string;
+        }>;
+    };
+    clipboard: {
+        writeText: (text: string) => Promise<void>;
+        writeImage: (image: Blob | Uint8Array, mediaType?: ClipboardImageType) => Promise<void>;
+    };
+    settings: {
+        get: <T extends BridgeJson = BridgeJson>(key: string) => Promise<T | undefined>;
     };
     ui: {
         confirm: (options: ConfirmOptions) => Promise<boolean>;
@@ -1489,29 +1478,15 @@ export declare const host: {
         }) => Promise<string | null>;
         notify: (message: string, level?: NotifyLevel) => Promise<void>;
     };
-    openFile: (path: string) => Promise<void>;
-    openPage: (id: string, params?: BridgeJson) => Promise<void>;
-    project: {
-        info: () => Promise<ProjectInfo>;
-    };
-    composer: {
-        insert: (text: string) => Promise<void>;
-    };
-    onThemeChange: (handler: (change: ThemeChange) => void) => (() => void);
-    onModeChange: (handler: (change: {
-        mode: Mode;
-    }) => void) => (() => void);
-    onExtensionStoreChange: (handler: (change: ExtensionStoreChange) => void) => (() => void);
-    onFileChange: (handler: (change: FileChange) => void) => (() => void);
 };
 export type Host = typeof host;
 export declare function startFrame(options: {
     target: HTMLElement;
-    render: (target: HTMLElement) => void | (() => void);
+    render: (target: HTMLElement, init: FrameInit) => void | (() => void);
 }): Promise<void>;
 export {};
 
-===== declarations extension-sdk/src/ui/testing.d.ts =====
+===== declarations extension-sdk/src/frame/testing.d.ts =====
 import type { BridgeJson, ConfirmOptions, ContributionKind, MenuItem, Mode, NotifyLevel, PreviewEdit, ThemeKind } from "./bridge-types.js";
 export type FakeBridgeOptions = {
     kind?: ContributionKind;
@@ -1528,7 +1503,7 @@ export type FakeBridgeOptions = {
         modifiedAt?: string;
     };
     settings?: Record<string, BridgeJson>;
-    viewState?: BridgeJson | null;
+    tabState?: BridgeJson | null;
     project?: {
         id?: string;
         name?: string;
@@ -1536,7 +1511,7 @@ export type FakeBridgeOptions = {
     };
     userActivation?: boolean;
     store?: Record<string, BridgeJson>;
-    call?: (method: string, args: BridgeJson | undefined) => BridgeJson | undefined | Promise<BridgeJson | undefined>;
+    backend?: (method: string, args: BridgeJson | undefined) => BridgeJson | undefined | Promise<BridgeJson | undefined>;
     confirm?: boolean | ((options: ConfirmOptions) => boolean);
     menu?: string | null | ((items: MenuItem[]) => string | null);
 };
@@ -1563,7 +1538,7 @@ export type FakeBridge = {
         conversationId: string;
         options: Record<string, BridgeJson>;
     }[];
-    viewState: BridgeJson | null;
+    tabState: BridgeJson | null;
     clipboard: {
         text?: string;
         image?: {
@@ -1581,16 +1556,33 @@ export type FakeBridge = {
         source?: string;
     }[];
     ready: Promise<void>;
-    emitThemeChanged(kind: ThemeKind, tokensCss: string): void;
-    emitModeChanged(mode: Mode): void;
-    emitFileChanged(change: {
+    emitThemeChange(kind: ThemeKind, tokensCss: string): void;
+    emitModeChange(mode: Mode): void;
+    emitFileChange(change: {
         size: number;
         modifiedAt?: string;
     }, content?: string | Uint8Array): void;
-    emitExtensionStoreChanged(key: string, revision: number | null): void;
+    emitStoreChange(key: string, revision: number | null): void;
     close(): void;
 };
 export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridge;
+
+===== declarations extension-sdk/src/index.d.ts =====
+export * from "@nervekit/extension-api";
+
+===== declarations extension-sdk/src/testing.d.ts =====
+export * from "@nervekit/extension-api/testing";
+export { afterEach, beforeEach, describe, expect, it, test, vi } from "vitest";
+export { flushSync, mount, tick, unmount } from "svelte";
+export { createFakeBridge, type FakeBridge, type FakeBridgeOptions, } from "./frame/testing.js";
+
+===== declarations extension-sdk/src/ui.d.ts =====
+export { host, startFrame, type Host } from "./frame/host.js";
+export { BridgeError, createBridgeClient, type BridgeClient, type BridgeTransport, } from "./frame/client.js";
+export type { BridgeErrorCode, BridgeJson, BridgeMethods, ClipboardImageType, ConfirmOptions, ContributionKind, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, MethodName, Mode, NotifyLevel, PreviewEdit, ProjectInfo, StoreChange, ThemeChange, ThemeKind, } from "./frame/bridge-types.js";
+export * from "./components/components.js";
+export * from "@lucide/svelte";
+export { Badge } from "./components/components.js";
 
 ===== ui bridge =====
 {
@@ -1735,35 +1727,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "mode.get": {
-      "kinds": [
-        "preview"
-      ],
-      "params": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
-      },
-      "result": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "enum": [
-              "preview",
-              "edit"
-            ]
-          }
-        },
-        "required": [
-          "mode"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "call": {
+    "backend.call": {
       "kinds": [
         "preview",
         "page",
@@ -1873,26 +1837,26 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "properties": {},
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "key"
+        ],
         "additionalProperties": false
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "values": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {
-              "$ref": "#/$defs/__schema0"
-            }
+          "value": {
+            "$ref": "#/$defs/__schema0"
           }
         },
-        "required": [
-          "values"
-        ],
         "additionalProperties": false,
         "$defs": {
           "__schema0": {
@@ -1929,7 +1893,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         }
       }
     },
-    "viewState.get": {
+    "tabState.get": {
       "kinds": [
         "preview",
         "page",
@@ -1995,7 +1959,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         }
       }
     },
-    "viewState.set": {
+    "tabState.set": {
       "kinds": [
         "preview",
         "page",
@@ -2223,7 +2187,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "openFile": {
+    "workspace.openFile": {
       "kinds": [
         "preview",
         "page",
@@ -2251,7 +2215,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "openPage": {
+    "pages.open": {
       "kinds": [
         "preview",
         "page",
@@ -2349,7 +2313,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "composer.insert": {
+    "chat.insert": {
       "kinds": [
         "preview",
         "page",
@@ -2440,7 +2404,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "conversations.start": {
+    "chat.startConversation": {
       "kinds": [
         "preview",
         "page",
@@ -2501,7 +2465,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "extensionStore.get": {
+    "store.get": {
       "kinds": [
         "preview",
         "page",
@@ -2527,22 +2491,25 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "value": {
+          "entry": {
             "anyOf": [
               {
-                "$ref": "#/$defs/__schema0"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "revision": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "value",
+                  "revision"
+                ],
+                "additionalProperties": false
               },
               {
                 "type": "null"
@@ -2551,8 +2518,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
           }
         },
         "required": [
-          "value",
-          "revision"
+          "entry"
         ],
         "additionalProperties": false,
         "$defs": {
@@ -2590,7 +2556,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         }
       }
     },
-    "extensionStore.set": {
+    "store.set": {
       "kinds": [
         "preview",
         "page",
@@ -2670,7 +2636,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "extensionStore.delete": {
+    "store.delete": {
       "kinds": [
         "preview",
         "page",
@@ -2704,7 +2670,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "extensionStore.keys": {
+    "store.keys": {
       "kinds": [
         "preview",
         "page",
@@ -2761,7 +2727,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
     }
   },
   "events": {
-    "themeChanged": {
+    "theme.changed": {
       "kinds": [
         "preview",
         "page",
@@ -2790,7 +2756,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "fileChanged": {
+    "file.changed": {
       "kinds": [
         "preview"
       ],
@@ -2813,7 +2779,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "modeChanged": {
+    "mode.changed": {
       "kinds": [
         "preview"
       ],
@@ -2835,7 +2801,7 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
         "additionalProperties": false
       }
     },
-    "extensionStoreChanged": {
+    "store.changed": {
       "kinds": [
         "preview",
         "page",
@@ -4662,15 +4628,23 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
             "minLength": 1
           }
         },
-        "capabilities": {
+        "models": {
           "type": "array",
           "items": {
             "type": "string",
             "enum": [
-              "models.image",
-              "models.vision",
-              "models.text",
-              "conversations.start"
+              "image",
+              "vision",
+              "text"
+            ]
+          }
+        },
+        "frame": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "chat.startConversation"
             ]
           }
         }
@@ -4989,6 +4963,10 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
               "method": {
                 "type": "string",
                 "minLength": 1
+              },
+              "present": {
+                "type": "boolean",
+                "const": true
               }
             },
             "required": [
@@ -5188,15 +5166,6 @@ export declare function createFakeBridge(options?: FakeBridgeOptions): FakeBridg
             "additionalProperties": false
           }
         ]
-      }
-    },
-    "limits": {
-      "type": "object",
-      "propertyNames": {
-        "type": "string"
-      },
-      "additionalProperties": {
-        "type": "number"
       }
     },
     "version": {

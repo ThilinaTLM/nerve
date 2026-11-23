@@ -1,14 +1,14 @@
 import { bridgeLimits, type BridgeJson } from "@nervekit/contracts/extensions";
 
 type Entry = { state: BridgeJson; at: number };
-export type ViewStateStorage = Pick<Storage, "getItem" | "setItem">;
+export type TabStateStorage = Pick<Storage, "getItem" | "setItem">;
 
-const STORAGE_KEY = "nerve:extension-view-state:v1";
+const STORAGE_KEY = "nerve:extension-tab-state:v1";
 /** Frames remembered; the least recently written drops first. */
-export const maxViewStateEntries = 40;
+export const maxTabStateEntries = 40;
 
 /** The key of one frame's state: tab or panel identity, so each tab restores its own. */
-export function viewStateKey(parts: {
+export function tabStateKey(parts: {
   projectId: string;
   extensionId: string;
   kind: string;
@@ -25,13 +25,13 @@ export function viewStateKey(parts: {
 }
 
 /**
- * The `viewState` frames persist with their tab or panel. Kept in local storage beside the
+ * The `tabState` frames persist with their tab or panel. Kept in local storage beside the
  * other view preferences, bounded in entries and (by the bridge limit) in size per entry.
  */
-export class ViewStateStore {
+export class TabStateStore {
   private entries: Record<string, Entry>;
 
-  constructor(private readonly storage: ViewStateStorage | undefined) {
+  constructor(private readonly storage: TabStateStorage | undefined) {
     this.entries = this.load();
   }
 
@@ -63,14 +63,14 @@ export class ViewStateStore {
   /** Returns `false` when the state exceeds the size limit and was not stored. */
   set(key: string, state: BridgeJson, now = Date.now()): boolean {
     const bytes = new TextEncoder().encode(JSON.stringify(state)).length;
-    if (bytes > bridgeLimits.maxViewStateBytes) return false;
+    if (bytes > bridgeLimits.maxTabStateBytes) return false;
     this.entries[key] = { state, at: now };
     const keys = Object.keys(this.entries).sort(
       (a, b) => this.entries[a].at - this.entries[b].at,
     );
     for (const stale of keys.slice(
       0,
-      Math.max(0, keys.length - maxViewStateEntries),
+      Math.max(0, keys.length - maxTabStateEntries),
     ))
       delete this.entries[stale];
     try {

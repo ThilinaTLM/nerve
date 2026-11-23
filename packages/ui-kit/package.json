@@ -36,6 +36,7 @@
     "./terminal/*": "./src/lib/terminal/*.ts",
     "./components/ui/*": "./src/lib/components/ui/*/index.ts",
     "./components/composites/panel/panel-tree": "./src/lib/components/composites/panel/panel-tree.ts",
+    "./components/composites/panel/panel-selection": "./src/lib/components/composites/panel/panel-selection.ts",
     "./components/composites/*": "./src/lib/components/composites/*/index.ts"
   },
   "scripts": {

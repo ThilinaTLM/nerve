@@ -122,7 +122,7 @@ let saving = $state(false);
 let saveGeneration = 0;
 let confirmPruneOpen = $state(false);
 let forceKillLaunch = $state<LaunchRecord | undefined>();
-let deleteDefinition = $state<LaunchPanelDefinition | undefined>();
+let deleteDefinitions = $state<readonly LaunchPanelDefinition[]>([]);
 let cleanupRunIds = $state<readonly string[]>([]);
 let panelWidth = $state(0);
 let runsRegion = $state<HTMLDivElement | null>(null);
@@ -164,7 +164,7 @@ $effect(() => {
   launchDialog = undefined;
   folderDialog = undefined;
   deleteFolder = undefined;
-  deleteDefinition = undefined;
+  deleteDefinitions = [];
   forceKillLaunch = undefined;
   cleanupRunIds = [];
   confirmPruneOpen = false;
@@ -272,14 +272,14 @@ async function removeFolder(): Promise<void> {
   }
 }
 
-async function removeDefinition(): Promise<void> {
-  if (!deleteDefinition) return;
-  const definition = deleteDefinition;
-  deleteDefinition = undefined;
+async function removeDefinitions(): Promise<void> {
+  const definitions = deleteDefinitions;
+  deleteDefinitions = [];
   try {
-    await panelActions.deleteDefinition(definition);
+    for (const definition of definitions)
+      await panelActions.deleteDefinition(definition);
   } catch {
-    // Already reported by the action layer.
+    // Already reported by the action layer; the rest stay untouched.
   }
 }
 
@@ -359,7 +359,7 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
               (launchDialog = { kind: "edit", definition })}
             onDuplicate={(definition) =>
               (launchDialog = { kind: "duplicate", definition })}
-            onDelete={(definition) => (deleteDefinition = definition)}
+            onDelete={(definitions) => (deleteDefinitions = definitions)}
             onCleanupRuns={(ids) => (cleanupRunIds = ids)}
             onCopy={(text) => void panelActions.copyText(text)}
             onMove={(request) => panelActions.moveEntry(request)}
@@ -632,15 +632,19 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
   }}
 />
 <ConfirmDialog
-  open={Boolean(deleteDefinition)}
+  open={deleteDefinitions.length > 0}
   destructive
-  title="Delete saved launch?"
-  description="The saved definition is removed. Existing run history and logs are retained."
+  title={deleteDefinitions.length > 1
+    ? `Delete ${deleteDefinitions.length} saved launches?`
+    : "Delete saved launch?"}
+  description={deleteDefinitions.length > 1
+    ? "The saved definitions are removed. Existing run history and logs are retained."
+    : "The saved definition is removed. Existing run history and logs are retained."}
   confirmLabel="Delete"
-  onConfirm={() => void removeDefinition()}
-  onCancel={() => (deleteDefinition = undefined)}
+  onConfirm={() => void removeDefinitions()}
+  onCancel={() => (deleteDefinitions = [])}
   onOpenChange={(open) => {
-    if (!open) deleteDefinition = undefined;
+    if (!open) deleteDefinitions = [];
   }}
 />
 <ConfirmDialog

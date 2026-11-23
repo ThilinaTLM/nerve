@@ -9,7 +9,7 @@ import {
 import type {
   BridgeErrorCode,
   BridgeMethods,
-  ExtensionStoreChange,
+  StoreChange,
   FileChange,
   FrameInit,
   Mode,
@@ -41,13 +41,13 @@ export type BridgeTransport = {
 /** The events the host sends to a frame, with their handler types. */
 type Listeners = {
   /** The active theme changed (all frames). */
-  themeChanged: ((change: ThemeChange) => void)[];
+  "theme.changed": ((change: ThemeChange) => void)[];
   /** The previewed file changed on disk (previews). */
-  fileChanged: ((change: FileChange) => void)[];
+  "file.changed": ((change: FileChange) => void)[];
   /** The mode switched between `preview` and `edit` (previews with `edit: "custom"`). */
-  modeChanged: ((change: { mode: Mode }) => void)[];
+  "mode.changed": ((change: { mode: Mode }) => void)[];
   /** A key of the extension's store changed (all kinds). */
-  extensionStoreChanged: ((change: ExtensionStoreChange) => void)[];
+  "store.changed": ((change: StoreChange) => void)[];
 };
 
 /**
@@ -76,7 +76,7 @@ export type BridgeClient = {
     method: M,
     params: BridgeMethods[M]["params"],
   ): Promise<BridgeMethods[M]["result"]>;
-  /** Subscribes to a host event (`themeChanged`, `fileChanged`, `modeChanged`, `extensionStoreChanged`); returns the unsubscribe function. */
+  /** Subscribes to a host event (`theme.changed`, `file.changed`, `mode.changed`, `store.changed`); returns the unsubscribe function. */
   on<E extends keyof Listeners>(
     event: E,
     handler: Listeners[E][number],
@@ -100,10 +100,10 @@ export function createBridgeClient(transport: BridgeTransport): BridgeClient {
     }
   >();
   const listeners: Listeners = {
-    themeChanged: [],
-    fileChanged: [],
-    modeChanged: [],
-    extensionStoreChanged: [],
+    "theme.changed": [],
+    "file.changed": [],
+    "mode.changed": [],
+    "store.changed": [],
   };
   let closed = false;
   let resolveReady!: (init: Awaited<BridgeClient["ready"]>) => void;
@@ -153,8 +153,8 @@ export function createBridgeClient(transport: BridgeTransport): BridgeClient {
         pageParams: parsed.data.pageParams,
       };
       if (initialised) {
-        emit("modeChanged", { mode: init.mode });
-        emit("themeChanged", {
+        emit("mode.changed", { mode: init.mode });
+        emit("theme.changed", {
           kind: init.themeKind,
           tokensCss: init.tokensCss,
         });

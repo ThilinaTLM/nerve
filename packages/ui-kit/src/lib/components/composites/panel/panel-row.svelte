@@ -41,6 +41,7 @@ let {
   draggable,
   dimmed = false,
   dropTarget = false,
+  dropEdge,
   editor,
   editorArg,
   ondragstart,
@@ -109,6 +110,8 @@ let {
   dimmed?: boolean;
   /** Highlights the row as the current drop target while dragging. */
   dropTarget?: boolean;
+  /** Shows an insertion line on the row's top or bottom edge while dragging. */
+  dropEdge?: "before" | "after";
   /**
    * Inline editor replacing the label (rename, create). The row content stops
    * being a button so the field can live inside it.
@@ -197,7 +200,7 @@ const twoLine = $derived(labelLines === 2);
         // unlayered, so it is left off selected rows to keep their tint.
         hoverable && !selected && "panel-row-hoverable",
         !hoverable && !selected && "hover:bg-transparent",
-        actions && overlayActions && !twoLine && "relative",
+        ((actions && overlayActions && !twoLine) || dropEdge) && "relative",
         twoLine
           ? "items-start gap-1.5 py-1 pr-0 text-ui"
           : dense
@@ -227,6 +230,16 @@ const twoLine = $derived(labelLines === 2);
     {onkeydown}
     {onfocus}
   >
+    {#if dropEdge}
+      <span
+        aria-hidden="true"
+        class={cn(
+          "pointer-events-none absolute right-1 z-10 h-0.5 rounded-full bg-primary-strong",
+          dropEdge === "before" ? "-top-px" : "-bottom-px",
+        )}
+        style="left: calc(var(--panel-row-inset, 0.5rem) + var(--panel-indent, 0) * 0.75rem)"
+      ></span>
+    {/if}
     {#if editor}
       <div class="flex min-w-0 flex-1 items-center gap-1">
         {#if leading}

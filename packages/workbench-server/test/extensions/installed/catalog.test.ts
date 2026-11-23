@@ -363,7 +363,10 @@ void test(
     const old = entry(await catalog.entries(), "old-sdk");
     assert.equal(old.state, "incompatible");
     assert.equal(old.sdkVersion, "0.38.0");
-    assert.match(text(old), /Ask the agent in the Forge profile to upgrade it/);
+    assert.match(
+      text(old),
+      /older than the 0\.41\.0.*nerve-ext build.*Forge profile/,
+    );
     assert.ok(!registry.namespaces.some((n) => n.id === "oldsdk"));
   },
 );

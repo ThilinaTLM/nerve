@@ -21,19 +21,16 @@ export type LaunchTreeNode =
       readonly entry: LaunchDefinitionEntry;
     };
 
-export interface LaunchTreeRow {
-  readonly node: LaunchTreeNode;
-  readonly depth: number;
-  readonly position: number;
-  readonly setSize: number;
-}
+/** Where a move lands relative to the target; no target means the top level. */
+export type LaunchDropZone = "before" | "after" | "inside";
 
-export type LaunchDropZone = "before" | "after" | "inside" | "root";
-
-export interface LaunchDropPlan {
+export interface LaunchMovePlan {
   readonly destinationFolderId: string | null;
+  /** Anchor every entry is placed before (in order); null appends. */
   readonly beforeSibling: LaunchCatalogEntryRef | null;
-  /** The item would land exactly where it already is. */
+  /** Entries to move, in tree order, without ones that travel inside a moved folder. */
+  readonly entries: readonly LaunchCatalogEntryRef[];
+  /** The entries would land exactly where they already are. */
   readonly noop: boolean;
 }
 
@@ -125,16 +122,13 @@ export function buildLaunchTree(
   return build(null);
 }
 
+/** Every node in tree order (parents before children). */
 export function flattenLaunchTree(
   nodes: readonly LaunchTreeNode[],
-  expanded: ReadonlySet<string>,
-  depth = 0,
-): LaunchTreeRow[] {
-  return nodes.flatMap((node, index) => [
-    { node, depth, position: index + 1, setSize: nodes.length },
-    ...(node.kind === "folder" && expanded.has(node.id)
-      ? flattenLaunchTree(node.children, expanded, depth + 1)
-      : []),
+): LaunchTreeNode[] {
+  return nodes.flatMap((node) => [
+    node,
+    ...(node.kind === "folder" ? flattenLaunchTree(node.children) : []),
   ]);
 }
 
@@ -177,103 +171,98 @@ export function folderSubtreeIds(
   return ids;
 }
 
-/** Resolves a placement into the move request, or undefined when invalid. */
-export function planLaunchMove(
+/**
+ * Resolves a placement of one or more entries into move requests, or undefined
+ * when invalid (target among the moved entries, folder into its own subtree).
+ * Entries are moved one by one before the same anchor, which keeps their order.
+ */
+export function planLaunchMoves(
   nodes: readonly LaunchTreeNode[],
-  dragged: LaunchCatalogEntryRef,
+  dragged: readonly LaunchCatalogEntryRef[],
   target: {
     readonly ref?: LaunchCatalogEntryRef;
     readonly zone: LaunchDropZone;
-    /** Whether a folder target currently shows its children. */
-    readonly expanded?: boolean;
   },
-): LaunchDropPlan | undefined {
+): LaunchMovePlan | undefined {
   const index = indexLaunchTree(nodes);
-  const source = index.get(nodeKey(dragged));
-  if (!source) return undefined;
-
-  let destination: string | null;
-  let anchor: LaunchCatalogEntryRef | null = null;
-  const targetNode = target.ref ? index.get(nodeKey(target.ref)) : undefined;
-  let zone = target.zone;
-
-  if (zone === "root") destination = null;
-  else {
-    if (!targetNode || nodeKey(targetNode) === nodeKey(dragged))
-      return undefined;
-    // Below an open folder header the next slot is its first child.
-    if (
-      zone === "after" &&
-      targetNode.kind === "folder" &&
-      target.expanded &&
-      targetNode.children.length > 0
-    ) {
-      zone = "inside";
-      anchor = {
-        kind: targetNode.children[0]!.kind,
-        id: targetNode.children[0]!.id,
-      };
+  const draggedKeys = new Set(dragged.map(nodeKey));
+  // A selected folder carries its selected descendants with it.
+  const hasMovedAncestor = (node: LaunchTreeNode): boolean => {
+    let parent = node.parentId;
+    while (parent) {
+      if (draggedKeys.has(`folder:${parent}`)) return true;
+      parent = index.get(`folder:${parent}`)?.parentId ?? null;
     }
-    if (zone === "inside") {
+    return false;
+  };
+  const sources = flattenLaunchTree(nodes).filter(
+    (node) => draggedKeys.has(nodeKey(node)) && !hasMovedAncestor(node),
+  );
+  if (sources.length === 0) return undefined;
+
+  const targetNode = target.ref ? index.get(nodeKey(target.ref)) : undefined;
+  let destination: string | null;
+  if (!target.ref) destination = null;
+  else {
+    if (!targetNode || draggedKeys.has(nodeKey(targetNode))) return undefined;
+    if (target.zone === "inside") {
       if (targetNode.kind !== "folder") return undefined;
       destination = targetNode.id;
     } else destination = targetNode.parentId;
   }
 
-  if (
-    source.kind === "folder" &&
-    destination !== null &&
-    folderSubtreeIds(nodes, source.id).has(destination)
-  )
-    return undefined;
+  if (destination !== null) {
+    for (const source of sources) {
+      if (
+        source.kind === "folder" &&
+        folderSubtreeIds(nodes, source.id).has(destination)
+      )
+        return undefined;
+    }
+  }
 
   const original = siblingsOf(nodes, destination);
-  const remaining = original.filter(
-    (node) => nodeKey(node) !== nodeKey(source),
-  );
+  const remaining = original.filter((node) => !sources.includes(node));
   let insertAt = remaining.length;
-  if (zone === "before" || zone === "after") {
-    const at = remaining.findIndex(
-      (node) => nodeKey(node) === nodeKey(targetNode!),
-    );
-    insertAt = zone === "before" ? at : at + 1;
-  } else if (anchor) {
-    // First-child insertion; the anchor may be the dragged item itself.
-    insertAt = 0;
+  if (targetNode && target.zone !== "inside") {
+    const at = remaining.indexOf(targetNode);
+    if (at < 0) return undefined;
+    insertAt = target.zone === "before" ? at : at + 1;
   }
   const next = remaining[insertAt];
-  const beforeSibling = next ? { kind: next.kind, id: next.id } : null;
-  const currentAt = original.findIndex(
-    (node) => nodeKey(node) === nodeKey(source),
-  );
+  const result = [
+    ...remaining.slice(0, insertAt),
+    ...sources,
+    ...remaining.slice(insertAt),
+  ];
   return {
     destinationFolderId: destination,
-    beforeSibling,
-    noop: source.parentId === destination && currentAt === insertAt,
+    beforeSibling: next ? { kind: next.kind, id: next.id } : null,
+    entries: sources.map((node) => ({ kind: node.kind, id: node.id })),
+    noop:
+      sources.every((node) => node.parentId === destination) &&
+      result.length === original.length &&
+      result.every((node, at) => node === original[at]),
   };
 }
 
-/** One-step reorder within the current parent. */
-export function planLaunchStep(
+/** The placement of a one-slot keyboard/menu move within the current parent. */
+export function launchStepTarget(
   nodes: readonly LaunchTreeNode[],
   ref: LaunchCatalogEntryRef,
   direction: "up" | "down",
-): LaunchDropPlan | undefined {
+): { ref: LaunchCatalogEntryRef; zone: LaunchDropZone } | undefined {
   const node = indexLaunchTree(nodes).get(nodeKey(ref));
   if (!node) return undefined;
   const siblings = siblingsOf(nodes, node.parentId);
-  const at = siblings.findIndex(
-    (candidate) => candidate.id === node.id && candidate.kind === node.kind,
-  );
-  const insertAt = direction === "up" ? at - 1 : at + 2;
-  if (at < 0 || (direction === "up" ? at === 0 : at === siblings.length - 1))
-    return undefined;
-  const anchor = siblings[insertAt];
-  return {
-    destinationFolderId: node.parentId,
-    beforeSibling: anchor ? { kind: anchor.kind, id: anchor.id } : null,
-    noop: false,
-  };
+  const at = siblings.indexOf(node);
+  const neighbor = siblings[direction === "up" ? at - 1 : at + 1];
+  return at < 0 || !neighbor
+    ? undefined
+    : {
+        ref: { kind: neighbor.kind, id: neighbor.id },
+        zone: direction === "up" ? "before" : "after",
+      };
 }
 
 export interface LaunchFolderOption {
@@ -303,29 +292,4 @@ export function launchFolderOptions(
   };
   visit(nodes, []);
   return options;
-}
-
-/** Human-readable drop destination for the live drag preview. */
-export function describeLaunchDrop(
-  nodes: readonly LaunchTreeNode[],
-  plan: LaunchDropPlan,
-): string {
-  const index = indexLaunchTree(nodes);
-  const where =
-    plan.destinationFolderId === null
-      ? "top level"
-      : `“${
-          launchFolderOptions(nodes).find(
-            (option) => option.id === plan.destinationFolderId,
-          )?.label ?? "folder"
-        }”`;
-  if (!plan.beforeSibling) return `at the end of ${where}`;
-  const before = index.get(nodeKey(plan.beforeSibling));
-  const name =
-    before?.kind === "folder"
-      ? before.folder.label
-      : before?.entry.definition.label?.trim() ||
-        before?.entry.definition.command ||
-        "launch";
-  return `in ${where}, before “${name}”`;
 }

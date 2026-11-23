@@ -1,8 +1,9 @@
-import { defineExtension, defineNamespace } from "@nervekit/extension-api";
+import { defineNamespace } from "@nervekit/extension-api";
+import { defineHostExtension } from "@nervekit/extension-api/host";
 import { diagramMethods, MAX_SOURCE_BYTES } from "./diagram-methods.js";
 
 /** Diagrams rendered to PNG artifacts by a Kroki server. */
-export const diagramExtension = defineExtension({
+export const diagramExtension = defineHostExtension({
   id: "diagram",
   name: "Diagrams",
   description:

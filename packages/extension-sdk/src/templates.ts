@@ -103,7 +103,7 @@ function extensionSource(id: string, kinds: readonly ExtensionKind[]): string {
         match: { extensions: [".csv", ".tsv"] },
         entry: "src/previews/table/Table.svelte",
         // To edit the file in the preview itself, set \`edit: "custom"\` and use
-        // host.file.write(...) with the \`mode\` store. Without it, Nerve's source editor edits the file.
+        // host.file.write(...) with the \`host.mode\` store. Without it, Nerve's source editor edits the file.
       },
     ],`);
   if (has("page"))

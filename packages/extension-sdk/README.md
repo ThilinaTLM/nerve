@@ -22,7 +22,6 @@ Errors name what is wrong, where, and the fix.
 
 - `@nervekit/extension-sdk`: the one import for extension code; re-exports the public `@nervekit/extension-api` (`defineExtension`, `defineNamespace`, `method`, types). The build rejects a direct `@nervekit/extension-api` import.
 - `@nervekit/extension-sdk/testing`: `createFakeContext`, `createFakeBridge`, Vitest's `describe`, `it`, `expect`, `vi`, and Svelte's `mount`, `unmount`, `flushSync`, `tick` for component tests.
-- `@nervekit/extension-sdk/build`: `buildExtension({ projectDir })`, the function behind `nerve-ext build`.
-- `@nervekit/extension-sdk/ui`: re-exports `@nervekit/ui-kit` (the bridge client follows).
+- `@nervekit/extension-sdk/ui`: for UI frames: `host` (the bridge to Nerve), `startFrame`, the UI kit's components and every Lucide icon (`import { Plus } from "@nervekit/extension-sdk/ui"`; `Badge` is the component, its icon is `BadgeIcon`).
 
 The backend is bundled as one IIFE that registers its definition on `globalThis.__nerveExtension`. `@nervekit/extension-api` is not bundled: Nerve's sandbox provides it at runtime. See [UPGRADING.md](./UPGRADING.md) when moving between SDK versions.

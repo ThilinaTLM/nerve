@@ -141,7 +141,7 @@ void test("the public extension surface matches the committed snapshot", () => {
       "The public surface of extensions changed (first difference below).",
       "Decide which it is:",
       "  - Additive (a new optional field, a new export, a new bridge method): update the snapshot.",
-      `  - Breaking (a removed or changed name, type, field or method): raise the floor of the affected surface in oldestCompatibleSdkVersion (currently ${JSON.stringify(oldestCompatibleSdkVersion)}; packages/contracts/src/domains/extensions/compatibility.ts), add a section to packages/extension-sdk/UPGRADING.md, then update the snapshot.`,
+      `  - Breaking (a removed or changed name, type, field or method): raise oldestCompatibleSdkVersion (currently ${JSON.stringify(oldestCompatibleSdkVersion)}; packages/contracts/src/domains/extensions/compatibility.ts), add a section to packages/extension-sdk/UPGRADING.md, then update the snapshot.`,
       "Update the snapshot: cd packages/extension-sdk && UPDATE_SNAPSHOT=1 pnpm exec tsx --test test/public-surface.test.ts",
       "",
       firstDifference(committed, current),

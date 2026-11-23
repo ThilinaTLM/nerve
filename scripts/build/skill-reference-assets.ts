@@ -161,7 +161,7 @@ export async function writeSkillReferenceAssets(
   );
 
   const sdk = emitSdkDeclarations(join(repoRoot, "packages", "extension-sdk"));
-  const missing = [...sdkEntries, "ui/components.ts"]
+  const missing = [...sdkEntries, "components/components.ts"]
     .map((entry) => entry.replace(/\.ts$/, ".d.ts"))
     .filter((file) => !sdk.has(file));
   if (missing.length)

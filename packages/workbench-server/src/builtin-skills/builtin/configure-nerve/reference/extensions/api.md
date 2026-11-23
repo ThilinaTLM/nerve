@@ -13,7 +13,7 @@ Import everything from `@nervekit/extension-sdk`, which re-exports this package.
 | `NamespaceDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)       | A `quick_script` namespace: summary, rules, docs, methods, session.                                  |
 | `MethodDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)          | One method: risk, signature, `parse`, `authorize`, `run`.                                            |
 | `ToolDefinition` (`reference/extensions/api/extension-api/definition.d.ts`)            | Direct tools and their card `view`.                                                                  |
-| `ExtensionPermissions` (`reference/extensions/api/extension-api/definition.d.ts`)      | Network origins and model capabilities.                                                              |
+| `ExtensionPermissions` (`reference/extensions/api/extension-api/definition.d.ts`)      | Network origins (`network`), model services (`models`) and frame services (`frame`).                 |
 | `PreviewContribution` (`reference/extensions/api/extension-api/definition.d.ts`)       | Also `PageContribution`, `PanelContribution`, `ThemeContribution`.                                   |
 | `ExtensionContext` (`reference/extensions/api/extension-api/types.d.ts`)               | `ctx`: settings, accounts, HTTP, artifacts, text, authorization, reports, models, progress, log.     |
 | `HttpRequest` (`reference/extensions/api/extension-api/types.d.ts`)                    | Every option of `ctx.http.request` and its limits.                                                   |
@@ -25,14 +25,14 @@ Import everything from `@nervekit/extension-sdk`, which re-exports this package.
 
 ## Frames (`reference/extensions/api/extension-sdk/`)
 
-Import from `@nervekit/extension-sdk/ui`; test helpers from `@nervekit/extension-sdk/testing`.
+Import from `@nervekit/extension-sdk/ui`: `host`, the components and every Lucide icon (`import { Plus } from "@nervekit/extension-sdk/ui"`; `Badge` is the component, its icon is `BadgeIcon`). Test helpers come from `@nervekit/extension-sdk/testing`.
 
-| Start from                                                                    | For                                                                                                                   |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `host` (`reference/extensions/api/extension-sdk/ui/host.d.ts`)                | Every bridge call a frame can make, which frames may make it, and its limits. Also the `mode` and `themeKind` stores. |
-| `BridgeError` (`reference/extensions/api/extension-sdk/ui/client.d.ts`)       | Failures of bridge calls; codes in `BridgeErrorCode` (`reference/extensions/api/extension-sdk/ui/bridge-types.d.ts`). |
-| `Button` (`reference/extensions/api/extension-sdk/ui/components.d.ts`)        | All UI components, with their main props and variants.                                                                |
-| `createFakeBridge` (`reference/extensions/api/extension-sdk/ui/testing.d.ts`) | Frame tests: a fake host with Nerve's checks.                                                                         |
+| Start from                                                                       | For                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `host` (`reference/extensions/api/extension-sdk/frame/host.d.ts`)                | Every bridge call a frame can make, by group (`backend`, `pages`, `file`, `store`, `chat`, …), which frames may make it, and its limits. Includes the `host.mode` and `host.theme.kind` stores. |
+| `BridgeError` (`reference/extensions/api/extension-sdk/frame/client.d.ts`)       | Failures of bridge calls; codes in `BridgeErrorCode` (`reference/extensions/api/extension-sdk/frame/bridge-types.d.ts`).                                                                        |
+| `Button` (`reference/extensions/api/extension-sdk/components/components.d.ts`)   | All UI components, with their main props and variants.                                                                                                                                          |
+| `createFakeBridge` (`reference/extensions/api/extension-sdk/frame/testing.d.ts`) | Frame tests: a fake host with Nerve's checks.                                                                                                                                                   |
 
 ## Reading tips
 

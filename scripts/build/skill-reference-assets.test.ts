@@ -68,7 +68,7 @@ test("writes schemas and public declarations into the skill folder", async () =>
       "index.d.ts",
       "testing.d.ts",
       "ui.d.ts",
-      "ui/host.d.ts",
+      "frame/host.d.ts",
     ])
       assert.ok(sdk.includes(file), file);
     assert.ok(!sdk.some((file) => file.endsWith(".map")));

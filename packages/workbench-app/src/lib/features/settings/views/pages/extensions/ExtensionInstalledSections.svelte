@@ -37,7 +37,8 @@ let { entry, extensions }: Props = $props();
 const icons: Record<ExtensionConsentItem["kind"], typeof Puzzle> = {
   network: Globe,
   account: User,
-  capability: Zap,
+  model: Zap,
+  frame: Zap,
   tools: Wrench,
   namespace: Zap,
   ui: Layers,

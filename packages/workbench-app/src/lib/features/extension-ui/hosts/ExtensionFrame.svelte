@@ -4,7 +4,7 @@
   The frame has an opaque origin, so it is identified by its window: only messages whose
   source is this iframe's `contentWindow` are read, each is validated against the contract and
   the contribution that owns the frame, and every request is answered exactly once. Methods
-  that draw UI or touch app state (dialogs, menus, toasts, tabs, composer, view state) are
+  that draw UI or touch app state (dialogs, menus, toasts, tabs, composer, tab state) are
   answered here; the rest go to the daemon as `extensions.ui.<method>`.
 -->
 <script lang="ts">
@@ -49,7 +49,7 @@ import {
 import { base64ToBlob } from "../model/clipboard-image";
 import { FrameErrorGate } from "../model/frame-errors";
 import { currentThemeSnapshot } from "../model/theme-snapshot";
-import { ViewStateStore, viewStateKey } from "../model/view-state-store";
+import { TabStateStore, tabStateKey } from "../model/tab-state-store";
 import { extensionHostActions } from "../state/host-actions";
 
 let {
@@ -74,7 +74,7 @@ let {
   frameUrl: string;
   baseCssUrl: string;
   title: string;
-  /** Identifies this tab or panel for its persisted view state. */
+  /** Identifies this tab or panel for its persisted tab state. */
   instance: string;
   /** Previews: the project file the tab is opened on. */
   filePath?: string;
@@ -88,7 +88,7 @@ let {
   onFileWritten?: (size: number) => void;
 } = $props();
 
-const viewStates = new ViewStateStore(
+const tabStates = new TabStateStore(
   typeof localStorage === "undefined" ? undefined : localStorage,
 );
 const loadTimeoutMs = 15_000;
@@ -110,7 +110,7 @@ const scope = $derived<ExtensionFrameScope>({
   filePath,
 });
 const stateKey = $derived(
-  viewStateKey({
+  tabStateKey({
     projectId,
     extensionId,
     kind: contribution.kind,
@@ -142,11 +142,7 @@ function post(message: unknown): void {
 }
 
 function postEvent(
-  event:
-    | "themeChanged"
-    | "fileChanged"
-    | "modeChanged"
-    | "extensionStoreChanged",
+  event: "theme.changed" | "file.changed" | "mode.changed" | "store.changed",
   data: unknown,
 ) {
   const message = eventMessage(event, data, contribution.kind);
@@ -289,16 +285,14 @@ async function hostRequest(
   params: unknown,
 ): Promise<unknown> {
   switch (method) {
-    case "viewState.get":
+    case "tabState.get":
       return {
-        state: viewStates.get(stateKey),
-      } satisfies BridgeResult<"viewState.get">;
-    case "viewState.set":
-      if (!viewStates.set(stateKey, (params as { state: BridgeJson }).state))
-        throw new HostFailure("too_large", "The view state is too large");
+        state: tabStates.get(stateKey),
+      } satisfies BridgeResult<"tabState.get">;
+    case "tabState.set":
+      if (!tabStates.set(stateKey, (params as { state: BridgeJson }).state))
+        throw new HostFailure("too_large", "The tab state is too large");
       return {};
-    case "mode.get":
-      return { mode: effectiveMode } satisfies BridgeResult<"mode.get">;
     case "ui.confirm":
       return {
         confirmed: await confirm(params as ConfirmParams),
@@ -310,22 +304,22 @@ async function hostRequest(
     case "ui.notify":
       notifyUser(params as BridgeParams<"ui.notify">);
       return {};
-    case "openFile":
+    case "workspace.openFile":
       await extensionHostActions().openFile(
         projectId,
-        (params as BridgeParams<"openFile">).path,
+        (params as BridgeParams<"workspace.openFile">).path,
       );
       return {};
-    case "openPage": {
+    case "pages.open": {
       const request = params as { id: string; params?: BridgeJson };
       const { id } = request;
       if (!onOpenPage?.(id, request.params))
         throw new HostFailure("not_found", `This extension has no page ${id}`);
       return {};
     }
-    case "composer.insert":
+    case "chat.insert":
       extensionHostActions().insertIntoComposer(
-        (params as BridgeParams<"composer.insert">).text,
+        (params as BridgeParams<"chat.insert">).text,
       );
       return {};
     case "clipboard.writeText":
@@ -347,7 +341,10 @@ async function serverRequest(
       "The file can only be written in edit mode",
     );
   // Like copying: starting a conversation needs the user's click to still be active.
-  if (method === "conversations.start" && !navigator.userActivation?.isActive)
+  if (
+    method === "chat.startConversation" &&
+    !navigator.userActivation?.isActive
+  )
     throw new HostFailure(
       "not_allowed",
       "Start a conversation only in response to a click",
@@ -358,12 +355,12 @@ async function serverRequest(
     params,
     storeOrigin,
   );
-  if (method === "conversations.start") {
-    const start = params as BridgeParams<"conversations.start">;
+  if (method === "chat.startConversation") {
+    const start = params as BridgeParams<"chat.startConversation">;
     try {
       await extensionHostActions().conversationStarted(
         projectId,
-        (result as BridgeResult<"conversations.start">).conversationId,
+        (result as BridgeResult<"chat.startConversation">).conversationId,
         {
           open: start.open !== false,
           ...(start.send === false ? { draft: start.prompt } : {}),
@@ -436,7 +433,7 @@ $effect(() => {
   void extensionThemeState.cards;
   if (!untrack(() => ready)) return;
   void tick().then(() =>
-    postEvent("themeChanged", currentThemeSnapshot(document.documentElement)),
+    postEvent("theme.changed", currentThemeSnapshot(document.documentElement)),
   );
 });
 
@@ -445,7 +442,7 @@ $effect(() => {
   const next = effectiveMode;
   if (next === lastMode) return;
   lastMode = next;
-  if (untrack(() => ready)) postEvent("modeChanged", { mode: next });
+  if (untrack(() => ready)) postEvent("mode.changed", { mode: next });
 });
 
 // Files: the daemon's directory-change events are the signal; compare the file's stat to tell
@@ -480,7 +477,7 @@ async function checkFileChanged(): Promise<void> {
   const serialized = JSON.stringify(stat);
   if (serialized === knownStat) return;
   knownStat = serialized;
-  postEvent("fileChanged", stat);
+  postEvent("file.changed", stat);
 }
 
 $effect(() => {
@@ -524,7 +521,7 @@ $effect(() =>
       data.origin === storeOrigin
     )
       return;
-    postEvent("extensionStoreChanged", {
+    postEvent("store.changed", {
       key: data.key,
       revision: data.revision,
     });

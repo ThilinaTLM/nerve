@@ -229,6 +229,12 @@ function toolOf(name: string): any {
   return found;
 }
 
+function anyToolOf(name: string): any {
+  const found = definitionOf().tools?.find((entry) => entry.name === name);
+  if (!found) throw new Error(`${definitionOf().id}: unknown tool ${name}.`);
+  return found;
+}
+
 const asArray = (result: unknown): Authorization[] =>
   result === undefined
     ? []
@@ -283,7 +289,7 @@ async function perform(
         ctx,
       );
     case "present":
-      return toolOf(payload.tool as string).present?.(payload.output);
+      return anyToolOf(payload.tool as string).present?.(payload.output);
     case "configuration":
       return namespaceOf(payload.namespace as string).configuration?.(
         hookContext(ctx),

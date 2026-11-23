@@ -58,6 +58,11 @@ type TrieNode<T> = {
 const defaultCompareLabels = (left: string, right: string): number =>
   left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 
+/** Id of the item row built for `key` by `buildPanelTree` / `buildPanelItemTree`. */
+export function panelItemNodeId(key: string): string {
+  return `item:${key}`;
+}
+
 function groupId(path: readonly string[]): string {
   return `group:${JSON.stringify(path)}`;
 }
@@ -148,7 +153,7 @@ export function buildPanelTree<T>(
 
     directory.items.push({
       value: item,
-      id: `item:${options.getKey(item, index)}`,
+      id: panelItemNodeId(options.getKey(item, index)),
       label,
       path,
     });
@@ -231,7 +236,7 @@ export function buildPanelItemTree<T>(
       const path = [...parentPath, label];
       return {
         kind: "item",
-        id: `item:${key}`,
+        id: panelItemNodeId(key),
         label,
         path,
         value: item,

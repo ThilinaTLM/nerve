@@ -32,5 +32,5 @@ export function currentThemeSnapshot(root: HTMLElement): ThemeSnapshot {
       style.getPropertyValue(property),
     ),
   };
-  return bridgeEvents.themeChanged.parse(snapshot);
+  return bridgeEvents["theme.changed"].parse(snapshot);
 }

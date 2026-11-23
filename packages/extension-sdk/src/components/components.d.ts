@@ -1,4 +1,4 @@
-// Types of `ui/components.ts` (the implementation is compiled by the extension's UI build and
+// Types of `components.impl.ts` (the implementation is compiled by the extension's UI build and
 // stays out of this program: the UI kit's sources need the Svelte compiler to type-check).
 // `test/ui-components.test.ts` keeps both files' export names equal.
 import type { Component } from "svelte";
@@ -56,8 +56,6 @@ export const Progress: Part;
 export const ScrollArea: Part;
 /** Tabs: `<Tabs.Root bind:value><Tabs.List><Tabs.Trigger value="a">…</Tabs.Trigger></Tabs.List><Tabs.Content value="a">…</Tabs.Content></Tabs.Root>`. */
 export const Tabs: Parts<"Root" | "List" | "Trigger" | "Content">;
-/** Select: `<Select.Root type="single" bind:value><Select.Trigger/><Select.Content><Select.Item value label/></Select.Content></Select.Root>`. Works, but the open list is clipped to the frame. */
-export const Select: Parts<"Root" | "Item" | "Content" | "Trigger" | "Portal">;
 /** Tooltip: wrap in `Tooltip.Provider`, then `Root`, `Trigger`, `Content`. Works, but is clipped to the frame. */
 export const Tooltip: Parts<
   "Root" | "Trigger" | "Content" | "Provider" | "Portal"
@@ -74,11 +72,11 @@ export const RadioGroup: Parts<"Root" | "Item">;
 export const ToggleGroup: Parts<"Root" | "Item">;
 /** Resizable panes: `PaneGroup` (`direction`) containing `Pane` (`defaultSize`) separated by `Handle`. */
 export const Resizable: Parts<"PaneGroup" | "Pane" | "Handle">;
-/** Message box. Props: `tone` (`neutral`, `brand`, `info`, `success`, `warning`, `destructive`), `layout` (`block` or `strip`), `icon` (a component from `@nervekit/extension-sdk/icons`), `title`, `text`, `actions` and `children` (snippets). */
+/** Message box. Props: `tone` (`neutral`, `brand`, `info`, `success`, `warning`, `destructive`), `layout` (`block` or `strip`), `icon` (a component from `@nervekit/extension-sdk/ui`), `title`, `text`, `actions` and `children` (snippets). */
 export const Callout: Part;
-/** Quiet caption above a group of rows. Props: `label`, `count`, `icon` (from `@nervekit/extension-sdk/icons`). */
+/** Quiet caption above a group of rows. Props: `label`, `count`, `icon` (from `@nervekit/extension-sdk/ui`). */
 export const GroupLabel: Part;
-/** Icon-only button with a tooltip. Props: `icon` (a component: import it from `@nervekit/extension-sdk/icons`, e.g. `import { Copy } from "@nervekit/extension-sdk/icons"`; do not install `@lucide/svelte`), `label` (required: tooltip and accessible name), `onclick`, `tone` (`neutral`, `destructive`), `active`, `disabled`, `busy`, `side` (tooltip side). */
+/** Icon-only button with a tooltip. Props: `icon` (a component: import it from `@nervekit/extension-sdk/ui`, e.g. `import { Copy } from "@nervekit/extension-sdk/ui"`; do not install `@lucide/svelte`), `label` (required: tooltip and accessible name), `onclick`, `tone` (`neutral`, `destructive`), `active`, `disabled`, `busy`, `side` (tooltip side). */
 export const IconAction: Part;
 /** Search field with a clear button. Props: `bind:value`, `placeholder`, `clearable` (default true), `onValueChange`, `icon`, `trailing` (snippet). */
 export const SearchInput: Part;
@@ -164,7 +162,7 @@ export const VirtualScroller: Part;
 export const PanelView: Part;
 /** First line of a panel: title, count and trailing icon actions (`PanelToolbarButton`s). Props: `title` (required), `count`, `trailing` (snippet), `class`. */
 export const PanelHeader: Part;
-/** Icon button of a panel header or row. Props: `icon` (from `@nervekit/extension-sdk/icons`), `label` (required: tooltip and accessible name), `onclick`, `loading` (spinner), `active`, `disabled`, `showLabel` (icon and text), `dense` (inside rows), `href`, `badge` (snippet). */
+/** Icon button of a panel header or row. Props: `icon` (from `@nervekit/extension-sdk/ui`), `label` (required: tooltip and accessible name), `onclick`, `loading` (spinner), `active`, `disabled`, `showLabel` (icon and text), `dense` (inside rows), `href`, `badge` (snippet). */
 export const PanelToolbarButton: Part;
 /** Search field and scope chips under a `PanelHeader` (Git's "Filter repos or branches" with "All 6 · Changed 0 · Attention 0"). Props: `bind:query`, `placeholder` (the field shows when `query` or `placeholder` is set), `ariaLabel`, `scopes: PanelFilterScope[]` (chips show when non-empty), `bind:scope`, `scopeLabel` (chip group's accessible name), `onScopeChange`, `extra` (snippet below). The panel filters its rows itself. */
 export const PanelFilterBar: Part;
@@ -181,9 +179,9 @@ export type PanelFilterScope = {
 };
 /** Sticky, always-open heading of a group of rows (a repository, a date). Props: `title` (required), `icon`, `count`, `meta` and `actions` (snippets). Use `PanelSection` when the user should collapse the group. */
 export const PanelSectionHeader: Part;
-/** Collapsible section: a chevron header line that stays visible when closed, then the body. Props: `bind:open` (default true), `title`, `icon`, `count`, `label` (snippet replacing title, icon and count), `meta` (snippet: muted text inside the toggle), `actions` (snippet after the toggle; clicks do not toggle), `onOpenChange`, `keepMounted`, `children`. Persist `open` with `host.viewState`. */
+/** Collapsible section: a chevron header line that stays visible when closed, then the body. Props: `bind:open` (default true), `title`, `icon`, `count`, `label` (snippet replacing title, icon and count), `meta` (snippet: muted text inside the toggle), `actions` (snippet after the toggle; clicks do not toggle), `onOpenChange`, `keepMounted`, `children`. Persist `open` with `host.tabState`. */
 export const PanelSection: Part;
-/** Stacked, collapsible, resizable areas sharing the panel height, like Git's repository list, branch and changes areas: 1px draggable dividers (keyboard: arrows, Enter resets), collapsed areas shrink to their header. Props: `areas: PanelSplitArea[]` (top to bottom), `bind:layout` (`PanelSplitLayout`, plain JSON; start from `emptyPanelSplitLayout()`, never `undefined`, and persist it with `host.viewState`), `onChange(layout)`, `area` (snippet `{ area, open, toggle, measure, overflows }`). Render each area as `<PanelSection {open} onOpenChange={toggle} keepMounted class="h-full min-h-0" bodyClass={overflows ? "min-h-0 flex-1 overflow-y-auto" : "min-h-0 flex-1 overflow-hidden"}>` with `headerPx: 32`, and put `{@attach measure}` on the body's natural-height content. Methods via `bind:this`: `toggle(id)`, `open(id)`. */
+/** Stacked, collapsible, resizable areas sharing the panel height, like Git's repository list, branch and changes areas: 1px draggable dividers (keyboard: arrows, Enter resets), collapsed areas shrink to their header. Props: `areas: PanelSplitArea[]` (top to bottom), `bind:layout` (`PanelSplitLayout`, plain JSON; start from `emptyPanelSplitLayout()`, never `undefined`, and persist it with `host.tabState`), `onChange(layout)`, `area` (snippet `{ area, open, toggle, measure, overflows }`). Render each area as `<PanelSection {open} onOpenChange={toggle} keepMounted class="h-full min-h-0" bodyClass={overflows ? "min-h-0 flex-1 overflow-y-auto" : "min-h-0 flex-1 overflow-hidden"}>` with `headerPx: 32`, and put `{@attach measure}` on the body's natural-height content. Methods via `bind:this`: `toggle(id)`, `open(id)`. */
 export const PanelSplit: Part;
 /** One area of a `PanelSplit`. */
 export type PanelSplitArea = {
@@ -326,13 +324,13 @@ export const FloatingToolbar: Part;
 /** Related controls inside a `FloatingToolbar`; dividers between groups are drawn for you, so do not add separators. Props: `label` (accessible name), `collapse` (hidden in panes narrower than 28rem; only for readouts and actions that `FloatingToolbarMenu` also offers). */
 export const FloatingToolbarGroup: Part;
 /**
- * Icon button of a floating bar, with a tooltip. Props: `label` (required: tooltip and accessible name; do not add `title`), `icon` (a component from `@nervekit/extension-sdk/icons`), `text` (short visible text such as "100%" instead of the icon; horizontal bars only), `shortcut` (shown in the tooltip, e.g. "Ctrl+F"), `pressed` (toggle state; leave unset for a plain action), `disabled`, `busy` (spinner, blocks clicks), `tone` (`neutral`, `destructive`), `side` (tooltip side), `onclick`. The tooltip is clipped to the frame, so keep buttons off the frame edge it points past.
+ * Icon button of a floating bar, with a tooltip. Props: `label` (required: tooltip and accessible name; do not add `title`), `icon` (a component from `@nervekit/extension-sdk/ui`), `text` (short visible text such as "100%" instead of the icon; horizontal bars only), `shortcut` (shown in the tooltip, e.g. "Ctrl+F"), `pressed` (toggle state; leave unset for a plain action), `disabled`, `busy` (spinner, blocks clicks), `tone` (`neutral`, `destructive`), `side` (tooltip side), `onclick`. The tooltip is clipped to the frame, so keep buttons off the frame edge it points past.
  */
 export const FloatingToolbarButton: Part;
 /** Readout inside a `FloatingToolbar` (match count, zoom level, size). Props: `tone` (`muted` default, `destructive`), `live` (announces changes), `title`, `class`, `children`. */
 export const FloatingToolbarText: Part;
 /**
- * Expanded form of a floating bar for fields (find, filter, go to). Fields (`Input`, `SearchInput`, `Select`) go only here, never on a `FloatingToolbar`. Props: `label` (required), `role` (`search` or `group`), `size` (`sm`, `md`, `lg`), `onClose` (called on Escape unless the event is default-prevented), `ref` (bindable element), `children`. Full width in narrow panes. Place it in a `FloatingLayer` anchor, usually `topEnd`.
+ * Expanded form of a floating bar for fields (find, filter, go to). Fields (`Input`, `SearchInput`, `SelectField`) go only here, never on a `FloatingToolbar`. Props: `label` (required), `role` (`search` or `group`), `size` (`sm`, `md`, `lg`), `onClose` (called on Escape unless the event is default-prevented), `ref` (bindable element), `children`. Full width in narrow panes. Place it in a `FloatingLayer` anchor, usually `topEnd`.
  */
 export const FloatingPanel: Part;
 /** Lasting status of the pane, in the `bottomStart` anchor of a `FloatingLayer` (read-only file, truncated content). Props: `tone` (`info` default, `warning`), `onDismiss` (shows a dismiss button), `action` (snippet with one small `Button`), `children` (the message). */

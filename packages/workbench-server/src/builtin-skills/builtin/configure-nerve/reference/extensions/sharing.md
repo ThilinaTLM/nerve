@@ -24,4 +24,4 @@ Send the sources without `node_modules/` and `dist/`. The receiver copies the fo
 
 ## Updates
 
-Rebuild with `nerve-ext check`, bump `version` in `package.json` for releases, and reload. After a Nerve update that breaks extensions, `extensions.status` shows `incompatible`; run `scripts/upgrade-extension.mjs`. An extension is built with the SDK of the Nerve that created or upgraded it. It loads on that Nerve version or newer, until a Nerve release changes the extension API; it then needs the upgrade script.
+Rebuild with `nerve-ext check`, bump `version` in `package.json` for releases, and reload. An extension built with an SDK newer than this Nerve, or older than its `oldestCompatibleSdkVersion`, is `incompatible` in `extensions.status` and does not load; run `scripts/upgrade-extension.mjs`, which upgrades the SDK and rebuilds.

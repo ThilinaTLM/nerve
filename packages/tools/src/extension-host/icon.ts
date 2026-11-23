@@ -1,11 +1,9 @@
 import {
+  extensionFileLimits,
   extensionLucideIconSchema,
   type ExtensionIcon,
 } from "@nervekit/contracts/extensions";
 import type { ExtensionDefinition } from "@nervekit/extension-api";
-
-/** Largest icon file the host accepts. */
-export const maxExtensionIconBytes = 16 * 1024;
 
 /**
  * Resolves an extension's declared `icon`: a lucide name from the allowed set, or the path of an
@@ -43,8 +41,8 @@ export function resolveExtensionIcon(
 
 /** Why `svg` is not an acceptable extension icon, or undefined. */
 export function svgProblem(svg: string): string | undefined {
-  if (Buffer.byteLength(svg, "utf8") > maxExtensionIconBytes)
-    return `is larger than ${maxExtensionIconBytes / 1024} KB`;
+  if (Buffer.byteLength(svg, "utf8") > extensionFileLimits.iconBytes)
+    return `is larger than ${extensionFileLimits.iconBytes / 1024} KB`;
   // Comments could hide markup from these checks; an icon needs none.
   if (svg.includes("<!--")) return "must not contain comments";
   const root = /<svg\b[^>]*>/i.exec(svg);

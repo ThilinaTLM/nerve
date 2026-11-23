@@ -1,7 +1,7 @@
 <script lang="ts">
 /* global MouseEvent, HTMLElement -- a frame component runs in the browser */
 import type { Component } from "svelte";
-import { Ellipsis } from "@nervekit/extension-sdk/icons";
+import { Ellipsis } from "@lucide/svelte";
 import {
   FloatingToolbarButton,
   host,

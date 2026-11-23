@@ -90,7 +90,7 @@ export function createModelServices(
   input: ModelServicesInput,
 ): ExtensionModels {
   const { definition, settings, ports, signal } = input;
-  const capabilities = definition.permissions?.capabilities ?? [];
+  const granted = definition.permissions?.models ?? [];
   const settingValues = (type: "model" | "imageModel") =>
     Object.entries(definition.settings.fields)
       .filter(([, field]) => field.type === type)
@@ -144,7 +144,7 @@ export function createModelServices(
 
   const models: ExtensionModels = {};
   const { generateImage, imageReady } = ports;
-  if (generateImage && imageReady && capabilities.includes("models.image"))
+  if (generateImage && imageReady && granted.includes("image"))
     models.image = {
       generate: async (request) => {
         const model = (await checked(
@@ -218,7 +218,7 @@ export function createModelServices(
         await readyWith("imageModel", request?.model, imageReady),
     };
   const { explainImage, visionReady } = ports;
-  if (explainImage && visionReady && capabilities.includes("models.vision"))
+  if (explainImage && visionReady && granted.includes("vision"))
     models.vision = {
       explain: async (request) => {
         const model = (await checked("model", request.model)) as ModelSelection;
@@ -243,7 +243,7 @@ export function createModelServices(
         await readyWith("model", request?.model, visionReady),
     };
   const { completeText, textReady } = ports;
-  if (completeText && textReady && capabilities.includes("models.text"))
+  if (completeText && textReady && granted.includes("text"))
     models.text = {
       complete: async (request) =>
         await completeText({

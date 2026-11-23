@@ -64,7 +64,9 @@
       "entry": [
         "scripts/*.{ts,mjs}",
         "test/**/*.test.ts",
-        "src/{index,build,testing,ui,cli,tools}.ts",
+        "src/{index,testing,ui,cli}.ts",
+        // Bundled into dist/ui.js by scripts/bundle.mjs (tsc excludes it: it imports Svelte sources).
+        "src/components/components.impl.ts",
         "assets/frame.css",
         "assets/vitest.config.mjs",
       ],

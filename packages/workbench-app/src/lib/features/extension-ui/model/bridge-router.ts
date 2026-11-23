@@ -194,7 +194,7 @@ export function failureOf(
   if (typeof code === "string" && bridgeErrorCodes.includes(code))
     return { code: code as BridgeErrorCode, message: message.slice(0, 2000) };
   return {
-    code: method === "call" ? "backend_error" : "failed",
+    code: method === "backend.call" ? "backend_error" : "failed",
     message: message.slice(0, 2000),
   };
 }

@@ -32,8 +32,8 @@ export type MethodDefinition<
    */
   riskFromArgs?: boolean;
   /**
-   * TypeScript method declaration, optionally led by a one-line JSDoc comment (at most 300
-   * characters for installed extensions); generates what `sdk.describe` and `sdk.search` serve.
+   * TypeScript method declaration, optionally led by a one-line JSDoc comment (checked by
+   * `nerve-ext build`); generates what `sdk.describe` and `sdk.search` serve.
    * Methods take one argument: a bare string or an options object (see `parseOptions`).
    */
   signature: string;
@@ -70,9 +70,9 @@ export type Availability =
 export type DocTopic = {
   /** Full topic id (`jira/workflows`): lower-case letters, digits, `_`, `-` and `/`. */
   id: string;
-  /** When to read it; at most 160 characters for installed extensions. */
+  /** When to read it: one short line (over its limit, `nerve-ext build` reports it). */
   whenToRead: string;
-  /** Path of the Markdown file inside the extension project, under `docs/` (`docs/workflows.md`); `nerve-ext build` copies `docs/` to `dist/docs/`. At most 24,000 characters. */
+  /** Path of the Markdown file inside the extension project, under `docs/` (`docs/workflows.md`); `nerve-ext build` copies `docs/` to `dist/docs/`. Over its limit, `nerve-ext build` reports it. */
   file: string;
 };
 
@@ -100,9 +100,9 @@ export type NamespaceDefinition<Session = unknown> = {
   requires?: Requires;
   /** A supporting namespace (`storage` builders, a site `defaults()`): usable by scripts, not listed to the user. */
   helper?: boolean;
-  /** One line in the `quick_script` description. At most 200 characters for installed extensions. */
+  /** One line in the `quick_script` description (over its limit, `nerve-ext build` reports it). */
   summary: string;
-  /** At most three short lines (300 characters each for installed extensions), added to the description whenever the namespace is configured. */
+  /** At most three short lines (each checked by `nerve-ext build`), added to the description whenever the namespace is configured. */
   rules?: readonly string[];
   /** Shared TypeScript declarations for `sdk.describe`: the shapes methods return. */
   types: string;
@@ -202,12 +202,12 @@ export type JsonSchemaObject = {
 };
 
 /** Members every direct tool has, whether bound to a method or with its own implementation. */
-type ToolBase = {
+type ToolBase<Output = unknown> = {
   /** Unique across core and extension tools; lower-case letter first, then lower-case letters, digits or `_`, at most 64 characters. Prefix it with the extension id. */
   name: string;
   /** Shown on the Tools page; defaults to the name. */
   label?: string;
-  /** Agent-facing description, sent with every request: at most 800 characters for installed extensions. Say what the tool does and when to use it. */
+  /** Agent-facing description, sent with every request (checked by `nerve-ext build`). Say what the tool does and when to use it. */
   description: string;
   /** Arguments of the tool. */
   parameters: JsonSchemaObject;
@@ -221,30 +221,13 @@ type ToolBase = {
   availability?: (
     ctx: ExtensionHookContext,
   ) => Promise<Availability> | Availability;
-};
-
-/** A tool bound to a namespace method (`web.search`): same parse → authorize → run. Use it when scripts and the model should share one implementation. */
-export type MethodToolDefinition = ToolBase & {
-  /** `<namespace>.<method>`. The method receives the tool's arguments object as its single argument. */
-  method: string;
-};
-
-/** A tool with its own implementation. Use it when no script needs the operation. */
-export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
-  /** The most the tool can do; see `MethodDefinition.risk`. */
-  risk: Risk;
-  /** Validates the model's arguments object and returns the typed input; throws `ExtensionError("BAD_REQUEST", …)` on bad input. Synchronous and pure. */
-  parse(args: Record<string, unknown>): Input;
-  /** What the call is authorized as; see `MethodDefinition.authorize`. */
-  authorize?(input: Input): AuthorizeResult;
-  /** Does the work and returns plain data. */
-  run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
   /**
    * Splits the output into what the agent reads (`text`) and what each view
    * section renders (`sections`, by section id). Without it, or without
    * `sections`, both are the output (the first section gets it). `details`
    * adds fields to the result's details; the agent projection of a tool with a
    * `links` section reads `query` and `answer` from them (a header above the results).
+   * On a method-bound tool, `output` is what the method returned.
    */
   present?(output: Output): {
     /** What the agent reads. */
@@ -261,6 +244,27 @@ export type OwnToolDefinition<Input = any, Output = unknown> = ToolBase & {
   };
 };
 
+/** A tool bound to a namespace method (`web.search`): same parse → authorize → run. Use it when scripts and the model should share one implementation. */
+export type MethodToolDefinition = ToolBase<unknown> & {
+  /** `<namespace>.<method>`. The method receives the tool's arguments object as its single argument. */
+  method: string;
+};
+
+/** A tool with its own implementation. Use it when no script needs the operation. */
+export type OwnToolDefinition<
+  Input = any,
+  Output = unknown,
+> = ToolBase<Output> & {
+  /** The most the tool can do; see `MethodDefinition.risk`. */
+  risk: Risk;
+  /** Validates the model's arguments object and returns the typed input; throws `ExtensionError("BAD_REQUEST", …)` on bad input. Synchronous and pure. */
+  parse(args: Record<string, unknown>): Input;
+  /** What the call is authorized as; see `MethodDefinition.authorize`. */
+  authorize?(input: Input): AuthorizeResult;
+  /** Does the work and returns plain data. */
+  run(input: Input, ctx: ExtensionContext): Promise<Output> | Output;
+};
+
 /** A direct tool: the model calls it by name without writing a script. */
 export type ToolDefinition = MethodToolDefinition | OwnToolDefinition;
 
@@ -271,16 +275,11 @@ export function isMethodTool(
   return "method" in tool;
 }
 
-/**
- * A host capability an extension may use, declared in `permissions.capabilities`: `models.image`
- * (image generation), `models.vision` (image explanation), `models.text` (direct text completion)
- * and `conversations.start` (UI frames start conversations; not a `ctx` service).
- */
-export type Capability =
-  | "models.image"
-  | "models.vision"
-  | "models.text"
-  | "conversations.start";
+/** A model service an extension may use, declared in `permissions.models`: `ctx.models.<grant>`. */
+export type ModelGrant = "image" | "vision" | "text";
+
+/** A host service UI frames of the extension may use, declared in `permissions.frame`: `chat.startConversation` → `host.chat.startConversation`. */
+export type FrameGrant = "chat.startConversation";
 
 /** What the extension may reach. The user sees it as one line per grant before allowing the extension. */
 export type ExtensionPermissions = {
@@ -293,8 +292,10 @@ export type ExtensionPermissions = {
    * List each origin by name; use `*` only for a tool that must reach arbitrary sites.
    */
   network?: string[];
-  /** Host capabilities: `models.image` → `ctx.models.image`, `models.vision` → `ctx.models.vision`, `models.text` → `ctx.models.text`, `conversations.start` → `host.conversations.start` in UI frames. */
-  capabilities?: Capability[];
+  /** Model services of the backend: `image` → `ctx.models.image`, `vision` → `ctx.models.vision`, `text` → `ctx.models.text`. */
+  models?: ModelGrant[];
+  /** Host services of UI frames. */
+  frame?: FrameGrant[];
 };
 
 /** How a file preview edits its file. */
@@ -325,7 +326,7 @@ export type PreviewContribution = {
 
 /** A tab pane with fully custom content, not bound to a file. A frame. */
 export type PageContribution = {
-  /** Kebab-case, unique among the extension's pages, at most 64 characters. Pass it to `host.openPage`. */
+  /** Kebab-case, unique among the extension's pages, at most 64 characters. Pass it to `host.pages.open`. */
   id: string;
   /** Tab title and menu entry (1–64 characters). */
   label: string;
@@ -374,8 +375,8 @@ export type ExtensionUi = {
 /**
  * An extension, as `src/extension.ts` default-exports it (create it with `defineExtension`).
  * `nerve-ext build` writes the plain-data part to `dist/manifest.json` (hooks become `true`) and
- * the code to `dist/backend.js`. Installed (user and project) extensions may not set `prelude`
- * or `settings.migrations`.
+ * the code to `dist/backend.js`. Installed (user and project) extensions may not set
+ * `settings.migrations`.
  */
 export type ExtensionDefinition = {
   /** Stable, kebab-case; settings, accounts and operations are keyed by it. Equals the folder name; lower-case letters, digits and single hyphens, starts with a letter, at most 64 characters. */
@@ -400,16 +401,12 @@ export type ExtensionDefinition = {
   accounts?: Readonly<Record<string, AccountKind>>;
   /** Platforms whose accounts this extension uses, whichever extension defines them; an `account` setting names a platform instead of a kind. Consent is per platform. */
   uses?: readonly PlatformUse[];
-  /** Network origins and host capabilities the extension may use. Absent: none. */
+  /** Network origins, model services and frame services the extension may use. Absent: none. */
   permissions?: ExtensionPermissions;
   /** `quick_script` namespaces; see `defineNamespace`. */
   namespaces: readonly NamespaceDefinition<any>[];
   /** Direct tools; see `defineTool`. */
   tools?: readonly ToolDefinition[];
-  /** Pure sandbox-side helper source (storage builders), evaluated after the SDK prelude; no host access. Not allowed in installed extensions. */
-  prelude?: string;
   /** UI contributions. The build compiles them; the manifest carries the built paths. */
   ui?: ExtensionUi;
-  /** Numbers (typically byte limits) filled into `{{limit:<name>}}` placeholders of docs and rules. */
-  limits?: Readonly<Record<string, number>>;
 };

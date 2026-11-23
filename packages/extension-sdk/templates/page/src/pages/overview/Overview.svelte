@@ -17,7 +17,7 @@ let notifyOnOpen = $state(false);
 $effect(() => {
   void host.project.info().then((info) => (project = info));
   // The host keeps the tab's view state; restore it when the tab opens.
-  void host.viewState.get().then((state) => {
+  void host.tabState.get().then((state) => {
     if (!state || typeof state !== "object") return;
     if ("path" in state && typeof state.path === "string") path = state.path;
     if ("notifyOnOpen" in state) notifyOnOpen = state.notifyOnOpen === true;
@@ -25,11 +25,11 @@ $effect(() => {
 });
 
 async function remember() {
-  await host.viewState.set({ path, notifyOnOpen });
+  await host.tabState.set({ path, notifyOnOpen });
 }
 
 async function openFile() {
-  await host.openFile(path);
+  await host.workspace.openFile(path);
   if (notifyOnOpen) host.ui.notify(`Opened ${path}`, "success");
 }
 </script>

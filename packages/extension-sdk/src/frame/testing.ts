@@ -33,9 +33,9 @@ export type FakeBridgeOptions = {
   kind?: ContributionKind;
   /** The contribution id; default `"test"`. */
   id?: string;
-  /** `host.extensionId`; default `"test-extension"`. */
+  /** Extension id in the init (`(await host.ready).extensionId`); default `"test-extension"`. */
   extensionId?: string;
-  /** Previews only; default `"source"`. `file.write` and `mode.get` need `"custom"`. */
+  /** Previews only; default `"source"`. `file.write` needs `"custom"`. */
   edit?: PreviewEdit;
   /** Initial mode; default `"preview"`. */
   mode?: Mode;
@@ -43,7 +43,7 @@ export type FakeBridgeOptions = {
   themeKind?: ThemeKind;
   /** Initial theme tokens (`--name:value;` declarations); default: a few dark colours. */
   tokensCss?: string;
-  /** `host.pageParams` of a page. */
+  /** What `host.pages.params()` resolves with on a page. */
   pageParams?: BridgeJson;
   /** Previews: the previewed file. */
   file?: {
@@ -54,10 +54,10 @@ export type FakeBridgeOptions = {
     /** ISO timestamp for `file.info`. */
     modifiedAt?: string;
   };
-  /** Answer of `host.settings.get()`; default `{}`. */
+  /** Values of `host.settings.get(key)` by key; a missing key resolves `undefined`. Default `{}`. */
   settings?: Record<string, BridgeJson>;
-  /** Initial `host.viewState` value; default `null`. */
-  viewState?: BridgeJson | null;
+  /** Initial `host.tabState` value; default `null`. */
+  tabState?: BridgeJson | null;
   /** Answer of `host.project.info()`; defaults `project-1`, `project` and `/project`. */
   project?: {
     /** Default `"project-1"`. */
@@ -67,12 +67,12 @@ export type FakeBridgeOptions = {
     /** Default `"/project"`. */
     directory?: string;
   };
-  /** Whether the frame has a recent user gesture; default `true`. `false`: `host.clipboard.*` and `host.conversations.start` reject `not_allowed`, as the host does outside a click. */
+  /** Whether the frame has a recent user gesture; default `true`. `false`: `host.clipboard.*` and `host.chat.startConversation` reject `not_allowed`, as the host does outside a click. */
   userActivation?: boolean;
-  /** Initial content of `host.extensionStore`, by key (each starts at revision 1). */
+  /** Initial content of `host.store`, by key (each starts at revision 1). */
   store?: Record<string, BridgeJson>;
-  /** Answers `host.call(method, args)`; default: `backend_error` (no backend). */
-  call?: (
+  /** Answers `host.backend.call(method, args)`; default: `backend_error` (no backend). */
+  backend?: (
     method: string,
     args: BridgeJson | undefined,
   ) => BridgeJson | undefined | Promise<BridgeJson | undefined>;
@@ -86,7 +86,7 @@ export type FakeBridgeOptions = {
 export type FakeBridge = {
   /** Every request the frame sent, in order, after the real host-side validation. */
   requests: {
-    /** Bridge method name (`file.read`, `call`, …). */
+    /** Bridge method name (`file.read`, `backend.call`, …). */
     method: string;
     /** The validated params. */
     params: unknown;
@@ -102,11 +102,11 @@ export type FakeBridge = {
     /** Toast level; `info` when the frame gave none. */
     level: NotifyLevel;
   }[];
-  /** Files and pages the frame asked the host to open (`host.openFile`, `host.openPage`). */
+  /** Files and pages the frame asked the host to open (`host.workspace.openFile`, `host.pages.open`). */
   opened: {
-    /** Paths passed to `host.openFile`. */
+    /** Paths passed to `host.workspace.openFile`. */
     files: string[];
-    /** Calls of `host.openPage`. */
+    /** Calls of `host.pages.open`. */
     pages: {
       /** Page id. */
       id: string;
@@ -114,17 +114,17 @@ export type FakeBridge = {
       params?: BridgeJson;
     }[];
   };
-  /** Texts the frame appended to the composer (`host.composer.insert`). */
+  /** Texts the frame appended to the composer (`host.chat.insert`). */
   composerText: string[];
-  /** Calls of `host.conversations.start` the fake accepted, in order, with the id it answered. Refused calls (no user gesture) are not recorded. */
+  /** Calls of `host.chat.startConversation` the fake accepted, in order, with the id it answered. Refused calls (no user gesture) are not recorded. */
   startedConversations: {
     /** The id the fake answered with (`conv_test_1`, `conv_test_2`, …). */
     conversationId: string;
     /** The options the frame passed (`prompt`, `title`, `send`, …). */
     options: Record<string, BridgeJson>;
   }[];
-  /** Current `viewState`; the frame's `viewState.set` writes it. */
-  viewState: BridgeJson | null;
+  /** Current `tabState`; the frame's `host.tabState.set` writes it. */
+  tabState: BridgeJson | null;
   /** What the frame copied with `host.clipboard`, in order: `text` for `writeText`, `image` (decoded bytes and media type) for `writeImage`. Refused writes are not recorded. */
   clipboard: {
     /** Set by `writeText`. */
@@ -137,7 +137,7 @@ export type FakeBridge = {
       mediaType: string;
     };
   }[];
-  /** The frame's `host.extensionStore` contents: value and revision by key. Writes through the host follow its rules (`conflict` on a stale `ifRevision`). */
+  /** The frame's `host.store` contents: value and revision by key. Writes through the host follow its rules (`conflict` on a stale `ifRevision`). */
   store: Map<
     string,
     {
@@ -158,17 +158,17 @@ export type FakeBridge = {
   }[];
   /** Resolves when the handshake is done; `await host.ready` to also have the theme applied. */
   ready: Promise<void>;
-  /** Sends a `themeChanged` event; `host.onThemeChange` handlers run. */
-  emitThemeChanged(kind: ThemeKind, tokensCss: string): void;
-  /** Sends a `modeChanged` event; the `mode` store and `host.onModeChange` handlers update. */
-  emitModeChanged(mode: Mode): void;
-  /** Sends a `fileChanged` event; `content`, when given, replaces the file's bytes first. */
-  emitFileChanged(
+  /** Sends a `theme.changed` event; `host.theme.kind` and `host.theme.onChange` handlers update. */
+  emitThemeChange(kind: ThemeKind, tokensCss: string): void;
+  /** Sends a `mode.changed` event; the `host.mode` store updates. */
+  emitModeChange(mode: Mode): void;
+  /** Sends a `file.changed` event; `content`, when given, replaces the file's bytes first. */
+  emitFileChange(
     change: { size: number; modifiedAt?: string },
     content?: string | Uint8Array,
   ): void;
-  /** Sends an `extensionStoreChanged` event, as if another frame or the backend changed `key` (`revision` `null`: deleted); `host.onExtensionStoreChange` handlers run. It does not change `store`. */
-  emitExtensionStoreChanged(key: string, revision: number | null): void;
+  /** Sends a `store.changed` event, as if another frame or the backend changed `key` (`revision` `null`: deleted); `host.store.onChange` handlers run. It does not change `store`. */
+  emitStoreChange(key: string, revision: number | null): void;
   /** Disconnects the frame's `host` from this fake. Call it in `afterEach`. */
   close(): void;
 };
@@ -257,25 +257,25 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
       ]),
     ),
     frameErrors: [],
-    viewState: options.viewState ?? null,
+    tabState: options.tabState ?? null,
     ready: undefined as never,
-    emitThemeChanged(kindValue, tokensCss) {
+    emitThemeChange(kindValue, tokensCss) {
       theme = { kind: kindValue, tokensCss };
-      send({ type: "event", event: "themeChanged", data: theme });
+      send({ type: "event", event: "theme.changed", data: theme });
     },
-    emitModeChanged(next) {
+    emitModeChange(next) {
       currentMode = next;
-      send({ type: "event", event: "modeChanged", data: { mode: next } });
+      send({ type: "event", event: "mode.changed", data: { mode: next } });
     },
-    emitFileChanged(change, content) {
+    emitFileChange(change, content) {
       if (content !== undefined) bytes = toBytes(content);
       if (change.modifiedAt) modifiedAt = change.modifiedAt;
-      send({ type: "event", event: "fileChanged", data: change });
+      send({ type: "event", event: "file.changed", data: change });
     },
-    emitExtensionStoreChanged(key, revision) {
+    emitStoreChange(key, revision) {
       send({
         type: "event",
-        event: "extensionStoreChanged",
+        event: "store.changed",
         data: { key, revision },
       });
     },
@@ -330,17 +330,15 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
             ? unbase64(params["content"])
             : toBytes(params["content"]);
         return reply({ size: bytes.length });
-      case "mode.get":
-        return reply({ mode: currentMode });
-      case "call":
-        if (!options.call)
+      case "backend.call":
+        if (!options.backend)
           return fail(
             id,
             "backend_error",
-            "The fake bridge has no `call` handler; pass `call` to createFakeBridge.",
+            "The fake bridge has no backend; pass `backend` to createFakeBridge.",
           );
         try {
-          const value = await options.call(params["method"], params["args"]);
+          const value = await options.backend(params["method"], params["args"]);
           return reply(value === undefined ? {} : { value });
         } catch (cause) {
           return fail(
@@ -350,11 +348,15 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
           );
         }
       case "settings.get":
-        return reply({ values: options.settings ?? {} });
-      case "viewState.get":
-        return reply({ state: bridge.viewState });
-      case "viewState.set":
-        bridge.viewState = params["state"];
+        return reply(
+          options.settings && Object.hasOwn(options.settings, params["key"])
+            ? { value: options.settings[params["key"]] }
+            : {},
+        );
+      case "tabState.get":
+        return reply({ state: bridge.tabState });
+      case "tabState.set":
+        bridge.tabState = params["state"];
         return reply({});
       case "ui.confirm": {
         const choice = options.confirm ?? true;
@@ -383,10 +385,10 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
           level: params["level"] ?? "info",
         });
         return reply({});
-      case "openFile":
+      case "workspace.openFile":
         bridge.opened.files.push(params["path"]);
         return reply({});
-      case "openPage":
+      case "pages.open":
         bridge.opened.pages.push({
           id: params["id"],
           ...(params["params"] === undefined
@@ -420,7 +422,7 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
         );
         return reply({});
       }
-      case "conversations.start": {
+      case "chat.startConversation": {
         if (options.userActivation === false)
           return fail(
             id,
@@ -434,15 +436,12 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
         });
         return reply({ conversationId });
       }
-      case "extensionStore.get": {
+      case "store.get": {
         const entry = bridge.store.get(params["key"]);
-        return reply({
-          value: entry?.value ?? null,
-          revision: entry?.revision ?? null,
-        });
+        return reply({ entry: entry ?? null });
       }
-      case "extensionStore.set":
-      case "extensionStore.delete": {
+      case "store.set":
+      case "store.delete": {
         const entry = bridge.store.get(params["key"]);
         if (
           params["ifRevision"] !== undefined &&
@@ -453,7 +452,7 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
             "conflict",
             `'${params["key"]}' is at revision ${entry?.revision ?? 0}, not ${params["ifRevision"]}.`,
           );
-        if (method === "extensionStore.delete") {
+        if (method === "store.delete") {
           bridge.store.delete(params["key"]);
           return reply({});
         }
@@ -461,7 +460,7 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
         bridge.store.set(params["key"], { value: params["value"], revision });
         return reply({ revision });
       }
-      case "extensionStore.keys":
+      case "store.keys":
         return reply({
           keys: [...bridge.store]
             .filter(([key]) => key.startsWith(params["prefix"] ?? ""))
@@ -472,7 +471,7 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
                 .length,
             })),
         });
-      case "composer.insert":
+      case "chat.insert":
         bridge.composerText.push(params["text"]);
         return reply({});
       default:

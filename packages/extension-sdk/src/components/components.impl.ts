@@ -24,7 +24,6 @@ export { Progress } from "@nervekit/ui-kit/components/ui/progress";
 export { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 // Multi-part components: `<Tabs.Root><Tabs.List>…`.
 export * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
-export * as Select from "@nervekit/ui-kit/components/ui/select";
 export * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 export * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
 export * as Empty from "@nervekit/ui-kit/components/ui/empty";

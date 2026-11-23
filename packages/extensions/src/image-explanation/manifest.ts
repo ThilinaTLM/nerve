@@ -41,7 +41,7 @@ export const imageExplanationExtension = defineExtension({
     // Version 1 kept the reasoning level in its own `thinkingLevel` field.
     migrations: { 2: foldThinkingLevel },
   },
-  permissions: { capabilities: ["models.vision"] },
+  permissions: { models: ["vision"] },
   namespaces: [],
   tools: [explainImageTool],
 });

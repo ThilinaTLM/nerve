@@ -17,7 +17,7 @@ describe("Checklist panel", () => {
   it("restores its items from the view state", async () => {
     const bridge = createFakeBridge({
       kind: "panel",
-      viewState: { items: [{ id: "1", text: "Write tests", done: false }] },
+      tabState: { items: [{ id: "1", text: "Write tests", done: false }] },
     });
     const component = mount(Checklist, { target: document.body });
     cleanup = () => {
@@ -32,7 +32,7 @@ describe("Checklist panel", () => {
   it("deletes an item from its right-click menu", async () => {
     const bridge = createFakeBridge({
       kind: "panel",
-      viewState: { items: [{ id: "1", text: "Write tests", done: false }] },
+      tabState: { items: [{ id: "1", text: "Write tests", done: false }] },
       menu: (items) =>
         items.find((item) => item.label === "Delete")?.id ?? null,
     });

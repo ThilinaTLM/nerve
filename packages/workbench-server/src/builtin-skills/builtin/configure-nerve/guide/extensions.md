@@ -34,7 +34,7 @@ Install further dependencies with `npm install --ignore-scripts <name>`. Read `s
 
 ## 4. Implement with least permissions
 
-Declare only what the feature needs: network origins, capabilities, accounts. Each one is shown to the user as a line they must accept; broad ones (`*` network, custom editing of files) are called out. Read the references you need, not all of them:
+Declare only what the feature needs: network origins, model services, frame services, accounts. Each one is shown to the user as a line they must accept; broad ones (`*` network, custom editing of files) are called out. Read the references you need, not all of them:
 
 - Exact API (every type, option, default and limit), and where to start reading it: `reference/extensions/api.md`
 - Definition decisions, text limits, states: `reference/extensions/manifest.md`
@@ -71,13 +71,13 @@ Edit the sources in its folder (not `dist/`), then run steps 5 to 7. Work in pla
 
 ## Upgrade after a Nerve update
 
-Find the extensions with `configuration.list({ kind: "extension" })` (`path` is the folder; `state: "incompatible"` needs an upgrade). Upgrade one when it is `incompatible` ("Built with SDK …") or the user asks. Folders under the Nerve home are outside the project, so run commands there with `cd <folder> && …` in the command and leave the shell tool's `cwd` unset:
+Find the extensions with `configuration.list({ kind: "extension" })` (`path` is the folder; `state: "incompatible"` needs an upgrade). An extension built with an SDK older than this Nerve's `oldestCompatibleSdkVersion`, or newer than this Nerve, is `incompatible` ("Built with SDK …") and does not load. Upgrade one then or when the user asks. Folders under the Nerve home are outside the project, so run commands there with `cd <folder> && …` in the command and leave the shell tool's `cwd` unset:
 
 ```sh
 node scripts/upgrade-extension.mjs <extension-folder>
 ```
 
-It moves `@nervekit/extension-sdk` to this Nerve's version, prints the `UPGRADING.md` sections between the old and new versions, and runs `check`. Apply each printed change, run `check` until green, reload, and read the status.
+It moves `@nervekit/extension-sdk` to this Nerve's version, prints the `UPGRADING.md` sections between the old and new versions (none when nothing broke), and runs `check`, which rebuilds `dist/`. Apply each printed change, run `check` until green, reload, and read the status.
 
 ## Share
 

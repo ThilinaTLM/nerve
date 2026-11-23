@@ -19,7 +19,20 @@ import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/con
 import { cn } from "@nervekit/ui-kit/utils";
 import { tick, type Snippet } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
+import { ItemMenu } from "../item-menu/index.js";
 import PanelRow from "./panel-row.svelte";
+import {
+  canContainPanelItems,
+  indexPanelReorderNodes,
+  normalizePanelReorderDrop,
+  panelReorderKey,
+  panelReorderKeyDrop,
+  panelReorderZone,
+  type PanelReorderKey,
+  type PanelReorderZone,
+  type PanelTreeReorder,
+} from "./panel-reorder.js";
+import type { PanelSelectionState } from "./panel-selection.svelte.js";
 import {
   adjacentPanelTreeRowId,
   expandedPanelTreeIds,
@@ -40,6 +53,8 @@ type Props = {
   baseIndent?: number;
   getItemTitle?: (item: T) => string;
   getItemSelected?: (item: T) => boolean;
+  /** Marks the row as the current item (`aria-current`), independent of selection. */
+  getItemActive?: (item: T) => boolean;
   getItemTone?: (item: T) => StatusTone | undefined;
   /** Controlled expansion state. Node ids are the ids produced by the builders. */
   expandedIds?: ReadonlySet<string>;
@@ -86,6 +101,18 @@ type Props = {
   onItemKeydown?: (event: KeyboardEvent, item: T) => boolean | void;
   /** Allows more than one selected row (adds `aria-multiselectable`). */
   multiselectable?: boolean;
+  /**
+   * Built-in multi-selection over item rows: click selects, Ctrl/Cmd-click
+   * toggles, Shift-click selects the visible range, Shift+↑/↓ extends,
+   * Ctrl/Cmd+A selects all visible, Escape clears. Selected rows render as
+   * selected; read `selection.ids` (node ids, see `panelItemNodeId`) to act on
+   * them. Implies `multiselectable`.
+   */
+  selection?: PanelSelectionState;
+  /** Opt-in drag and keyboard reordering of item rows; see `PanelTreeReorder`. */
+  reorder?: PanelTreeReorder<T>;
+  /** Menu for the empty area below the rows, which is also the top-level drop target of `reorder`. */
+  emptyAreaMenuItems?: ContextMenuItem[];
   /** Bindable imperative handle for scroll-to-row and focus. */
   controller?: PanelTreeController;
   itemLeading?: Snippet<[T]>;
@@ -111,6 +138,7 @@ let {
   baseIndent = 0,
   getItemTitle,
   getItemSelected,
+  getItemActive,
   getItemTone,
   expandedIds,
   onItemExpansionChange,
@@ -135,6 +163,9 @@ let {
   onItemClick,
   onItemKeydown,
   multiselectable = false,
+  selection,
+  reorder,
+  emptyAreaMenuItems,
   controller = $bindable(),
   itemLeading,
   groupIcon,
@@ -166,6 +197,13 @@ const hasExpandableItems = $derived(
   showDisclosure &&
     rows.some((row) => row.node.kind === "item" && isExpandable(row.node)),
 );
+const visibleItemIds = $derived(
+  rows.filter((row) => row.node.kind === "item").map((row) => row.node.id),
+);
+// Selection only ever holds rows that are still visible.
+$effect(() => {
+  selection?.prune(new Set(visibleItemIds));
+});
 $effect(() => {
   for (const id of collapsed) if (!expandableIds.has(id)) collapsed.delete(id);
 });
@@ -252,8 +290,140 @@ function activateFromPointer(event: MouseEvent, node: PanelTreeNode<T>): void {
   );
   focusedId = node.id;
   row?.focus();
-  if (node.kind === "item" && onItemClick?.(event, node.value) === true) return;
+  if (node.kind === "item") {
+    if (onItemClick?.(event, node.value) === true) return;
+    if (selection?.handleClick(event, node.id, visibleItemIds)) return;
+  }
   activate(node);
+}
+
+// ----- Reordering ----------------------------------------------------------
+
+const reorderIndex = $derived(
+  reorder ? indexPanelReorderNodes(nodes) : undefined,
+);
+let dragSources = $state.raw<readonly T[]>();
+let dropState = $state<{ id: string; zone: PanelReorderZone }>();
+const ROOT_DROP = "root";
+
+function reorderSources(item: T): readonly T[] {
+  if (!reorder) return [item];
+  const sources = (reorder.getSources?.(item) ?? [item]).filter(
+    reorder.canDrag,
+  );
+  return sources.length > 0 ? sources : [item];
+}
+
+function reorderSourceIds(sources: readonly T[]): Set<string> {
+  const ids = new SvelteSet<string>();
+  for (const [id, location] of reorderIndex ?? [])
+    if (sources.includes(location.node.value)) ids.add(id);
+  return ids;
+}
+
+/** A valid placement never targets a row that moves along with the sources. */
+function reorderAllowed(
+  sources: readonly T[],
+  target: PanelTreeNode<T> | undefined,
+  zone: PanelReorderZone,
+): boolean {
+  if (!reorder) return false;
+  if (!target) return reorder.canDrop(sources, undefined, zone);
+  if (target.kind !== "item" || sources.includes(target.value)) return false;
+  return reorder.canDrop(sources, target.value, zone);
+}
+
+function commitReorder(
+  sources: readonly T[],
+  target: PanelTreeNode<T> | undefined,
+  zone: PanelReorderZone,
+): void {
+  if (!reorder || !reorderAllowed(sources, target, zone)) return;
+  reorder.onMove(
+    sources,
+    target?.kind === "item" ? target.value : undefined,
+    zone,
+  );
+  if (zone === "inside" && target && !expanded.has(target.id))
+    setExpanded(target, true);
+}
+
+function keyboardReorder(node: PanelTreeNode<T>, key: PanelReorderKey): void {
+  if (!reorder || !reorderIndex || node.kind !== "item") return;
+  if (!reorder.canDrag(node.value)) return;
+  const sources = reorderSources(node.value);
+  const destination = panelReorderKeyDrop(
+    reorderIndex,
+    node.id,
+    key,
+    reorderSourceIds(sources),
+  );
+  if (destination) commitReorder(sources, destination.node, destination.zone);
+}
+
+function startReorder(event: DragEvent, item: T): void {
+  if (!reorder?.canDrag(item) || !event.dataTransfer) return;
+  const sources = reorderSources(item);
+  dragSources = sources;
+  event.dataTransfer.effectAllowed = "move";
+  // Some browsers refuse to start a drag without data.
+  event.dataTransfer.setData("text/plain", "");
+  reorder.onDragStart?.(sources);
+}
+
+function endReorder(): void {
+  const wasDragging = dragSources !== undefined;
+  dragSources = undefined;
+  dropState = undefined;
+  if (wasDragging) reorder?.onDragEnd?.();
+}
+
+function dragOverRow(event: DragEvent, node: PanelTreeNode<T>): void {
+  if (!reorder || !dragSources || node.kind !== "item") return;
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  const ratio =
+    rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+  const zone = panelReorderZone(ratio, canContainPanelItems(node));
+  const drop = normalizePanelReorderDrop(node, zone, expanded.has(node.id));
+  if (!reorderAllowed(dragSources, drop.node, drop.zone)) {
+    dropState = undefined;
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  dropState = { id: drop.node.id, zone: drop.zone };
+}
+
+function dragOverEmptyArea(event: DragEvent): void {
+  if (!reorder || !dragSources) return;
+  if (!reorderAllowed(dragSources, undefined, "inside")) {
+    dropState = undefined;
+    return;
+  }
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  dropState = { id: ROOT_DROP, zone: "inside" };
+}
+
+function dropReorder(event: DragEvent): void {
+  if (!dragSources || !dropState) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const sources = dragSources;
+  const { id, zone } = dropState;
+  dragSources = undefined;
+  dropState = undefined;
+  commitReorder(
+    sources,
+    id === ROOT_DROP ? undefined : reorderIndex?.get(id)?.node,
+    zone,
+  );
+}
+
+function leaveTree(event: DragEvent): void {
+  if (!root?.contains(event.relatedTarget as Node | null))
+    dropState = undefined;
 }
 
 /**
@@ -271,6 +441,22 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
   if (event.target !== event.currentTarget) return;
   if (node.kind === "item" && onItemKeydown?.(event, node.value) === true) {
     event.preventDefault();
+    return;
+  }
+
+  if (node.kind === "item" && selection) {
+    const result = selection.handleKey(event, node.id, visibleItemIds);
+    if (result.handled) {
+      event.preventDefault();
+      if (result.revealId) void focusRow(result.revealId);
+      return;
+    }
+  }
+  const reorderKey =
+    node.kind === "item" && reorder ? panelReorderKey(event) : undefined;
+  if (reorderKey) {
+    event.preventDefault();
+    keyboardReorder(node, reorderKey);
     return;
   }
 
@@ -396,7 +582,9 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       label={node.label}
       labelContent={itemLabel ? leafLabel : undefined}
       title={getItemTitle?.(node.value)}
-      selected={getItemSelected?.(node.value) ?? false}
+      selected={(getItemSelected?.(node.value) ?? false) ||
+        (selection?.has(node.id) ?? false)}
+      active={getItemActive?.(node.value) ?? false}
       tone={getItemTone?.(node.value)}
       mono={itemMono}
       leading={itemLeading ||
@@ -419,19 +607,37 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
       ariaPosInSet={row.posInSet}
       ariaSetSize={row.setSize}
       dataId={node.id}
-      draggable={getItemDraggable?.(node.value) ?? false}
-      dimmed={getItemDimmed?.(node.value) ?? false}
-      dropTarget={getItemDropTarget?.(node.value) ?? false}
+      draggable={(getItemDraggable?.(node.value) ?? false) ||
+        (reorder?.canDrag(node.value) ?? false)}
+      dimmed={(getItemDimmed?.(node.value) ?? false) ||
+        (dragSources?.includes(node.value) ?? false)}
+      dropTarget={(getItemDropTarget?.(node.value) ?? false) ||
+        (dropState?.id === node.id && dropState.zone === "inside")}
+      dropEdge={dropState?.id === node.id && dropState.zone !== "inside"
+        ? dropState.zone
+        : undefined}
       editor={itemEditor && getItemEditing?.(node.value)
         ? itemEditor
         : undefined}
       editorArg={node.value}
-      ondragstart={(event) => onItemDragStart?.(event, node.value)}
-      ondragend={(event) => onItemDragEnd?.(event, node.value)}
+      ondragstart={(event) => {
+        startReorder(event, node.value);
+        onItemDragStart?.(event, node.value);
+      }}
+      ondragend={(event) => {
+        endReorder();
+        onItemDragEnd?.(event, node.value);
+      }}
       ondragenter={(event) => onItemDragEnter?.(event, node.value)}
-      ondragover={(event) => onItemDragOver?.(event, node.value)}
+      ondragover={(event) => {
+        dragOverRow(event, node);
+        onItemDragOver?.(event, node.value);
+      }}
       ondragleave={(event) => onItemDragLeave?.(event, node.value)}
-      ondrop={(event) => onItemDrop?.(event, node.value)}
+      ondrop={(event) => {
+        dropReorder(event);
+        onItemDrop?.(event, node.value);
+      }}
       onfocus={() => (focusedId = node.id)}
       onkeydown={(event) => handleRowKeydown(event, () => node)}
       onclick={(event) => activateFromPointer(event, node)}
@@ -439,11 +645,14 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
   {/if}
 {/snippet}
 
+<!-- The tree only watches drags leaving it; its rows own focus. -->
+<!-- svelte-ignore a11y_interactive_supports_focus -->
 <div
   bind:this={root}
   role="tree"
   aria-label={ariaLabel}
-  aria-multiselectable={multiselectable || undefined}
+  aria-multiselectable={multiselectable || selection !== undefined || undefined}
+  ondragleave={reorder ? leaveTree : undefined}
   class={cn(
     "flex min-w-0 flex-col",
     // PanelView insets content by one step. The virtualized scroller bleeds
@@ -470,5 +679,26 @@ function handleKeydown(event: KeyboardEvent, node: PanelTreeNode<T>): void {
     {#each rows as row (row.node.id)}
       {@render renderRow(row)}
     {/each}
+  {/if}
+  {#if reorder || (emptyAreaMenuItems && emptyAreaMenuItems.length > 0)}
+    {#snippet emptyArea()}
+      <div
+        role="none"
+        class={cn(
+          "min-h-6 rounded-sm transition-colors motion-reduce:transition-none",
+          dropState?.id === ROOT_DROP &&
+            "bg-primary-subtle ring-1 ring-primary-strong ring-inset",
+        )}
+        ondragover={dragOverEmptyArea}
+        ondrop={dropReorder}
+      ></div>
+    {/snippet}
+    {#if emptyAreaMenuItems && emptyAreaMenuItems.length > 0}
+      <ItemMenu items={emptyAreaMenuItems} triggerClass="block">
+        {@render emptyArea()}
+      </ItemMenu>
+    {:else}
+      {@render emptyArea()}
+    {/if}
   {/if}
 </div>

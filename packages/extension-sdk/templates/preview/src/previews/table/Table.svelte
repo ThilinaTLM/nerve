@@ -29,7 +29,7 @@ async function load() {
 // Load now, and again whenever the file changes on disk.
 $effect(() => {
   void load();
-  return host.onFileChange(() => void load());
+  return host.file.onChange(() => void load());
 });
 
 const header = $derived(rows[0] ?? []);

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildLaunchTree,
-  describeLaunchDrop,
-  planLaunchMove,
-  planLaunchStep,
+  flattenLaunchTree,
+  launchStepTarget,
+  planLaunchMoves,
 } from "./launch-tree.js";
 
 const folder = (id: string, parentFolderId: string | null, order: number) =>
@@ -37,64 +37,112 @@ test("builds mixed ordered siblings and counts descendant activity", () => {
   ]);
 });
 
+const d = (id: string) => ({ kind: "definition", id }) as const;
+const f = (id: string) => ({ kind: "folder", id }) as const;
+
 test("plans before/after anchors and detects no-ops", () => {
-  const d3 = { kind: "definition", id: "d3" } as const;
-  const before = planLaunchMove(tree, d3, {
-    ref: { kind: "folder", id: "fA" },
-    zone: "before",
-  });
-  assert.deepEqual(before, {
-    destinationFolderId: null,
-    beforeSibling: { kind: "folder", id: "fA" },
-    noop: false,
-  });
-  assert.equal(
-    planLaunchMove(tree, d3, {
-      ref: { kind: "folder", id: "fA" },
-      zone: "after",
-    })?.noop,
-    true,
-  );
-  const open = planLaunchMove(tree, d3, {
-    ref: { kind: "folder", id: "fA" },
-    zone: "after",
-    expanded: true,
-  });
-  assert.deepEqual(open?.beforeSibling, { kind: "definition", id: "d1" });
-  assert.equal(open?.destinationFolderId, "fA");
-});
-
-test("rejects moving a folder into its own subtree", () => {
-  assert.equal(
-    planLaunchMove(
-      tree,
-      { kind: "folder", id: "fA" },
-      {
-        ref: { kind: "folder", id: "fB" },
-        zone: "inside",
-      },
-    ),
-    undefined,
-  );
-  assert.equal(
-    planLaunchMove(tree, { kind: "definition", id: "d1" }, { zone: "root" })
-      ?.beforeSibling,
-    null,
-  );
-});
-
-test("steps move one slot within the parent", () => {
   assert.deepEqual(
-    planLaunchStep(tree, { kind: "definition", id: "d1" }, "down"),
+    planLaunchMoves(tree, [d("d3")], { ref: f("fA"), zone: "before" }),
     {
-      destinationFolderId: "fA",
-      beforeSibling: { kind: "definition", id: "d2" },
+      destinationFolderId: null,
+      beforeSibling: f("fA"),
+      entries: [d("d3")],
       noop: false,
     },
   );
   assert.equal(
-    planLaunchStep(tree, { kind: "folder", id: "fA" }, "up"),
+    planLaunchMoves(tree, [d("d3")], { ref: f("fA"), zone: "after" })?.noop,
+    true,
+  );
+  // Before the first child of an open folder: the slot below its header.
+  const first = planLaunchMoves(tree, [d("d3")], {
+    ref: d("d1"),
+    zone: "before",
+  });
+  assert.equal(first?.destinationFolderId, "fA");
+  assert.deepEqual(first?.beforeSibling, d("d1"));
+});
+
+test("inside appends and the root drop targets the top level", () => {
+  const inside = planLaunchMoves(tree, [d("d3")], {
+    ref: f("fA"),
+    zone: "inside",
+  });
+  assert.equal(inside?.destinationFolderId, "fA");
+  assert.equal(inside?.beforeSibling, null);
+  assert.equal(
+    planLaunchMoves(tree, [d("d3")], { zone: "inside" })?.noop,
+    true,
+  );
+  assert.equal(
+    planLaunchMoves(tree, [d("d1")], { zone: "inside" })?.destinationFolderId,
+    null,
+  );
+  assert.equal(
+    planLaunchMoves(tree, [d("d3")], { ref: d("d1"), zone: "inside" }),
     undefined,
+  );
+});
+
+test("rejects invalid placements", () => {
+  assert.equal(
+    planLaunchMoves(tree, [f("fA")], { ref: f("fB"), zone: "inside" }),
+    undefined,
+  );
+  assert.equal(
+    planLaunchMoves(tree, [f("fA")], { ref: d("d1"), zone: "after" }),
+    undefined,
+  );
+  assert.equal(
+    planLaunchMoves(tree, [d("d1")], { ref: d("d1"), zone: "after" }),
+    undefined,
+  );
+  assert.equal(planLaunchMoves(tree, [], { zone: "inside" }), undefined);
+});
+
+test("moves several entries in tree order before one anchor", () => {
+  const plan = planLaunchMoves(tree, [d("d3"), d("d1")], {
+    ref: d("d2"),
+    zone: "before",
+  });
+  assert.deepEqual(plan, {
+    destinationFolderId: "fA",
+    beforeSibling: d("d2"),
+    entries: [d("d1"), d("d3")],
+    noop: false,
+  });
+  // Landing next to each other where they already are changes nothing.
+  assert.equal(
+    planLaunchMoves(tree, [d("d1"), f("fB")], { ref: d("d2"), zone: "before" })
+      ?.noop,
+    true,
+  );
+});
+
+test("a moved folder carries its selected descendants", () => {
+  const plan = planLaunchMoves(tree, [f("fA"), d("d1")], {
+    zone: "inside",
+  });
+  assert.deepEqual(plan?.entries, [f("fA")]);
+});
+
+test("step targets are the neighbouring sibling", () => {
+  assert.deepEqual(launchStepTarget(tree, d("d1"), "down"), {
+    ref: f("fB"),
+    zone: "after",
+  });
+  assert.deepEqual(launchStepTarget(tree, d("d2"), "up"), {
+    ref: f("fB"),
+    zone: "before",
+  });
+  assert.equal(launchStepTarget(tree, f("fA"), "up"), undefined);
+  assert.equal(launchStepTarget(tree, d("d3"), "down"), undefined);
+});
+
+test("flattens in tree order", () => {
+  assert.deepEqual(
+    flattenLaunchTree(tree).map((node) => node.id),
+    ["fA", "d1", "fB", "d2", "d3"],
   );
 });
 
@@ -102,24 +150,4 @@ test("folder badge counts distinct active definitions, not runs", () => {
   const a = tree[0]!;
   // d2 has two active runs but is one active configuration.
   assert.equal(a.kind === "folder" && a.activeCount, 1);
-});
-
-test("drop preview names the full destination path", () => {
-  const dup = buildLaunchTree(
-    [
-      folder("p1", null, 0),
-      folder("p2", null, 1),
-      { id: "s1", label: "Staging", parentFolderId: "p1", order: 0 } as never,
-      { id: "s2", label: "Staging", parentFolderId: "p2", order: 0 } as never,
-    ],
-    [],
-  );
-  const text = (id: string) =>
-    describeLaunchDrop(dup, {
-      destinationFolderId: id,
-      beforeSibling: null,
-      noop: false,
-    });
-  assert.equal(text("s1"), "at the end of “p1 / Staging”");
-  assert.equal(text("s2"), "at the end of “p2 / Staging”");
 });

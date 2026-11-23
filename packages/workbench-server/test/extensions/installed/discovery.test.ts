@@ -74,17 +74,22 @@ void test("unknown and invalid manifest fields are rejected with their path", as
   const text = messages(await readFolder("strict", bad, NERVE));
   assert.match(text, /Unrecognized key.*surprise/);
   assert.match(text, /namespaces\.0\.methods\.echo\.risk/);
-  // Definition fields installed extensions cannot use say why.
+  // Fields only host code may set are unknown here; settings migrations say why they are refused.
+  const helper = await writeExtension(dir, { id: "helper" }, (manifest) => {
+    manifest.prelude = "globalThis.x = 1;";
+  });
+  assert.match(
+    messages(await readFolder("helper", helper, NERVE)),
+    /Unrecognized key.*prelude/,
+  );
   const unsupported = await writeExtension(
     dir,
     { id: "unsupported" },
     (manifest) => {
-      manifest.prelude = "globalThis.x = 1;";
       (manifest.settings as Record<string, unknown>).migrations = { 2: true };
     },
   );
   const reason = messages(await readFolder("unsupported", unsupported, NERVE));
-  assert.match(reason, /prelude: installed extensions cannot add helper code/);
   assert.match(
     reason,
     /settings\.migrations: installed extensions cannot declare/,
@@ -156,7 +161,7 @@ void test("SDK compatibility: oldest <= sdkVersion <= running version, otherwise
   assert.equal(reads.get("oldest")!.incompatible, undefined);
   assert.match(
     reads.get("too-old")!.incompatible!,
-    /Built with SDK 0\.38\.0; the manifest format and the backend API changed in SDK 0\.41\.0.*Ask the agent in the Forge profile to upgrade it\./,
+    /Built with SDK 0\.38\.0, older than the 0\.41\.0.*nerve-ext build.*Forge profile/,
   );
   assert.match(
     reads.get("too-new")!.incompatible!,

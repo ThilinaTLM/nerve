@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { sandbox } from "@nervekit/native";
+import { agentTextLimits } from "@nervekit/contracts/extensions";
 import { allOperationDefinitions } from "@nervekit/contracts/operations";
 import {
   scopedToolDefinitions,
@@ -26,7 +27,6 @@ import {
   createHostExtensionCatalog,
   hostRegistry,
 } from "../../../src/core-host/host-tools.js";
-import { agentTextLimits } from "../../../src/core-host/extensions/extension-catalog/agent-text-limits.js";
 import { extensionMethodHandlers } from "../../../src/adapters/protocol/handlers/extension-method-handlers.js";
 import {
   fixtureBackend,
@@ -252,10 +252,7 @@ void test(
     const wordy = entries.find((e) => e.id === "wordy")!;
     assert.equal(wordy.state, "invalid");
     const text = wordy.diagnostics.map((d) => d.message).join("\n");
-    assert.match(
-      text,
-      /summary is 201 characters; the limit for installed extensions is 200/,
-    );
+    assert.match(text, /summary is 201 characters; the limit is 200/);
     assert.match(text, /rule 1/);
     assert.match(text, /Tool 'wordy_echo': description/);
     assert.equal(entries.find((e) => e.id === "terse")!.state, "enabled");
@@ -335,19 +332,19 @@ void test("no agent-reachable surface can grant consent", async () => {
     operation.method.startsWith("extensions.ui."),
   );
   assert.deepEqual(uiOperations.map((operation) => operation.method).sort(), [
-    "extensions.ui.call",
+    "extensions.ui.backend.call",
+    "extensions.ui.chat.startConversation",
     "extensions.ui.contributions",
-    "extensions.ui.conversations.start",
-    "extensions.ui.extensionStore.delete",
-    "extensions.ui.extensionStore.get",
-    "extensions.ui.extensionStore.keys",
-    "extensions.ui.extensionStore.set",
     "extensions.ui.file.info",
     "extensions.ui.file.read",
     "extensions.ui.file.write",
     "extensions.ui.project.info",
     "extensions.ui.reportFrameError",
     "extensions.ui.settings.get",
+    "extensions.ui.store.delete",
+    "extensions.ui.store.get",
+    "extensions.ui.store.keys",
+    "extensions.ui.store.set",
     "extensions.ui.themes",
   ]);
   for (const operation of uiOperations)

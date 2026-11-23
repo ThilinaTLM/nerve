@@ -36,7 +36,7 @@ export function requestExtensionUiMethod(
 ): Promise<unknown> {
   // The operation name follows the bridge method; the daemon validates the input again.
   return requestWorkbench(
-    `extensions.ui.${method}` as "extensions.ui.call",
+    `extensions.ui.${method}` as "extensions.ui.backend.call",
     { ...scope, params, origin } as never,
   );
 }

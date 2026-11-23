@@ -10,7 +10,8 @@ import {
   readSandboxedDefinitionData,
 } from "@nervekit/tools/extension-host";
 import type { ExtensionCredentialCode } from "../../../domains/accounts/extension-credential-provider.js";
-import { distReader, maxBundleBytes } from "./read-installed.js";
+import { extensionFileLimits } from "@nervekit/contracts/extensions";
+import { distReader } from "./read-installed.js";
 
 /** An installed extension whose backend matches its manifest. */
 export type LoadedInstalledExtension = {
@@ -51,7 +52,10 @@ async function loadCredentialCode(
     };
   let bundle: string;
   try {
-    bundle = distReader(`${folder}/dist`)("credentials.js", maxBundleBytes);
+    bundle = distReader(`${folder}/dist`)(
+      "credentials.js",
+      extensionFileLimits.bundleBytes,
+    );
   } catch (cause) {
     return {
       error: `Cannot read dist/credentials.js: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -137,7 +141,10 @@ export async function loadInstalledExtension(
 ): Promise<LoadedInstalledExtension | { error: string }> {
   let bundle: string;
   try {
-    bundle = distReader(`${folder}/dist`)("backend.js", maxBundleBytes);
+    bundle = distReader(`${folder}/dist`)(
+      "backend.js",
+      extensionFileLimits.bundleBytes,
+    );
   } catch (cause) {
     return {
       error: `Cannot read dist/backend.js: ${cause instanceof Error ? cause.message : String(cause)}`,

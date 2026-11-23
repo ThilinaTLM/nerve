@@ -39,7 +39,7 @@ export function projectIdOfDirectory(
  * - Nothing runs before consent; a missing, `rejected` or unreadable decision is pending review.
  * - A project extension is pending again on any change of its content.
  * - A user extension keeps consent through a code-only change; a change that adds anything to
- *   its grants (network, accounts, capabilities, namespaces and operations, tools, UI) is pending
+ *   its grants (network, accounts, models, frame, namespaces and operations, tools, UI) is pending
  *   again, with the new grants as the review. Removed grants narrow the stored snapshot.
  */
 export class ExtensionConsentRepository implements ExtensionTrustGate {
