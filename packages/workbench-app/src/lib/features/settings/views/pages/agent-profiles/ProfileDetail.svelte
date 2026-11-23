@@ -4,6 +4,13 @@
   with Customize; a project profile waits for review before it applies.
 -->
 <script lang="ts">
+import {
+  FieldRow,
+  PageEmptyState,
+  PageHeader,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import Bot from "@lucide/svelte/icons/bot";
 import Copy from "@lucide/svelte/icons/copy";
 import FileText from "@lucide/svelte/icons/file-text";
@@ -31,11 +38,6 @@ import type { AuthProviderMetadata, AvailableSkill, ModelInfo } from "$lib/api";
 import {
   LayerEnabledTable,
   LevelMenu,
-  SettingsEmptyState,
-  SettingsItem,
-  SettingsList,
-  SettingsPageHeader,
-  SettingsRow,
   SettingsSection,
   TipBadge,
 } from "$lib/presentation/settings";
@@ -307,7 +309,7 @@ async function trust() {
   </DropdownMenu.Root>
 {/snippet}
 
-<SettingsPageHeader
+<PageHeader
   title={definition?.label ?? row.name}
   description={definition?.whenToUse}
   parent={{ label: parentLabel, onBack }}
@@ -364,7 +366,7 @@ async function trust() {
       {/if}
     </div>
   {/snippet}
-</SettingsPageHeader>
+</PageHeader>
 
 {#if error}
   <Callout layout="block" tone="destructive" text={error}>
@@ -479,7 +481,7 @@ async function trust() {
     />
   {/if}
   <SettingsSection title="Profile" divided>
-    <SettingsRow label="Label">
+    <FieldRow label="Label">
       {#snippet control()}
         <Input
           class="w-full"
@@ -492,8 +494,8 @@ async function trust() {
             event.key === "Enter" && event.currentTarget.blur()}
         />
       {/snippet}
-    </SettingsRow>
-    <SettingsRow
+    </FieldRow>
+    <FieldRow
       label="ID"
       description="Agents use this ID to refer to the profile. Duplicate to use a different ID."
     >
@@ -502,8 +504,8 @@ async function trust() {
           >{row.name}</span
         >
       {/snippet}
-    </SettingsRow>
-    <SettingsRow
+    </FieldRow>
+    <FieldRow
       label="When to use"
       description="The agent reads this to decide when to use the profile."
       layout="stacked"
@@ -519,8 +521,8 @@ async function trust() {
           whenToUse.trim() !== definition.whenToUse &&
           saveHead({ whenToUse })}
       />
-    </SettingsRow>
-    <SettingsRow label="Used as">
+    </FieldRow>
+    <FieldRow label="Used as">
       {#snippet control()}
         <SelectField
           class="w-full"
@@ -537,7 +539,7 @@ async function trust() {
             saveHead({ usableBy: value as ProfileUsableBy })}
         />
       {/snippet}
-    </SettingsRow>
+    </FieldRow>
   </SettingsSection>
 
   <SettingsSection
@@ -550,7 +552,7 @@ async function trust() {
       {#if sections.length && !readOnly}{@render addMenu(false)}{/if}
     {/snippet}
     {#if sections.length === 0}
-      <SettingsEmptyState
+      <PageEmptyState
         variant="card"
         title="Uses your defaults"
         description={readOnly
@@ -562,10 +564,10 @@ async function trust() {
       {#each sections as section (section.label)}
         <div class="grid gap-1.5">
           <GroupLabel label={section.label} class="pl-1" />
-          <SettingsList ariaLabel={section.label}>
+          <PageList ariaLabel={section.label}>
             {#each section.rows as change (change.key)}
               {@const title = changeRowLabel(change)}
-              <SettingsItem
+              <PageItem
                 {title}
                 summary={changeValueText(change, textDeps) || "Not written yet"}
                 onOpen={readOnly
@@ -623,15 +625,15 @@ async function trust() {
                     />
                   {/if}
                 {/snippet}
-              </SettingsItem>
+              </PageItem>
             {/each}
-          </SettingsList>
+          </PageList>
         </div>
       {/each}
     {/if}
   </SettingsSection>
 {:else}
-  <SettingsEmptyState
+  <PageEmptyState
     variant="card"
     title="This profile can't be read"
     description="Repair the file or reload it from disk."

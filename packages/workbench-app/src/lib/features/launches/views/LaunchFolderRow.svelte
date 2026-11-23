@@ -3,7 +3,7 @@ import Folder from "@lucide/svelte/icons/folder";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import { PanelRow } from "$lib/presentation/panels";
+import { PanelRow } from "@nervekit/ui-kit/components/composites/panel";
 
 let {
   label,

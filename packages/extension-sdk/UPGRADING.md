@@ -30,6 +30,32 @@ Mechanical steps, if the change cannot be read from the code above (renamed file
 
 <!-- Sections start here. Every released SDK version is compatible with the previous one. -->
 
+## Next release: Nerve's panel and page patterns (surface `ui`)
+
+The host no longer wraps a panel frame in a header and padding: the frame draws the whole panel, like Nerve's own panels. Existing panels keep loading (no compatibility floor changes) but lose the title line and the 0.5rem side inset; rebuild them on `PanelView` and `PanelHeader`. `@nervekit/extension-sdk/ui` now exports the panel components (`PanelView`, `PanelHeader`, `PanelToolbarButton`, `PanelFilterBar`, `PanelList`, `PanelRow`, `PanelTree`, `PanelSection`, `PanelSplit`, …), page components (`PageView`, `PageHeader`, `PageSection`, `FieldRow`, `ToggleRow`, `PageList`, `PageItem`, …), `SelectField`, `SwitchField`, `RadioGroupField`, `CommandList` and `VirtualScroller`; row `menuItems` open a host-drawn menu. Rebuild hand-made headers, lists and form rows from them (`reference/extensions/ui-patterns.md` of the configure-nerve skill).
+
+**Before**
+
+```svelte
+<div class="flex h-screen flex-col gap-2 bg-panel p-3">
+  <ul class="min-h-0 flex-1 overflow-auto">…</ul>
+</div>
+```
+
+**After**
+
+```svelte
+<PanelView>
+  {#snippet banner()}<PanelHeader
+      title="Checklist"
+      count={items.length}
+    />{/snippet}
+  <ScrollArea class="min-h-0 flex-1"
+    ><PanelList ariaLabel="Items">…</PanelList></ScrollArea
+  >
+</PanelView>
+```
+
 ## Next release: starting conversations from a frame (surfaces `manifest` and `ui`)
 
 Nothing existing breaks; this section tells an agent what is new. Declare `permissions.capabilities: ["conversations.start"]` to call `host.conversations.start({ prompt, title?, model?, agentProfile?, permissionRuleSet?, send?, open? })` from a UI frame; it resolves with `{ conversationId }`. Call it from a click or key handler (else `not_allowed`). `model`, `agentProfile` and `permissionRuleSet` are keys of your own settings of type `model`, `agentProfile` and `permissionRuleSet` (a missing key or another type rejects with `invalid_request`); an unset setting means Nerve's default. `send: false` leaves the prompt unsent in the new conversation's composer; `open: false` keeps the user where they are. the test fake records calls in `bridge.startedConversations`.

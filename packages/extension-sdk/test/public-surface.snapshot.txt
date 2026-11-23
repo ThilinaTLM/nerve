@@ -1169,6 +1169,226 @@ export const ProgressRing: Part;
 
 export const ScrollRegion: Part;
 
+export type ContextMenuItem =
+  | {
+      
+      type?: "item";
+      
+      label: string;
+      
+      disabled?: boolean;
+      
+      destructive?: boolean;
+      
+      onSelect?: () => void;
+    }
+  | {
+      
+      type: "separator";
+    }
+  | {
+      
+      type: "label";
+      
+      label: string;
+    }
+  | {
+      
+      type: "submenu";
+      
+      label: string;
+      
+      disabled?: boolean;
+      
+      items: ContextMenuItem[];
+    };
+
+export type FieldChoice = {
+  
+  value: string;
+  
+  label: string;
+  
+  detail?: string;
+  
+  disabled?: boolean;
+};
+
+export const SelectField: Part;
+
+export const SwitchField: Part;
+
+export const RadioGroupField: Part;
+
+export type CommandItem = {
+  
+  key: string;
+  
+  label: string;
+  
+  group: string;
+  
+  keywords?: readonly string[];
+};
+
+export const CommandList: Part;
+
+export const VirtualScroller: Part;
+
+// ── Panels ─────────────────────────────────────────────────────────────────
+// A panel is built like Nerve's Git, Files and Launches panels: `PanelView` > banner (`PanelHeader`, optional `PanelFilterBar`) > one scroll region of `PanelList`/`PanelTree` rows or `PanelSection`s.
+
+
+export const PanelView: Part;
+
+export const PanelHeader: Part;
+
+export const PanelToolbarButton: Part;
+
+export const PanelFilterBar: Part;
+
+export type PanelFilterScope = {
+  
+  value: string;
+  
+  label: string;
+  
+  count?: number;
+  
+  title?: string;
+};
+
+export const PanelSectionHeader: Part;
+
+export const PanelSection: Part;
+
+export const PanelSplit: Part;
+
+export type PanelSplitArea = {
+  
+  id: string;
+  
+  collapsible?: boolean;
+  
+  defaultCollapsed?: boolean;
+  
+  minPx: number;
+  
+  autoMaxShare?: number;
+  
+  fill?: number;
+  
+  headerPx?: number;
+  
+  fitContent?: boolean;
+  
+  resizeLabel?: string;
+};
+
+export type PanelSplitLayout = {
+  
+  collapsed: Record<string, boolean>;
+  
+  sizes: Record<string, number>;
+};
+
+export function emptyPanelSplitLayout(): PanelSplitLayout;
+
+export const PanelList: Part;
+
+export const PanelRow: Part;
+
+export const PanelRowCard: Part;
+
+export const PanelCard: Part;
+
+export const PanelTree: Part;
+
+export type PanelTreeNode<T> =
+  | {
+      
+      kind: "item";
+      
+      id: string;
+      
+      label: string;
+      
+      path: readonly string[];
+      
+      value: T;
+      
+      children: readonly PanelTreeNode<T>[];
+      
+      expandable?: boolean;
+    }
+  | {
+      
+      kind: "group";
+      
+      id: string;
+      
+      label: string;
+      
+      path: readonly string[];
+      
+      children: readonly PanelTreeNode<T>[];
+    };
+
+export function buildPanelTree<T>(
+  items: readonly T[],
+  options: {
+    getPath: (item: T) => readonly string[];
+    getKey: (item: T, index: number) => string;
+    compareLabels?: (left: string, right: string) => number;
+  },
+): PanelTreeNode<T>[];
+
+export function buildPanelItemTree<T>(
+  items: readonly T[],
+  options: {
+    getKey: (item: T) => string;
+    getParentKey: (item: T) => string | undefined;
+    getLabel: (item: T) => string;
+    isExpandable?: (item: T) => boolean;
+  },
+): PanelTreeNode<T>[];
+
+export const PanelEmpty: Part;
+
+// ── Pages ──────────────────────────────────────────────────────────────────
+// A page is built like Nerve's settings pages: `PageView` > `PageHeader` > `PageSection`s of `FieldRow`/`ToggleRow` or a `PageList` of `PageItem`s.
+
+
+export const PageView: Part;
+
+export const PageHeader: Part;
+
+export const PageSection: Part;
+
+export const FieldRow: Part;
+
+export const ToggleRow: Part;
+
+export const PageList: Part;
+
+export const PageItem: Part;
+
+export const PageEmptyState: Part;
+
+export const PageStatGrid: Part;
+
+export type PageStat = {
+  
+  label: string;
+  
+  value: string;
+  
+  wide?: boolean;
+  
+  mono?: boolean;
+};
+
+
 export const FloatingLayer: Part;
 
 export const FloatingToolbar: Part;

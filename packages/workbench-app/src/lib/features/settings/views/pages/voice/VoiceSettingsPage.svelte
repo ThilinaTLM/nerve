@@ -1,7 +1,8 @@
 <script lang="ts">
+import { FieldRow } from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { Settings, TranscriptionModel } from "$lib/api";
-import { SettingsRow, SettingsSection } from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import type { SettingsChange } from "../settings-change";
@@ -93,7 +94,7 @@ function saveVocabulary(): void {
     subscription endpoint, so model availability depends on the connected
     account.
   </Callout>
-  <SettingsRow
+  <FieldRow
     label="Transcription model"
     description="GPT Transcribe is OpenAI's recommended model; GPT-4o Transcribe remains the compatibility default."
     layout="responsive"
@@ -107,7 +108,7 @@ function saveVocabulary(): void {
         onValueChange={setModel}
       />
     {/snippet}
-  </SettingsRow>
+  </FieldRow>
 </SettingsSection>
 
 <SettingsSection
@@ -117,7 +118,7 @@ function saveVocabulary(): void {
     ? "GPT Transcribe receives structured language and vocabulary hints."
     : "GPT-4o transcription models receive these hints as prompt context."}
 >
-  <SettingsRow
+  <FieldRow
     label="Expected languages"
     description={usesStructuredContext
       ? "Enter one ISO language code per line. All codes are sent as language hints, which supports multilingual audio and code-switching."
@@ -138,9 +139,9 @@ function saveVocabulary(): void {
     {#if languageError}
       <Callout layout="block" tone="destructive" text={languageError} />
     {/if}
-  </SettingsRow>
+  </FieldRow>
 
-  <SettingsRow
+  <FieldRow
     label="Custom vocabulary"
     description={usesStructuredContext
       ? "Enter one name, acronym, or preferred spelling per line. OpenAI treats these as keyword hints, not required output."
@@ -165,5 +166,5 @@ function saveVocabulary(): void {
       Include only terms relevant to your dictation. Strong hints can bias the
       transcript toward words that were not spoken.
     </p>
-  </SettingsRow>
+  </FieldRow>
 </SettingsSection>

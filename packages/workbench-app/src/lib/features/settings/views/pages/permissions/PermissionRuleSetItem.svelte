@@ -3,11 +3,11 @@
   The overrides summary is the status line.
 -->
 <script lang="ts">
+import { PageItem } from "@nervekit/ui-kit/components/composites/page";
 import type {
   PermissionPolicyConfiguration,
   PermissionRuleSetSummary,
 } from "@nervekit/contracts/permissions";
-import { SettingsItem } from "$lib/presentation/settings";
 import PermissionRuleSetBadges from "./PermissionRuleSetBadges.svelte";
 import { overlaySummary } from "./permission-rule-sets-view";
 
@@ -21,7 +21,7 @@ type Props = {
 let { ruleSet, configuration, isDefault, onOpen }: Props = $props();
 </script>
 
-<SettingsItem
+<PageItem
   title={ruleSet.name}
   summary={overlaySummary(configuration, ruleSet.id).label}
   {onOpen}
@@ -30,4 +30,4 @@ let { ruleSet, configuration, isDefault, onOpen }: Props = $props();
   {#snippet badges()}
     <PermissionRuleSetBadges {ruleSet} {isDefault} />
   {/snippet}
-</SettingsItem>
+</PageItem>

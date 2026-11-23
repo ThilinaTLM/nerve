@@ -1,4 +1,9 @@
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
 import { subscriptionAccountLabel } from "./subscription-label";
 import LogOut from "@lucide/svelte/icons/log-out";
@@ -6,13 +11,8 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsItem } from "$lib/presentation/settings";
 import { loadSettingsPanel } from "$lib/application/settings/settings-actions.svelte";
-import {
-  SettingsSection,
-  SettingsList,
-  SettingsEmptyState,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import AddProviderDialog from "./AddProviderDialog.svelte";
 
 type Props = {
@@ -55,11 +55,11 @@ async function confirmLogout(): Promise<void> {
     />
   {/snippet}
   {#if subscriptions.length === 0}
-    <SettingsEmptyState variant="card" title="None connected." />
+    <PageEmptyState variant="card" title="None connected." />
   {:else}
-    <SettingsList ariaLabel="Connected subscriptions">
+    <PageList ariaLabel="Connected subscriptions">
       {#each subscriptions as provider (provider.provider)}
-        <SettingsItem
+        <PageItem
           title={provider.displayName}
           summary={subscriptionAccountLabel(
             provider.displayName,
@@ -83,9 +83,9 @@ async function confirmLogout(): Promise<void> {
               onclick={() => (pendingLogout = provider)}
             />
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 </SettingsSection>
 

@@ -1,4 +1,9 @@
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageHeader,
+  PageItem,
+} from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { ProjectRecord } from "$lib/presentation/view-models/conversation";
 import Copy from "@lucide/svelte/icons/copy";
@@ -17,9 +22,6 @@ import {
   LayerSwitches,
   OriginGroup,
   SETTINGS_SEARCH_MIN,
-  SettingsEmptyState,
-  SettingsItem,
-  SettingsPageHeader,
   SettingsSection,
   TipBadge,
   type SettingsLayer,
@@ -299,7 +301,7 @@ function copyPath(path: string): void {
 {#if itemId}
   {#if onCloseItem}
     <!-- The detail's page header; the shell leaves this slot to it. -->
-    <SettingsPageHeader
+    <PageHeader
       title={open?.label ?? itemId}
       description={open?.description}
       parent={{ label: "Suggestions", onBack: onCloseItem }}
@@ -325,7 +327,7 @@ function copyPath(path: string): void {
           </div>
         {/if}
       {/snippet}
-    </SettingsPageHeader>
+    </PageHeader>
   {/if}
   {@render notices()}
   {#if open}
@@ -333,7 +335,7 @@ function copyPath(path: string): void {
   {:else if loading}
     <Skeleton class="h-10 w-full" />
   {:else}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       title="Suggestion not found"
       description={`No prompt suggestion is registered as “${itemId}”.`}
@@ -380,7 +382,7 @@ function copyPath(path: string): void {
           >
         {/snippet}
         {#each group.rows as status (status.definitionKey)}
-          <SettingsItem
+          <PageItem
             title={status.label}
             icon={Lightbulb}
             summary={status.description ?? status.conditionSummary}
@@ -403,7 +405,7 @@ function copyPath(path: string): void {
             {#snippet meta()}
               {@render switches(status)}
             {/snippet}
-          </SettingsItem>
+          </PageItem>
         {/each}
       </OriginGroup>
     {/each}

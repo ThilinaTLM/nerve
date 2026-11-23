@@ -28,7 +28,7 @@ import {
 import {
   visiblePanelTreeRows,
   type PanelTreeController,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import {
   activateFileExplorerItem,
   collapseAllFileExplorerItems,

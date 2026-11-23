@@ -29,7 +29,7 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
-import { ItemSurface } from "$lib/presentation/items";
+import { ItemSurface } from "@nervekit/ui-kit/components/composites/item-surface";
 import {
   PanelCard,
   PanelEmpty,
@@ -41,7 +41,7 @@ import {
   PanelToolbarButton,
   PanelTree,
   buildPanelTree,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import FilesPanel from "$lib/features/filesystem/views/FilesPanel.svelte";
 import GitPanel from "$lib/features/git/views/GitPanel.svelte";
 import PullRequestsPanel from "$lib/features/git/views/PullRequestsPanel.svelte";

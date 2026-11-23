@@ -18,8 +18,8 @@ import {
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { cn } from "@nervekit/ui-kit/utils";
-import { PanelRow } from "$lib/presentation/panels";
-import { ItemSurface } from "$lib/presentation/items";
+import { PanelRow } from "@nervekit/ui-kit/components/composites/panel";
+import { ItemSurface } from "@nervekit/ui-kit/components/composites/item-surface";
 import type { ConversationActivity } from "./conversation-activity";
 import { idleConversationActivity } from "./conversation-activity";
 import ConversationActivityIndicator from "./ConversationActivityIndicator.svelte";

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { PageEmptyState } from "@nervekit/ui-kit/components/composites/page";
 import TitlesSettingsPage from "$lib/features/settings/views/pages/titles/TitlesSettingsPage.svelte";
 import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
 import SkillReviewPage from "$lib/features/settings/views/pages/skills/SkillReviewPage.svelte";
@@ -21,7 +22,6 @@ import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
 import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
-import { SettingsEmptyState } from "$lib/presentation/settings";
 import { DevicesSettingsPage } from "$lib/features/access";
 import GeneralSettingsPage from "$lib/features/settings/views/pages/general/GeneralSettingsPage.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
@@ -310,7 +310,7 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {onRestartDaemon}
     />
   {:else}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       icon={page.icon}
       title={page.label}

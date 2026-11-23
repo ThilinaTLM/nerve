@@ -11,7 +11,10 @@ import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import { PanelRow, PanelToolbarButton } from "$lib/presentation/panels";
+import {
+  PanelRow,
+  PanelToolbarButton,
+} from "@nervekit/ui-kit/components/composites/panel";
 import { launchDefinitionLabel } from "./launch-panel-controller.js";
 import LaunchStatusIcon from "./LaunchStatusIcon.svelte";
 import type {

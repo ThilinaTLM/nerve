@@ -7,6 +7,10 @@
   the list of accounts with a radio each, before Settings.
 -->
 <script lang="ts">
+import {
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import type { ExtensionsView } from "@nervekit/contracts/extensions";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import Library from "@lucide/svelte/icons/library";
@@ -32,8 +36,6 @@ import {
 import {
   ColumnLabels,
   LayerSwitches,
-  SettingsItem,
-  SettingsList,
   SettingsSection,
   SplitColumns,
   type SettingsLayer,
@@ -400,11 +402,11 @@ function openPage(page: "tools" | "skills"): void {
       description="The tools, Quick script namespaces and skills the agent gets when this extension is on."
       layerLabels={layered ? layerLabels : undefined}
     >
-      <SettingsList ariaLabel="Features">
+      <PageList ariaLabel="Features">
         {#each layout.features as row (`${row.kind}:${row.id}`)}
           {@const control = row.control}
           {@const item = control.type === "switch" ? control.item : undefined}
-          <SettingsItem
+          <PageItem
             title={row.title}
             summary={featureSummary(row)}
             icon={featureIcons[row.kind]}
@@ -459,9 +461,9 @@ function openPage(page: "tools" | "skills"): void {
                 >
               {/if}
             {/snippet}
-          </SettingsItem>
+          </PageItem>
         {/each}
-      </SettingsList>
+      </PageList>
     </SettingsSection>
   {/if}
   {#if pages.length > 0}
@@ -470,9 +472,9 @@ function openPage(page: "tools" | "skills"): void {
       title="Pages"
       description="Pages this extension adds to the open project. Each opens in its own tab."
     >
-      <SettingsList ariaLabel="Pages">
+      <PageList ariaLabel="Pages">
         {#each pages as page (page.id)}
-          <SettingsItem
+          <PageItem
             title={page.label}
             summary="Page"
             icon={PanelTop}
@@ -481,7 +483,7 @@ function openPage(page: "tools" | "skills"): void {
             openLabel={`Open ${page.label}`}
           />
         {/each}
-      </SettingsList>
+      </PageList>
     </SettingsSection>
   {/if}
   {#each listKinds as kind (kind.kind)}

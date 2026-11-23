@@ -1,13 +1,13 @@
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageHeader,
+} from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type { PermissionRule } from "@nervekit/contracts/permissions";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { Settings } from "$lib/api";
-import {
-  OriginGroup,
-  SettingsEmptyState,
-  SettingsPageHeader,
-} from "$lib/presentation/settings";
+import { OriginGroup } from "$lib/presentation/settings";
 import PermissionRuleDialog from "./PermissionRuleDialog.svelte";
 import PermissionRuleSetDetail from "./PermissionRuleSetDetail.svelte";
 import PermissionRuleSetItem from "./PermissionRuleSetItem.svelte";
@@ -104,7 +104,7 @@ async function trustProject(): Promise<void> {
 
 {#if itemId && onCloseItem}
   <!-- The detail's page header; the shell leaves this slot to it. -->
-  <SettingsPageHeader
+  <PageHeader
     title={openRuleSet?.name ?? itemId}
     description={openRuleSet?.description}
     parent={{ label: "Permission rules", onBack: onCloseItem }}
@@ -145,13 +145,13 @@ async function trustProject(): Promise<void> {
       onTrustProject={() => void trustProject()}
     />
   {:else if configuration}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       title="Rule set not found"
       description={`No rule set is registered as “${itemId}”.`}
     />
   {:else if !controller.error}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       title="Loading rule set"
       description="Fetching permission rule sets and overrides."
@@ -177,7 +177,7 @@ async function trustProject(): Promise<void> {
       </OriginGroup>
     {/each}
   {:else if !controller.error}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       title="Loading rule sets"
       description="Fetching permission rule sets and overrides."

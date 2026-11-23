@@ -1,4 +1,9 @@
 <script lang="ts">
+import type { PageStat } from "@nervekit/ui-kit/components/composites/page";
+import {
+  PageStatGrid,
+  ToggleRow,
+} from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import type {
   ApplicationConfigurationSnapshot,
@@ -9,9 +14,6 @@ import {
   SettingsFieldRow,
   SettingsSection,
   SettingsSelectRow,
-  SettingsStatGrid,
-  SettingsToggleRow,
-  type SettingsStat,
 } from "$lib/presentation/settings";
 import {
   MAX_ACTIVE_PROCESSES,
@@ -136,7 +138,7 @@ const pendingDesktopRestart = $derived(
 const automaticResources = $derived(
   configuration?.application.resources.mode.savedValue === "automatic",
 );
-const resourceStats = $derived<SettingsStat[]>(
+const resourceStats = $derived<PageStat[]>(
   configuration
     ? [
         {
@@ -169,7 +171,7 @@ const resourceStats = $derived<SettingsStat[]>(
     : [],
 );
 
-const diagnostics = $derived<SettingsStat[]>([
+const diagnostics = $derived<PageStat[]>([
   { label: "Daemon", value: status?.daemonId ?? "not loaded" },
   { label: "Version", value: status?.version ?? "—" },
   {
@@ -219,7 +221,7 @@ const diagnostics = $derived<SettingsStat[]>([
     title="Network"
     info="Configure the daemon listener and optional LAN/PWA access."
   >
-    <SettingsToggleRow
+    <ToggleRow
       label="Allow remote connections"
       description={describe(
         "Bind to the local network so trusted devices can connect.",
@@ -260,7 +262,7 @@ const diagnostics = $derived<SettingsStat[]>([
           }))}
       />
     </div>
-    <SettingsToggleRow
+    <ToggleRow
       label="Mobile HTTPS"
       description={describe(
         "Serve a local-CA HTTPS endpoint for installable mobile PWA access.",
@@ -291,7 +293,7 @@ const diagnostics = $derived<SettingsStat[]>([
   </SettingsSection>
 
   <SettingsSection id="diagnostics" title="Diagnostics">
-    <SettingsToggleRow
+    <ToggleRow
       label="Application logging"
       description={describe(
         "Write desktop and daemon application logs under the data directory.",
@@ -304,7 +306,7 @@ const diagnostics = $derived<SettingsStat[]>([
       onCheckedChange={(loggingEnabled) =>
         save({ application: { diagnostics: { loggingEnabled } } })}
     />
-    <SettingsToggleRow
+    <ToggleRow
       label="Performance sampling"
       description={describe(
         "Write lightweight local process and subsystem samples for profiling.",
@@ -384,7 +386,7 @@ const diagnostics = $derived<SettingsStat[]>([
     title="Resource concurrency"
     info="Nerve automatically chooses separate limits for model runs, tool batches, and managed processes. Manual overrides are intended for exceptional workloads."
   >
-    <SettingsToggleRow
+    <ToggleRow
       label="Automatic resource limits"
       description={describe(
         "Choose safe concurrency from the effective CPU and system memory detected when the daemon starts.",
@@ -399,7 +401,7 @@ const diagnostics = $derived<SettingsStat[]>([
           },
         })}
     />
-    <SettingsStatGrid items={resourceStats} />
+    <PageStatGrid items={resourceStats} />
     <div class="grid gap-3 sm:grid-cols-2">
       <SettingsFieldRow
         id="settings-model-concurrency"
@@ -583,7 +585,7 @@ const diagnostics = $derived<SettingsStat[]>([
   </SettingsSection>
 
   <SettingsSection id="launch-context" title="Launch context">
-    <SettingsStatGrid
+    <PageStatGrid
       items={[
         {
           label: "Data directory source",
@@ -616,5 +618,5 @@ const diagnostics = $derived<SettingsStat[]>([
 {/if}
 
 <SettingsSection id="system-information" title="System information">
-  <SettingsStatGrid items={diagnostics} />
+  <PageStatGrid items={diagnostics} />
 </SettingsSection>

@@ -341,7 +341,7 @@ export type PageContribution = {
 export type PanelContribution = {
   /** Kebab-case, unique among the extension's panels, at most 64 characters. */
   id: string;
-  /** Panel title (1–64 characters). */
+  /** Panel name in the dock switcher and the frame's accessible title (1–64 characters); the frame draws its own `PanelHeader`. */
   label: string;
   /** A lucide icon name in kebab-case (`list-checks`); an unknown name shows a puzzle piece. */
   icon: string;

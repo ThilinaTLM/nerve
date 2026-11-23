@@ -1,4 +1,14 @@
 <script lang="ts">
+import type { PageStat } from "@nervekit/ui-kit/components/composites/page";
+import {
+  FieldRow,
+  PageEmptyState,
+  PageHeader,
+  PageItem,
+  PageList,
+  PageStatGrid,
+  ToggleRow,
+} from "@nervekit/ui-kit/components/composites/page";
 import SettingsNav from "$lib/presentation/settings/SettingsNav.svelte";
 import SettingsChangeIndicator from "$lib/presentation/settings/SettingsChangeIndicator.svelte";
 import EntityCard from "$lib/presentation/settings/EntityCard.svelte";
@@ -37,22 +47,14 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import {
-  SettingsEmptyState,
   SettingsFieldRow,
   SettingsInfoHint,
-  SettingsItem,
-  SettingsList,
-  SettingsPageHeader,
-  SettingsRow,
   SettingsSection,
   SettingsSelectRow,
   SettingsShell,
   SettingsSidebarStatus,
-  SettingsStatGrid,
-  SettingsToggleRow,
   SettingsToolbar,
   type SettingsPageDef,
-  type SettingsStat,
 } from "$lib/presentation/settings";
 import ThemePreviewPicker from "$lib/features/settings/views/pages/workbench/ThemePreviewPicker.svelte";
 import { defaultColorTheme } from "@nervekit/contracts/settings";
@@ -77,7 +79,7 @@ const headerStyles = [
   { value: "native", label: "Native" },
 ];
 
-const stats: SettingsStat[] = [
+const stats: PageStat[] = [
   { label: "Platform", value: "linux" },
   { label: "Daemon mode", value: "owned" },
   { label: "Web assets", value: "bundled/default" },
@@ -253,9 +255,9 @@ let oauthResponse = $state("");
           {#snippet children(page)}
             {#if page.id === "workbench"}
               <SettingsSection id="appearance" title="Appearance">
-                <SettingsRow label="Theme" layout="stacked">
+                <FieldRow label="Theme" layout="stacked">
                   <ThemePreviewPicker bind:value={theme} />
-                </SettingsRow>
+                </FieldRow>
               </SettingsSection>
               <SettingsSection id="desktop" title="Desktop">
                 <SettingsSelectRow
@@ -271,7 +273,7 @@ let oauthResponse = $state("");
                     />
                   {/snippet}
                 </SettingsSelectRow>
-                <SettingsToggleRow
+                <ToggleRow
                   label="Close to system tray"
                   description="Hide Nerve in the tray instead of quitting."
                   bind:checked={trayToggle}
@@ -279,9 +281,9 @@ let oauthResponse = $state("");
               </SettingsSection>
             {:else if page.id === "tools"}
               <SettingsSection id="core" title="Core">
-                <SettingsList ariaLabel="Core tool groups">
+                <PageList ariaLabel="Core tool groups">
                   {#each coreTools as tool (tool.id)}
-                    <SettingsItem
+                    <PageItem
                       icon={WrenchIcon}
                       title={tool.title}
                       summary={tool.description}
@@ -289,19 +291,19 @@ let oauthResponse = $state("");
                       onOpen={tool.configure ? () => {} : undefined}
                     />
                   {/each}
-                  <SettingsItem
+                  <PageItem
                     icon={CpuIcon}
                     title="Sub-agents"
                     summary="Profiles, models and permissions are on the Sub-agents page."
                     onOpen={() => {}}
                     openLabel="Open Sub-agents"
                   />
-                </SettingsList>
+                </PageList>
               </SettingsSection>
               <SettingsSection id="third-party" title="Third party">
-                <SettingsList ariaLabel="Third-party tool groups">
+                <PageList ariaLabel="Third-party tool groups">
                   {#each thirdPartyTools as tool (tool.id)}
-                    <SettingsItem
+                    <PageItem
                       icon={WrenchIcon}
                       title={tool.title}
                       summary={tool.description}
@@ -309,11 +311,11 @@ let oauthResponse = $state("");
                       onOpen={() => {}}
                     />
                   {/each}
-                </SettingsList>
+                </PageList>
               </SettingsSection>
             {:else}
               <SettingsSection id={page.id} title={page.label}>
-                <SettingsEmptyState
+                <PageEmptyState
                   variant="card"
                   icon={CpuIcon}
                   title="Not modelled in the gallery"
@@ -332,12 +334,12 @@ let oauthResponse = $state("");
     description="Page title text-title semibold, section heading text-ui semibold, group heading text-ui semibold muted."
   >
     <GallerySpecimen
-      title="SettingsPageHeader"
-      source="settings/SettingsPageHeader"
+      title="PageHeader"
+      source="settings/PageHeader"
       usage="1 file · settings (via SettingsShell)"
       layout="stack"
     >
-      <SettingsPageHeader
+      <PageHeader
         title="Skills"
         description="Reusable instructions that agents can load on demand."
       >
@@ -347,7 +349,7 @@ let oauthResponse = $state("");
             Reload
           </Button>
         {/snippet}
-      </SettingsPageHeader>
+      </PageHeader>
     </GallerySpecimen>
 
     <GallerySpecimen
@@ -368,7 +370,7 @@ let oauthResponse = $state("");
             Add
           </Button>
         {/snippet}
-        <SettingsToggleRow label="Example row" bind:checked={toggleA} />
+        <ToggleRow label="Example row" bind:checked={toggleA} />
       </SettingsSection>
     </GallerySpecimen>
 
@@ -389,21 +391,21 @@ let oauthResponse = $state("");
     description="Row title text-ui regular foreground; supporting text text-ui muted."
   >
     <GallerySpecimen
-      title="SettingsRow"
-      source="settings/SettingsRow"
+      title="FieldRow"
+      source="settings/FieldRow"
       usage="6 files · settings, dialogs"
       layout="stack"
       description="Label + description with a control slot. Layouts: inline (default), stacked and responsive."
     >
-      <SettingsRow
+      <FieldRow
         label="Clean up conversations"
         description="Remove conversations by age or keep only the most recent."
       >
         {#snippet control()}
           <Button variant="outline">Configure</Button>
         {/snippet}
-      </SettingsRow>
-      <SettingsRow
+      </FieldRow>
+      <FieldRow
         label="Compaction profile"
         description="Thresholds scale with the selected model's context window."
         layout="stacked"
@@ -413,23 +415,23 @@ let oauthResponse = $state("");
         >
           Children slot content
         </div>
-      </SettingsRow>
+      </FieldRow>
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="SettingsToggleRow"
-      source="settings/SettingsToggleRow"
+      title="ToggleRow"
+      source="settings/ToggleRow"
       usage="7 files · settings, dialogs"
       layout="stack"
       description="Row + settings-size Switch."
     >
-      <SettingsToggleRow
+      <ToggleRow
         label="System notifications"
         description="Supporting text explains the effect."
         bind:checked={toggleA}
       />
-      <SettingsToggleRow label="Unchecked" bind:checked={toggleB} />
-      <SettingsToggleRow
+      <ToggleRow label="Unchecked" bind:checked={toggleB} />
+      <ToggleRow
         label="Disabled"
         description="Cannot be changed"
         checked
@@ -498,24 +500,24 @@ let oauthResponse = $state("");
 
   <GalleryGroup
     title="Lists"
-    description="Entity lists are one bordered SettingsList of hairline-divided rows. Right column holds IconActions."
+    description="Entity lists are one bordered PageList of hairline-divided rows. Right column holds IconActions."
   >
     <GallerySpecimen
-      title="SettingsList + SettingsItem"
-      source="settings/SettingsItem"
+      title="PageList + PageItem"
+      source="settings/PageItem"
       usage="settings catalogs and entity lists"
       layout="stack"
       description="Catalog row: identity icon, exceptional badges, one status line (a problem replaces the summary), meta, switch, chevron. The whole row opens the item."
     >
-      <SettingsList ariaLabel="Catalog items">
-        <SettingsItem
+      <PageList ariaLabel="Catalog items">
+        <PageItem
           icon={TerminalIcon}
           title="Bash"
           summary="Auto-background after 30 s"
           always
           onOpen={() => {}}
         />
-        <SettingsItem
+        <PageItem
           icon={CodeIcon}
           title="Python"
           summary="Python 3.13 (uv)"
@@ -529,8 +531,8 @@ let oauthResponse = $state("");
               onReset={() => {}}
             />
           {/snippet}
-        </SettingsItem>
-        <SettingsItem
+        </PageItem>
+        <PageItem
           icon={ImageIcon}
           title="Image generation"
           summary="OpenAI · gpt-image"
@@ -541,8 +543,8 @@ let oauthResponse = $state("");
         >
           {#snippet badges()}<Badge variant="info">Experimental</Badge
             >{/snippet}
-        </SettingsItem>
-        <SettingsItem
+        </PageItem>
+        <PageItem
           icon={EyeIcon}
           title="Image explanation"
           summary="gpt-5.2-mini"
@@ -550,14 +552,14 @@ let oauthResponse = $state("");
           lockedBy="Planning"
           onOpen={() => {}}
         />
-        <SettingsItem
+        <PageItem
           icon={BookOpenIcon}
           title="engineering-docs"
           summary={longText}
           mono
           bind:checked={itemSkill}
         />
-        <SettingsItem
+        <PageItem
           icon={KeyRoundIcon}
           title="acme-cloud"
           summary="acme.example.com · used by you and 2 projects"
@@ -567,48 +569,48 @@ let oauthResponse = $state("");
             <IconAction icon={PlugZapIcon} label="Test connection" />
             <IconAction icon={Trash2Icon} label="Delete" tone="destructive" />
           {/snippet}
-        </SettingsItem>
-      </SettingsList>
+        </PageItem>
+      </PageList>
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="SettingsItem (compact)"
-      source="settings/SettingsItem"
+      title="PageItem (compact)"
+      source="settings/PageItem"
       usage="shortcuts"
       layout="stack"
       description="compact: single-line rows (min-h-10, no status line) for reference lists whose rows never have a second line."
     >
-      <SettingsList ariaLabel="Compact rows">
+      <PageList ariaLabel="Compact rows">
         {#each ["New conversation", "Open command palette", "Toggle sidebar"] as label, i (label)}
-          <SettingsItem compact title={label}>
+          <PageItem compact title={label}>
             {#snippet meta()}
               <span
                 class="whitespace-nowrap font-mono text-caption text-muted-foreground"
                 >{["Ctrl+N", "Ctrl+K", "Ctrl+B"][i]}</span
               >
             {/snippet}
-          </SettingsItem>
+          </PageItem>
         {/each}
-      </SettingsList>
+      </PageList>
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="SettingsEmptyState"
-      source="settings/SettingsEmptyState"
+      title="PageEmptyState"
+      source="settings/PageEmptyState"
       usage="7 files · settings, shell"
       layout="stack"
       description="Dashed card variant (the one used in 6 of 9 sites) and the plain inline form."
     >
       <div class="grid gap-4 md:grid-cols-2">
-        <SettingsEmptyState title="No matching skills" />
-        <SettingsEmptyState
+        <PageEmptyState title="No matching skills" />
+        <PageEmptyState
           variant="card"
           title="No project-specific profiles yet"
           description="Select a project to configure overrides."
           icon={CpuIcon}
         />
         <SettingsSection title="In a divided section" divided>
-          <SettingsEmptyState
+          <PageEmptyState
             variant="card"
             icon={CpuIcon}
             title="Pads like a row"
@@ -633,13 +635,13 @@ let oauthResponse = $state("");
 
   <GalleryGroup title="Feedback & status">
     <GallerySpecimen
-      title="SettingsStatGrid"
-      source="settings/SettingsStatGrid"
+      title="PageStatGrid"
+      source="settings/PageStatGrid"
       usage="1 file · settings"
       layout="stack"
       description="Stat tiles, 2 columns from md; `wide` spans both, `mono` for paths and ids."
     >
-      <SettingsStatGrid items={stats} />
+      <PageStatGrid items={stats} />
     </GallerySpecimen>
 
     <GallerySpecimen
@@ -811,7 +813,7 @@ let oauthResponse = $state("");
         count={1}
         projectName={layerProject}
       >
-        <SettingsItem
+        <PageItem
           icon={BookOpenIcon}
           title="local-conventions"
           summary="Project skill"
@@ -827,14 +829,14 @@ let oauthResponse = $state("");
               onChange={(_, value) => (layered.local.project = value)}
             />
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       </OriginGroup>
       <OriginGroup
         origin={{ kind: "builtin" }}
         count={2}
         projectName={layerProject}
       >
-        <SettingsItem icon={WrenchIcon} title="core" summary="Built-in skill">
+        <PageItem icon={WrenchIcon} title="core" summary="Built-in skill">
           {#snippet badges()}
             <TipBadge
               text="Default"
@@ -856,8 +858,8 @@ let oauthResponse = $state("");
                       value === layered.core.user ? undefined : value)}
             />
           {/snippet}
-        </SettingsItem>
-        <SettingsItem
+        </PageItem>
+        <PageItem
           icon={BookOpenIcon}
           title="engineering-docs"
           summary="Off for User, on in the project"
@@ -875,7 +877,7 @@ let oauthResponse = $state("");
                   : (layered.docs.project = value)}
             />
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       </OriginGroup>
       <OriginGroup
         origin={{ kind: "user" }}
@@ -883,7 +885,7 @@ let oauthResponse = $state("");
         projectName={layerProject}
         locked
       >
-        <SettingsItem
+        <PageItem
           icon={BookOpenIcon}
           title="release-notes"
           summary="Untrusted project file: one lock on the label; the project switch is disabled and shows User's value"
@@ -897,7 +899,7 @@ let oauthResponse = $state("");
               onChange={() => {}}
             />
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       </OriginGroup>
       <OriginGroup
         origin={{ kind: "agent-browser" }}
@@ -922,8 +924,8 @@ let oauthResponse = $state("");
       <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
         <ColumnLabels projectName={layerProject} chevron />
       </div>
-      <SettingsList ariaLabel="Column labels">
-        <SettingsItem title="Both layers" summary="Radios in the same cells">
+      <PageList ariaLabel="Column labels">
+        <PageItem title="Both layers" summary="Radios in the same cells">
           {#snippet meta()}
             <LayerCells projectName={layerProject}>
               {#snippet user()}<input
@@ -937,13 +939,13 @@ let oauthResponse = $state("");
                 />{/snippet}
             </LayerCells>
           {/snippet}
-        </SettingsItem>
-      </SettingsList>
+        </PageItem>
+      </PageList>
       <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
         <ColumnLabels projectName={layerProject} projectOnly chevron />
       </div>
-      <SettingsList ariaLabel="Project-only column labels">
-        <SettingsItem title="Project-only" summary="The User cell stays empty">
+      <PageList ariaLabel="Project-only column labels">
+        <PageItem title="Project-only" summary="The User cell stays empty">
           {#snippet meta()}
             <LayerCells projectName={layerProject}>
               {#snippet project()}<input
@@ -953,8 +955,8 @@ let oauthResponse = $state("");
                 />{/snippet}
             </LayerCells>
           {/snippet}
-        </SettingsItem>
-      </SettingsList>
+        </PageItem>
+      </PageList>
       <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
         <ColumnLabels projectName={layerProject} locked chevron />
       </div>

@@ -1,17 +1,14 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import type { Attachment } from "svelte/attachments";
-import { cn } from "@nervekit/ui-kit/utils";
-import { gitPanelLayout } from "../state/git-panel-view-state.svelte";
 import {
-  draggable,
-  HEADER_PX,
-  sizeFor,
-  splitHeights,
-} from "./git-split-sizing";
+  PanelSplit,
+  type PanelSplitArea,
+  type PanelSplitLayout,
+} from "@nervekit/ui-kit/components/composites/panel-split";
+import { gitPanelLayout } from "../state/git-panel-view-state.svelte";
 
 type Section = "branch" | "changes";
-type Divider = "list" | "branch";
 type Measure = Attachment<HTMLElement>;
 type SectionProps = { open: boolean; toggle: () => void };
 /**
@@ -32,193 +29,75 @@ let {
   changes: Snippet<[SectionProps]>;
 } = $props();
 
-const DIVIDER_PX = 1;
-const KEY_STEP_PX = 16;
+/** One-line section header (`h-8`): the height of a collapsed section. */
+const HEADER_PX = 32;
 
-const layout = gitPanelLayout();
-const hasList = $derived(list !== undefined);
-let groupPx = $state(0);
-let listContentPx = $state(0);
-let branchBodyPx = $state(0);
+const LIST: PanelSplitArea = {
+  id: "list",
+  collapsible: false,
+  // Smallest list while it has rows; it scrolls below its content.
+  minPx: 56,
+  fitContent: true,
+  autoMaxShare: 0.5,
+  resizeLabel: "Resize repository list",
+};
+const BRANCH: PanelSplitArea = {
+  id: "branch",
+  // Its header plus one line.
+  minPx: HEADER_PX + 32,
+  headerPx: HEADER_PX,
+  autoMaxShare: 0.45,
+  resizeLabel: "Resize selected branch",
+};
+const CHANGES: PanelSplitArea = {
+  id: "changes",
+  defaultCollapsed: true,
+  minPx: 96,
+  headerPx: HEADER_PX,
+};
 
-/** Reports an element's natural height while it is mounted. */
-const measureInto =
-  (set: (px: number) => void): Measure =>
-  (element) => {
-    const observer = new ResizeObserver(() => set(element.offsetHeight));
-    observer.observe(element);
-    set(element.offsetHeight);
-    return () => observer.disconnect();
-  };
-const measureList = measureInto((px) => (listContentPx = px));
-const measureBranch = measureInto((px) => (branchBodyPx = px));
-
-const flags = $derived({
-  hasList,
-  branchOpen: !layout.branch.collapsed,
-  changesOpen: !layout.changes.collapsed,
+const stored = gitPanelLayout();
+const areas = $derived(list ? [LIST, BRANCH, CHANGES] : [BRANCH, CHANGES]);
+const layout = $derived<PanelSplitLayout>({
+  collapsed: {
+    branch: stored.branch.collapsed,
+    changes: stored.changes.collapsed,
+  },
+  sizes: {
+    ...(stored.listSize === null ? {} : { list: stored.listSize }),
+    ...(stored.branch.size === null ? {} : { branch: stored.branch.size }),
+  },
 });
-const totalPx = $derived(Math.max(0, groupPx - (hasList ? 2 : 1) * DIVIDER_PX));
-const heights = $derived(
-  splitHeights({
-    ...flags,
-    totalPx,
-    listContentPx,
-    branchContentPx: branchBodyPx ? HEADER_PX + branchBodyPx : 0,
-    listSize: layout.listSize,
-    branchSize: layout.branch.size,
-  }),
-);
 
-// ---- Motion: every change animates, except a drag and a panel resize. ----
-let dragging = $state<{
-  divider: Divider;
-  startY: number;
-  startPx: number;
-}>();
-let settled = $state(false);
-let settleFrame = 0;
-$effect(() => {
-  void groupPx;
-  void hasList;
-  settled = false;
-  cancelAnimationFrame(settleFrame);
-  settleFrame = requestAnimationFrame(() => (settled = true));
-  return () => cancelAnimationFrame(settleFrame);
-});
-const motion = $derived(
-  settled && !dragging
-    ? "transition-[height] duration-200 ease-out motion-reduce:transition-none"
-    : "",
-);
-
-function toggle(section: Section): void {
-  const target = layout[section];
-  target.collapsed = !target.collapsed;
-  layout.save();
+function onChange(next: PanelSplitLayout): void {
+  stored.branch.collapsed = next.collapsed.branch ?? false;
+  stored.changes.collapsed = next.collapsed.changes ?? true;
+  stored.listSize = next.sizes.list ?? null;
+  stored.branch.size = next.sizes.branch ?? null;
+  stored.save();
 }
 
+let split = $state<ReturnType<typeof PanelSplit>>();
 export function openSection(section: Section): void {
-  if (layout[section].collapsed) toggle(section);
-}
-
-// ---- Dividers: a drag sets the height of the area above; double-click makes it automatic again. ----
-const heightAbove = (divider: Divider) =>
-  divider === "list" ? heights.list : heights.branch;
-function setSize(divider: Divider, size: number | null): void {
-  if (divider === "list") layout.listSize = size;
-  else layout.branch.size = size;
-}
-function resize(divider: Divider, px: number): void {
-  setSize(divider, sizeFor(px, totalPx));
-}
-
-function onPointerDown(event: PointerEvent, divider: Divider): void {
-  if (event.button !== 0 || !draggable(divider, flags)) return;
-  event.preventDefault();
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-  dragging = { divider, startY: event.clientY, startPx: heightAbove(divider) };
-}
-function onPointerMove(event: PointerEvent): void {
-  if (!dragging) return;
-  resize(dragging.divider, dragging.startPx + event.clientY - dragging.startY);
-}
-function endDrag(): void {
-  if (!dragging) return;
-  dragging = undefined;
-  layout.save();
-}
-function onKeydown(event: KeyboardEvent, divider: Divider): void {
-  if (!draggable(divider, flags)) return;
-  const step =
-    event.key === "ArrowUp"
-      ? -KEY_STEP_PX
-      : event.key === "ArrowDown"
-        ? KEY_STEP_PX
-        : 0;
-  if (step) resize(divider, heightAbove(divider) + step);
-  else if (event.key === "Enter") setSize(divider, null);
-  else return;
-  event.preventDefault();
-  layout.save();
+  split?.open(section);
 }
 </script>
 
-{#snippet divider(which: Divider, label: string)}
-  {@const active = draggable(which, flags)}
-  {@const share = totalPx
-    ? Math.round((heightAbove(which) / totalPx) * 100)
-    : 0}
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-  <div
-    role="separator"
-    aria-orientation="horizontal"
-    aria-label={label}
-    aria-valuemin={0}
-    aria-valuemax={100}
-    aria-valuenow={share}
-    aria-disabled={!active}
-    tabindex={active ? 0 : -1}
-    title={active
-      ? "Drag to resize, double-click for automatic size"
-      : undefined}
-    class={cn(
-      "relative z-10 h-px w-full shrink-0 bg-border transition-colors outline-none",
-      active &&
-        "cursor-row-resize after:absolute after:inset-x-0 after:-top-1 after:h-2 hover:bg-ring focus-visible:bg-ring",
-      dragging?.divider === which && "bg-ring",
-    )}
-    onpointerdown={(event) => onPointerDown(event, which)}
-    onpointermove={onPointerMove}
-    onpointerup={endDrag}
-    onlostpointercapture={endDrag}
-    ondblclick={() => {
-      if (!active) return;
-      setSize(which, null);
-      layout.save();
-    }}
-    onkeydown={(event) => onKeydown(event, which)}
-  ></div>
-{/snippet}
-
-<div
-  class={cn(
-    "-mx-2 flex min-h-0 flex-1 flex-col overflow-hidden",
-    dragging && "cursor-row-resize select-none",
-  )}
-  bind:clientHeight={groupPx}
+<PanelSplit
+  bind:this={split}
+  {areas}
+  {layout}
+  {onChange}
+  class="-mx-2"
+  areaClass="px-2"
 >
-  {#if list}
-    <div
-      class={cn("min-h-0 shrink-0 overflow-hidden px-2", motion)}
-      style:height="{heights.list}px"
-    >
-      {@render list({
-        measure: measureList,
-        overflows: listContentPx > heights.list + 0.5,
-      })}
-    </div>
-    {@render divider("list", "Resize repository list")}
-  {/if}
-  <div
-    class={cn("min-h-0 shrink-0 overflow-hidden px-2", motion)}
-    style:height="{heights.branch}px"
-  >
-    {@render branch({
-      open: flags.branchOpen,
-      toggle: () => toggle("branch"),
-      measure: measureBranch,
-      overflows: HEADER_PX + branchBodyPx > heights.branch + 0.5,
-    })}
-  </div>
-  {@render divider("branch", "Resize selected branch")}
-  <div
-    class={cn("min-h-0 shrink-0 overflow-hidden px-2", motion)}
-    style:height="{heights.changes}px"
-  >
-    {@render changes({
-      open: flags.changesOpen,
-      toggle: () => toggle("changes"),
-    })}
-  </div>
-</div>
+  {#snippet area({ area, open, toggle, measure, overflows })}
+    {#if area.id === "list"}
+      {@render list?.({ measure, overflows })}
+    {:else if area.id === "branch"}
+      {@render branch({ open, toggle, measure, overflows })}
+    {:else}
+      {@render changes({ open, toggle })}
+    {/if}
+  {/snippet}
+</PanelSplit>

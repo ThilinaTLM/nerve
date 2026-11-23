@@ -20,7 +20,7 @@ void test("the typed component list matches what ui/components.ts exports", asyn
   ].flatMap((match) =>
     match[1]!
       .split(",")
-      .map((name) => name.trim().replace(/^default as /, ""))
+      .map((name) => name.trim().replace(/^\w+ as /, ""))
       .filter(Boolean),
   );
   const namespaces = names(implementation, /^export \* as (\w+) from/gm);

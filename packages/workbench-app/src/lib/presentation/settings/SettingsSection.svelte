@@ -1,16 +1,21 @@
+<!--
+  A settings section: the generic `PageSection` plus the settings-only bits
+  (nav anchor id, info hint, layer column labels, split labels).
+-->
 <script lang="ts">
-import type { Snippet } from "svelte";
-import { cn } from "@nervekit/ui-kit/utils";
+import type { ComponentProps, Snippet } from "svelte";
+import { PageSection } from "@nervekit/ui-kit/components/composites/page";
 import { settingsSectionDomId } from "./section-id";
 import SettingsInfoHint from "./SettingsInfoHint.svelte";
 
-type Props = {
+type Props = Omit<
+  ComponentProps<typeof PageSection>,
+  "id" | "titleHint" | "labels" | "beforeBody"
+> & {
   /** Section id from the page registry; omit for a section with no nav anchor. */
   id?: string;
-  /** Omit for a bare surface (e.g. a section whose page header already names it). */
-  title?: string;
-  /** One line of muted text under the heading. */
-  description?: string;
+  /** Longer detail shown in a tooltip beside the title. */
+  info?: string;
   /**
    * Layer column labels (`ColumnLabels`) of a layered table. They sit at the
    * right of the heading/description line, or on a short line of their own
@@ -19,115 +24,20 @@ type Props = {
   layerLabels?: Snippet;
   /** Labels over the two halves of `LayerRow`s (`SplitColumns`), on the line above the card. */
   splitLabels?: Snippet;
-  /** Longer detail shown in a tooltip beside the title. */
-  info?: string;
-  /**
-   * Rows are separated by hairlines and pad themselves (`SettingsRow` reads
-   * `data-settings-divided`). Without it the body keeps the legacy padded
-   * stack for pages that mix rows with free-form content.
-   */
-  divided?: boolean;
-  /**
-   * Rows sit on a card surface so the surface, not a rule, separates
-   * sections. Turn it off when the body is already its own card, e.g. a
-   * `SettingsList`.
-   */
-  surface?: boolean;
-  class?: string;
-  /** Classes for the body, e.g. its surface padding. */
-  bodyClass?: string;
-  actions?: Snippet;
-  /** Muted notes under the surface, outside its card (e.g. how the rows are used). */
-  footer?: Snippet;
-  children: Snippet;
 };
 
-let {
-  id,
-  title,
-  description,
-  info,
-  layerLabels,
-  splitLabels,
-  divided = false,
-  surface = true,
-  class: className,
-  bodyClass,
-  actions,
-  footer,
-  children,
-}: Props = $props();
+let { id, info, layerLabels, splitLabels, ...rest }: Props = $props();
 </script>
 
-<!-- The negative inline margin plus matching padding is a net-zero inset so the
-     one-shot section flash wash breathes around the content. The heading sits
-     outside, above the surface. -->
-<section
+<PageSection
+  {...rest}
   id={id ? settingsSectionDomId(id) : undefined}
-  aria-labelledby={id && title
-    ? `${settingsSectionDomId(id)}-title`
-    : undefined}
-  class={cn("-mx-2 grid min-w-0 scroll-mt-3 gap-2 px-2", className)}
+  labels={layerLabels}
+  beforeBody={splitLabels}
 >
-  {#if title || description || actions || layerLabels}
-    <div class="flex min-h-6 min-w-0 items-end justify-between gap-3">
-      <div class="grid min-w-0 gap-0.5">
-        {#if title}
-          <div class="flex min-w-0 items-center gap-1.5">
-            <h3
-              id={id ? `${settingsSectionDomId(id)}-title` : undefined}
-              tabindex="-1"
-              class="truncate text-ui font-medium text-foreground outline-none"
-            >
-              {title}
-            </h3>
-            {#if info}
-              <SettingsInfoHint text={info} label={`About ${title}`} />
-            {/if}
-          </div>
-        {/if}
-        {#if description}
-          <p class="text-caption text-muted-foreground">{description}</p>
-        {/if}
-      </div>
-      {#if actions}
-        <div class="flex flex-none items-center gap-1.5">
-          {@render actions()}
-        </div>
-      {:else if layerLabels}
-        <div class="flex-none pr-[calc(--spacing(3)+1px)]">
-          {@render layerLabels()}
-        </div>
-      {/if}
-    </div>
-    {#if actions && layerLabels}
-      <div class="flex justify-end pr-[calc(--spacing(3)+1px)]">
-        {@render layerLabels()}
-      </div>
+  {#snippet titleHint()}
+    {#if info && rest.title}
+      <SettingsInfoHint text={info} label={`About ${rest.title}`} />
     {/if}
-  {/if}
-  {#if splitLabels}{@render splitLabels()}{/if}
-
-  <!-- `data-settings-surface` is the contract nested cards (SettingsList,
-       card empty states, catalogs) read to drop their own chrome. -->
-  <div
-    data-settings-surface={surface ? "" : undefined}
-    data-settings-divided={surface && divided ? "" : undefined}
-    class={cn(
-      "group/surface grid min-w-0",
-      surface
-        ? divided
-          ? "divide-y divide-border rounded-lg border bg-card"
-          : "gap-1 rounded-lg border bg-card px-3 py-1.5"
-        : "gap-2",
-      bodyClass,
-    )}
-  >
-    {@render children()}
-  </div>
-  {#if footer}
-    <div class="min-w-0 px-0.5 text-caption text-muted-foreground">
-      {@render footer()}
-    </div>
-  {/if}
-</section>
+  {/snippet}
+</PageSection>

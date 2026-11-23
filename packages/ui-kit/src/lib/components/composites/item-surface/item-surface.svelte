@@ -1,7 +1,8 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import ContextMenuList from "@nervekit/ui-kit/components/composites/context-menu-list";
+import ItemMenu, {
+  type ContextMenuItem,
+} from "@nervekit/ui-kit/components/composites/item-menu";
 import { cn } from "@nervekit/ui-kit/utils";
 
 type SurfaceElement = "div" | "section";
@@ -93,14 +94,14 @@ const surfaceClass = $derived(
 {/snippet}
 
 {#if menuItems && menuItems.length > 0}
-  <ContextMenuList
+  <ItemMenu
     items={menuItems}
     disabled={menuDisabled}
     triggerClass={menuTriggerClass}
     onOpenChange={onMenuOpenChange}
   >
     {@render surface()}
-  </ContextMenuList>
+  </ItemMenu>
 {:else}
   {@render surface()}
 {/if}

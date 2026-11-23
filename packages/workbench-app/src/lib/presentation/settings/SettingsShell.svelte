@@ -1,11 +1,11 @@
 <script lang="ts">
+import { PageHeader } from "@nervekit/ui-kit/components/composites/page";
 import type { Snippet } from "svelte";
 import { tick } from "svelte";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { cn } from "@nervekit/ui-kit/utils";
 import { settingsSectionDomId } from "./section-id";
 import SettingsNav from "./SettingsNav.svelte";
-import SettingsPageHeader from "./SettingsPageHeader.svelte";
 import {
   firstEnabledSectionId,
   observeSettingsSections,
@@ -221,7 +221,7 @@ function selectPage(id: string): void {
         {#if activePage}
           <!-- A detail renders its own header in this slot (breadcrumb, item actions). -->
           {#if showHeader && !inDetail}
-            <SettingsPageHeader
+            <PageHeader
               title={activePage.label}
               description={activePage.description}
             >
@@ -230,7 +230,7 @@ function selectPage(id: string): void {
                   {@render pageActions(activePage)}
                 {/if}
               {/snippet}
-            </SettingsPageHeader>
+            </PageHeader>
           {/if}
 
           <div class="grid min-w-0 gap-5">
@@ -253,7 +253,7 @@ function selectPage(id: string): void {
   height: 100%;
   min-width: 0;
   min-height: 0;
-  container: settings-page / inline-size;
+  container: settings-page page / inline-size;
 }
 
 .settings-page {

@@ -4,19 +4,18 @@
   actions come from the launches feature through the host.
 -->
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import Play from "@lucide/svelte/icons/play";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import {
-  SettingsEmptyState,
-  SettingsItem,
-  SettingsList,
-  SettingsSection,
-  TipBadge,
-} from "$lib/presentation/settings";
+import { SettingsSection, TipBadge } from "$lib/presentation/settings";
 
 export type LaunchDefinitionRow = {
   id: string;
@@ -39,7 +38,7 @@ let deleting = $state<LaunchDefinitionRow>();
 
 <SettingsSection id="launch" surface={false}>
   {#if definitions.length === 0}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       icon={Play}
       title="No launch definitions yet."
@@ -51,11 +50,11 @@ let deleting = $state<LaunchDefinitionRow>();
           >
         {/if}
       {/snippet}
-    </SettingsEmptyState>
+    </PageEmptyState>
   {:else}
-    <SettingsList ariaLabel="Launch definitions">
+    <PageList ariaLabel="Launch definitions">
       {#each definitions as definition (definition.id)}
-        <SettingsItem
+        <PageItem
           title={definition.label}
           icon={Play}
           summary={[definition.command, definition.cwd]
@@ -90,9 +89,9 @@ let deleting = $state<LaunchDefinitionRow>();
               />
             {/if}
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 </SettingsSection>
 

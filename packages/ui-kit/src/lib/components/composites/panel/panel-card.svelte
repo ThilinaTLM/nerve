@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { tick, type Component, type Snippet } from "svelte";
-import { ItemSurface } from "$lib/presentation/items";
+import { ItemSurface } from "@nervekit/ui-kit/components/composites/item-surface";
 
 let {
   title,

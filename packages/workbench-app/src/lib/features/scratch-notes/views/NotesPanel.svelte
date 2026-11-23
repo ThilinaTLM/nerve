@@ -11,7 +11,7 @@ import {
   PanelHeader,
   PanelToolbarButton,
   PanelView,
-} from "$lib/presentation/panels";
+} from "@nervekit/ui-kit/components/composites/panel";
 import ScratchNoteCard from "./ScratchNoteCard.svelte";
 import type {
   ScratchNoteEntry,

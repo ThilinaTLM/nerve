@@ -1,13 +1,13 @@
 <script lang="ts">
+import {
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { onMount } from "svelte";
 import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenanceProgressView.svelte";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import {
-  SettingsItem,
-  SettingsSection,
-  SettingsList,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import StorageCleanupDialog from "./StorageCleanupDialog.svelte";
 import { formatBytes, percentOfTotal } from "./storage-format";
 import type { StoragePageController } from "./storage-page-state.svelte";
@@ -153,12 +153,9 @@ onMount(() => {
     title="What uses space"
     info="Categories are ordered by current footprint."
   >
-    <SettingsList ariaLabel="Storage categories">
+    <PageList ariaLabel="Storage categories">
       {#each categories as category, index (category.key)}
-        <SettingsItem
-          title={category.label}
-          summary={categorySummary(category)}
-        >
+        <PageItem title={category.label} summary={categorySummary(category)}>
           {#snippet leading()}
             <span
               class={`size-2 flex-none rounded-full ${categoryTones[index % categoryTones.length].bg}`}
@@ -177,9 +174,9 @@ onMount(() => {
               {/if}
             </span>
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   </SettingsSection>
 {/if}
 

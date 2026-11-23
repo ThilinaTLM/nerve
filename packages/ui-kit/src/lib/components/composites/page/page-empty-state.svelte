@@ -3,12 +3,16 @@ import type { Component, Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = {
+  /** What is empty. */
   title: string;
+  /** What to do about it. */
   description?: string;
+  /** Leading glyph (lucide icon). */
   icon?: Component<{ class?: string; "aria-hidden"?: "true" }>;
   /** `card` renders the bordered dashed empty-state box (e.g. inside provider lists). */
   variant?: "plain" | "card";
   class?: string;
+  /** Call-to-action buttons at the right. */
   actions?: Snippet;
 };
 
@@ -28,9 +32,9 @@ let {
     // A divided section surface has no padding of its own (its rows pad
     // themselves), so the empty state pads like a row. Other surfaces already
     // pad their body, so it sits flush there.
-    "group-data-settings-divided/surface:min-h-14 group-data-settings-divided/surface:px-3",
+    "group-data-page-divided/surface:min-h-14 group-data-page-divided/surface:px-3",
     variant === "card" &&
-      "rounded-md border border-dashed bg-card px-3 py-2 group-data-settings-surface/surface:border-0 group-data-settings-surface/surface:bg-transparent group-not-data-settings-divided/surface:group-data-settings-surface/surface:px-0",
+      "rounded-md border border-dashed bg-card px-3 py-2 group-data-page-surface/surface:border-0 group-data-page-surface/surface:bg-transparent group-not-data-page-divided/surface:group-data-page-surface/surface:px-0",
     className,
   )}
 >

@@ -4,6 +4,7 @@
   launch switches; main agents are chosen, not switched.
 -->
 <script lang="ts">
+import { PageItem } from "@nervekit/ui-kit/components/composites/page";
 import Bot from "@lucide/svelte/icons/bot";
 import Copy from "@lucide/svelte/icons/copy";
 import Users from "@lucide/svelte/icons/users";
@@ -14,7 +15,6 @@ import {
   LayerSwitches,
   OriginGroup,
   SETTINGS_SEARCH_MIN,
-  SettingsItem,
   TipBadge,
 } from "$lib/presentation/settings";
 import { changeRows } from "./profile-changes";
@@ -103,7 +103,7 @@ function problemOf(row: ProfileRow): string | undefined {
     {#each rows as row (row.id)}
       {@const definition = row.entry.definition}
       {@const problem = problemOf(row)}
-      <SettingsItem
+      <PageItem
         title={definition?.label ?? row.name}
         icon={sub ? Users : Bot}
         muted={!!row.replacedBy}
@@ -164,7 +164,7 @@ function problemOf(row: ProfileRow): string | undefined {
             />
           {/if}
         {/snippet}
-      </SettingsItem>
+      </PageItem>
     {/each}
   </OriginGroup>
 {/each}

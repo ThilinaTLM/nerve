@@ -1,18 +1,18 @@
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata } from "$lib/api";
 import { deleteProviderCredential } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { loadSettingsPanel } from "$lib/application/settings/settings-actions.svelte";
-import {
-  SettingsSection,
-  SettingsList,
-  SettingsEmptyState,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import AddProviderDialog from "./AddProviderDialog.svelte";
 
 type Props = {
@@ -66,15 +66,11 @@ async function confirmRemove(): Promise<void> {
     />
   {/snippet}
   {#if apiKeys.length === 0}
-    <SettingsEmptyState variant="card" title="None added." />
+    <PageEmptyState variant="card" title="None added." />
   {:else}
-    <SettingsList ariaLabel="Configured API keys">
+    <PageList ariaLabel="Configured API keys">
       {#each apiKeys as provider (provider.provider)}
-        <SettingsItem
-          title={provider.displayName}
-          summary={provider.envVar}
-          mono
-        >
+        <PageItem title={provider.displayName} summary={provider.envVar} mono>
           {#snippet leading()}
             <ProviderIcon
               provider={provider.provider}
@@ -89,9 +85,9 @@ async function confirmRemove(): Promise<void> {
               onclick={() => (pendingRemove = provider)}
             />
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 </SettingsSection>
 

@@ -6,10 +6,12 @@
   titles carry at most one simple action; the layer switches live here instead.
 -->
 <script lang="ts">
+import {
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import ColumnLabels from "./ColumnLabels.svelte";
 import LayerSwitches from "./LayerSwitches.svelte";
-import SettingsItem from "./SettingsItem.svelte";
-import SettingsList from "./SettingsList.svelte";
 import SettingsSection from "./SettingsSection.svelte";
 import type { SettingsLayer } from "./settings-origin";
 
@@ -55,8 +57,8 @@ let {
       <ColumnLabels {projectName} {projectOnly} {locked} chevron />
     {/if}
   {/snippet}
-  <SettingsList ariaLabel={title}>
-    <SettingsItem {title} summary={description}>
+  <PageList ariaLabel={title}>
+    <PageItem {title} summary={description}>
       {#snippet meta()}
         <LayerSwitches
           {name}
@@ -71,6 +73,6 @@ let {
           {onChange}
         />
       {/snippet}
-    </SettingsItem>
-  </SettingsList>
+    </PageItem>
+  </PageList>
 </SettingsSection>

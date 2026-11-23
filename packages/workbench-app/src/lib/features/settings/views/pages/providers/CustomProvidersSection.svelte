@@ -1,4 +1,5 @@
 <script lang="ts">
+import { PageItem } from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ProviderIcon from "$lib/presentation/model-picker/ProviderIcon.svelte";
 import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -6,7 +7,6 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import type { AuthProviderMetadata, CustomProvider } from "$lib/api";
 import { deleteCustomProvider } from "$lib/api";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
-import { SettingsItem } from "$lib/presentation/settings";
 import { providerCatalogState } from "$lib/features/settings/state/provider-catalog-state.svelte";
 import { refreshProviderCatalog } from "$lib/features/settings/state/provider-catalog-actions.svelte";
 import SettingsEntityListSection from "../../shared/settings-entity-list-section.svelte";
@@ -83,7 +83,7 @@ async function confirmDelete(): Promise<void> {
   onAdd={openAdd}
 >
   {#snippet row(provider)}
-    <SettingsItem
+    <PageItem
       title={provider.displayName}
       summary={`${provider.id} · ${provider.api} · ${provider.baseUrl} · ${modelCountByProvider.get(provider.id) ?? 0} models`}
       problem={keyConfigured(provider.id) ? undefined : "No API key"}
@@ -102,7 +102,7 @@ async function confirmDelete(): Promise<void> {
           onclick={() => (pendingDelete = provider)}
         />
       {/snippet}
-    </SettingsItem>
+    </PageItem>
   {/snippet}
   {#snippet below()}
     {#if deleteError}<Callout

@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import { ItemSurface } from "$lib/presentation/items";
+import { ItemSurface } from "@nervekit/ui-kit/components/composites/item-surface";
 
 let {
   role = "none",
@@ -14,8 +14,7 @@ let {
 }: {
   /** Outer semantics; rows inside already carry `listitem` where needed. */
   role?: "listitem" | "none";
-  /** The card paints hover and selection; put `hoverable={false}` on inner rows. */
-  /** Marks this card as the list's current item. */
+  /** Marks this card as the list's current item. The card paints hover and selection; put `hoverable={false}` on inner rows. */
   selected?: boolean;
   menuItems?: ContextMenuItem[];
   menuDisabled?: boolean;

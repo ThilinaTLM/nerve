@@ -1,6 +1,5 @@
 <!--
-  One item in a settings catalog or entity list (tools, skills, extensions,
-  providers, accounts). Fixed anatomy, all on one row:
+  One item in a catalog or entity list (tools, skills, extensions, accounts). Fixed anatomy, all on one row:
     icon · title + exceptional badges / one status line · meta, actions, switch, chevron
   - A selectable row (the chosen account among several) passes `select` in
     place of the icon: an interactive control, e.g. a radio, in the icon's slot.
@@ -14,7 +13,7 @@
   - Off is shown by the switch and a muted title and icon, never in the text.
   - `compact` is for reference lists whose rows never have a second line
     (shortcuts): `min-h-10`, and `summary`/`problem` are not shown.
-  Place items in a `SettingsList`.
+  Place items in a `PageList`.
 -->
 <script lang="ts">
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
@@ -67,6 +66,7 @@ type Props = {
   actions?: Snippet;
   /** Content under the status line, for the rare row that needs more (nested choices). */
   children?: Snippet;
+  /** `data-tour-id` of the row, for guided tours. */
   tourId?: string;
   class?: string;
 };

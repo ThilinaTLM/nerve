@@ -73,7 +73,5 @@ await build({
 });
 await mkdir("dist/ui", { recursive: true });
 await copyFile("src/ui/components.d.ts", "dist/ui/components.d.ts");
-await copyFile(
-  "ui/floating-toolbar-menu.svelte",
-  "dist/ui/floating-toolbar-menu.svelte",
-);
+for (const name of ["floating-toolbar-menu.svelte", "item-menu.svelte"])
+  await copyFile(`ui/${name}`, `dist/ui/${name}`);

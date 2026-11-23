@@ -1,7 +1,10 @@
 <script lang="ts" module>
-export type SettingsStat = {
+export type PageStat = {
+  /** Caption above the value. */
   label: string;
+  /** The value (one line, truncated; full text in the tooltip). */
   value: string;
+  /** Spans both columns. */
   wide?: boolean;
   /** Paths and identifiers; monospace is only for code, logs and paths. */
   mono?: boolean;
@@ -12,7 +15,8 @@ export type SettingsStat = {
 import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = {
-  items: SettingsStat[];
+  /** Stats, in order. */
+  items: PageStat[];
   class?: string;
 };
 

@@ -18,7 +18,10 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { MaterialFileIcon } from "$lib/presentation/files";
-import { buildPanelTree, PanelTree } from "$lib/presentation/panels";
+import {
+  buildPanelTree,
+  PanelTree,
+} from "@nervekit/ui-kit/components/composites/panel";
 import { CodeDiffView, type DiffLayout } from "$lib/presentation/code";
 import type { PrSectionState } from "../github-pr-types";
 import { fileStatusLetter, fileStatusTone } from "../pr-pane-helpers";

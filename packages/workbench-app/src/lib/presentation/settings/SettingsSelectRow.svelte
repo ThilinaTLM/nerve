@@ -1,6 +1,6 @@
 <script lang="ts">
+import { FieldRow } from "@nervekit/ui-kit/components/composites/page";
 import type { Snippet } from "svelte";
-import SettingsRow from "./SettingsRow.svelte";
 
 type Props = {
   label: string;
@@ -22,10 +22,10 @@ let {
 }: Props = $props();
 </script>
 
-<SettingsRow {label} {description} {htmlFor} class={className}>
+<FieldRow {label} {description} {htmlFor} class={className}>
   {#snippet control()}
-    <div class="w-48 min-w-0 group-data-settings-divided/surface:w-full">
+    <div class="w-48 min-w-0 group-data-page-divided/surface:w-full">
       {@render controlSnippet(disabled)}
     </div>
   {/snippet}
-</SettingsRow>
+</FieldRow>

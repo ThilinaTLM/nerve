@@ -94,63 +94,7 @@ async function save() {
 
 ## Look and feel
 
-Use the components from `@nervekit/extension-sdk/ui` (`reference/extensions/api/extension-sdk/ui/components.d.ts`) and icons from `@nervekit/extension-sdk/icons` (the lucide set: `import { Copy } from "@nervekit/extension-sdk/icons"`), so frames look like the rest of Nerve.
-
-- Use theme-token utilities, never fixed colors, so frames follow every theme: `bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-hover`, `text-destructive`, `text-success`, `text-ui`.
-- Fill the frame (`h-screen`, `min-h-0 flex-1 overflow-auto`); the host draws the tab title, close button and panel header.
-- Put the actions of a page, preview or panel in floating toolbars, like Nerve's own viewers. They stay out of the content and keep every extension consistent ("Floating toolbars" below).
-- Show loading, empty and error states. Use mono type only for code and paths.
-- Keep heavy libraries behind dynamic `import()`.
-
-## Floating toolbars
-
-Page-level actions, readouts, find fields and pane notices float over the content in a `FloatingLayer`. Exact props: the `Floating*` entries of `components.d.ts`.
-
-```svelte
-<div class="relative h-screen">
-  <div class="h-full overflow-auto"><!-- content --></div>
-  <FloatingLayer>
-    {#snippet topEnd()}
-      <FloatingToolbar label="Board actions">
-        <FloatingToolbarGroup>
-          <FloatingToolbarButton
-            label="Find"
-            shortcut="Ctrl+F"
-            icon={Search}
-            pressed={findOpen}
-            onclick={() => (findOpen = !findOpen)}
-          />
-          <FloatingToolbarButton
-            label="Export"
-            icon={Download}
-            onclick={exportBoard}
-          />
-          <FloatingToolbarMenu
-            items={[{ id: "reset", label: "Reset board", destructive: true }]}
-            onSelect={runMenu}
-          />
-        </FloatingToolbarGroup>
-      </FloatingToolbar>
-      {#if findOpen}
-        <FloatingPanel
-          label="Find"
-          role="search"
-          size="sm"
-          onClose={() => (findOpen = false)}
-        >
-          <Input placeholder="Find" bind:value={query} />
-        </FloatingPanel>
-      {/if}
-    {/snippet}
-  </FloatingLayer>
-</div>
-```
-
-- Anchors by meaning: `topStart` what the view shows (view choice, size readout); `topEnd` actions on the content, with a `FloatingPanel` stacked under its bar; `bottomEnd` zoom and fit as an icon-only `orientation="vertical"` bar, with a changing zoom level in a separate one-button bar beside it; `bottomStart` `FloatingNotice`s.
-- Every bar button is a `FloatingToolbarButton` with a `label` (its tooltip); toggles use `pressed`; readouts use `FloatingToolbarText`; groups draw the dividers.
-- Keep 4–8 controls per bar and put the rest in `FloatingToolbarMenu`, which opens `host.ui.showMenu`.
-- Fields go only in a `FloatingPanel`.
-- Enter, exit and resize motion is built in; add none.
+Build every frame from Nerve's UI patterns in `reference/extensions/ui-patterns.md`: panels like the Git and Files panels, pages like the settings pages, and floating toolbars for previews and canvas-like pages. The components come from `@nervekit/extension-sdk/ui`, icons from `@nervekit/extension-sdk/icons`. The host draws only the tab title and close button; a panel frame draws its own header (`PanelHeader`). Show loading, empty and error states.
 
 ## Not allowed in frames
 
@@ -163,7 +107,7 @@ The build fails with a fix for imports that cannot work inside a frame rectangle
 | Context menu, dropdown menu | `host.ui.showMenu(items, { x, y })`       |
 | Sonner or other toasts      | `host.ui.notify(message, level)`          |
 
-Also unavailable: network (`fetch`, WebSocket), top navigation, popups, `<form>` submission (the frame is sandboxed without `allow-forms`, so `onsubmit` never fires: use `onclick` and `onkeydown` handlers), and anything outside the frame's rectangle. `Select` and `Tooltip` work but are clipped to the frame.
+Also unavailable: network (`fetch`, WebSocket), top navigation, popups, `<form>` submission (the frame is sandboxed without `allow-forms`, so `onsubmit` never fires: use `onclick` and `onkeydown` handlers), and anything outside the frame's rectangle. `Select`, `SelectField` and `Tooltip` work but are clipped to the frame; for long lists use `CommandList`.
 
 The frame's origin is opaque, so `localStorage`, `IndexedDB`, cookies and `navigator.clipboard` fail: use `host.extensionStore` and `host.clipboard`. Runtime `<style>` elements, inline `style` attributes, workers and WebAssembly work.
 

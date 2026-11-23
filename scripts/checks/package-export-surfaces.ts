@@ -118,6 +118,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./scheduling/*",
       "./terminal/*",
       "./components/ui/*",
+      "./components/composites/panel/panel-tree",
       "./components/composites/*",
     ],
     "@nervekit/website": [],

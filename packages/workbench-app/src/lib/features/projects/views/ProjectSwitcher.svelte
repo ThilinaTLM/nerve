@@ -10,7 +10,7 @@ import Popover, {
   PopoverFooter,
   PopoverHeader,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
-import { ItemSurface } from "$lib/presentation";
+import { ItemSurface } from "@nervekit/ui-kit/components/composites/item-surface";
 import {
   getShortcutAriaLabel,
   getShortcutLabel,

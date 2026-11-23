@@ -1,33 +1,65 @@
 <script lang="ts">
-import { Button, host } from "@nervekit/extension-sdk/ui";
+import {
+  Button,
+  FieldRow,
+  host,
+  Input,
+  PageHeader,
+  PageSection,
+  PageView,
+  ToggleRow,
+} from "@nervekit/extension-sdk/ui";
 
 let project = $state<{ name: string; directory: string } | undefined>();
 let path = $state("README.md");
+let notifyOnOpen = $state(false);
 
 $effect(() => {
   void host.project.info().then((info) => (project = info));
+  // The host keeps the tab's view state; restore it when the tab opens.
+  void host.viewState.get().then((state) => {
+    if (!state || typeof state !== "object") return;
+    if ("path" in state && typeof state.path === "string") path = state.path;
+    if ("notifyOnOpen" in state) notifyOnOpen = state.notifyOnOpen === true;
+  });
 });
 
 async function remember() {
-  await host.viewState.set({ path });
+  await host.viewState.set({ path, notifyOnOpen });
+}
+
+async function openFile() {
+  await host.openFile(path);
+  if (notifyOnOpen) host.ui.notify(`Opened ${path}`, "success");
 }
 </script>
 
-<main class="flex h-screen flex-col gap-3 bg-background p-4 text-foreground">
-  <h1 class="text-title font-medium">{project?.name ?? "…"}</h1>
-  <p class="text-ui text-muted-foreground">{project?.directory}</p>
-  <div class="flex items-center gap-2">
-    <input
-      class="h-control rounded-md border border-input bg-input-background px-2 text-ui"
-      bind:value={path}
-      onchange={remember}
+<PageView>
+  <PageHeader title={project?.name ?? "…"} description={project?.directory} />
+
+  <PageSection
+    title="Open a file"
+    description="Paths are relative to the project."
+    divided
+  >
+    <FieldRow label="File" htmlFor="overview-path">
+      {#snippet control()}
+        <div class="flex gap-2">
+          <Input
+            id="overview-path"
+            class="min-w-0 flex-1"
+            bind:value={path}
+            onchange={remember}
+          />
+          <Button onclick={openFile}>Open file</Button>
+        </div>
+      {/snippet}
+    </FieldRow>
+    <ToggleRow
+      label="Notify on open"
+      description="Show a toast after the file opens."
+      bind:checked={notifyOnOpen}
+      onCheckedChange={() => void remember()}
     />
-    <Button onclick={() => host.openFile(path)}>Open file</Button>
-    <Button
-      variant="outline"
-      onclick={() => host.ui.notify("Hello from __ID__", "success")}
-    >
-      Notify
-    </Button>
-  </div>
-</main>
+  </PageSection>
+</PageView>

@@ -1,4 +1,8 @@
 <script lang="ts">
+import {
+  FieldRow,
+  ToggleRow,
+} from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ArrowRight from "@lucide/svelte/icons/arrow-right";
 import type { AuthProviderMetadata, ModelInfo, Settings } from "$lib/api";
@@ -13,11 +17,7 @@ import { openSettingsPane } from "$lib/application/settings";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
-import {
-  SettingsRow,
-  SettingsSection,
-  SettingsToggleRow,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import type { SettingsChange } from "../settings-change";
 import { isTitleModelCompatible, titleSettingsStatus } from "./title-settings";
 let {
@@ -75,13 +75,13 @@ async function runTest() {
     selected provider, which may bill for usage. It can differ from your coding
     agent's provider.
   </Callout>
-  <SettingsToggleRow
+  <ToggleRow
     label="Improve titles with AI"
     description="Off by default. Existing conversations are never retitled."
     checked={settingsDraft.conversationTitles.enabled}
     onCheckedChange={(enabled) => save({ enabled })}
   />
-  <SettingsRow
+  <FieldRow
     label="Model"
     description="A small, fast text model works best, such as Flash-Lite, GPT-5 nano or Haiku."
     layout="responsive"
@@ -107,7 +107,7 @@ async function runTest() {
         onChange={({ model }) => save({ model: model ?? null })}
       />
     {/snippet}
-  </SettingsRow>
+  </FieldRow>
   {#if status === "no-model"}
     <Callout layout="block" tone="warning"
       >Choose a model to start. Until then, local titles are used.</Callout
@@ -124,7 +124,7 @@ async function runTest() {
   title="Test"
   info="Uses a built-in sample prompt, never one of your conversations."
 >
-  <SettingsRow label="Sample prompt" description={TITLE_TEST_PROMPT}>
+  <FieldRow label="Sample prompt" description={TITLE_TEST_PROMPT}>
     {#snippet control()}
       <Button
         variant="outline"
@@ -133,7 +133,7 @@ async function runTest() {
         >{#if running}<Spinner />{/if}Run test</Button
       >
     {/snippet}
-  </SettingsRow>
+  </FieldRow>
   {#if result}
     <Callout
       layout="block"

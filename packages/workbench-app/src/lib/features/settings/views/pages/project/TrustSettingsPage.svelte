@@ -4,6 +4,11 @@
   project extension.
 -->
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import Blocks from "@lucide/svelte/icons/blocks";
@@ -11,13 +16,7 @@ import Bot from "@lucide/svelte/icons/bot";
 import FileText from "@lucide/svelte/icons/file-text";
 import type { BadgeVariant } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import {
-  SettingsEmptyState,
-  SettingsItem,
-  SettingsList,
-  SettingsSection,
-  TipBadge,
-} from "$lib/presentation/settings";
+import { SettingsSection, TipBadge } from "$lib/presentation/settings";
 import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
 import type { ExtensionCatalogEntry } from "@nervekit/contracts/extensions";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
@@ -172,9 +171,9 @@ async function trustProfile(): Promise<void> {
 {/snippet}
 
 <SettingsSection id="trust" title="Configuration files" surface={false}>
-  <SettingsList ariaLabel="Configuration files">
+  <PageList ariaLabel="Configuration files">
     {#if projectId}
-      <SettingsItem
+      <PageItem
         title="Agent capabilities"
         icon={FileText}
         iconLabel={`Scoped models, tools, skills and delegation · ${absolute(agentPath)}`}
@@ -198,10 +197,10 @@ async function trustProfile(): Promise<void> {
             />
           {/if}
         {/snippet}
-      </SettingsItem>
+      </PageItem>
     {/if}
     {#each entries as entry (entry.id)}
-      <SettingsItem
+      <PageItem
         title={entry.title}
         icon={FileText}
         iconLabel={`${entry.description} · ${absolute(entry.path)}`}
@@ -221,22 +220,22 @@ async function trustProfile(): Promise<void> {
             >
           {/if}
         {/snippet}
-      </SettingsItem>
+      </PageItem>
     {/each}
-  </SettingsList>
+  </PageList>
 </SettingsSection>
 
 <SettingsSection id="profile-files" title="Agent profile files" surface={false}>
   {#if profileFiles.length === 0}
-    <SettingsEmptyState variant="card" icon={Bot} title="None." />
+    <PageEmptyState variant="card" icon={Bot} title="None." />
   {:else}
-    <SettingsList ariaLabel="Agent profile files">
+    <PageList ariaLabel="Agent profile files">
       {#each profileFiles as profile (profile.name)}
         {@const path = relative(
           profile.path ?? `.nerve/agent-profiles/${profile.name}.json`,
         )}
         {@const value = profile.trusted ? "trusted" : "untrusted"}
-        <SettingsItem
+        <PageItem
           title={profile.definition?.label ?? profile.name}
           icon={Bot}
           iconLabel={absolute(path)}
@@ -266,9 +265,9 @@ async function trustProfile(): Promise<void> {
                 : "Preview repair"}</Button
             >
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 </SettingsSection>
 
@@ -278,13 +277,13 @@ async function trustProfile(): Promise<void> {
   surface={false}
 >
   {#if projectExtensions.length === 0}
-    <SettingsEmptyState variant="card" icon={Blocks} title="None." />
+    <PageEmptyState variant="card" icon={Blocks} title="None." />
   {:else}
-    <SettingsList ariaLabel="Project extensions">
+    <PageList ariaLabel="Project extensions">
       {#each projectExtensions as entry (entry.path ?? entry.id)}
         {@const path = relative(entry.path ?? `.nerve/extensions/${entry.id}`)}
         {@const value = entry.state === "enabled" ? "trusted" : "untrusted"}
-        <SettingsItem
+        <PageItem
           title={entry.name ?? entry.id}
           icon={Blocks}
           iconLabel={absolute(path)}
@@ -313,9 +312,9 @@ async function trustProfile(): Promise<void> {
               >
             {/if}
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 </SettingsSection>
 

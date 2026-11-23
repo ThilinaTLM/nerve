@@ -7,12 +7,12 @@
   heading never jumps.
 -->
 <script lang="ts">
+import { PageHeader } from "@nervekit/ui-kit/components/composites/page";
 import Lock from "@lucide/svelte/icons/lock";
 import type { ExtensionView } from "@nervekit/contracts/extensions";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import {
   LayerEnabledTable,
-  SettingsPageHeader,
   type SettingsLayer,
 } from "$lib/presentation/settings";
 import ExtensionMark from "./ExtensionMark.svelte";
@@ -52,7 +52,7 @@ let {
 const source = $derived(extension?.enabled.source);
 </script>
 
-<SettingsPageHeader
+<PageHeader
   title={extension?.metadata.name ?? itemId}
   description={extension?.metadata.description}
   parent={{ label: parentLabel, onBack }}
@@ -107,4 +107,4 @@ const source = $derived(extension?.enabled.source);
       </div>
     {/if}
   {/snippet}
-</SettingsPageHeader>
+</PageHeader>

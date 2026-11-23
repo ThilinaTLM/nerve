@@ -5,6 +5,10 @@
   extensions; Reload in the page header does it again.
 -->
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+} from "@nervekit/ui-kit/components/composites/page";
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import { visibleAccounts } from "../accounts/accounts-view";
 import Blocks from "@lucide/svelte/icons/blocks";
@@ -24,8 +28,6 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import {
   LayerSwitches,
   OriginGroup,
-  SettingsEmptyState,
-  SettingsItem,
   type SettingsLayer,
 } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
@@ -387,7 +389,7 @@ $effect(() => {
         : undefined}
     />
   {:else}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       icon={Blocks}
       title="Extension not found"
@@ -416,7 +418,7 @@ $effect(() => {
           {@const fix = loaded
             ? extensionFix(loaded, accounts, accountsState.kinds)
             : undefined}
-          <SettingsItem
+          <PageItem
             title={row.name}
             summary={loaded
               ? extensionSummary(loaded, accounts)
@@ -473,7 +475,7 @@ $effect(() => {
                 onChange={(layer, next) => toggle(row, layer, next)}
               />
             {/snippet}
-          </SettingsItem>
+          </PageItem>
         {/each}
       </OriginGroup>
     {/each}

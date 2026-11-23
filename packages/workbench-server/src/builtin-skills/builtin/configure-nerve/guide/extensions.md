@@ -40,6 +40,7 @@ Declare only what the feature needs: network origins, capabilities, accounts. Ea
 - Definition decisions, text limits, states: `reference/extensions/manifest.md`
 - Backend (`ctx`, risks, `authorize`, errors, tests): `reference/extensions/backend.md`
 - Previews, pages, panels, bridge, components: `reference/extensions/ui.md`
+- Layout and components that match Nerve (read before writing any frame): `reference/extensions/ui-patterns.md`
 - Themes: `reference/extensions/themes.md`
 - What to put in front of the user: `reference/extensions/security.md`
 

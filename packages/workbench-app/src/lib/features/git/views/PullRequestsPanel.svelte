@@ -1,5 +1,5 @@
 <script lang="ts">
-import { PanelView } from "$lib/presentation/panels";
+import { PanelView } from "@nervekit/ui-kit/components/composites/panel";
 import GitPanelBanner from "./GitPanelBanner.svelte";
 import GitPullRequestsContent from "./GitPullRequestsContent.svelte";
 import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";

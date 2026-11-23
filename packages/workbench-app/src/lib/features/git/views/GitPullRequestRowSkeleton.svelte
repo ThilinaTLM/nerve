@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import { ItemSurface } from "$lib/presentation/items";
+import { ItemSurface } from "@nervekit/ui-kit/components/composites/item-surface";
 </script>
 
 <ItemSurface

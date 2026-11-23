@@ -19,7 +19,7 @@ import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/con
 import { cn } from "@nervekit/ui-kit/utils";
 import { tick, type Snippet } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
-import PanelRow from "./PanelRow.svelte";
+import PanelRow from "./panel-row.svelte";
 import {
   adjacentPanelTreeRowId,
   expandedPanelTreeIds,

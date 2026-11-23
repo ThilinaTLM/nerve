@@ -12,6 +12,7 @@ import * as Select from "@nervekit/ui-kit/components/ui/select";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {
+  id,
   items = [],
   value = $bindable(""),
   placeholder = "Select",
@@ -22,6 +23,8 @@ let {
   contentClass,
   onValueChange,
 }: {
+  /** Id of the trigger, for a `<label for>` (`FieldRow htmlFor`). */
+  id?: string;
   items?: SelectItem[];
   value?: string;
   placeholder?: string;
@@ -40,6 +43,7 @@ const selectedLabel = $derived(
 
 <Select.Root type="single" bind:value {disabled} {onValueChange}>
   <Select.Trigger
+    {id}
     aria-label={ariaLabel}
     class={cn("w-full min-w-0", triggerClass, className)}
   >

@@ -1,6 +1,12 @@
 // The UI kit components that work inside a frame. Dialogs, sheets, context and dropdown menus and
 // toasts do not (a frame cannot draw outside its rectangle); `nerve-ext build` rejects them and
 // points at `host.ui.confirm`, `host.ui.showMenu` and `host.ui.notify`.
+import { setItemMenuRenderer } from "@nervekit/ui-kit/components/composites/item-menu";
+import ItemMenu from "./item-menu.svelte";
+
+// Context menus of panel rows, trees and cards open through the host.
+setItemMenuRenderer(ItemMenu);
+
 export { cn } from "@nervekit/ui-kit";
 
 export { Button, buttonVariants } from "@nervekit/ui-kit/components/ui/button";
@@ -33,6 +39,44 @@ export { SearchInput } from "@nervekit/ui-kit/components/composites/search-input
 export { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 export { ProgressRing } from "@nervekit/ui-kit/components/composites/progress-ring";
 export { ScrollRegion } from "@nervekit/ui-kit/components/composites/scroll-region";
+export { default as SelectField } from "@nervekit/ui-kit/components/composites/select-field";
+export { default as SwitchField } from "@nervekit/ui-kit/components/composites/switch-field";
+export { default as RadioGroupField } from "@nervekit/ui-kit/components/composites/radio-group-field";
+export { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
+export { PopoverCommandList as CommandList } from "@nervekit/ui-kit/components/composites/popover-panel";
+// Panels: the dock-panel patterns of Nerve's own panels (Git, Files, Launches).
+export {
+  PanelView,
+  PanelHeader,
+  PanelToolbarButton,
+  PanelSectionHeader,
+  PanelList,
+  PanelRow,
+  PanelRowCard,
+  PanelCard,
+  PanelTree,
+  PanelEmpty,
+  buildPanelTree,
+  buildPanelItemTree,
+} from "@nervekit/ui-kit/components/composites/panel";
+export { PanelFilterBar } from "@nervekit/ui-kit/components/composites/panel-filter-bar";
+export { PanelSection } from "@nervekit/ui-kit/components/composites/panel-section";
+export {
+  PanelSplit,
+  emptyPanelSplitLayout,
+} from "@nervekit/ui-kit/components/composites/panel-split";
+// Pages: the layout of Nerve's settings and overview pages.
+export {
+  PageView,
+  PageHeader,
+  PageSection,
+  FieldRow,
+  ToggleRow,
+  PageList,
+  PageItem,
+  PageEmptyState,
+  PageStatGrid,
+} from "@nervekit/ui-kit/components/composites/page";
 // Floating toolbars. `FloatingToolbarMenu` is the SDK's own: the UI kit's dropdown menu cannot draw
 // outside a frame, so it opens `host.ui.showMenu` instead.
 export {

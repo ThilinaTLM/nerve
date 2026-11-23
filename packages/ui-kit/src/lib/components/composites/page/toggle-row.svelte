@@ -1,14 +1,18 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import SettingsRow from "./SettingsRow.svelte";
+import FieldRow from "./field-row.svelte";
 
 type Props = {
+  /** Row label; also the switch's accessible name. */
   label: string;
+  /** One muted line under the label. */
   description?: string;
+  /** Switch state (bindable). */
   checked?: boolean;
   disabled?: boolean;
   class?: string;
+  /** Inline after the label. */
   badges?: Snippet;
   onCheckedChange?: (checked: boolean) => void;
 };
@@ -29,7 +33,7 @@ function handleCheckedChange(next: boolean): void {
 }
 </script>
 
-<SettingsRow {label} {description} {badges} class={className}>
+<FieldRow {label} {description} {badges} class={className}>
   {#snippet control()}
     <Switch
       bind:checked
@@ -38,4 +42,4 @@ function handleCheckedChange(next: boolean): void {
       onCheckedChange={handleCheckedChange}
     />
   {/snippet}
-</SettingsRow>
+</FieldRow>

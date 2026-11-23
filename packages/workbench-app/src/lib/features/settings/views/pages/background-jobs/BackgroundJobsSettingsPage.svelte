@@ -1,4 +1,9 @@
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import Play from "@lucide/svelte/icons/play";
 import Timer from "@lucide/svelte/icons/timer";
 import { onMount } from "svelte";
@@ -6,12 +11,7 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import {
-  SettingsEmptyState,
-  SettingsItem,
-  SettingsList,
-  SettingsSection,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 import { jobRunLine } from "./background-jobs-format";
 import { BackgroundJobsPageController } from "./background-jobs-page-state.svelte";
 
@@ -42,20 +42,20 @@ onMount(() => {
   {#if controller.loading}
     <Skeleton class="h-14 w-full" />
   {:else if controller.jobs.length === 0}
-    <SettingsEmptyState
+    <PageEmptyState
       variant="card"
       icon={Timer}
       title="No background jobs"
       description="Nothing runs in the background right now."
     />
   {:else}
-    <SettingsList ariaLabel="Background jobs">
+    <PageList ariaLabel="Background jobs">
       {#each controller.jobs as job (job.id)}
         {@const lastError =
           job.lastRun && !job.lastRun.outcome.ok
             ? job.lastRun.outcome.error
             : undefined}
-        <SettingsItem
+        <PageItem
           title={job.label}
           icon={Timer}
           summary={job.description}
@@ -81,8 +81,8 @@ onMount(() => {
           <span class="block truncate text-caption text-muted-foreground"
             >{jobRunLine(job, now)}</span
           >
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   {/if}
 </SettingsSection>

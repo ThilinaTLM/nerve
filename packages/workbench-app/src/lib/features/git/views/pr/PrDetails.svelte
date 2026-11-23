@@ -8,7 +8,7 @@ import type { GithubPrLabel } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { cn } from "@nervekit/ui-kit/utils";
 import ConversationListItem from "$lib/presentation/conversations/ConversationListItem.svelte";
-import { PanelList } from "$lib/presentation/panels";
+import { PanelList } from "@nervekit/ui-kit/components/composites/panel";
 import type { PrLinkedConversation } from "../github-pr-types";
 import type { PrReviewer, PrReviewerState } from "../pr-pane-helpers";
 import PrAvatar from "./PrAvatar.svelte";

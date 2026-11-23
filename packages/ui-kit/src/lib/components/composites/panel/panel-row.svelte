@@ -1,9 +1,9 @@
 <script lang="ts" generics="E = undefined">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
-import ContextMenuList, {
+import ItemMenu, {
   type ContextMenuItem,
-} from "@nervekit/ui-kit/components/composites/context-menu-list";
+} from "@nervekit/ui-kit/components/composites/item-menu";
 import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { cn } from "@nervekit/ui-kit/utils";
 
@@ -371,9 +371,9 @@ const twoLine = $derived(labelLines === 2);
 {/snippet}
 
 {#if menuItems && menuItems.length > 0}
-  <ContextMenuList items={menuItems} triggerClass="block min-w-0">
+  <ItemMenu items={menuItems} triggerClass="block min-w-0">
     {@render body()}
-  </ContextMenuList>
+  </ItemMenu>
 {:else}
   {@render body()}
 {/if}

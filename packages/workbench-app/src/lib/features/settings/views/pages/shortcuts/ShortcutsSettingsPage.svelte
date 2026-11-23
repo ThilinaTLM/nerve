@@ -1,11 +1,13 @@
 <script lang="ts">
+import {
+  PageEmptyState,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import {
   SETTINGS_SEARCH_MIN,
-  SettingsEmptyState,
   SettingsSection,
-  SettingsList,
-  SettingsItem,
   SettingsToolbar,
 } from "$lib/presentation/settings";
 import {
@@ -66,23 +68,23 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
 
 {#each filteredGroups as group (group.category)}
   <SettingsSection surface={false} title={group.category}>
-    <SettingsList ariaLabel={`${group.category} shortcuts`}>
+    <PageList ariaLabel={`${group.category} shortcuts`}>
       {#each group.commands as command (command.id)}
-        <SettingsItem compact title={command.label}>
+        <PageItem compact title={command.label}>
           {#snippet meta()}
             <span
               class="whitespace-nowrap font-mono text-caption text-muted-foreground"
               >{formatShortcut(command.defaultBinding)}</span
             >
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   </SettingsSection>
 {/each}
 
 {#if filteredGroups.length === 0}
-  <SettingsEmptyState
+  <PageEmptyState
     title="No matching shortcuts"
     description="Try a different search term."
   />

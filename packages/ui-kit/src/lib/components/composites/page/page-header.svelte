@@ -1,10 +1,10 @@
 <!--
-  A settings page header. In detail mode (`parent`) the title row becomes a
+  A page header. In detail mode (`parent`) the title row becomes a
   breadcrumb, "Extensions › [mark] Name": the parent is the back button,
   the item's description replaces the page's and its actions take the actions
   slot. The box is the same in both modes, so nothing moves vertically when a
   detail opens or closes. The heading takes focus when a detail opens, so
-  Escape and keyboard users stay inside the settings view.
+  Escape and keyboard users stay inside the page.
 -->
 <script lang="ts">
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
@@ -12,15 +12,18 @@ import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = {
+  /** Page title (the heading). */
   title: string;
+  /** One muted line under the title. */
   description?: string;
   class?: string;
   /** Detail mode: the page this item belongs to; `onBack` returns to its list. */
   parent?: { label: string; onBack: () => void };
   /** The item's mark, before its title (detail mode). */
   leading?: Snippet;
+  /** Buttons at the right of the title row. */
   actions?: Snippet;
-  /** Rendered under the title row (the tab bar lives here). */
+  /** Rendered under the title row (e.g. a tab bar). */
   below?: Snippet;
 };
 

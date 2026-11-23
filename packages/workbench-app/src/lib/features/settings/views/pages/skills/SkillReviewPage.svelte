@@ -5,6 +5,13 @@
   click away. The full SKILL.md is not inlined.
 -->
 <script lang="ts">
+import {
+  FieldRow,
+  PageEmptyState,
+  PageHeader,
+  PageItem,
+  PageList,
+} from "@nervekit/ui-kit/components/composites/page";
 import { untrack } from "svelte";
 import FileCode from "@lucide/svelte/icons/file-code";
 import FileText from "@lucide/svelte/icons/file-text";
@@ -20,14 +27,7 @@ import {
   skillReviewCaption,
 } from "$lib/application/skills/skill-review";
 import { SkillReviewState } from "$lib/application/skills/skill-review-state.svelte";
-import {
-  SettingsEmptyState,
-  SettingsItem,
-  SettingsList,
-  SettingsPageHeader,
-  SettingsRow,
-  SettingsSection,
-} from "$lib/presentation/settings";
+import { SettingsSection } from "$lib/presentation/settings";
 
 let {
   projectId,
@@ -54,7 +54,7 @@ const approved = $derived(review?.status === "approved");
 const scripts = $derived(review ? scriptCount(review) : 0);
 </script>
 
-<SettingsPageHeader
+<PageHeader
   title={name}
   description={review
     ? skillReviewCaption(review.status)
@@ -80,7 +80,7 @@ const scripts = $derived(review ? scriptCount(review) : 0);
       >
     {/if}
   {/snippet}
-</SettingsPageHeader>
+</PageHeader>
 
 {#if session.notice}
   <Callout tone="warning" icon={TriangleAlert} text={session.notice} />
@@ -89,7 +89,7 @@ const scripts = $derived(review ? scriptCount(review) : 0);
 {#if session.phase === "loading"}
   <Skeleton class="h-24 w-full" />
 {:else if session.phase === "missing"}
-  <SettingsEmptyState
+  <PageEmptyState
     variant="card"
     title="Skill not found"
     description={`The project has no skill named "${name}" any more. It may have been renamed, moved or deleted.`}
@@ -99,7 +99,7 @@ const scripts = $derived(review ? scriptCount(review) : 0);
         >Back to Skills</Button
       >
     {/snippet}
-  </SettingsEmptyState>
+  </PageEmptyState>
 {:else if session.phase === "error"}
   <Callout
     layout="block"
@@ -122,8 +122,8 @@ const scripts = $derived(review ? scriptCount(review) : 0);
     description="Added to the agent's instructions in this project. It reads the files below only when a task matches."
     divided
   >
-    <SettingsRow label={review.name} description="Name" />
-    <SettingsRow
+    <FieldRow label={review.name} description="Name" />
+    <FieldRow
       label={review.description || "No description"}
       description="When the agent should use it"
     />
@@ -134,9 +134,9 @@ const scripts = $derived(review ? scriptCount(review) : 0);
     description="Approval covers exactly these files. Any change asks you again."
     surface={false}
   >
-    <SettingsList ariaLabel="Skill files">
+    <PageList ariaLabel="Skill files">
       {#each review.files as file (file.path)}
-        <SettingsItem
+        <PageItem
           title={file.path}
           icon={file.script ? FileCode : FileText}
           compact
@@ -155,9 +155,9 @@ const scripts = $derived(review ? scriptCount(review) : 0);
               >{formatBytes(file.bytes)}</span
             >
           {/snippet}
-        </SettingsItem>
+        </PageItem>
       {/each}
-    </SettingsList>
+    </PageList>
   </SettingsSection>
 
   {#if scripts > 0 && !approved}

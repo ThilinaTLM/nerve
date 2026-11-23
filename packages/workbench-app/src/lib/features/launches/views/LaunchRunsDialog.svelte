@@ -3,7 +3,7 @@ import type { LaunchRecord } from "@nervekit/contracts/launches";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
-import { PanelList } from "$lib/presentation/panels";
+import { PanelList } from "@nervekit/ui-kit/components/composites/panel";
 import LaunchRunRow from "./LaunchRunRow.svelte";
 import { launchRunLabel } from "./launch-panel-controller.js";
 import type {
