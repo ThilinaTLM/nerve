@@ -145,6 +145,12 @@ The dock/taskbar badge is another passive projection, not a presence-triggered n
 
 ## Deliberate limits
 
-There is no persisted draft or acknowledgement model, cross-window/device notification deduplication, disconnected-event replay or delivery while the app is closed. Local Stop suppression and mute apply only to the current window. Browser notifications use a conversation tag and navigate on click; desktop notifications only focus the window and do not carry that replacement tag.
+There is no persisted draft or acknowledgement model, cross-window/device notification deduplication or disconnected-event replay. Delivery while the app is closed is Web Push only (below). Local Stop suppression and mute apply only to the current window. Browser notifications use a conversation tag and navigate on click; desktop notifications only focus the window and do not carry that replacement tag.
 
 The client does not resolve configuration policy, and attention does not add a separate server status store or expand draft editing workflows. Contracts and owning implementations remain authoritative for fields, event catalogs, thresholds and settings.
+
+## Web Push
+
+Paired phones can receive the same edges while the app is closed. The edge rules live once in [`AttentionEdgeTracker`](../../packages/contracts/src/domains/core/attention.ts), used by the app's `ConversationAttention` and by the daemon's [`PushService`](../../packages/workbench-server/src/domains/access/push-service.ts), which follows conversation summaries in-process from a quiet baseline. A push is what an "away" system notification would have been: every connected client reports `access.presence.report` (`active` when focused with recent input, and its mute state), reports end with the connection, and the daemon pushes only when no client is active and none is muted. A Stop suppresses the following finished or interrupted edge for 30 seconds, like the app's local suppression.
+
+Subscriptions are stored on the device record (never sent to clients; revoking the device removes it) and signed with VAPID keys in `secrets/vapid-keys.json`. Payloads carry only ids, the reason, titles and the project name; the [service worker](../../packages/workbench-app/src/sw.ts) writes the text, tags by conversation and opens `/?open=<conversation>` on tap.

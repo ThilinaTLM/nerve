@@ -1,6 +1,6 @@
 # Mobile workbench: focused scope, private tunnel, push
 
-Status: phases 1 and 2 implemented; phase 3 in progress. Delete this file when implemented (see [docs/README.md](../README.md#where-documentation-belongs)).
+Status: all three phases implemented on `feat/mobile-workbench`; Web Push awaits a real-device check. Delete this file when implemented (see [docs/README.md](../README.md#where-documentation-belongs)).
 
 ## Problem
 

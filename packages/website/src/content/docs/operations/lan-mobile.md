@@ -54,6 +54,12 @@ The first connection waits for Tailscale to issue the certificate (up to a minut
 
 Port 443 gives an address without a port number. If another service already uses it on Tailscale, Nerve leaves it alone and asks you to pick 8443 or 10000. Nerve only ever removes its own Serve entry, and refuses to run if Tailscale Funnel would make that entry public. Turning private access off, or quitting Nerve, removes the entry and disconnects phones using it immediately. While it runs, Nerve checks once a minute that the entry is still its own and not public, and stops serving if it is not.
 
+## Notifications on your phone
+
+On a paired phone, open **Settings → Notifications on this phone** and turn it on. Nerve then notifies the phone when a conversation needs you, fails, is interrupted or finishes, the same events the desktop notifies about. It stays quiet while you are using Nerve on any device, or while notifications are muted. Notifications contain the conversation and project name only, never transcript content.
+
+On iPhone, add Nerve to the Home Screen first and open it from there; Safari only delivers notifications to installed web apps. Use **Send test notification** to check delivery. Revoking the phone in **Settings → Devices** stops its notifications.
+
 ## Next steps
 
 - [Security model](/operations/security/)
