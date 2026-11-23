@@ -100,10 +100,10 @@ flowchart LR
 
 Requests on the tunnel listener resolve to a fixed client shape in [`resolveClient`](../../packages/workbench-server/src/domains/access/client-info.ts):
 
-- `secure: true` and `origin` = the tunnel origin (TLS is terminated by `tailscaled` on the same host).
+- `secure: true` and `origin` = the tunnel origin, including the port when it is not 443 (TLS is terminated by `tailscaled` on the same host).
 - `localEligible: false` and never the local principal, even though the TCP peer is loopback.
-- `ip` from `X-Forwarded-For`, which Serve sets. Only used for throttling and audit.
-- Host allowlist: only the tunnel hostname.
+- `ip` from `X-Forwarded-For`, which Serve sets to the client's tailnet address. Only used for throttling and audit.
+- Host allowlist: only the tunnel host and port. Serve passes the original `Host` through unchanged (`X-Forwarded-Host` carries the same value).
 
 Why a separate listener:
 
@@ -113,20 +113,24 @@ Why a separate listener:
 ### Flow
 
 1. **Desktop → Settings → Devices → Remote access → Enable private access (Tailscale).**
-2. The daemon checks `tailscale status --json`: CLI present, logged in, MagicDNS name, HTTPS available, and permission to change Serve. Each failure maps to one actionable message.
+2. The daemon checks `tailscale status --json`: CLI present, `BackendState` is `Running`, a MagicDNS name (`Self.DNSName`), HTTPS available (`CertDomains` contains that name; it is empty until Serve is enabled for the tailnet), and permission to change Serve. Each failure maps to one actionable message.
    - **Locating the CLI:** `tailscale` on `PATH`, then the platform's app location (macOS: `/Applications/Tailscale.app/Contents/MacOS/Tailscale`).
    - **Permission (Linux):** `tailscale serve` needs root unless the user is the tailnet operator. The message gives the one-time fix, `sudo tailscale set --operator=$USER`; Nerve never runs `sudo` itself.
+   - **Serve not enabled on the tailnet:** `tailscale serve` does not fail; it prints an approval URL (`https://login.tailscale.com/f/serve?node=…`) and blocks until an admin approves. The daemon runs it with a timeout, extracts the URL and shows "Enable Serve on your tailnet" with that link, then retries when the user returns.
 3. The daemon opens the tunnel listener, then runs `tailscale serve --bg --https=<port> http://127.0.0.1:<tunnelPort>`. Port 443 is preferred; if 443 is already served for something else, it offers 8443 or 10000 instead of overwriting it.
-4. The pairing dialog offers the tunnel URL as a QR target (`https://machine.tailnet.ts.net/#pair=CODE`) next to the LAN addresses, preselected when the tunnel is on. No "first time on this device" CA step is needed for it.
-5. **Disable** removes only the Serve entry Nerve created and closes the listener.
+4. **Certificate warm-up.** The first HTTPS request after enabling waits for certificate issuance (about 35 s observed; later requests take milliseconds). The daemon makes that first request itself and shows "Getting a certificate…" until it succeeds, so the phone's first load is not the slow one.
+5. The pairing dialog offers the tunnel URL as a QR target (`https://machine.tailnet.ts.net/#pair=CODE`) next to the LAN addresses, preselected when the tunnel is on. No "first time on this device" CA step is needed for it.
+6. **Disable** removes only the Serve entry Nerve created and closes the listener.
 
 On daemon start, an enabled tunnel reopens its listener at the same port (so the persisted Serve entry still matches) and re-checks Serve status; drift (entry removed or pointed elsewhere) shows as a warning in Remote access, not a silent repair.
+
+Drift detection reads `tailscale serve status --json`. Nerve's entry is `TCP["<port>"].HTTPS == true` plus `Web["<host>:<port>"].Handlers["/"].Proxy == "http://127.0.0.1:<tunnelPort>"`; any other value at that port is someone else's, and Funnel enabled for that port is reported as an error (the tunnel must stay private).
 
 ### Security
 
 - **Pairing is still required.** Being on the tailnet grants nothing by itself; every device redeems a pairing code and gets its own revocable credential. All existing throttling, revocation and audit apply.
 - **The owner passkey gate is not applied** to the private tunnel. It exists for public URLs; tailnet reachability plus per-device pairing is enough here.
-- **Tailscale identity headers** (`Tailscale-User-Login`) are recorded in the access audit log when present. They are not used for authentication.
+- **Tailscale identity headers** (`Tailscale-User-Login`, `Tailscale-User-Name`, sent on HTTP and WebSocket requests) are recorded in the access audit log when present. They are not used for authentication: any local process can connect to the tunnel listener and set them.
 - The tunnel is off by default and enabled only from the desktop's Remote access settings (no CLI).
 
 ### Storage
@@ -135,15 +139,15 @@ On daemon start, an enabled tunnel reopens its listener at the same port (so the
 - **Tunnel origin and health** are runtime state, exposed in the status contract.
 - No database change.
 
-### Verify before implementing
+### Verified on a real tailnet
 
-On a real tailnet, before writing the tunnel service, confirm:
+Checked with Tailscale 1.104.7 (Linux) against a header-echo backend on loopback through `tailscale serve --bg --https=8443`:
 
-- The `Host` and `X-Forwarded-*` headers Serve sends to the backend, which decide the host allowlist and client resolution above.
-- WebSocket upgrades pass through Serve.
-- `tailscale serve status --json` output is stable enough to detect drift.
-
-Adjust this section if any assumption fails.
+- The certificate is publicly trusted (default trust store, no CA install).
+- Backend sees a loopback peer; `Host` and `X-Forwarded-Host` are `<machine>.<tailnet>.ts.net:8443`, `X-Forwarded-Proto: https`, `X-Forwarded-For` the client's tailnet IP.
+- WebSocket upgrades pass through, with `Origin: https://<host>:8443` preserved; frames echo both ways.
+- `serve status --json` has the shape used for drift detection above.
+- Unapproved Serve blocks with an approval URL; the first request after enabling waits for the certificate (both handled in the flow above).
 
 ### Later: public tunnels
 
