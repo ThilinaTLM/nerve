@@ -14,9 +14,9 @@ describe("shared tool runtime contract", () => {
     const events: string[] = [];
     const observedPaths: string[] = [];
     const dispatcher = createToolDispatcher({
-      advertisedToolNames: new Set(["edit", "launch"]),
+      advertisedToolNames: new Set(["edit", "async_bash"]),
       hostHandlers: {
-        launch: async () => ({ content: "host" }),
+        async_bash: async () => ({ content: "host" }),
       },
       localOverrides: {
         edit: async (args, context) => {
@@ -62,7 +62,7 @@ describe("shared tool runtime contract", () => {
       "started:authorized/x",
       "execute:authorized/x",
     ]);
-    assert.equal((await dispatcher.execute("launch", {})).content, "host");
+    assert.equal((await dispatcher.execute("async_bash", {})).content, "host");
   });
 
   it("rejects unavailable, denied, approval, and missing host handlers", async () => {

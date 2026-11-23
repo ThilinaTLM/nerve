@@ -283,7 +283,6 @@ export function parseToolView(
     }
 
     case "async_bash":
-    case "launch":
     case "bash": {
       const command = stringField(args.command);
       const details = bashResultDetailsSchema.safeParse(result?.details);

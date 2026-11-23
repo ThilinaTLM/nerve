@@ -38,7 +38,6 @@ const map: Record<ToolName, AgentResultPolicy> = {
   ask_user: askUserAgentResultPolicy,
   // Log pages are bounded by the process overflow budget, below this inline budget.
   async_bash: policy("process_output", "head", textCandidate),
-  launch: policy("process_output", "head", textCandidate),
   plan_present: planReviewAgentResultPolicy,
 };
 

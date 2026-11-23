@@ -29,7 +29,7 @@ const configuration = {
     .min(1)
     .meta({
       description:
-        "Display name and the name the `launch` tool uses; without it the command is the name. Give each definition a distinct name.",
+        "Display name, and the name `launches.*` calls select it by; without it the command is the name. Give each definition a distinct name.",
     })
     .optional(),
   command: z

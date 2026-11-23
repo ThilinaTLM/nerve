@@ -12,7 +12,7 @@ Verify a change the way a user would: build and launch a dev desktop slot with C
 ## Rules
 
 - **Never QA on the slot hosting you.** If `$NERVE_HOME` is `data/storage-N`, use another slot. Production (`~/.nerve`, port 3747) is never a QA target.
-- **Dev servers run through launch definitions, not `async_bash` or `Bash`.** Start, stop, restart and read logs with the `launch` tool so the user can see and own the process. Never `pkill`/`killall` or kill by port: every daemon runs the same `main.js`.
+- **Dev servers run through launch definitions, not `async_bash` or `Bash`.** Start, stop, restart and read logs with quick_script `launches.*` so the user can see and own the process. Never `pkill`/`killall` or kill by port: every daemon runs the same `main.js`.
 - **Stop the slot before touching its files.** The helper refuses to edit config or secrets while the slot's ports are in use.
 - Never print or read secret contents. `copy-secrets` decrypts only inside the helper and prints names, never values.
 
@@ -36,7 +36,7 @@ This adds or updates `desktop-dev-slot-N` in `.nerve/launches/definitions.json` 
 
 ## 3. Prepare the slot (stopped)
 
-If the slot is running, stop it with `launch` → `stop` → `desktop-dev-slot-N`. Then:
+If the slot is running, stop it with `launches.stop("desktop-dev-slot-N")`. Then:
 
 ```bash
 $H set-model --slot N   # default model anthropic/claude-haiku-5-5 (Haiku 5.5); idempotent
@@ -63,7 +63,7 @@ When an access token expires, stop the slot and rerun `copy-secrets --slot N`. `
 
 ## 4. Launch and connect
 
-1. `launch` → `start` → `desktop-dev-slot-N`. The first run builds native, runtime and desktop packages and can take minutes. Read `launch` logs until `HTTP <port>` appears and no error follows. Fix build/launch errors before continuing.
+1. `launches.start("desktop-dev-slot-N")`. The first run builds native, runtime and desktop packages and can take minutes. Read `launches.logs("desktop-dev-slot-N")` until `HTTP <port>` appears and no error follows. Fix build/launch errors before continuing.
 2. Confirm CDP with `$H status --slot N` → `cdpOwner: "electron"` (retry briefly while Electron starts). `"other"` means a different process holds the port: Electron could not bind it, and connecting would drive the wrong browser. Stop and report the conflict.
 3. Load the agent-browser guides once per conversation and follow them:
 
@@ -74,7 +74,7 @@ When an access token expires, stop the slot and rerun `copy-secrets --slot N`. `
 
 4. `agent-browser connect <cdp>`, then `agent-browser tab` to pick the Nerve window (skip DevTools or splash targets).
 
-After code changes, `launch` → `restart` rebuilds and relaunches. Renderer-only changes may only need a reload of the window.
+After code changes, `launches.restart("desktop-dev-slot-N")` rebuilds and relaunches. Renderer-only changes may only need a reload of the window.
 
 ## 5. Test
 
@@ -85,4 +85,4 @@ After code changes, `launch` → `restart` rebuilds and relaunches. Renderer-onl
 
 ## 6. Report and clean up
 
-Report the slot, steps performed, expected versus observed results, and screenshot paths. State clearly what was not verified. Leave the instance running unless the user asks to stop it; when stopping, use only the `launch` tool.
+Report the slot, steps performed, expected versus observed results, and screenshot paths. State clearly what was not verified. Leave the instance running unless the user asks to stop it; when stopping, use only `launches.stop`.

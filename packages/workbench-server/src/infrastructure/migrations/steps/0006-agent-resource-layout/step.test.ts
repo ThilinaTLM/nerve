@@ -164,3 +164,117 @@ void test("accounts move into the account table as user accounts with their secr
   // Nothing left to do on a second run.
   await step.run(context);
 });
+
+void test("rules naming the removed launch tool drop it from overlays and rule sets, reported once each", async () => {
+  const { paths, context, put } = home();
+  const losses: string[] = [];
+  const reporting = {
+    ...context,
+    loss: (reason: string) => losses.push(reason),
+  };
+  const rule = (id: string, toolNames: string[]) => ({
+    id,
+    enforcement: "ask",
+    when: { toolNames },
+  });
+  const overlay = {
+    schemaVersion: 2,
+    overlays: [
+      {
+        id: "o",
+        rules: [
+          rule("only", ["launch"]),
+          rule("shared", ["launch", "bash"]),
+          rule("other", ["bash"]),
+        ],
+      },
+    ],
+  };
+  put(paths.configPath, "permissions.json", JSON.stringify(overlay));
+  put(
+    join(paths.configPath, "rule-sets"),
+    "mine.json",
+    JSON.stringify({ rules: [rule("set-only", ["launch"])] }),
+  );
+  put(
+    join(paths.conversationsPath, "conv_1", "config"),
+    "permissions.json",
+    JSON.stringify({
+      schemaVersion: 2,
+      overlays: [{ id: "c", rules: [rule("c1", ["launch"])] }],
+    }),
+  );
+  await step.run(reporting);
+  const read = (path: string) =>
+    JSON.parse(readFileSync(path, "utf8")) as {
+      overlays?: { rules: { id: string; when: { toolNames: string[] } }[] }[];
+      rules?: unknown[];
+    };
+  const user = read(paths.permissionsConfigPath).overlays![0].rules;
+  assert.deepEqual(
+    user.map((entry) => [entry.id, entry.when.toolNames]),
+    [
+      ["shared", ["bash"]],
+      ["other", ["bash"]],
+    ],
+  );
+  assert.deepEqual(
+    read(join(paths.configPath, "rule-sets", "mine.json")).rules,
+    [],
+  );
+  assert.deepEqual(
+    read(join(paths.conversationsPath, "conv_1", "config", "permissions.json"))
+      .overlays![0].rules,
+    [],
+  );
+  assert.equal(losses.length, 4);
+  assert.match(
+    losses.join("\n"),
+    /Permission rule "only" named only the removed launch tool/,
+  );
+  await step.verify!(context);
+  await step.run(reporting);
+  assert.equal(losses.length, 4);
+});
+
+void test("launch rule cleanup skips unparseable files and disables rules with launch-shaped matchers", async () => {
+  const { paths, context, put } = home();
+  const losses: string[] = [];
+  const reporting = {
+    ...context,
+    loss: (reason: string) => losses.push(reason),
+  };
+  put(join(paths.configPath, "rule-sets"), "broken.json", "{ nope");
+  put(
+    paths.configPath,
+    "permissions.json",
+    JSON.stringify({
+      overlays: [
+        {
+          id: "o",
+          rules: [
+            {
+              id: "scoped",
+              enabled: true,
+              when: {
+                toolNames: ["launch", "bash"],
+                primaryArgument: { operator: "glob", value: "start" },
+              },
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  await step.run(reporting);
+  await step.verify!(context);
+  const rule = JSON.parse(readFileSync(paths.permissionsConfigPath, "utf8"))
+    .overlays[0].rules[0];
+  assert.equal(rule.enabled, false);
+  assert.deepEqual(rule.when.toolNames, ["bash"]);
+  assert.match(losses[0], /disabled/);
+  assert.equal(
+    readFileSync(join(paths.configPath, "rule-sets", "broken.json"), "utf8"),
+    "{ nope",
+  );
+});

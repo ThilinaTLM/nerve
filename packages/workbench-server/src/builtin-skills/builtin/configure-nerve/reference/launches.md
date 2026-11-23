@@ -1,19 +1,19 @@
 # Launch definitions
 
-A launch definition is a saved project command: a dev server, test watcher, build or any long-running process. The user runs it from the Launches panel; the agent runs it with the `launch` tool by name. Each run is a separate process with its own output.
+A launch definition is a saved project command: a dev server, test watcher, build or any long-running process. The user runs it from the Launches panel; the agent runs it with `launches.start(name)` in quick_script. Each run is a separate process with its own output.
 
 Use a launch for a process someone starts repeatedly. A one-off command does not need one.
 
 ## Procedure
 
 1. Find the command in the project (`package.json` scripts, `Makefile`, docs); ask when there are several candidates.
-2. `await launches.list()` shows what exists, with ids. Say what you are adding, then `await launches.create({ label: "web", command: "pnpm dev", port: 3000 })`.
-3. Start the entry with the `launch` tool, read its logs, and stop it unless the user wants it running.
+2. `await launches.list()` shows what exists and what is running. Say what you are adding, then `await launches.create({ label: "web", command: "pnpm dev", port: 3000 })`.
+3. Start it with `launches.start("web")`, read `launches.logs("web")`, and `launches.stop("web")` unless the user wants it running.
 4. If `launches` says the file is invalid, repair it by hand with the format below and `configuration.check("project")`.
 
 ## Write it with `launches`
 
-In quick_script, `launches` changes the catalog through Nerve itself: `list()`, `create({ label, command, cwd, port, runPolicy, folder, before })`, `update({ id, ... })` (omitted fields stay, `null` clears `label`, `cwd` or `port`), `remove(id)`, `folders.create({ label, folder, before })` and `move({ id, folder, before })`. Ids, timestamps and `order` are filled in, and the rules below are applied for you. Never edit `definitions.json` by hand when `launches` can do the change. The file format below is for reading it and for repairing it when `launches` says it is invalid.
+In quick_script, `launches` changes the catalog through Nerve itself: `list()`, `create({ label, command, cwd, port, runPolicy, folder, before })`, `update({ name, ... })` (omitted fields stay, `null` clears `label`, `cwd` or `port`), `remove(name)`, `folders.create({ label, folder, before })` and `move({ name, folder, before })`. `name`, `folder` and `before` take the label the user sees, or an id when a label is shared. Ids, timestamps and `order` are filled in, and the rules below are applied for you. Never edit `definitions.json` by hand when `launches` can do the change. The file format below is for reading it and for repairing it when `launches` says it is invalid.
 
 ## File
 
@@ -59,7 +59,7 @@ Definition:
 | Field                    | Required | Value                                                                                                                                              |
 | ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`                     | yes      | Starts with `launchdef_`; unique in the file. Use a readable suffix (`launchdef_web`).                                                             |
-| `label`                  | no       | Display name and the name used by the `launch` tool. Non-empty, no leading/trailing spaces.                                                        |
+| `label`                  | no       | Display name, and the name `launches.*` calls select it by. Non-empty, no leading/trailing spaces.                                                 |
 | `command`                | yes      | Shell command, not blank.                                                                                                                          |
 | `cwd`                    | no       | Working directory, relative to the project directory. Defaults to the project directory. Prefer relative paths; absolute ones break for teammates. |
 | `port`                   | no       | Integer 1–65535; the port the process serves, shown to the user.                                                                                   |
@@ -82,7 +82,7 @@ Folder: `id` (starts with `launchfolder_`), `label` (non-empty, trimmed), `paren
 
 ## Names
 
-The `launch` tool finds a definition by its name: the `label`, or the command when there is no label. Two definitions with the same name make the name ambiguous, so give each a distinct label. Folder placement does not affect the name.
+`launches.*` calls find a definition by its name: the `label`, or the command when there is no label. A name two definitions share needs the id instead, so give each a distinct label. Folder placement does not affect the name.
 
 ## Repairing the file
 
@@ -90,4 +90,4 @@ If `launches` fails because the file is invalid, fix the file by hand: read it i
 
 Changing a definition does not affect runs already in progress; the next run uses the new command.
 
-To confirm a new definition works, start it with the `launch` tool, read its logs, and stop it if the user did not ask for it to keep running.
+To confirm a new definition works, start it with `launches.start`, read `launches.logs`, and stop it if the user did not ask for it to keep running.

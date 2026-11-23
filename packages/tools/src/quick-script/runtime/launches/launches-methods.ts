@@ -1,9 +1,11 @@
+import { parseOptions } from "@nervekit/extension-api/host";
 import { codedError } from "../errors.js";
 import { defineMethod } from "../sdk-args.js";
 import type { SdkMethod } from "../sdk-types.js";
 import type {
   LaunchDefinitionInput,
   LaunchPlacement,
+  LaunchSelector,
 } from "./launches-port.js";
 
 function port(env: Parameters<SdkMethod["prepare"]>[1]) {
@@ -11,7 +13,7 @@ function port(env: Parameters<SdkMethod["prepare"]>[1]) {
   if (!agent)
     throw codedError(
       "FORBIDDEN",
-      "This run cannot change launch definitions (no launches port).",
+      "This run cannot use the project's launches (no launches port).",
     );
   return agent;
 }
@@ -40,12 +42,47 @@ function text(
   return value;
 }
 
-function id(options: Record<string, unknown>, name = "id"): string {
-  const value = text(options, name);
-  if (!value)
-    throw new Error(`${name} is required (an id from launches.list()).`);
+function name(options: Record<string, unknown>): string {
+  const value = text(options, "name");
+  if (!value?.trim())
+    throw new Error(
+      "name is required: the label shown in the Launches panel, or an id from launches.list().",
+    );
   return value;
 }
+
+function selector(options: Record<string, unknown>): LaunchSelector {
+  const launch = text(options, "name");
+  const runId = text(options, "runId");
+  if (!launch?.trim() && !runId?.trim())
+    throw new Error(
+      "name is required (the label shown in the Launches panel), or a runId from launches.list().",
+    );
+  return {
+    ...(launch?.trim() ? { name: launch } : {}),
+    ...(runId?.trim() ? { runId } : {}),
+  };
+}
+
+function page(options: Record<string, unknown>) {
+  const { offset, lines } = options;
+  if (offset !== undefined && (!Number.isInteger(offset) || Number(offset) < 0))
+    throw new Error("offset must be an integer of 0 or more.");
+  if (
+    lines !== undefined &&
+    (!Number.isInteger(lines) || Number(lines) < 1 || Number(lines) > 500)
+  )
+    throw new Error("lines must be an integer from 1 to 500.");
+  return {
+    offset: offset as number | undefined,
+    limit: lines as number | undefined,
+  };
+}
+
+const label = (target: LaunchSelector) =>
+  target.name !== undefined
+    ? JSON.stringify(target.name)
+    : `run ${target.runId}`;
 
 function fields(options: Record<string, unknown>): LaunchDefinitionInput {
   const { port: portValue, runPolicy } = options;
@@ -79,17 +116,63 @@ function placement(options: Record<string, unknown>): LaunchPlacement {
 
 const FIELD_OPTIONS = ["label", "command", "cwd", "port", "runPolicy"] as const;
 const PLACE_OPTIONS = ["folder", "before"] as const;
+const SELECT_OPTIONS = ["name", "runId"] as const;
 const WRITES =
   "Writes the project's launch catalog through Nerve (locking, ids and order are handled); never edit definitions.json by hand. If the file on disk is invalid, the call fails and says how to fix it.";
+const NAMES =
+  "`name`: the label shown in the Launches panel (the command when unlabeled), or an id from list().";
+const RUN =
+  "`runId` picks one run of that name; alone, it selects the run directly.";
 
 const describe = (
   command: string | undefined,
   label: string | null | undefined,
 ) => JSON.stringify(label ?? command ?? "");
 
+/** `start` and `restart`: resolved first, then checked as the bash command they run. */
+function startMethod(mode: "start" | "restart"): SdkMethod {
+  const method = `launches.${mode}`;
+  return {
+    product: "launches",
+    path: mode,
+    // Checked as the bash call it runs, which may be destructive.
+    risk: "destructive",
+    directTool: "bash",
+    signature:
+      mode === "start"
+        ? `/** Start a launch definition (or a stopped run). ${NAMES} Checked like the bash command it runs. A single-run definition that is already running is not started twice. With a port, waits up to 30 s for it to listen. Runs keep going after the script ends; you are notified when one you started exits. */ start(name: string | { name?: string; runId?: string }): Promise<LaunchStartResult>`
+        : `/** Stop the launch's current run (if any) and start it again with the definition's current command. ${NAMES} ${RUN} Checked like the bash command it runs. */ restart(name: string | { name?: string; runId?: string }): Promise<LaunchStartResult>`,
+    async prepare(args, env) {
+      const target = selector(
+        parseOptions(method, args, { bare: "name", options: SELECT_OPTIONS }),
+      );
+      const prepared = await port(env).prepareStart(target, mode);
+      return {
+        ...(prepared.process
+          ? {
+              authorization: {
+                toolName: "bash",
+                args: {
+                  command: prepared.process.command,
+                  ...(prepared.process.cwd !== undefined
+                    ? { cwd: prepared.process.cwd }
+                    : {}),
+                },
+                summary: `${mode === "start" ? "Start" : "Restart"} launch ${JSON.stringify(prepared.name)}: ${prepared.process.command}${prepared.process.cwd !== undefined ? ` (in ${prepared.process.cwd})` : ""}`,
+              },
+            }
+          : {}),
+        resource: `launch ${JSON.stringify(prepared.name)}`,
+        run: () => prepared.start(),
+      };
+    },
+  };
+}
+
 /**
- * `launches.*`: the project's launch catalog. Writes go through `LaunchDefinitionService`, so the
- * agent never edits `definitions.json` or renumbers `order` itself.
+ * `launches.*`: the project's launches. Catalog writes go through `LaunchDefinitionService`, so
+ * the agent never edits `definitions.json` or renumbers `order` itself; starts are checked as
+ * the bash command they run.
  */
 export const launchesMethods: SdkMethod[] = [
   defineMethod({
@@ -98,17 +181,57 @@ export const launchesMethods: SdkMethod[] = [
     risk: "read",
     options: [],
     signature:
-      "/** The project's launch definitions and folders with their ids. Start one with the `launch` tool. Fails with the fix when definitions.json is invalid. */ list(): Promise<LaunchesCatalog>",
+      "/** The project's launch definitions with their runs (latest first), folders, and runs of no current definition. Fails with the fix when definitions.json is invalid. */ list(): Promise<LaunchesCatalog>",
     parse: () => undefined,
-    resource: () => "launch definitions",
+    resource: () => "launches",
     run: async (_, env) => await port(env).list(),
+  }),
+  startMethod("start"),
+  startMethod("restart"),
+  {
+    product: "launches",
+    path: "stop",
+    risk: "external_write",
+    signature: `/** Stop the launch's latest run. ${NAMES} ${RUN} \`stopped\` is false when nothing was running. */ stop(name: string | { name?: string; runId?: string }): Promise<{ stopped: boolean; run?: LaunchRun }>`,
+    async prepare(args, env) {
+      const prepared = await port(env).prepareStop(
+        selector(
+          parseOptions("launches.stop", args, {
+            bare: "name",
+            options: SELECT_OPTIONS,
+          }),
+        ),
+      );
+      return {
+        authorization: {
+          operation: "launches.stop",
+          targets: [{ kind: "resource", value: prepared.target }],
+          risk: "external_write",
+          summary: `Stop launch ${JSON.stringify(prepared.name)}`,
+        },
+        resource: `launch ${JSON.stringify(prepared.name)}`,
+        run: () => prepared.stop(),
+      };
+    },
+  },
+  defineMethod({
+    product: "launches",
+    path: "logs",
+    risk: "read",
+    bare: "name",
+    options: [...SELECT_OPTIONS, "offset", "lines"],
+    signature: `/** Output of the launch's latest run: \`lines\` lines (default 100, max 500) from \`offset\` (0-based; default: the tail). ${NAMES} ${RUN} */ logs(name: string | { name?: string; runId?: string; offset?: number; lines?: number }): Promise<{ run: LaunchRun; output: string }>`,
+    parse: (options) => ({ target: selector(options), page: page(options) }),
+    resource: ({ target }) => `launch ${label(target)}`,
+    run: async ({ target, page: lines }, env) =>
+      await port(env).logs(target, lines),
   }),
   defineMethod({
     product: "launches",
     path: "create",
     risk: "write",
     options: [...FIELD_OPTIONS, ...PLACE_OPTIONS],
-    signature: `/** Add a launch definition. ${WRITES} Give each definition a distinct label. Returns the definition with its id. */ create(options: LaunchDefinitionFields & LaunchPlacement): Promise<LaunchDefinition>`,
+    signature: `/** Add a launch definition. ${WRITES} Give each definition a distinct label: it is how you and the user name it. Returns the definition. */ create(options: LaunchDefinitionFields & LaunchPlacement): Promise<LaunchDefinition>`,
     parse: (options) => {
       const input = fields(options);
       if (!input.command)
@@ -126,30 +249,30 @@ export const launchesMethods: SdkMethod[] = [
     product: "launches",
     path: "update",
     risk: "write",
-    options: ["id", ...FIELD_OPTIONS],
-    signature: `/** Change a definition: fields you omit stay; null clears label, cwd or port. ${WRITES} */ update(options: { id: string; command?: string; label?: string | null; cwd?: string | null; port?: number | null; runPolicy?: "single" | "concurrent" }): Promise<LaunchDefinition>`,
-    parse: (options) => ({ id: id(options), input: fields(options) }),
-    authorize: ({ id: target, input }) => ({
+    options: ["name", ...FIELD_OPTIONS],
+    signature: `/** Change a definition: fields you omit stay; null clears label, cwd or port. ${NAMES} ${WRITES} */ update(options: { name: string; command?: string; label?: string | null; cwd?: string | null; port?: number | null; runPolicy?: "single" | "concurrent" }): Promise<LaunchDefinition>`,
+    parse: (options) => ({ name: name(options), input: fields(options) }),
+    authorize: ({ name: target, input }) => ({
       targets: [TARGET],
-      summary: `Update launch ${target}${input.command ? `: ${input.command}` : ""}`,
+      summary: `Update launch ${JSON.stringify(target)}${input.command ? `: ${input.command}` : ""}`,
     }),
-    resource: ({ id: target }) => `launch ${target}`,
-    run: async ({ id: target, input }, env) =>
+    resource: ({ name: target }) => `launch ${JSON.stringify(target)}`,
+    run: async ({ name: target, input }, env) =>
       await port(env).update(target, input),
   }),
   defineMethod({
     product: "launches",
     path: "remove",
     risk: "write",
-    bare: "id",
-    options: ["id"],
-    signature: `/** Delete a definition. ${WRITES} */ remove(id: string | { id: string }): Promise<{ ok: true }>`,
-    parse: (options) => id(options),
+    bare: "name",
+    options: ["name"],
+    signature: `/** Delete a definition; its runs keep going. ${NAMES} ${WRITES} */ remove(name: string | { name: string }): Promise<{ ok: true }>`,
+    parse: (options) => name(options),
     authorize: (target) => ({
       targets: [TARGET],
-      summary: `Remove launch ${target}`,
+      summary: `Remove launch ${JSON.stringify(target)}`,
     }),
-    resource: (target) => `launch ${target}`,
+    resource: (target) => `launch ${JSON.stringify(target)}`,
     run: async (target, env) => await port(env).remove(target),
   }),
   defineMethod({
@@ -174,15 +297,15 @@ export const launchesMethods: SdkMethod[] = [
     product: "launches",
     path: "move",
     risk: "write",
-    options: ["id", ...PLACE_OPTIONS],
-    signature: `/** Move a definition or folder into a folder (null: top level), before a sibling or last. ${WRITES} */ move(options: { id: string } & LaunchPlacement): Promise<{ ok: true }>`,
-    parse: (options) => ({ id: id(options), ...placement(options) }),
-    authorize: ({ id: target }) => ({
+    options: ["name", ...PLACE_OPTIONS],
+    signature: `/** Move a definition or folder (\`name\`: its label or id) into a folder (null: top level), before a sibling or last. ${WRITES} */ move(options: { name: string } & LaunchPlacement): Promise<{ ok: true }>`,
+    parse: (options) => ({ name: name(options), ...placement(options) }),
+    authorize: ({ name: target }) => ({
       targets: [TARGET],
-      summary: `Move launch entry ${target}`,
+      summary: `Move launch entry ${JSON.stringify(target)}`,
     }),
-    resource: ({ id: target }) => `launch ${target}`,
-    run: async ({ id: target, ...place }, env) =>
+    resource: ({ name: target }) => `launch ${JSON.stringify(target)}`,
+    run: async ({ name: target, ...place }, env) =>
       await port(env).move(target, place),
   }),
 ];

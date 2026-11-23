@@ -13,7 +13,7 @@ Nerve exposes the tool names below. The contracts and manifest own the exact cat
 - Editing: `edit`, `write`
 - Execution: `bash`, `python_exec`
 
-Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, unique `edits: [{ oldText, newText }]`; every match resolves against the original file and the write is atomic. Use `write` to replace an entire file. Bash is noninteractive and process-tree cancellable; use `launch` for the user’s dev servers. Python accepts exactly one code/file source, has no stdin, and is capped at 600 seconds.
+Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, unique `edits: [{ oldText, newText }]`; every match resolves against the original file and the write is atomic. Use `write` to replace an entire file. Bash is noninteractive and process-tree cancellable; use `launches.start` in `quick_script` for the user’s dev servers. Python accepts exactly one code/file source, has no stdin, and is capped at 600 seconds.
 
 ## Web and quick_script
 
@@ -47,32 +47,25 @@ Questions suspend a run until the user answers.
 
 - `bash`: run a command, optionally with `background: true`
 - `async_bash`: `list`, `logs`, `stop`
-- `launch`: `status`, `logs`, `start`, `restart`, `stop`
 
 Bash accepts a project-relative or absolute `cwd` inside the project. With auto-promotion enabled, a still-running command moves to the background after the configured wait; there is no `timeout` parameter. With promotion disabled, foreground calls require `timeout` in seconds and are killed when it expires. Explicit background runs return at once and have no time limit. Their optional `ready` string is an HTTP(S) URL or output regex, checked for up to 60 seconds without stopping the process on readiness timeout.
 
-Check `launch status` before starting a server; prefer the user's definitions in `.nerve/launches/definitions.json`. Agents cannot create or edit definitions. Launch actions select an exact, case-sensitive `name` (the trimmed label, or trimmed command when unnamed); `status` takes no selector. `logs`, `stop`, and `restart` optionally accept `runId` from status, otherwise they select the latest run. `start` accepts only `name`. Definition IDs and the old `id` argument are not selectors. Duplicate saved names require renaming in the UI even when a run ID is supplied. See [Launch tool details](#launch-tool-details). Async Bash and agent-started launches notify the conversation on exit; do not poll. Both log tools use a 0-based `offset` and `limit` (default 100, maximum 500), returning the last lines when offset is omitted. Read actions never ask for approval; start, restart, and stop use command policy.
-
-### Launch tool details
-
-| Action            | Arguments                                   |
-| ----------------- | ------------------------------------------- |
-| `status`          | none                                        |
-| `start`           | `name`                                      |
-| `logs`            | `name`, optional `runId`, `offset`, `limit` |
-| `stop`, `restart` | `name`, optional `runId`                    |
+Dev servers and other saved commands belong to the `launches` namespace of `quick_script`; there is no separate launch tool. Prefer the user's definitions in `.nerve/launches/definitions.json`; `launches.list()` returns definitions with their runs. `start`, `restart`, `stop` and `logs` take a name or `{ name?, runId? }`. A name is the label shown in the Launches panel (the command when unlabeled), or a `launchdef_` id. Duplicate names fail and list ids and folders; `runId` selects one run. Async Bash and agent-started launches notify the conversation on exit; do not poll. `logs` takes a 0-based `offset` and `lines` (default 100, maximum 500), returning the last lines when offset is omitted.
 
 ```ts
-launch({ action: "start", name: "Web dev" }); // command shown by status: pnpm dev
-launch({ action: "logs", name: "Web dev", runId: "launch_…", limit: 100 });
-launch({ action: "restart", name: "Web dev" });
-launch({ action: "stop", name: "pnpm preview" }); // command fallback for an unnamed launch
+await launches.list(); // { definitions, folders, runs }
+await launches.start("Web dev"); // command shown in the panel: pnpm dev
+await launches.logs({ name: "Web dev", runId: "launch_…", lines: 100 });
+await launches.restart({ name: "Web dev" });
+await launches.stop("pnpm preview"); // command fallback for an unlabeled launch
+await launches.create({ label: "Docs", command: "pnpm docs:dev", port: 4321 });
+await launches.update({ name: "Docs", port: 4322 });
 ```
 
 - Use `async_bash list` for running commands (`all: true` includes finished runs), `async_bash logs` to inspect output, and `async_bash stop` to end a process tree.
-- Without `runId`, logs, stop, and restart select the latest run. A run ID from status targets one execution of that name; mismatched names or projects are rejected. Restart uses the current definition and starts it if nothing is running.
-- Saved definitions are matched before ad-hoc launches. Duplicate saved names fail even with a run ID; rename them in the UI. Distinct ad-hoc launches with the same display name need a run ID.
-- A `single` definition that is already running returns its active launch. If a definition declares a port, start and restart wait up to 30 seconds for it to listen. Port conflicts report the listener's PID and process name; agents never terminate foreign listeners.
+- Without `runId`, logs, stop, and restart select the latest run. Restart uses the current definition and starts it if nothing is running.
+- `start` and `restart` are checked by command policy as the `bash` command they run, with its cwd, and count as destructive for a script's risk. `stop` is an external write; `list` and `logs` read. The catalog writes `create`, `update`, `remove`, `folders.create` and `move` edit the project's definitions; the agent never edits the file by hand.
+- A `single` definition that is already running returns outcome `already_running`. If a definition declares a port, start and restart wait up to 30 seconds for it to listen. Port conflicts report the listener's PID and process name; agents never terminate foreign listeners.
 - Large output is summarized with file paths for `read`/`grep` instead of filling the conversation context.
 - Background Bash and agent-started launches queue a completion notice when they exit on their own. Launch notice ownership is held in memory and doesn't survive a daemon restart.
 

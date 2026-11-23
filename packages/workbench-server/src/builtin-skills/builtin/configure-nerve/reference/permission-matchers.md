@@ -43,7 +43,7 @@ A `bash` rule on the command line ignores the folder it runs in: `equals "npm te
 `configuration.tools.list()` returns every tool with its exact `name`, `kind`, `groups`, `baseRisk`, `primaryArguments` (the first present one is what `primaryArgument` matches) and `targetKinds`. Notes it cannot show:
 
 - `quick_script` is checked as a whole script, and again once per SDK operation it performs. An operation's primary argument is its name (`jira.issues.create`), its target a resource (`jira:issue/APP-12`), its group the namespace and the extension id.
-- `launch`: the primary argument is `[action, name]` (an array) when a name is given, else `action`; match the name with `arguments` on `args.name`.
+- `launches.start` and `launches.restart` are checked as `bash` with the definition's command and `args.cwd` (relative to the project, omitted at its root; absolute when outside it), so `bash` rules apply to them. `launches.stop` is the operation `launches.stop` with target `launches:launch/<definition id>`, or `launches:run/<run id>` for a run of no definition.
 - `find`, `ls` and `grep` target a path as a tree; `read`, `edit` and `write` an exact path.
 
 Paths are resolved to the most specific root: `project` (the project directory), `plans`, `nerve_data`, `nerve_home`. A path outside all roots has no root and matches only matchers without `root` and `pattern`.

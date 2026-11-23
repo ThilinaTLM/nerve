@@ -9,7 +9,7 @@ To turn suggestions on or off, add your own, or approve scripts, see the [prompt
 
 ## Built-in suggestions
 
-Built-in prompts are plain text: a one-line request, numbered steps, and a closing `Last known state:` line with the branch and only the facts the task needs (uncommitted changes, unpushed or behind commits, PR number and failing checks). Zero counts are omitted. With several repositories the state becomes a list, one line per repository. The state is labelled "last known" because a queued prompt may run later. Labels include counts where useful.
+Built-in prompts are a one-line request, such as `Update PR #42 with the latest changes.` The agent checks the current git state itself, so the prompt names only what it can't infer: the PR number, the branch names for cleanup, and the repositories when a suggestion applies to a nested repository or to several. Labels include counts where useful, and the chip tooltip shows the state that triggered the suggestion.
 
 | Name                       | Appears when                                                                                                                | Default |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |

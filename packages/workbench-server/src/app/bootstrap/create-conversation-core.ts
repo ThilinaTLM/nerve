@@ -48,9 +48,9 @@ import { mkdirSync } from "node:fs";
 import { createId } from "@nervekit/contracts";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
 import {
-  LaunchTool,
-  type LaunchToolOptions,
-} from "../../core-host/launch-tool.js";
+  LaunchRuns,
+  type LaunchRunsOptions,
+} from "../../core-host/launch-runs.js";
 import { readFile } from "node:fs/promises";
 import {
   ConversationCore,
@@ -87,7 +87,7 @@ export function createConversationCore(
     extensionCatalog?: ExtensionCatalog;
     extensionStore: ExtensionStore;
   },
-  launchServices: Pick<LaunchToolOptions, "launches"> & {
+  launchServices: Pick<LaunchRunsOptions, "launches"> & {
     definitions: LaunchDefinitionService;
   },
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
@@ -128,6 +128,11 @@ export function createConversationCore(
   /** The directory of a project, to find its own extensions. */
   const projectDirectory = (projectId: string) =>
     core.projects.get(projectId)?.directory;
+  const requireProject = (projectId: string) => {
+    const project = core.projects.get(projectId);
+    if (!project) throw new Error(`Project not found: ${projectId}`);
+    return project;
+  };
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(deps.auth),
   ]);
@@ -141,14 +146,8 @@ export function createConversationCore(
       listModels: () => imageGeneration.listModels(),
     },
   });
-  const launchTool = new LaunchTool({
-    ...launchServices,
-    project: (conversationId) => {
-      const projectId = core.getSnapshot(conversationId).conversation.projectId;
-      const project = core.projects.get(projectId);
-      if (!project) throw new Error(`Project not found: ${projectId}`);
-      return project;
-    },
+  const launchRuns = new LaunchRuns({
+    launches: launchServices.launches,
     notify: (conversationId, launch, text) => {
       core.inputs.enqueueNotice({
         conversationId,
@@ -164,7 +163,7 @@ export function createConversationCore(
     if (!event.type.startsWith("launch.")) return;
     const launch = (event.data as { launch?: LaunchRecord }).launch;
     if (launch)
-      void launchTool.changed(event.type, launch).catch((error) => {
+      void launchRuns.changed(event.type, launch).catch((error) => {
         void deps.logger.warn("Launch completion notice failed", { error });
       });
   });
@@ -190,231 +189,224 @@ export function createConversationCore(
   };
   let credentialEpoch = 0;
   let extensionEpoch = 0;
-  const tools = createToolHostPort(
-    processes,
-    async (input) => {
-      while (true) {
-        input.signal.throwIfAborted();
-        const credentialVersion = credentialEpoch;
-        let isCurrent = () => true;
-        const blocked = (code: string, pointer = "") =>
-          conversationAgentBlocked(
-            agentConfiguration,
-            input.conversationId,
-            code,
-            pointer,
-          );
-        let settings: LeadSettingsOverrides;
-        let resources: Awaited<ReturnType<typeof captureExecutionResources>>;
-        if (input.requestCaptureId) {
-          const captured = scopedConfiguration.getCapture(
-            input.requestCaptureId,
-          );
-          if (!captured || captured.conversationId !== input.conversationId)
-            return blocked("missing-request-capture");
-          settings = captured.settings;
-          resources = captured.executorResources as Awaited<
-            ReturnType<typeof captureExecutionResources>
-          >;
-        } else {
-          const captured = await agentConfiguration.captureEffective(
-            input.conversationId,
-          );
-          if (captured.view.status !== "available")
-            return {
-              kind: "configuration_blocked",
-              request: { diagnostics: [...captured.view.diagnostics] },
-            };
-          isCurrent = captured.isCurrent;
-          settings = structuredClone(captured.view.resolution.settings);
-          resources = await captureExecutionResources(
-            {
-              id: input.conversationId,
-              projectId: agentConfiguration.paths.locations.conversationOwner(
-                input.conversationId,
-              ).projectId,
-            },
-            input.cwd,
-            settings,
-            input.toolName === "python_exec",
-          );
-        }
-        // Advertising is not authorization: a model can name a tool it was not offered.
-        if (
-          input.origin === "model" &&
-          !isToolEnabled(input.toolName, settings)
-        )
+  const tools = createToolHostPort(processes, async (input) => {
+    while (true) {
+      input.signal.throwIfAborted();
+      const credentialVersion = credentialEpoch;
+      let isCurrent = () => true;
+      const blocked = (code: string, pointer = "") =>
+        conversationAgentBlocked(
+          agentConfiguration,
+          input.conversationId,
+          code,
+          pointer,
+        );
+      let settings: LeadSettingsOverrides;
+      let resources: Awaited<ReturnType<typeof captureExecutionResources>>;
+      if (input.requestCaptureId) {
+        const captured = scopedConfiguration.getCapture(input.requestCaptureId);
+        if (!captured || captured.conversationId !== input.conversationId)
+          return blocked("missing-request-capture");
+        settings = captured.settings;
+        resources = captured.executorResources as Awaited<
+          ReturnType<typeof captureExecutionResources>
+        >;
+      } else {
+        const captured = await agentConfiguration.captureEffective(
+          input.conversationId,
+        );
+        if (captured.view.status !== "available")
+          return {
+            kind: "configuration_blocked",
+            request: { diagnostics: [...captured.view.diagnostics] },
+          };
+        isCurrent = captured.isCurrent;
+        settings = structuredClone(captured.view.resolution.settings);
+        resources = await captureExecutionResources(
+          {
+            id: input.conversationId,
+            projectId: agentConfiguration.paths.locations.conversationOwner(
+              input.conversationId,
+            ).projectId,
+          },
+          input.cwd,
+          settings,
+          input.toolName === "python_exec",
+        );
+      }
+      // Advertising is not authorization: a model can name a tool it was not offered.
+      if (input.origin === "model" && !isToolEnabled(input.toolName, settings))
+        throw new ToolExecutionError(
+          "TOOL_NOT_ENABLED",
+          `${input.toolName}: not enabled for this conversation`,
+        );
+      const { extensions, python, shell } = resources;
+      const accounts = deps.accounts.reader(resources.projectId);
+      const bash = structuredClone(
+        settings.tools!.bash!.settings as BashToolSettings,
+      );
+      const spawnsShell = input.toolName === "bash";
+      if (spawnsShell) {
+        if (!shell.available)
           throw new ToolExecutionError(
-            "TOOL_NOT_ENABLED",
-            `${input.toolName}: not enabled for this conversation`,
+            "SHELL_UNAVAILABLE",
+            `${input.toolName}: no usable shell is configured. Ask the user to set a shell path in Settings → Tools → bash.`,
           );
-        const { extensions, python, shell } = resources;
-        const accounts = deps.accounts.reader(resources.projectId);
-        const bash = structuredClone(
-          settings.tools!.bash!.settings as BashToolSettings,
+        bash.shellPath = shell.path;
+      }
+      // The extensions of the conversation's project: its own, the user's and the built-ins.
+      const registry = await extensionCatalog.registryFor(
+        input.projectDir ?? input.cwd,
+      );
+      const quickScript = input.toolName === "quick_script";
+      const scriptRisk = quickScript
+        ? (
+            await classifyQuickScriptArguments(
+              input.args as Record<string, unknown>,
+              registry,
+            )
+          ).risk
+        : undefined;
+      const extensionPorts = createExtensionPorts({
+        resolution: extensions,
+        accounts,
+        models: modelHosts,
+        store: deps.extensionStore,
+        projectId: resources.projectId,
+        warn: (extensionId, message, data) =>
+          void deps.logger.warn("Extension warning", {
+            context: { extension: extensionId, message, data },
+          }),
+      });
+      const isExtensionTool = registry.tools.some(
+        (tool) => tool.definition.name === input.toolName,
+      );
+      // Direct tools of extensions: offered only while available (advertising is not authorization).
+      await assertExtensionToolOffered(
+        registry,
+        input.toolName,
+        extensions,
+        accounts,
+        modelHosts,
+        { store: deps.extensionStore, projectId: resources.projectId },
+      );
+      if (input.toolName === "python_exec" && (!python || !python.available))
+        throw new ToolExecutionError(
+          "PYTHON_UNAVAILABLE",
+          "python_exec: no usable Python interpreter is configured. Ask the user to set one in Settings → Tools → python_exec.",
         );
-        const spawnsShell =
-          input.toolName === "bash" ||
-          (input.toolName === "launch" &&
-            ["start", "restart"].includes(
-              String((input.args as Record<string, unknown>).action),
-            ));
-        if (spawnsShell) {
-          if (!shell.available)
-            throw new ToolExecutionError(
-              "SHELL_UNAVAILABLE",
-              `${input.toolName}: no usable shell is configured. Ask the user to set a shell path in Settings → Tools → bash.`,
-            );
-          bash.shellPath = shell.path;
-        }
-        // The extensions of the conversation's project: its own, the user's and the built-ins.
-        const registry = await extensionCatalog.registryFor(
-          input.projectDir ?? input.cwd,
-        );
-        const quickScript = input.toolName === "quick_script";
-        const scriptRisk = quickScript
-          ? (
-              await classifyQuickScriptArguments(
-                input.args as Record<string, unknown>,
-                registry,
-              )
-            ).risk
-          : undefined;
-        const extensionPorts = createExtensionPorts({
-          resolution: extensions,
-          accounts,
-          models: modelHosts,
-          store: deps.extensionStore,
-          projectId: resources.projectId,
-          warn: (extensionId, message, data) =>
-            void deps.logger.warn("Extension warning", {
-              context: { extension: extensionId, message, data },
-            }),
-        });
-        const isExtensionTool = registry.tools.some(
-          (tool) => tool.definition.name === input.toolName,
-        );
-        // Direct tools of extensions: offered only while available (advertising is not authorization).
-        await assertExtensionToolOffered(
-          registry,
-          input.toolName,
-          extensions,
-          accounts,
-          modelHosts,
-          { store: deps.extensionStore, projectId: resources.projectId },
-        );
-        if (input.toolName === "python_exec" && (!python || !python.available))
-          throw new ToolExecutionError(
-            "PYTHON_UNAVAILABLE",
-            "python_exec: no usable Python interpreter is configured. Ask the user to set one in Settings → Tools → python_exec.",
-          );
-        const context: ToolExecutionContext & QuickScriptContext = {
-          cwd: input.cwd,
-          shellPath: bash.shellPath,
-          pythonRuntime: python?.available ? python : undefined,
-          registry: registry,
-          extensionPorts,
-          ...(quickScript
-            ? {
-                configurationAgent: createConfigurationAgentPort({
-                  registry: configurationResources,
-                  agentConfiguration,
-                  policy: admissionPolicy,
-                  home: deps.storage.paths.home,
+      const context: ToolExecutionContext & QuickScriptContext = {
+        cwd: input.cwd,
+        shellPath: bash.shellPath,
+        pythonRuntime: python?.available ? python : undefined,
+        registry: registry,
+        extensionPorts,
+        ...(quickScript
+          ? {
+              configurationAgent: createConfigurationAgentPort({
+                registry: configurationResources,
+                agentConfiguration,
+                policy: admissionPolicy,
+                home: deps.storage.paths.home,
+                conversationId: input.conversationId,
+                projectDirectory: input.projectDir ?? input.cwd,
+                cwd: input.cwd,
+                availableModels: () => deps.providerCatalog.resolvedModels(),
+              }),
+              launchesAgent: createLaunchesAgentPort({
+                definitions: launchServices.definitions,
+                project: () => requireProject(resources.projectId),
+                runs: launchRuns,
+                caller: {
                   conversationId: input.conversationId,
-                  projectDirectory: input.projectDir ?? input.cwd,
-                  cwd: input.cwd,
-                  availableModels: () => deps.providerCatalog.resolvedModels(),
-                }),
-                launchesAgent: createLaunchesAgentPort({
-                  definitions: launchServices.definitions,
-                  projectId: resources.projectId,
-                }),
-                extensionAgent: extensionCatalog.agentPort({
-                  projectDir: input.projectDir ?? input.cwd,
-                  switchOf: (id) => extensionStates(extensions)(id)?.enabled,
-                }),
-              }
-            : {}),
-          ...(quickScript || isExtensionTool
-            ? {
-                ...(quickScript
-                  ? {
-                      namespaces: (
-                        await extensionAvailability(
-                          registry,
-                          extensions,
-                          accounts,
-                          { checkSecrets: true, ports: extensionPorts },
-                        )
-                      ).namespaces,
-                    }
-                  : {}),
-                authorizeNested: (request) =>
-                  // Only a person's approval of the script sets the ceiling: the
-                  // admission stored on the tool call says whether a rule allowed
-                  // it or a user approved it (read when the nested call is made).
-                  authorizeQuickScriptCall(
-                    {
-                      toolCallId: input.toolCallId,
-                      conversationId: input.conversationId,
-                      projectDir: input.projectDir ?? input.cwd,
-                      origin: input.origin,
-                      cwd: input.cwd,
-                      requestCaptureId: input.requestCaptureId,
-                      signal: input.signal,
-                      admission: {
-                        by: userApproved(input.toolCallId) ? "user" : "rule",
-                        scriptRisk: quickScript
-                          ? scriptRisk!
-                          : quickScriptToolRisk(
-                              input.toolName,
-                              input.args as Record<string, unknown>,
-                              input.projectDir ?? input.cwd,
-                            ),
-                      },
-                    },
-                    request,
-                  ),
-              }
-            : {}),
-        };
-        if (!isCurrent() || credentialVersion !== credentialEpoch) continue;
-        const selectedTool = capabilityToolNameSchema.safeParse(input.toolName);
-        return {
-          context,
-          bash,
-          isCurrent: () => isCurrent() && credentialVersion === credentialEpoch,
-          target: JSON.parse(
-            JSON.stringify({
-              toolConfiguration: selectedTool.success
-                ? (settings.tools?.[selectedTool.data] ?? null)
-                : null,
-              // Only quick_script and extension tools read extension settings; other
-              // approvals must not be invalidated by unrelated extension edits.
-              ...(quickScript || isExtensionTool
+                  origin: input.origin,
+                  signal: input.signal,
+                },
+                shell,
+              }),
+              extensionAgent: extensionCatalog.agentPort({
+                projectDir: input.projectDir ?? input.cwd,
+                switchOf: (id) => extensionStates(extensions)(id)?.enabled,
+              }),
+            }
+          : {}),
+        ...(quickScript || isExtensionTool
+          ? {
+              ...(quickScript
                 ? {
-                    extensions: extensions.extensions,
-                    // Switching an extension's account (or its site) ends approvals.
-                    accounts: await selectedAccountsTarget(
-                      registry,
-                      extensions,
-                      accounts,
-                    ),
+                    namespaces: (
+                      await extensionAvailability(
+                        registry,
+                        extensions,
+                        accounts,
+                        { checkSecrets: true, ports: extensionPorts },
+                      )
+                    ).namespaces,
                   }
                 : {}),
-              python:
-                input.toolName === "python_exec" && python?.available
-                  ? python
-                  : null,
-              shellPath: spawnsShell ? (bash.shellPath ?? null) : null,
-            }),
-          ) as Record<string, unknown>,
-        };
-      }
-    },
-    launchTool,
-  );
+              authorizeNested: (request) =>
+                // Only a person's approval of the script sets the ceiling: the
+                // admission stored on the tool call says whether a rule allowed
+                // it or a user approved it (read when the nested call is made).
+                authorizeQuickScriptCall(
+                  {
+                    toolCallId: input.toolCallId,
+                    conversationId: input.conversationId,
+                    projectDir: input.projectDir ?? input.cwd,
+                    origin: input.origin,
+                    cwd: input.cwd,
+                    requestCaptureId: input.requestCaptureId,
+                    signal: input.signal,
+                    admission: {
+                      by: userApproved(input.toolCallId) ? "user" : "rule",
+                      scriptRisk: quickScript
+                        ? scriptRisk!
+                        : quickScriptToolRisk(
+                            input.toolName,
+                            input.args as Record<string, unknown>,
+                            input.projectDir ?? input.cwd,
+                          ),
+                    },
+                  },
+                  request,
+                ),
+            }
+          : {}),
+      };
+      if (!isCurrent() || credentialVersion !== credentialEpoch) continue;
+      const selectedTool = capabilityToolNameSchema.safeParse(input.toolName);
+      return {
+        context,
+        bash,
+        isCurrent: () => isCurrent() && credentialVersion === credentialEpoch,
+        target: JSON.parse(
+          JSON.stringify({
+            toolConfiguration: selectedTool.success
+              ? (settings.tools?.[selectedTool.data] ?? null)
+              : null,
+            // Only quick_script and extension tools read extension settings; other
+            // approvals must not be invalidated by unrelated extension edits.
+            ...(quickScript || isExtensionTool
+              ? {
+                  extensions: extensions.extensions,
+                  // Switching an extension's account (or its site) ends approvals.
+                  accounts: await selectedAccountsTarget(
+                    registry,
+                    extensions,
+                    accounts,
+                  ),
+                }
+              : {}),
+            python:
+              input.toolName === "python_exec" && python?.available
+                ? python
+                : null,
+            shellPath: spawnsShell ? (bash.shellPath ?? null) : null,
+          }),
+        ) as Record<string, unknown>,
+      };
+    }
+  });
   const projectMigration =
     migrations ??
     new ProjectMigrationService({

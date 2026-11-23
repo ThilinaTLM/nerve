@@ -64,7 +64,7 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
     {
       step: { id: "0006-agent-resource-layout" },
       checksum:
-        "d57f50c085b4a2bc7b64c421193f80e2ddf1922349fd1af7fe447fd59f0047d0",
+        "926cba5df102540953f542ffc205c3ccd166ba90be7b749e98b0a9a1e09f5bf3",
       stage: "draft",
       // Dev homes that applied the profile move still hold accounts.json; the step is idempotent.
       // Remove with the release of this step.

@@ -54,7 +54,7 @@ describe("parseToolViewCached", () => {
 });
 
 describe("Bash exit codes", () => {
-  for (const toolName of ["bash", "async_bash", "launch"]) {
+  for (const toolName of ["bash", "async_bash"]) {
     for (const [label, result, expected] of [
       [
         "top-level success takes precedence",

@@ -339,13 +339,22 @@ export const flakyDeploy: DemoConversation = {
         },
         {
           type: "tool",
-          toolName: "launch",
+          toolName: "quick_script",
           risk: "command",
           repo: "aurora-infra",
-          args: { action: "start", name: "staging smoke" },
+          args: {
+            code: 'const run = await launches.start("staging smoke");\nreturn run;',
+            timeout: 120,
+          },
           result: {
             content:
               "The synthetic staging smoke launch completed successfully. 18 checks passed across 3 deploys.",
+            details: {
+              status: "completed",
+              durationMs: 2_140,
+              memoryUsedBytes: 1_800_000,
+              hostCalls: [],
+            },
           },
         },
         {

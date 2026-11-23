@@ -87,7 +87,7 @@ export const runtimeNamespaces: SdkNamespace[] = [
   {
     id: "launches",
     summary:
-      "list, create, update, remove, folders.create, move: the project's launch definitions; see the configure-nerve skill",
+      "list, start, restart, stop, logs, create, update, remove, folders.create, move: the project's launches (dev servers), named by label; see the configure-nerve skill",
     methods: launchesMethods,
     types: LAUNCHES_DTS_TYPES,
     docs: [],

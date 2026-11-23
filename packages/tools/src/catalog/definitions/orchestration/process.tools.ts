@@ -35,29 +35,4 @@ export const processToolDefinitions = [
     ),
     executionMode: "sequential",
   },
-  {
-    name: "launch",
-    group: "process",
-    baseRisk: "command",
-    traits: ["write_capable"],
-    executionKind: "host",
-    label: "launch",
-    classifyRisk: classifyProcessRisk,
-    description:
-      "Run the user's launch definitions (dev servers etc.); check status before starting. `name` or `runId` selects the run (default: latest). logs: output from `offset` (default: tail).",
-    parameters: Type.Object(
-      {
-        action: Type.Enum(["status", "logs", "start", "restart", "stop"]),
-        name: Type.Optional(Type.String({ minLength: 1 })),
-        runId: Type.Optional(
-          Type.String({
-            minLength: 1,
-          }),
-        ),
-        ...page,
-      },
-      { additionalProperties: false },
-    ),
-    executionMode: "sequential",
-  },
 ] satisfies ToolDefinition[];

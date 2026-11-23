@@ -6,7 +6,7 @@ import {
   normalizeToolArguments,
   requireToolDefinition,
 } from "@nervekit/tools/catalog";
-import { SAMPLES } from "./method-samples.js";
+import { SAMPLES, launchesAgentSample } from "./method-samples.js";
 import {
   type MethodRisk,
   isOperationCheck,
@@ -28,6 +28,7 @@ const env = createSdkEnvironment({
   cwd: process.cwd(),
   conversationDir: "/tmp/quick-script",
   web: { enabled: true, search: true },
+  launchesAgent: launchesAgentSample,
 });
 
 void test("every method has samples, and its declared risk covers every authorization it produces", async () => {

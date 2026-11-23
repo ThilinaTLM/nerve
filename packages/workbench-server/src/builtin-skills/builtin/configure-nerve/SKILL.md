@@ -84,6 +84,6 @@ What a returned resource means:
 
 Leave no `error` behind when you end your turn. After a restart there is no loaded version to fall back to, and an invalid permission file or preferences that select a missing rule set then block every tool call.
 
-Kinds that need more than the loop: launches are written with `launches.*`, then started with the `launch` tool (`reference/launches.md`); extensions are built and checked with `nerve-ext` (`guide/extensions.md`).
+Kinds that need more than the loop: launches are written, started and checked with `launches.*` (`reference/launches.md`); extensions are built and checked with `nerve-ext` (`guide/extensions.md`).
 
 `reference/schemas/*.schema.json` are generated from this Nerve version. Open one only for a diagnostic you cannot resolve from its message.

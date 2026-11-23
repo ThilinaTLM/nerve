@@ -504,11 +504,7 @@ export function buildUserProjection(
 ): ToolUserProjection {
   let publicResult = withoutProducerArtifactClaims(result);
   // Core delegation, ask_user and async bash return JSON text rather than the old details records.
-  if (
-    toolName === "ask_user" ||
-    toolName === "async_bash" ||
-    toolName === "launch"
-  ) {
+  if (toolName === "ask_user" || toolName === "async_bash") {
     const text = stringField(record(publicResult).content);
     if (text) {
       try {
@@ -663,8 +659,7 @@ export function buildUserProjection(
       break;
     }
 
-    case "async_bash":
-    case "launch": {
+    case "async_bash": {
       const output = lastLines(outputText(resultRecord));
       resultPreview = withTextContent(resultRecord, output.value);
       ({ hidden, noun } = textOverflowStats([output]));
@@ -735,7 +730,6 @@ export function buildUserProjection(
     ["edit", "write", "grep", "find", "ls"].includes(toolName) ||
     toolName === "async_bash" ||
     toolName === "ask_user" ||
-    toolName === "launch" ||
     isSubagentTool(toolName) ||
     toolName.startsWith("web_") ||
     limits === EXTENSION_PUBLIC_PREVIEW_LIMITS;

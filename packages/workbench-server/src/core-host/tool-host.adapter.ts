@@ -14,10 +14,7 @@ import {
   normalizeToolArguments,
   type ToolDefinition,
 } from "@nervekit/tools/catalog";
-import {
-  createToolDispatcher,
-  type ToolHandlerRegistry,
-} from "@nervekit/tools/runtime";
+import { createToolDispatcher } from "@nervekit/tools/runtime";
 import {
   isPathInside,
   resolveNativePath,
@@ -25,7 +22,6 @@ import {
 } from "@nervekit/tools/execution";
 import type { CoreProcessHost } from "./process.adapter.js";
 import { registerHostTools } from "./host-tools.js";
-import type { LaunchTool } from "./launch-tool.js";
 import { prepareShellProcess } from "../infrastructure/process-host/shell-process.js";
 
 export function requiresBashTimeoutArgument(
@@ -48,18 +44,13 @@ export function createToolHostPort(
         request: import("@nervekit/contracts/core").ConfigurationBlockedRequest;
       }
   >,
-  launchTool?: LaunchTool,
 ) {
   registerHostTools();
-  const handlers: ToolHandlerRegistry = {};
-  if (launchTool)
-    handlers.launch = (args, context) =>
-      launchTool.execute(args, String(context.identity));
-  // Host-only definitions (including launch) are advertised only with a registered handler.
+  // Only local tools run here; host tools (async_bash, subagents, ...) run in the conversation core.
   // Read live: the installed extensions' tools of a project are published when its extensions load.
   const baseDefinitionList = (projectDir?: string) =>
     [...toolManifest, ...scopedToolDefinitions(projectDir)].filter(
-      (tool) => tool.executionKind === "local" || tool.name in handlers,
+      (tool) => tool.executionKind === "local",
     );
   const definitions = async (
     cwd: string,
@@ -149,41 +140,9 @@ export function createToolHostPort(
           advertisedToolNames: new Set(
             turnDefinitions.map((tool) => tool.name),
           ),
-          hostHandlers: {
-            ...handlers,
-            ...(launchTool
-              ? {
-                  launch: (args: Record<string, unknown>) =>
-                    launchTool.execute(
-                      args,
-                      input.conversationId,
-                      input.origin,
-                      input.signal,
-                    ),
-                }
-              : {}),
-          },
+          hostHandlers: {},
           contextFor: () => executionContext,
         });
-        if (name === "launch" && launchTool) {
-          const launch = await launchTool.prepare(
-            args,
-            input.conversationId,
-            input.origin,
-            input.signal,
-            settings.shellPath,
-          );
-          if (captured.isCurrent?.() === false) continue;
-          return {
-            args,
-            cwd: launch.cwd,
-            target: { ...target, ...launch.target, cwd: launch.cwd },
-            dispatch: () =>
-              launch
-                .dispatch()
-                .then((result) => ({ kind: "completed" as const, result })),
-          };
-        }
         if (captured.isCurrent?.() === false) continue;
         if (name !== "bash")
           return {

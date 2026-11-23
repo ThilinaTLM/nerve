@@ -142,6 +142,8 @@ export type SdkMethod = {
   risk: MethodRisk;
   /** The risk depends on argument values; the scanner needs literal arguments to decide it (see `MethodDefinition.riskFromArgs`). */
   riskFromArgs?: boolean;
+  /** Checked as this direct tool at run time (`launches.start` as `bash`), not as an operation; operation rules cannot admit it. */
+  directTool?: string;
   /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates the declarations `sdk.describe` serves (sdk-dts.ts). */
   signature: string;
   /**

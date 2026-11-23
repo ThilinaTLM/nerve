@@ -48,7 +48,12 @@ export type {
   LaunchEntryDefinition,
   LaunchEntryFolder,
   LaunchPlacement,
+  LaunchRun,
+  LaunchSelector,
+  LaunchStartResult,
   LaunchesAgentPort,
+  PreparedLaunchStart,
+  PreparedLaunchStop,
 } from "./runtime/launches/launches-port.js";
 export type {
   NamespaceAvailability,

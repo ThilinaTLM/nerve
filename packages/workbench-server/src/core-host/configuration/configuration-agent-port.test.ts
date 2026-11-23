@@ -262,7 +262,7 @@ void test("project reload flags an unapproved overlay as needing approval and ne
   const file = join(project, ".nerve", "config", "permissions.json");
   await writeFile(
     file,
-    JSON.stringify({ version: 3, schemaVersion: 2, overlays: [] }),
+    JSON.stringify({ version: 4, schemaVersion: 2, overlays: [] }),
   );
   const { resources } = await port.reload("project");
   assert.deepEqual(

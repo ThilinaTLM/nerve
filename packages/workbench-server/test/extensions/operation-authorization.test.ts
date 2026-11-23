@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { registry } from "./registry.js";
-import { SAMPLES } from "./method-samples.js";
+import { SAMPLES, launchesAgentSample } from "./method-samples.js";
 import {
   createSdkEnvironment,
   findSdkMethod,
@@ -20,6 +20,7 @@ const env = createSdkEnvironment({
   cwd: process.cwd(),
   conversationDir: "/tmp/quick-script",
   web: { enabled: true, search: true },
+  launchesAgent: launchesAgentSample,
 });
 
 const checksOf = async (name: string, args: unknown[]) => {
@@ -30,7 +31,7 @@ const checksOf = async (name: string, args: unknown[]) => {
   ];
 };
 
-void test("methods keep the direct-tool route only for web.fetch, files and image; everything else is an operation", async () => {
+void test("methods keep the direct-tool route only for web.fetch, files, image and launch starts; everything else is an operation", async () => {
   for (const [name, calls] of Object.entries(SAMPLES)) {
     const product = findSdkMethod(name, registry)!.product;
     for (const args of calls) {
@@ -38,7 +39,11 @@ void test("methods keep the direct-tool route only for web.fetch, files and imag
       if (!first) continue;
       assert.equal(
         !isOperationCheck(first),
-        name === "web.fetch" || ["files", "image"].includes(product),
+        name === "web.fetch" ||
+          // Checked as the bash command the launch runs.
+          name === "launches.start" ||
+          name === "launches.restart" ||
+          ["files", "image"].includes(product),
         `${name} ${JSON.stringify(args)}`,
       );
     }

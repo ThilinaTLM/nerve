@@ -284,14 +284,7 @@ export function normalizePermissionRequest(input: {
     targets,
     conversationId: input.conversationId,
   };
-  if (input.toolName === "launch" && typeof args.name === "string")
-    request.primaryArgument = [
-      args.action,
-      args.name,
-      ...(args.runId !== undefined ? [args.runId] : []),
-    ];
-  else if (primaryArgument !== undefined)
-    request.primaryArgument = primaryArgument;
+  if (primaryArgument !== undefined) request.primaryArgument = primaryArgument;
   if (targets[0]) request.primaryTarget = targets[0];
   if (input.projectId !== undefined) request.projectId = input.projectId;
   if (input.toolScope !== undefined) request.toolScope = input.toolScope;
@@ -459,7 +452,7 @@ function compareEffectiveRules(
 }
 
 /** Tools whose rules match on the risk of this call's arguments, not a fixed category. */
-const ARGUMENT_RISK_TOOLS = new Set(["async_bash", "launch", "quick_script"]);
+const ARGUMENT_RISK_TOOLS = new Set(["async_bash", "quick_script"]);
 
 function requestMetadata(request: NormalizedPermissionRequest) {
   const metadata = permissionMetadataForTool(

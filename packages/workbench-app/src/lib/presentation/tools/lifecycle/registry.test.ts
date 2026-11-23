@@ -45,7 +45,6 @@ describe("tool lifecycle registry", () => {
       "find",
       "ls",
       "async_bash",
-      "launch",
     ] as const) {
       assert.equal(toolLifecycleRegistry[name].argumentRegion, "none", name);
       assert.equal(
@@ -201,59 +200,7 @@ describe("tool lifecycle registry", () => {
     );
   });
 
-  it("keeps launch names primary and execution selectors secondary throughout the lifecycle", () => {
-    for (const stage of [
-      "drafting",
-      "approval",
-      "executing",
-      "failed",
-      "completed",
-    ] as const) {
-      const presentation = presentToolArguments(
-        "launch",
-        {
-          args: {
-            action: "restart",
-            name: "Web dev server",
-            runId: "launch_previous",
-            id: "launchdef_historical",
-          },
-        },
-        stage,
-      );
-      assert.equal(presentation.primaryArg?.text, "restart Web dev server");
-      assert.deepEqual(presentation.secondary, [
-        { key: "run-id", text: "Run: launch_previous" },
-      ]);
-      assert.equal(presentation.body.kind, "none");
-      assert.doesNotMatch(JSON.stringify(presentation), /launchdef_historical/);
-    }
-    assert.equal(
-      presentToolArguments(
-        "launch",
-        { args: { action: "start", name: "pnpm dev" } },
-        "executing",
-      ).primaryArg?.text,
-      "start pnpm dev",
-    );
-    const status = presentToolArguments(
-      "launch",
-      { args: { action: "status" } },
-      "completed",
-    );
-    assert.equal(status.primaryArg?.text, "status");
-    assert.deepEqual(status.secondary, []);
-  });
-
-  it("preserves ID-based launch history without changing async Bash presentation", () => {
-    assert.equal(
-      presentToolArguments(
-        "launch",
-        { args: { action: "stop", id: "launchdef_old" } },
-        "completed",
-      ).primaryArg?.text,
-      "stop launchdef_old",
-    );
+  it("presents async Bash action and id", () => {
     assert.equal(
       presentToolArguments(
         "async_bash",
@@ -271,6 +218,7 @@ describe("tool lifecycle registry", () => {
       "subagent_list",
       "plan_mode_enter",
       "plan_mode_force_exit",
+      "launch",
     ]) {
       assert.equal(isKnownToolName(name), false);
       assert.equal(toolLifecycleSpec(name), unknownToolLifecycleSpec);
