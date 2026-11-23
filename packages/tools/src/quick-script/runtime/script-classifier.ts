@@ -251,7 +251,7 @@ async function classifyTokens(
     }
     const methodRisk = quickScriptRiskOfMethod(method.risk);
     if (method.risk === "none") record(name, methodRisk, targets, "none");
-    else if (DIRECT_PRODUCTS.has(method.product))
+    else if (DIRECT_PRODUCTS.has(method.product) || method.directTool)
       record(name, methodRisk, targets);
     else {
       // Literal arguments: the method's own authorization decides the risk (a raw request is an external read for GET, destructive otherwise).

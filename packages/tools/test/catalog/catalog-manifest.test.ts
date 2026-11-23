@@ -27,7 +27,6 @@ describe("model-facing tool schema compatibility", () => {
       const expectedProperties: Record<string, string[]> = {
         edit: ["path", "edits"],
         async_bash: ["action", "all", "id", "offset", "limit"],
-        launch: ["action", "name", "runId", "offset", "limit"],
       };
       for (const [name, expected] of Object.entries(expectedProperties)) {
         const schema = requireToolDefinition(name as never).parameters as {
@@ -72,25 +71,6 @@ describe("model-facing tool schema compatibility", () => {
         false,
         name,
       );
-    }
-  });
-
-  it("selects launches by name with optional execution IDs, not definition IDs", () => {
-    const schema = requireToolDefinition("launch").parameters;
-    assert.equal(Check(schema, { action: "status" }), true);
-    assert.equal(Check(schema, { action: "start", name: "Dev server" }), true);
-    for (const action of ["logs", "stop", "restart"]) {
-      assert.equal(
-        Check(schema, { action, name: "Dev server", runId: "run_1" }),
-        true,
-      );
-    }
-    for (const args of [
-      { action: "start", id: "launchdef_dev" },
-      { action: "start", name: "" },
-      { action: "logs", name: "Dev server", runId: "" },
-    ]) {
-      assert.equal(Check(schema, args), false);
     }
   });
 

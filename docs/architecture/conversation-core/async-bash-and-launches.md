@@ -84,15 +84,22 @@ Descriptions, arguments and settings stay in the tool definitions so agent-facin
 
 ## Launch execution capability
 
-The launch tool resolves definitions and executions within the conversation's project. Saved definitions use project-local name selection, while an optional run selector chooses one execution. Duplicate names fail visibly rather than guessing.
+Agents control launches through the `launches` namespace of `quick_script` ([code mode](../code-mode.md)); there is no direct launch tool. `launches.list()` returns definitions with their runs, folders and runs of no current definition. `start`, `restart`, `stop` and `logs` take a name or `{ name?, runId? }`. A name is the label the user sees (the command when unlabeled); duplicates fail, listing ids and folders, and `runId` selects one run.
 
-User catalog management and agent process control are separate capabilities. Agents can operate existing launches through the tool, but cannot edit the catalog through it, preserving the user's ownership of reusable configuration. Execution permissions still apply independently of folder organization.
+```ts
+await launches.start("Web dev");
+await launches.logs({ name: "Web dev", lines: 100 });
+await launches.restart({ name: "Web dev", runId: "launch_…" });
+await launches.stop("pnpm preview"); // command fallback for an unlabeled definition
+```
 
-A restart uses the current saved definition; an existing run keeps the command it executed.
+`start` and `restart` resolve the definition first, then the call is checked by permission policy as the `bash` command it runs, with its cwd (relative to the project, absent at its root); their declared risk is destructive, so a script calling them classifies as destructive. `stop` is an operation check (`external_write`, target `launches:launch/<definition id>`, or `launches:run/<run id>` for a run of no definition, resolved before the check). Catalog writes (`create`, `update`, `remove`, `folders.create`, `move`) belong to the same namespace and are described in [launch definitions](../launch-definitions.md). Execution permissions apply independently of folder organization.
 
-The host remembers which conversation initiated an agent launch and can notify it on spontaneous exit. This association is memory-only, so it lasts only for the host's lifetime. Explicit stops are handled separately from spontaneous exits.
+A restart uses the current saved definition; an existing run keeps the command it executed. A `single` definition that is already running returns outcome `already_running`. Port conflicts fail naming the listener's PID and process; agents never kill foreign listeners. A definition with a port waits up to 30 s for it to listen. Runs keep going after the script ends.
 
-Selection, execution preparation and notification ownership live in [`LaunchTool`](../../../packages/workbench-server/src/core-host/launch-tool.ts). Run policy, restart and cancellation live in the launch service linked above.
+The host remembers which conversation (the model) started a run and notifies it when the run exits on its own. This association is memory-only, so it lasts only for the host's lifetime. Explicit stops are handled separately from spontaneous exits.
+
+Selection and execution preparation live in [`launches-agent-port.ts`](../../../packages/workbench-server/src/core-host/configuration/launches-agent-port.ts) and notification ownership in [`launch-runs.ts`](../../../packages/workbench-server/src/core-host/launch-runs.ts). Run policy, restart and cancellation live in the launch service linked above.
 
 ## Shared output projection
 

@@ -99,7 +99,7 @@ export class DaemonClient {
     }).catch(() => undefined);
     if (!health?.ok)
       throw new CliError(
-        `Slot ${target.slot} is not running at ${target.baseUrl}. Start it with the launch tool or the nerve-qa scripts; this harness never starts daemons.`,
+        `Slot ${target.slot} is not running at ${target.baseUrl}. Start it with launches.start or the nerve-qa scripts; this harness never starts daemons.`,
       );
 
     const client = await importBuilt<{

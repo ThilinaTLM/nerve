@@ -60,6 +60,10 @@ const OTHER_NAMES: Record<string, string> = {
   "sdk.docs": "discovery",
   "search.web": "namespace per extension: web search is not part of `web`",
   "launches.move": "places an entry in the catalog tree",
+  "launches.start": "runs a definition, like the Launches panel's start",
+  "launches.restart": "stops and starts a run, like the Launches panel",
+  "launches.stop": "ends a run; deletes nothing",
+  "launches.logs": "a run's output, like async_bash logs",
   "web.fetch": "mirrors the web_fetch tool",
 };
 

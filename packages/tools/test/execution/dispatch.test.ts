@@ -152,7 +152,7 @@ describe("executeTool dispatch", () => {
   });
 
   it("rejects process tools because they are orchestrator-owned", async () => {
-    const processTools = ["async_bash", "launch"] as ToolName[];
+    const processTools = ["async_bash"] as ToolName[];
 
     for (const name of processTools) {
       await assert.rejects(

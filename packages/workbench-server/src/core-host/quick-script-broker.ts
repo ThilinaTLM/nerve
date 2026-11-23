@@ -32,14 +32,15 @@ export type QuickScriptCall = Omit<
   admission: { by: "user" | "rule"; scriptRisk: QuickScriptRisk };
 };
 
-/** One SDK call to check: an operation with its targets and risk, or a remaining direct tool (`web_fetch`, `read` / `write` / `edit`). */
+/** One SDK call to check: an operation with its targets and risk, or a remaining direct tool (`web_fetch`, `read` / `write` / `edit`, `bash`). */
 export type QuickScriptRequest = QuickScriptNestedRequest;
 
 const MAX_STALE_RETRIES = 5;
 
-/** Direct tools a quick-script SDK call may still be authorized as: `read` / `write` / `edit` for workspace files and `web_fetch` for `web.fetch`. */
+/** Direct tools a quick-script SDK call may still be authorized as: `read` / `write` / `edit` for workspace files, `web_fetch` for `web.fetch` and `bash` for the command `launches.start` runs. */
 function brokerableDirectTool(toolName: string): boolean {
   return (
+    toolName === "bash" ||
     toolName === "read" ||
     toolName === "write" ||
     toolName === "edit" ||

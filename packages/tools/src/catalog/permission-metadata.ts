@@ -63,14 +63,6 @@ const metadata = {
     ["whole_tool"],
     true,
   ),
-  launch: m(
-    "orchestration",
-    "process",
-    "unknown",
-    ["action", "name", "runId"],
-    ["whole_tool"],
-    true,
-  ),
   subagent_prompt: m(
     "orchestration",
     "subagents",

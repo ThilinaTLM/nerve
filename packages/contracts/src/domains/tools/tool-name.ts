@@ -37,7 +37,6 @@ export const orchestrationToolNameSchema = z.enum([
   "subagent_status",
   "subagent_stop",
   "async_bash",
-  "launch",
   "plan_present",
 ]);
 export type OrchestrationToolName = z.infer<typeof orchestrationToolNameSchema>;

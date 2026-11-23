@@ -508,7 +508,7 @@ async function seedConversation(
   });
 }
 
-/** Project-resident launch configurations, shared by the UI and launch tool. */
+/** Project-resident launch configurations, shared by the UI and the `launches` script namespace. */
 async function writeLaunchDefinitions(workspace: string): Promise<void> {
   const now = new Date(SEED_NOW).toISOString();
   const definitions = [

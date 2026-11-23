@@ -11,21 +11,21 @@ Nerve does not recover processes after a daemon restart. Async Bash runs become 
 
 ## A launch disappears after restart
 
-Launch instances are memory-only. Definitions remain in `.nerve/launches/definitions.json`, and logs remain under `data/launches/<launchId>/`. Inspect retained logs, check `launch status`, and start the current definition if needed. Agents cannot create or edit definitions.
+Launch instances are memory-only. Definitions remain in `.nerve/launches/definitions.json`, and logs remain under `data/launches/<launchId>/`. Inspect retained logs, check `launches.list()`, and start the current definition if needed.
 
 ## Readiness never arrives
 
 For `bash` with `background: true`, check the `ready` URL or output regex and inspect `async_bash logs`. Readiness waits at most 60 seconds; a timeout does not stop the command.
 
-For a launch with a declared port, start and restart wait up to 30 seconds for it to listen. Check `launch logs` and the definition's port. A server on a different interface or port may run correctly while missing the check. Read logs on demand rather than repeatedly polling for completion.
+For a launch with a declared port, start and restart wait up to 30 seconds for it to listen. Check `launches.logs` and the definition's port. A server on a different interface or port may run correctly while missing the check. Read logs on demand rather than repeatedly polling for completion.
 
 ## A port is already in use
 
-Launch start reports the listener's PID and process name. Agents never terminate foreign listeners; only the user can do so from the UI. Check the listener before deciding whether to stop it or change the definition.
+`launches.start` reports the listener's PID and process name. Agents never terminate foreign listeners; only the user can do so from the UI. Check the listener before deciding whether to stop it or change the definition.
 
 ## Stop does not complete
 
-`async_bash stop` and `launch stop` terminate the process tree gracefully, then escalate after a bounded wait. Platform security software or child detachment can still interfere. Inspect logs and confirm process identity before any manual OS termination.
+`async_bash stop` and `launches.stop` terminate the process tree gracefully, then escalate after a bounded wait. Platform security software or child detachment can still interfere. Inspect logs and confirm process identity before any manual OS termination.
 
 ## Quitting Nerve
 

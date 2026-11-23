@@ -176,10 +176,6 @@ const bashCases: LabeledCard[] = [
       onDenyApproval: noop,
     },
   },
-  {
-    label: "launch — completed",
-    props: { toolCall: vfx.launchCompleted, cwd },
-  },
 ];
 
 const fileCases: LabeledCard[] = [

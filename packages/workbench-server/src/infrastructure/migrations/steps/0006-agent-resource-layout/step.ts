@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { migrate, openCoreDatabase } from "@nervekit/conversation-core";
+import { dropLaunchToolDocument, hasLaunchToolRule } from "./launch-tool.js";
 import { defineStep, type StepContext } from "../../framework/step.js";
 import {
   accountRows,
@@ -29,6 +30,10 @@ import {
  * the core would apply) before inserting. The rows are written first, then the secrets leave
  * `credentials.enc` and `accounts.json` is removed; a rerun after a partial failure replaces the
  * rows it already wrote.
+ *
+ * The removed direct `launch` tool leaves permission rules: user and conversation overlays and
+ * custom rule sets drop the name (a rule naming only it is removed) and report each as a loss.
+ * Permission exceptions are not persisted in the home, so nothing else names the tool.
  *
  * Merge-safe: a profile that already exists in the target, whatever its content, wins. The
  * source of a different one is quarantined and reported; an identical one is simply removed.
@@ -104,13 +109,65 @@ async function moveAccounts(context: StepContext): Promise<void> {
   );
 }
 
+/** The parsed file, or undefined when it is not valid JSON (the policy loader reports those). */
+function readJson(path: string): unknown {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Permission files (user and conversation overlays, custom rule sets) that may name the removed launch tool. */
+function permissionFiles(context: StepContext): string[] {
+  const { paths } = context;
+  const found: string[] = [];
+  if (existsSync(paths.permissionsConfigPath))
+    found.push(paths.permissionsConfigPath);
+  const ruleSets = join(paths.configPath, "rule-sets");
+  if (existsSync(ruleSets))
+    for (const file of readdirSync(ruleSets).sort())
+      if (file.endsWith(".json")) found.push(join(ruleSets, file));
+  if (existsSync(paths.conversationsPath))
+    for (const id of readdirSync(paths.conversationsPath).sort()) {
+      const path = join(
+        paths.conversationsPath,
+        id,
+        "config",
+        "permissions.json",
+      );
+      if (existsSync(path)) found.push(path);
+    }
+  return found;
+}
+
+/** Drops the removed `launch` tool from permission rules, reporting each. */
+async function dropLaunchTool(context: StepContext): Promise<void> {
+  for (const path of permissionFiles(context)) {
+    if (context.discarded.has(path)) continue;
+    await context.unit({ kind: "configuration", id: path }, () => {
+      const document = readJson(path);
+      if (document === undefined) return;
+      const dropped = dropLaunchToolDocument(document, (reason) =>
+        context.loss(reason),
+      );
+      if (dropped.changed)
+        context.fs.write(
+          path,
+          `${JSON.stringify(dropped.document, null, 2)}\n`,
+        );
+    });
+  }
+}
+
 export default defineStep({
   id: "0006-agent-resource-layout",
   description:
-    "Move user agent profiles to the agent folder and accounts to the database",
+    "Move user agent profiles to the agent folder, accounts to the database, and drop launch-tool permission rules",
   ownedPaths: (context) => [
     context.paths.accountsConfigPath,
     context.paths.credentialsPath,
+    ...permissionFiles(context),
   ],
   async run(context) {
     const { legacy, target } = locations(context);
@@ -148,8 +205,12 @@ export default defineStep({
     if (existsSync(legacy) && readdirSync(legacy).length === 0)
       context.fs.remove(legacy);
     await moveAccounts(context);
+    await dropLaunchTool(context);
   },
   async verify(context) {
+    for (const path of permissionFiles(context))
+      if (!context.discarded.has(path) && hasLaunchToolRule(readJson(path)))
+        throw new Error(`The removed launch tool remains in ${path}`);
     const { accountsConfigPath } = context.paths;
     if (
       existsSync(accountsConfigPath) &&

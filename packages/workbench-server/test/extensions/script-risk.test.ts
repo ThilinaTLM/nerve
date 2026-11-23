@@ -13,6 +13,26 @@ import {
 
 const classify = (code: string) => classifyQuickScriptScript(code, registry);
 
+void test("runtime namespaces are scanned: starting a launch makes the script destructive", async () => {
+  assert.equal((await classify(`await launches.list()`)).risk, "read");
+  assert.equal(
+    (await classify(`await launches.create({ command: "pnpm dev" })`)).risk,
+    "workspace_write",
+  );
+  assert.equal(
+    (await classify(`await launches.start("web")`)).risk,
+    "destructive",
+  );
+  assert.equal(
+    (await classify(`const l = launches; await l.start("web")`)).risk,
+    "destructive",
+  );
+  // Checked as bash at run time, so no operation rule can admit the script.
+  const start = await classify(`await launches.start("web")`);
+  assert.equal(start.admissible, false);
+  assert.deepEqual(start.calls, []);
+});
+
 void test("the scanner reads each method's declared risk", async () => {
   const risks = async (code: string) => (await classify(code)).risk;
   assert.equal(await risks(`await jira.issues.get("A-1")`), "external_read");

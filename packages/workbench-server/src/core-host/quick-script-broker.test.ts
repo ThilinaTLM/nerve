@@ -154,11 +154,12 @@ void test("deny wins over the approved risk", async () => {
 
 void test("only operations and the remaining direct tools can be brokered", async () => {
   const { authorize, inputs } = authorizer([]);
-  for (const toolName of ["bash", "python_exec", "quick_script"])
+  for (const toolName of ["python_exec", "quick_script"])
     await assert.rejects(authorize(call, { toolName, args: {} }), {
       code: "NESTED_DENIED",
     });
   assert.equal(inputs.length, 0);
+  await authorize(call, { toolName: "bash", args: { command: "pnpm dev" } });
   await authorize(call, { toolName: "read", args: { path: "chart.png" } });
   await authorize(call, {
     toolName: "write",
@@ -174,7 +175,7 @@ void test("only operations and the remaining direct tools can be brokered", asyn
   });
   assert.deepEqual(
     inputs.map((input) => input.toolName),
-    ["read", "write", "edit", "web_fetch"],
+    ["bash", "read", "write", "edit", "web_fetch"],
   );
 });
 
@@ -256,4 +257,17 @@ void test("a raw request is an ordinary destructive operation: an allow rule adm
       code: "NESTED_DENIED",
     },
   );
+});
+
+void test("a launch's bash command is denied by a deny rule and needs a person's approval of the script", async () => {
+  const bash = { toolName: "bash", args: { command: "pnpm dev", cwd: "app" } };
+  await assert.rejects(
+    authorizer(["deny"]).authorize(as("user", "destructive"), bash),
+    { code: "NESTED_DENIED" },
+  );
+  await assert.rejects(
+    authorizer(["approval"]).authorize(as("rule", "destructive"), bash),
+    { code: "NESTED_APPROVAL_REQUIRED" },
+  );
+  await authorizer(["approval"]).authorize(as("user", "destructive"), bash);
 });

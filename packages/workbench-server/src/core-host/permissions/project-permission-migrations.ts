@@ -6,13 +6,14 @@ import {
 import type { ProjectConfigurationType } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import { convertPermissionOverlayV1 } from "../../infrastructure/configuration/agent-configuration/project-chains/frozen/policy-document.js";
 import { convertPermissionOverlayDocument } from "../../infrastructure/migrations/steps/0005-extension-settings/removed-tools.js";
+import { dropLaunchToolDocument } from "../../infrastructure/migrations/steps/0006-agent-resource-layout/launch-tool.js";
 export type ProjectPermissionDocument = PermissionOverlayDocument & {
-  version: 3;
+  version: 4;
 };
 export const projectPermissionSchema = {
   parse(value: unknown): ProjectPermissionDocument {
     const { version, ...document } = z
-      .object({ version: z.literal(3) })
+      .object({ version: z.literal(4) })
       .passthrough()
       .parse(value);
     const parsed =
@@ -48,7 +49,7 @@ export const projectPermissionsConfiguration: ProjectConfigurationType<ProjectPe
     fallbackDescription:
       "The overlay on disk is not applied. If an earlier version was loaded, it stays in use; otherwise tool execution is blocked in this project until the overlay is fixed or reset. Model-only replies remain available.",
     path: "config/permissions.json",
-    currentVersion: 3,
+    currentVersion: 4,
     version: { field: "version", absent: 1 },
     migrators: {
       1: (value) => {
@@ -64,17 +65,27 @@ export const projectPermissionsConfiguration: ProjectConfigurationType<ProjectPe
         ...(removedToolRules(value).document as object),
         version: 3,
       }),
+      // The direct launch tool was removed; rules naming it drop the name (a rule naming only it is removed).
+      3: (value) => ({
+        ...(dropLaunchToolDocument(value, () => {}).document as object),
+        version: 4,
+      }),
     },
     upgradeNotice: (original) => {
+      const notices: string[] = [];
       const { changed, reasons } = removedToolRules(original);
-      return changed
-        ? `Permission rules for the removed Jira, Confluence, diagram and image tools were converted to quick_script operation rules.${
+      if (changed)
+        notices.push(
+          `Permission rules for the removed Jira, Confluence, diagram and image tools were converted to quick_script operation rules.${
             reasons.length ? ` ${reasons.join(" ")}` : ""
-          }`
-        : undefined;
+          }`,
+        );
+      const launch: string[] = [];
+      dropLaunchToolDocument(original, (reason) => launch.push(reason));
+      return [...notices, ...new Set(launch)].join(" ") || undefined;
     },
     schema: projectPermissionSchema,
-    fallback: () => ({ schemaVersion: 2, version: 3, overlays: [] }),
+    fallback: () => ({ schemaVersion: 2, version: 4, overlays: [] }),
     reset: () => null,
   };
 

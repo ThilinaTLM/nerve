@@ -1,7 +1,9 @@
 /** Declarations of the `launches` runtime namespace. */
 export const LAUNCHES_DTS_TYPES = `interface LaunchDefinition {
-  /** "launchdef_...". The \`launch\` tool starts a definition by this id or its label. */
+  /** "launchdef_...". */
   id: string;
+  /** The label, or the command when there is no label: what the user sees, and what \`name\` arguments match. */
+  name: string;
   label?: string;
   command: string;
   /** Relative to the project directory. */
@@ -13,6 +15,26 @@ export const LAUNCHES_DTS_TYPES = `interface LaunchDefinition {
   /** Position among siblings, 0..n-1. */
   order: number;
 }
+interface LaunchRun {
+  /** "launch_...". */
+  runId: string;
+  name: string;
+  /** The command this run executed; the definition may have changed since. */
+  command: string;
+  /** starting, running, ready, stopping, completed, failed, cancelled, timed_out, ... */
+  status: string;
+  readyUrl?: string;
+  /** First port the process listens on, when known. */
+  port?: number;
+  exitCode?: number;
+  startedAt: string;
+}
+interface LaunchStartResult extends LaunchRun {
+  /** already_running: nothing was started. */
+  outcome: "started" | "already_running";
+  /** Only for definitions with a port: whether it listened within 30 s. */
+  listening?: boolean;
+}
 interface LaunchFolder {
   /** "launchfolder_...". */
   id: string;
@@ -21,13 +43,16 @@ interface LaunchFolder {
   order: number;
 }
 interface LaunchesCatalog {
-  definitions: LaunchDefinition[];
+  /** runs: latest first. */
+  definitions: (LaunchDefinition & { runs: LaunchRun[] })[];
   folders: LaunchFolder[];
+  /** Runs of no current definition (started by hand, or their definition was deleted). */
+  runs: LaunchRun[];
 }
 interface LaunchPlacement {
-  /** Folder id; omit or null for the top level. */
+  /** Folder label or id; omit or null for the top level. */
   folder?: string | null;
-  /** Id of the sibling (definition or folder, same \`folder\`) to insert before; omit to append. */
+  /** Name or id of the sibling (definition or folder, same \`folder\`) to insert before; omit to append. */
   before?: string;
 }
 interface LaunchDefinitionFields {

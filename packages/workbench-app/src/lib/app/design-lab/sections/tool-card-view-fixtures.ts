@@ -409,16 +409,6 @@ export const bashMultiline = sampleCall({
   durationMs: 3_900,
 });
 
-export const launchCompleted = sampleCall({
-  id: "tool_launch_ok",
-  toolName: "launch",
-  args: { action: "restart", name: "workbench-ui" },
-  result: {
-    content:
-      "VITE v7.1.4  ready in 612 ms\n\n  Local:   http://localhost:5173/\n  Network: use --host to expose",
-  },
-});
-
 const EDIT_OPS = [
   {
     oldText: '  accent: "text-primary",',

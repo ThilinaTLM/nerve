@@ -88,7 +88,7 @@ const cases: {
   },
   {
     type: projectPermissionsConfiguration,
-    healthy: { schemaVersion: 2, version: 3, overlays: [] },
+    healthy: { schemaVersion: 2, version: 4, overlays: [] },
     older: { schemaVersion: 2, overlays: [] },
   },
 ];
@@ -359,4 +359,59 @@ void test("permission overlays naming removed tools become quick_script operatio
     /converted to quick_script operation rules/,
   );
   assert.match(notice?.message ?? "", /by-argument/);
+});
+
+void test("permission overlays drop the removed launch tool from rules and say so", async (t) => {
+  const f = await fixture(t);
+  let priority = 0;
+  const rule = (id: string, toolNames: string[]) => ({
+    id,
+    enabled: true,
+    priority: ++priority,
+    enforcement: "overridable",
+    when: { toolNames },
+    decision: "allow",
+  });
+  await f.put(projectPermissionsConfiguration.path, {
+    version: 3,
+    schemaVersion: 2,
+    overlays: [
+      {
+        ruleSetId: "supervised",
+        rules: [
+          rule("only", ["launch"]),
+          rule("shared", ["launch", "bash"]),
+          rule("other", ["read"]),
+          {
+            ...rule("scoped", ["launch", "bash"]),
+            when: {
+              toolNames: ["launch", "bash"],
+              primaryArgument: { operator: "glob", value: "start" },
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const migrated = await f.service.load(
+    f.context,
+    projectPermissionsConfiguration,
+  );
+  assert.equal(migrated.classification, "migrated");
+  assert.deepEqual(
+    migrated.value.overlays[0].rules.map((r) => [r.id, r.when?.toolNames]),
+    [
+      ["shared", ["bash"]],
+      ["other", ["read"]],
+      ["scoped", ["bash"]],
+    ],
+  );
+  assert.equal(migrated.value.overlays[0].rules[2].enabled, false);
+  assert.match(
+    projectPermissionsConfiguration.upgradeNotice?.({
+      version: 3,
+      overlays: [{ rules: [rule("only", ["launch"])] }],
+    }) ?? "",
+    /removed launch tool/,
+  );
 });

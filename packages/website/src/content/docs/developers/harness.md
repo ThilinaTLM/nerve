@@ -35,7 +35,7 @@ Profiles are complete per-name definitions in user `agent/agent-profiles/` and p
 
 `bash` can return immediately with `background: true` or promote a long-running foreground command according to Bash settings. Core tracks these runs durably; `async_bash` lists, reads logs or stops them. Completion queues a notice. A child with background commands can finish its execution, accept follow-ups and wake again when a command completes.
 
-`launch` is separate host-managed work: user-defined run configurations live in `.nerve/launches/definitions.json`, while launch instances are memory-only. Agents can inspect/start/restart/stop them but have no definition-editing tool action.
+Launches are separate host-managed work: user-defined run configurations live in `.nerve/launches/definitions.json`, while launch instances are memory-only. Agents reach them through the `launches` namespace of `quick_script`, which can inspect, start, restart, stop and edit definitions.
 
 ## Recovery
 

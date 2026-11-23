@@ -31,6 +31,10 @@ export const SAMPLES: Record<string, unknown[][]> = {
   "configuration.tools.list": [[]],
   "configuration.explain": [[{ tool: "bash", args: { command: "ls" } }]],
   "launches.list": [[]],
+  "launches.start": [["web"], [{ runId: "launch_a" }]],
+  "launches.restart": [["web"], [{ name: "web", runId: "launch_a" }]],
+  "launches.stop": [["web"], [{ runId: "launch_a" }]],
+  "launches.logs": [["web"], [{ name: "web", offset: 0, lines: 50 }]],
   "launches.create": [
     [{ command: "pnpm dev" }],
     [
@@ -38,21 +42,35 @@ export const SAMPLES: Record<string, unknown[][]> = {
         label: "web",
         command: "pnpm dev",
         port: 3000,
-        folder: "launchfolder_a",
-        before: "launchdef_b",
+        folder: "apps",
+        before: "api",
       },
     ],
   ],
-  "launches.update": [
-    [{ id: "launchdef_a", command: "pnpm start", port: null }],
-  ],
-  "launches.remove": [["launchdef_a"], [{ id: "launchdef_a" }]],
+  "launches.update": [[{ name: "web", command: "pnpm start", port: null }]],
+  "launches.remove": [["web"], [{ name: "launchdef_a" }]],
   "launches.folders.create": [[{ label: "apps" }]],
-  "launches.move": [
-    [{ id: "launchdef_a", folder: null, before: "launchdef_b" }],
-  ],
+  "launches.move": [[{ name: "web", folder: null, before: "api" }]],
   "sdk.list": [[]],
   "sdk.describe": [["jira.issues"]],
   "sdk.search": [["sprint"], ["sprint", { in: "jira", offset: 0 }]],
   "sdk.docs": [[], ["jira"], ["jira/workflows"]],
 };
+
+/** A launches port for preparing `launches.start` / `restart` / `stop`: they resolve the launch before they are checked. */
+export const launchesAgentSample = {
+  prepareStart: async (selector: { name?: string; runId?: string }) => ({
+    name: selector.name ?? "web",
+    process: { command: "pnpm dev", cwd: "/project" },
+    start: async () => {
+      throw new Error("not started in samples");
+    },
+  }),
+  prepareStop: async (selector: { name?: string; runId?: string }) => ({
+    name: selector.name ?? "web",
+    target: "launches:launch/launchdef_a",
+    stop: async () => {
+      throw new Error("not stopped in samples");
+    },
+  }),
+} as unknown as import("@nervekit/tools/quick-script").LaunchesAgentPort;
