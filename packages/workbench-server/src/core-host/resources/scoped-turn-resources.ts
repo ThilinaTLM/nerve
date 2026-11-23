@@ -7,6 +7,7 @@ import type { ConfigurationPreviewInput } from "@nervekit/conversation-core";
 import type { ToolDefinition } from "@nervekit/tools/catalog";
 import type { Skill } from "@nervekit/harness/resources";
 import type { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
+import { hasEnabledMcpServers } from "../../domains/mcp/mcp-config.js";
 import { loadHarnessResources } from "./resource-loader.js";
 import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
@@ -126,13 +127,16 @@ export function scopedTurnResources(options: {
     // Only configured namespaces: unavailability stays out of the description so credential changes keep the prompt prefix.
     const quickScriptText = quickScriptDescription(
       {
-        namespaces: configuredNamespaces(
-          (
-            await extensionAvailability(registry, resolution, accounts, {
-              checkSecrets: false,
-            })
-          ).namespaces,
-        ),
+        namespaces: [
+          ...configuredNamespaces(
+            (
+              await extensionAvailability(registry, resolution, accounts, {
+                checkSecrets: false,
+              })
+            ).namespaces,
+          ),
+          ...((await hasEnabledMcpServers(options.home)) ? ["mcp"] : []),
+        ],
       },
       registry,
     );

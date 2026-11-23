@@ -79,6 +79,8 @@ import { isToolEnabled } from "../../core-host/tool-enablement.js";
 import { createExecutionAdmission } from "../../core-host/permissions/execution-admission/admission.js";
 import type { RuntimeDeps } from "./create-runtime-services.js";
 import { ImageGenerationService } from "../../domains/image-generation/image-generation.service.js";
+import { McpServerHub } from "../../domains/mcp/mcp-server-hub.js";
+import { version as nerveVersion } from "../version.js";
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
 
 export function createConversationCore(
@@ -145,6 +147,12 @@ export function createConversationCore(
       ready: (model) => imageGeneration.ready(model),
       listModels: () => imageGeneration.listModels(),
     },
+  });
+  const mcp = new McpServerHub({
+    home: deps.storage.paths.home,
+    version: nerveVersion,
+    warn: (message, context) =>
+      void deps.logger.warn(message, { context }).catch(() => undefined),
   });
   const launchRuns = new LaunchRuns({
     launches: launchServices.launches,
@@ -324,6 +332,7 @@ export function createConversationCore(
                 },
                 shell,
               }),
+              mcpAgent: mcp.port(input.projectDir ?? input.cwd),
               extensionAgent: extensionCatalog.agentPort({
                 projectDir: input.projectDir ?? input.cwd,
                 switchOf: (id) => extensionStates(extensions)(id)?.enabled,
@@ -786,5 +795,6 @@ export function createConversationCore(
     admissionPolicy,
     configurationResources,
     subagentHost,
+    mcp,
   };
 }

@@ -69,6 +69,27 @@ await launches.update({ name: "Docs", port: 4322 });
 - Large output is summarized with file paths for `read`/`grep` instead of filling the conversation context.
 - Background Bash and agent-started launches queue a completion notice when they exit on their own. Launch notice ownership is held in memory and doesn't survive a daemon restart.
 
+## MCP servers
+
+Nerve connects to the MCP (Model Context Protocol) servers in `~/.nerve/config/mcp.json` (the Nerve home's `config/mcp.json`), in the `mcpServers` shape other MCP clients use: stdio servers (`command`, `args`, `env`, `cwd`) and Streamable HTTP servers (`url`, `headers`), plus `description`, `enabled` and `timeout`. `${VAR}` references are expanded from Nerve's environment. Their tools are not separate tools: agents reach them through the `mcp` namespace of `quick_script`, which is listed in its description once a server is configured.
+
+```ts
+await mcp.servers.list(); // state, instructions
+await mcp.tools.search({ query: "create issue", server: "github" });
+await mcp.tools.get({ server: "github", tool: "create_issue" }); // inputSchema
+await mcp.tools.call({
+  server: "github",
+  tool: "create_issue",
+  arguments: { owner: "acme", repo: "web", title: "Bug" },
+});
+await mcp.resources.get({ server: "docs", uri: "docs://readme" });
+```
+
+- A server starts (or connects) on first use and is shared by later scripts; a stdio server runs once per project directory and stops after ten minutes unused.
+- Each `tools.call` is checked as operation `mcp.tools.call` on target `mcp:tool/<server>/<tool>`, so an "always allow" covers one tool. Nerve cannot know what a tool does, so a script that calls one counts as destructive. Listing tools and reading resources are external reads.
+- A tool's text blocks are returned as `text`, its structured result as `structured`, and images or binary content as artifacts in `files`. A tool that reports an error throws `SERVER_ERROR`.
+- Project-level `mcp.json` files and OAuth sign-in are not supported yet.
+
 ## Delegation and planning
 
 - Sub-agents: `subagent_prompt`, `subagent_status`, `subagent_stop`

@@ -64,6 +64,7 @@ const OTHER_NAMES: Record<string, string> = {
   "launches.restart": "stops and starts a run, like the Launches panel",
   "launches.stop": "ends a run; deletes nothing",
   "launches.logs": "a run's output, like async_bash logs",
+  "mcp.tools.call": "MCP's tools/call: runs a tool of the server",
   "web.fetch": "mirrors the web_fetch tool",
 };
 

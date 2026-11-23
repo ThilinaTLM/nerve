@@ -56,6 +56,16 @@ export type {
   PreparedLaunchStop,
 } from "./runtime/launches/launches-port.js";
 export type {
+  McpAgentPort,
+  McpCallResult,
+  McpContentBlock,
+  McpResource,
+  McpResourceContents,
+  McpServerState,
+  McpServerSummary,
+  McpTool,
+} from "./runtime/mcp/mcp-port.js";
+export type {
   NamespaceAvailability,
   QuickScriptAvailability,
 } from "./manifest-types.js";

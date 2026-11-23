@@ -7,6 +7,7 @@ import type { ScopedPermissionPolicySource } from "../permissions/scoped-permiss
 import { agentConfigurationProvider } from "./providers/agent-configuration-provider.js";
 import { extensionProvider } from "./providers/extension-provider.js";
 import { launchProvider } from "./providers/launch-provider.js";
+import { mcpProvider } from "./providers/mcp-provider.js";
 import { permissionProvider } from "./providers/permission-provider.js";
 import { skillProvider } from "./providers/skill-provider.js";
 import { createProjectSkillTrust } from "../resources/project-skill-trust.js";
@@ -41,6 +42,7 @@ export function createResourceRegistry(options: {
   registry.register(
     launchProvider({ launchDefinitions: options.launchDefinitions }),
   );
+  registry.register(mcpProvider({ home: options.home }));
   registry.register(
     skillProvider({
       storageHome: options.home,

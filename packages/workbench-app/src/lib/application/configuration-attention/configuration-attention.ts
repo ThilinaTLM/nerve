@@ -40,6 +40,7 @@ const KIND_LABELS: Record<ConfigurationResourceKind, string> = {
   "rule-set": "Permission rule set",
   "permission-overlay": "Permission rules",
   "launch-catalog": "Launch definitions",
+  "mcp-servers": "MCP servers",
   skill: "Skill",
   "prompt-suggestion": "Suggestion",
   extension: "Extension",
@@ -50,6 +51,7 @@ const FILE_KINDS = new Set<ConfigurationResourceKind>([
   "agent-preferences",
   "permission-overlay",
   "launch-catalog",
+  "mcp-servers",
 ]);
 
 export const PROJECT_ORIGIN = "In this project, from the repository";
@@ -118,6 +120,8 @@ export function attentionTarget(
       return { scope, pageId: "suggestions" };
     case "launch-catalog":
       return scope === "project" ? { scope, pageId: "launch" } : undefined;
+    case "mcp-servers":
+      return undefined;
     case "agent-profile":
       return { scope, pageId: "agents" };
     case "rule-set":

@@ -228,6 +228,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scopedConfiguration,
     admissionPolicy,
     configurationResources,
+    mcp,
   } = createConversationCore(
     { ...deps, accounts, extensionCatalog, extensionStore },
     { launches, definitions: launchDefinitions },
@@ -536,6 +537,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scopedConfiguration,
     admissionPolicy,
     configurationResources,
+    mcp,
     coreStorage,
     launches,
     launchDefinitions,
