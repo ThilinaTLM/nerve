@@ -12,6 +12,7 @@ let {
   variant = "conversation",
   projectLabel,
   projectPath,
+  projectIcon,
   starters = [],
   defaultStarter,
   startersDisabled = false,
@@ -23,6 +24,8 @@ let {
   variant?: "launchpad" | "conversation";
   projectLabel?: string;
   projectPath?: string;
+  /** Replaces the folder glyph beside the project label. */
+  projectIcon?: Snippet;
   starters?: readonly ConversationStarter[];
   /** Profile of the starter marked as the default. */
   defaultStarter?: string;
@@ -115,7 +118,11 @@ const launchpad = $derived(variant === "launchpad");
         class={`${starters.length > 0 ? "mt-4" : "mt-5"} flex max-w-full shrink-0 items-center gap-1.5 text-caption text-muted-foreground`}
         title={projectPath}
       >
-        <FolderIcon class="size-3.5 shrink-0" aria-hidden="true" />
+        {#if projectIcon}
+          {@render projectIcon()}
+        {:else}
+          <FolderIcon class="size-3.5 shrink-0" aria-hidden="true" />
+        {/if}
         <span class="sr-only">Current project</span>
         <span class="truncate">{projectLabel}</span>
       </p>

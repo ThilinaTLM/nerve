@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Snippet } from "svelte";
 import { ConversationSignal, conversationStarters } from "$lib/presentation";
 
 let {
@@ -6,6 +7,7 @@ let {
   projectSelected = false,
   projectLabel,
   projectPath,
+  projectIcon,
   availableProfiles,
   defaultProfile,
 }: {
@@ -13,6 +15,8 @@ let {
   projectSelected?: boolean;
   projectLabel?: string;
   projectPath?: string;
+  /** Replaces the folder glyph beside the project label. */
+  projectIcon?: Snippet;
   /** Selectable lead profile names; all starters show until they load. */
   availableProfiles?: readonly string[];
   defaultProfile?: string;
@@ -35,6 +39,7 @@ const starters = $derived(
     : "Bring a project. We'll bring the momentum."}
   {projectLabel}
   {projectPath}
+  {projectIcon}
   {starters}
   defaultStarter={defaultProfile}
   startersDisabled={!projectSelected}
