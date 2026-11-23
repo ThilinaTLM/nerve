@@ -66,7 +66,7 @@ export type FakeContextRecord = {
     /** Text chunk as passed. */
     chunk: string;
   }[];
-  /** `ctx.extensionStore` content by key, with revisions as the real store keeps them. */
+  /** `ctx.store` content by key, with revisions as the real store keeps them. */
   store: Map<
     string,
     {
@@ -145,7 +145,7 @@ export type FakeContextOptions = {
   defaultModel?: ModelSelection;
   /** Answers `ctx.text.htmlToMarkdown`; throws when a test uses it without one. */
   htmlToMarkdown?: (html: string) => string | Promise<string>;
-  /** Seeds `ctx.extensionStore`: values by key, each at revision 1. Read the result in `record.store`. */
+  /** Seeds `ctx.store`: values by key, each at revision 1. Read the result in `record.store`. */
   store?: Record<string, unknown>;
 };
 
@@ -283,7 +283,7 @@ export function createFakeContext(options: FakeContextOptions = {}): {
       },
       freshName: async (base, extension) => freshName(base, extension),
     },
-    extensionStore: {
+    store: {
       get: async (key) => {
         const entry = record.store.get(checkedKey(key));
         return entry && { value: clone(entry.value), revision: entry.revision };

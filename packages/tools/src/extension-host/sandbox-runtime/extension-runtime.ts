@@ -136,12 +136,11 @@ function buildContext(
       freshName: (base, extension) =>
         call("artifacts.freshName", base, extension),
     },
-    extensionStore: {
-      get: (key) => call("extensionStore.get", key),
-      set: (key, value, options) =>
-        call("extensionStore.set", key, value, options),
-      delete: (key, options) => call("extensionStore.delete", key, options),
-      keys: (options) => call("extensionStore.keys", options),
+    store: {
+      get: (key) => call("store.get", key),
+      set: (key, value, options) => call("store.set", key, value, options),
+      delete: (key, options) => call("store.delete", key, options),
+      keys: (options) => call("store.keys", options),
     },
     text: { htmlToMarkdown: (html) => call("text.htmlToMarkdown", html) },
     authorize: (check) => call("authorize", check),

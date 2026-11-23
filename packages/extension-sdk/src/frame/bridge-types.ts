@@ -76,16 +76,110 @@ export type FileChunk = {
   eof: boolean;
 };
 
-/** One entry of a `host.ui.showMenu` menu. */
+/** A rectangle in the frame's viewport, in CSS pixels (as `getBoundingClientRect` gives it); without `width` and `height` it is a point, such as the pointer. */
+export type AnchorRect = {
+  /** Left edge. */
+  x: number;
+  /** Top edge. */
+  y: number;
+  /** Width; default 0. */
+  width?: number | undefined;
+  /** Height; default 0. */
+  height?: number | undefined;
+};
+
+/** What a host-drawn menu or picker opens next to: an element of the frame (the SDK measures it when the call is made) or a rectangle. */
+export type Anchor = Element | AnchorRect;
+
+/** A choice in a `host.ui.menu` menu. */
 export type MenuItem = {
-  /** Returned by `showMenu` when chosen; 1–64 characters. */
+  /** Omit, or `"item"`. */
+  type?: "item" | undefined;
+  /** Returned by `menu` when chosen; unique in the menu; 1–128 characters. */
   id: string;
   /** Text shown; 1–200 characters. */
   label: string;
+  /** Lucide icon by kebab-case name (`"file-text"`, `"trash-2"`), drawn by the host; an unknown name shows no icon. */
+  icon?: string | undefined;
+  /** Key hint shown at the end (`"Ctrl+K"`); it does not bind a key. At most 64 characters. */
+  shortcut?: string | undefined;
+  /** Shows a check mark: the state of a toggle. */
+  checked?: boolean | undefined;
   /** Greyed out and not selectable. */
   disabled?: boolean | undefined;
   /** Drawn as a dangerous action (red). */
   destructive?: boolean | undefined;
+};
+
+/** Divider between groups of entries. */
+export type MenuSeparator = {
+  /** Always `"separator"`. */
+  type: "separator";
+};
+
+/** Caption above the entries that follow it. */
+export type MenuLabel = {
+  /** Always `"label"`. */
+  type: "label";
+  /** Caption text; 1–200 characters. */
+  label: string;
+};
+
+/** An entry that opens a nested menu. Submenus nest at most two deep. */
+export type MenuSubmenu = {
+  /** Always `"submenu"`. */
+  type: "submenu";
+  /** Text shown; 1–200 characters. */
+  label: string;
+  /** Lucide icon by kebab-case name. */
+  icon?: string | undefined;
+  /** Greyed out and not openable. */
+  disabled?: boolean | undefined;
+  /** The nested entries. */
+  items: MenuEntry[];
+};
+
+/** One entry of a `host.ui.menu` menu: at most 200 in all, submenu entries included. */
+export type MenuEntry = MenuItem | MenuSeparator | MenuLabel | MenuSubmenu;
+
+/** A choice in a `host.ui.pick` list. */
+export type PickItem = {
+  /** Returned when chosen; unique in the list; 1–128 characters. */
+  id: string;
+  /** Text shown and searched; 1–200 characters. */
+  label: string;
+  /** Heading the item is listed under; typing the heading matches the whole group. */
+  group?: string | undefined;
+  /** Muted second line (at most 200 characters). */
+  detail?: string | undefined;
+  /** Extra search terms that are not shown (at most 16). */
+  keywords?: string[] | undefined;
+  /** Lucide icon by kebab-case name. */
+  icon?: string | undefined;
+  /** Not selectable. */
+  disabled?: boolean | undefined;
+};
+
+/** What a `host.ui.pick` list shows, apart from its mode. */
+export type PickOptions = {
+  /** Heading of the list; 1–200 characters. */
+  title?: string | undefined;
+  /** Placeholder of the search field (shown for more than 8 items); 1–200 characters. */
+  placeholder?: string | undefined;
+  /** Accessible name of the list (required); 1–200 characters. */
+  ariaLabel: string;
+  /** The choices: 1–2,000. */
+  items: PickItem[];
+  /** Ids selected on open; at most one for `mode: "single"`. */
+  selected?: string[] | undefined;
+  /** Where the list opens; absent: centered in the frame. */
+  anchor?: Anchor | undefined;
+};
+
+/** The options of `host.ui.pick` with its `mode`, as the fake host and the bridge see them. */
+export type PickRequest = PickOptions & {
+  /** `single` resolves with one id as soon as a row is chosen; `multiple` toggles rows and resolves with all chosen ids when applied. */
+  mode: "single" | "multiple";
 };
 
 /** Content of a `host.ui.confirm` dialog. */
@@ -200,15 +294,17 @@ type Methods = {
     params: { state: BridgeJson };
     result: Record<string, never>;
   };
-  /** Asks in a host dialog; `confirmed` is `false` when cancelled. */
+  /** Asks in a host dialog; `confirmed` is `false` when cancelled. Needs a user gesture in the frame, else `not_allowed`. */
   "ui.confirm": { params: ConfirmOptions; result: { confirmed: boolean } };
-  /** Shows a host menu of 1–32 items; `position` is frame-relative CSS pixels. `id` of the chosen item, `null` when dismissed. */
-  "ui.showMenu": {
-    params: {
-      items: MenuItem[];
-      position?: { x: number; y: number } | undefined;
-    };
+  /** Shows a menu drawn by the host next to `anchor` (CSS pixels in the frame). Needs a user gesture. `id` of the chosen item, `null` when dismissed. */
+  "ui.menu": {
+    params: { entries: MenuEntry[]; anchor: AnchorRect };
     result: { id: string | null };
+  };
+  /** Shows a choice list drawn by the host. Needs a user gesture. `ids` of the chosen items (one in `single` mode), `null` when dismissed or cancelled. */
+  "ui.pick": {
+    params: Omit<PickRequest, "anchor"> & { anchor?: AnchorRect | undefined };
+    result: { ids: string[] | null };
   };
   /** Shows a host toast (message 1–20,000 characters). */
   "ui.notify": {

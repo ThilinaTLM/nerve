@@ -30,7 +30,7 @@ globalThis.__nerveExtension = defineExtension({
     configuration: (ctx) => "greeting " + ctx.settings.get("greeting"),
     availability: async (ctx) => {
       // Hooks get a narrowed ctx: no http, artifacts or store.
-      const leaked = ["http", "artifacts", "extensionStore", "report"].filter((key) => key in ctx);
+      const leaked = ["http", "artifacts", "store", "report"].filter((key) => key in ctx);
       return leaked.length ? { available: false, reason: leaked.join(), fix: "" } : { available: true };
     },
     methods: {
@@ -106,16 +106,16 @@ globalThis.__nerveExtension = defineExtension({
         signature: "store()",
         parse: () => ({}),
         run: async (_session, _input, ctx) => {
-          const first = await ctx.extensionStore.set("doc", { n: 1 }, { ifRevision: 0 });
+          const first = await ctx.store.set("doc", { n: 1 }, { ifRevision: 0 });
           let conflict;
           try {
-            await ctx.extensionStore.set("doc", { n: 2 }, { ifRevision: 0 });
+            await ctx.store.set("doc", { n: 2 }, { ifRevision: 0 });
           } catch (error) {
             conflict = error instanceof ExtensionError ? error.code : "other";
           }
           let invalid;
           try {
-            await ctx.extensionStore.set("doc", 1, { ifRevision: -1 });
+            await ctx.store.set("doc", 1, { ifRevision: -1 });
           } catch (error) {
             invalid = error instanceof ExtensionError ? error.code : "other";
           }
@@ -123,9 +123,9 @@ globalThis.__nerveExtension = defineExtension({
             first,
             conflict,
             invalid,
-            got: await ctx.extensionStore.get("doc"),
-            missing: await ctx.extensionStore.get("nope"),
-            keys: await ctx.extensionStore.keys({ prefix: "d" }),
+            got: await ctx.store.get("doc"),
+            missing: await ctx.store.get("nope"),
+            keys: await ctx.store.keys({ prefix: "d" }),
           };
         },
       }),
@@ -294,7 +294,7 @@ void test(
 );
 
 void test(
-  "ctx.extensionStore calls reach the host with checked arguments and keep their error codes",
+  "ctx.store calls reach the host with checked arguments and keep their error codes",
   { skip: !available },
   async () => {
     const { code } = open();

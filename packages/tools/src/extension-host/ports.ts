@@ -127,8 +127,8 @@ export type ExtensionHostPorts = {
   textReady?: (model: ModelSelection) => Promise<boolean>;
   /** Nerve's default model and reasoning level for the open project; undefined when there is none. */
   defaultModel?: () => Promise<ModelSelection | undefined>;
-  /** The durable store of the open project; absent when the call has no project (`ctx.extensionStore` then rejects). */
-  extensionStore?: ExtensionStorePort;
+  /** The durable store of the open project; absent when the call has no project (`ctx.store` then rejects). */
+  store?: ExtensionStorePort;
 };
 
 /** Why a store operation failed; the runtime maps it to an `ExtensionError`. */

@@ -198,10 +198,12 @@ void test("UI that imports a component a frame cannot show fails with the host r
   import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
   import { Toaster } from "@nervekit/ui-kit/components/ui/sonner";
   import * as Menu from "@nervekit/ui-kit/components/ui/dropdown-menu";
+  import * as Select from "@nervekit/ui-kit/components/ui/select";
 </script>
 <Dialog.Root />
 <Toaster />
 <Menu.Root />
+<Select.Root />
 `,
     );
     const problems = await problemsOf(() =>
@@ -210,7 +212,8 @@ void test("UI that imports a component a frame cannot show fails with the host r
     const fixes = problems.map((problem) => problem.fix).join("\n");
     assert.match(fixes, /host\.ui\.confirm/);
     assert.match(fixes, /host\.ui\.notify/);
-    assert.match(fixes, /host\.ui\.showMenu/);
+    assert.match(fixes, /host\.ui\.menu/);
+    assert.match(fixes, /host\.ui\.pick/);
     assert.ok(
       problems.every((problem) => problem.where.endsWith("Overview.svelte")),
     );

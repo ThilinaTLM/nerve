@@ -88,9 +88,9 @@ void test("definitions are returned unchanged and errors carry their fix", () =>
   );
 });
 
-void test("the fake extensionStore keeps revisions and rejects stale writes", async () => {
+void test("the fake store keeps revisions and rejects stale writes", async () => {
   const { ctx, record } = createFakeContext({ store: { seed: { a: 1 } } });
-  const store = ctx.extensionStore;
+  const store = ctx.store;
   assert.deepEqual(await store.get("seed"), { value: { a: 1 }, revision: 1 });
   assert.equal(await store.get("missing"), undefined);
   assert.deepEqual(await store.set("new", [1], { ifRevision: 0 }), {

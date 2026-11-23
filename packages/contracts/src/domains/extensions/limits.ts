@@ -69,7 +69,16 @@ export const bridgeLimits = {
   /** Serialized size of `call` args. */
   maxCallArgsBytes: 1024 * 1024,
   maxRequestIdLength: 64,
-  maxMenuItems: 32,
+  /** Entries of one `ui.menu`, separators, labels and submenu entries included. */
+  maxMenuEntries: 200,
+  /** How deep `ui.menu` submenus nest. */
+  maxMenuDepth: 2,
+  /** Items of one `ui.pick`. */
+  maxPickItems: 2000,
+  /** Search keywords of one `ui.pick` item. */
+  maxPickKeywords: 16,
+  /** Characters of the id of a menu or pick item. */
+  maxChoiceIdLength: 128,
   maxTextLength: 20_000,
   maxLabelLength: 200,
   /** Characters of the prompt of one `conversations.start`. */

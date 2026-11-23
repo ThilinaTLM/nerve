@@ -519,7 +519,11 @@ function title(node: LaunchTreeNode): string {
   getItemActive={(node) =>
     node.kind === "definition" && activeItemKey === node.entry.key}
   getItemSelected={(node) =>
-    node.kind === "definition" && activeItemKey === node.entry.key}
+    // The open launch reads as selected only while no multi-selection is in play, so the
+    // highlighted rows are always the ones bulk actions apply to.
+    selection.size < 2 &&
+    node.kind === "definition" &&
+    activeItemKey === node.entry.key}
   getItemTone={(node) =>
     node.kind === "definition" && launchEntryView(node.entry).label.isCommand
       ? "neutral"

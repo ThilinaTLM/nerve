@@ -729,7 +729,7 @@ export interface ExtensionContext {
         info(handle: string): Promise<ArtifactInfo>;
         freshName(base: string, extension: string): Promise<string>;
     };
-    extensionStore: {
+    store: {
         get(key: string): Promise<{
             value: unknown;
             revision: number;
@@ -874,6 +874,12 @@ export type ContextMenuItem =
       
       label: string;
       
+      icon?: string;
+      
+      shortcut?: string;
+      
+      checked?: boolean;
+      
       disabled?: boolean;
       
       destructive?: boolean;
@@ -895,6 +901,8 @@ export type ContextMenuItem =
       type: "submenu";
       
       label: string;
+      
+      icon?: string;
       
       disabled?: boolean;
       
@@ -1126,11 +1134,57 @@ export type FileChunk = {
     size: number;
     eof: boolean;
 };
+export type AnchorRect = {
+    x: number;
+    y: number;
+    width?: number | undefined;
+    height?: number | undefined;
+};
+export type Anchor = Element | AnchorRect;
 export type MenuItem = {
+    type?: "item" | undefined;
     id: string;
     label: string;
+    icon?: string | undefined;
+    shortcut?: string | undefined;
+    checked?: boolean | undefined;
     disabled?: boolean | undefined;
     destructive?: boolean | undefined;
+};
+export type MenuSeparator = {
+    type: "separator";
+};
+export type MenuLabel = {
+    type: "label";
+    label: string;
+};
+export type MenuSubmenu = {
+    type: "submenu";
+    label: string;
+    icon?: string | undefined;
+    disabled?: boolean | undefined;
+    items: MenuEntry[];
+};
+export type MenuEntry = MenuItem | MenuSeparator | MenuLabel | MenuSubmenu;
+export type PickItem = {
+    id: string;
+    label: string;
+    group?: string | undefined;
+    detail?: string | undefined;
+    keywords?: string[] | undefined;
+    icon?: string | undefined;
+    disabled?: boolean | undefined;
+};
+export type PickOptions = {
+    title?: string | undefined;
+    placeholder?: string | undefined;
+    ariaLabel: string;
+    items: PickItem[];
+    selected?: string[] | undefined;
+    anchor?: Anchor | undefined;
+};
+export type PickRequest = PickOptions & {
+    mode: "single" | "multiple";
 };
 export type ConfirmOptions = {
     title: string;
@@ -1225,16 +1279,21 @@ type Methods = {
             confirmed: boolean;
         };
     };
-    "ui.showMenu": {
+    "ui.menu": {
         params: {
-            items: MenuItem[];
-            position?: {
-                x: number;
-                y: number;
-            } | undefined;
+            entries: MenuEntry[];
+            anchor: AnchorRect;
         };
         result: {
             id: string | null;
+        };
+    };
+    "ui.pick": {
+        params: Omit<PickRequest, "anchor"> & {
+            anchor?: AnchorRect | undefined;
+        };
+        result: {
+            ids: string[] | null;
         };
     };
     "ui.notify": {
@@ -1389,7 +1448,7 @@ export {};
 ===== declarations extension-sdk/src/frame/host.d.ts =====
 import { type Readable } from "svelte/store";
 import { type BridgeClient } from "./client.js";
-import type { BridgeJson, ClipboardImageType, ConfirmOptions, StoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, Mode, NotifyLevel, ProjectInfo, ThemeChange, ThemeKind } from "./bridge-types.js";
+import type { Anchor, BridgeJson, ClipboardImageType, ConfirmOptions, StoreChange, FileChange, FileChunk, FileInfo, FrameInit, MenuEntry, Mode, NotifyLevel, PickOptions, ProjectInfo, ThemeChange, ThemeKind } from "./bridge-types.js";
 export declare function attach(next: BridgeClient): BridgeClient;
 declare function readAll(): Promise<Uint8Array>;
 export declare const host: {
@@ -1472,10 +1531,17 @@ export declare const host: {
     };
     ui: {
         confirm: (options: ConfirmOptions) => Promise<boolean>;
-        showMenu: (items: MenuItem[], position?: {
-            x: number;
-            y: number;
+        menu: (entries: MenuEntry[], options: {
+            anchor: Anchor;
         }) => Promise<string | null>;
+        pick: {
+            (options: PickOptions & {
+                mode: "single";
+            }): Promise<string | null>;
+            (options: PickOptions & {
+                mode: "multiple";
+            }): Promise<string[] | null>;
+        };
         notify: (message: string, level?: NotifyLevel) => Promise<void>;
     };
 };
@@ -1487,7 +1553,7 @@ export declare function startFrame(options: {
 export {};
 
 ===== declarations extension-sdk/src/frame/testing.d.ts =====
-import type { BridgeJson, ConfirmOptions, ContributionKind, MenuItem, Mode, NotifyLevel, PreviewEdit, ThemeKind } from "./bridge-types.js";
+import type { BridgeJson, ConfirmOptions, ContributionKind, AnchorRect, MenuEntry, PickRequest, Mode, NotifyLevel, PreviewEdit, ThemeKind } from "./bridge-types.js";
 export type FakeBridgeOptions = {
     kind?: ContributionKind;
     id?: string;
@@ -1513,7 +1579,8 @@ export type FakeBridgeOptions = {
     store?: Record<string, BridgeJson>;
     backend?: (method: string, args: BridgeJson | undefined) => BridgeJson | undefined | Promise<BridgeJson | undefined>;
     confirm?: boolean | ((options: ConfirmOptions) => boolean);
-    menu?: string | null | ((items: MenuItem[]) => string | null);
+    menu?: string | null | ((entries: MenuEntry[], anchor: AnchorRect) => string | null);
+    pick?: string[] | null | ((options: PickRequest) => string[] | null);
 };
 export type FakeBridge = {
     requests: {
@@ -1545,6 +1612,15 @@ export type FakeBridge = {
             bytes: Uint8Array;
             mediaType: string;
         };
+    }[];
+    menus: {
+        entries: MenuEntry[];
+        anchor: AnchorRect;
+        chosen: string | null;
+    }[];
+    picks: {
+        options: PickRequest;
+        chosen: string[] | null;
     }[];
     store: Map<string, {
         value: BridgeJson;
@@ -1579,7 +1655,7 @@ export { createFakeBridge, type FakeBridge, type FakeBridgeOptions, } from "./fr
 ===== declarations extension-sdk/src/ui.d.ts =====
 export { host, startFrame, type Host } from "./frame/host.js";
 export { BridgeError, createBridgeClient, type BridgeClient, type BridgeTransport, } from "./frame/client.js";
-export type { BridgeErrorCode, BridgeJson, BridgeMethods, ClipboardImageType, ConfirmOptions, ContributionKind, FileChange, FileChunk, FileInfo, FrameInit, MenuItem, MethodName, Mode, NotifyLevel, PreviewEdit, ProjectInfo, StoreChange, ThemeChange, ThemeKind, } from "./frame/bridge-types.js";
+export type { Anchor, AnchorRect, BridgeErrorCode, BridgeJson, BridgeMethods, ClipboardImageType, ConfirmOptions, ContributionKind, FileChange, FileChunk, FileInfo, FrameInit, MenuEntry, MenuItem, MenuLabel, MenuSeparator, MenuSubmenu, MethodName, Mode, NotifyLevel, PickItem, PickOptions, PickRequest, PreviewEdit, ProjectInfo, StoreChange, ThemeChange, ThemeKind, } from "./frame/bridge-types.js";
 export * from "./components/components.js";
 export * from "@lucide/svelte";
 export { Badge } from "./components/components.js";
@@ -2070,7 +2146,7 @@ export { Badge } from "./components/components.js";
         "additionalProperties": false
       }
     },
-    "ui.showMenu": {
+    "ui.menu": {
       "kinds": [
         "preview",
         "page",
@@ -2080,38 +2156,14 @@ export { Badge } from "./components/components.js";
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "items": {
+          "entries": {
             "minItems": 1,
-            "maxItems": 32,
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 64
-                },
-                "label": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "disabled": {
-                  "type": "boolean"
-                },
-                "destructive": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "id",
-                "label"
-              ],
-              "additionalProperties": false
+              "$ref": "#/$defs/__schema0"
             }
           },
-          "position": {
+          "anchor": {
             "type": "object",
             "properties": {
               "x": {
@@ -2119,6 +2171,14 @@ export { Badge } from "./components/components.js";
               },
               "y": {
                 "type": "number"
+              },
+              "width": {
+                "type": "number",
+                "minimum": 0
+              },
+              "height": {
+                "type": "number",
+                "minimum": 0
               }
             },
             "required": [
@@ -2129,9 +2189,128 @@ export { Badge } from "./components/components.js";
           }
         },
         "required": [
-          "items"
+          "entries",
+          "anchor"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "$defs": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "item"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "icon": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  },
+                  "shortcut": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "checked": {
+                    "type": "boolean"
+                  },
+                  "disabled": {
+                    "type": "boolean"
+                  },
+                  "destructive": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "label"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "separator"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "label"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "type",
+                  "label"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "submenu"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "icon": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                  },
+                  "disabled": {
+                    "type": "boolean"
+                  },
+                  "items": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "label",
+                  "items"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
       },
       "result": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2146,6 +2325,153 @@ export { Badge } from "./components/components.js";
         },
         "required": [
           "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ui.pick": {
+      "kinds": [
+        "preview",
+        "page",
+        "panel"
+      ],
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "placeholder": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "ariaLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "single",
+              "multiple"
+            ]
+          },
+          "items": {
+            "minItems": 1,
+            "maxItems": 2000,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "group": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "detail": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "keywords": {
+                  "maxItems": 16,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "icon": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                },
+                "disabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "selected": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "anchor": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number",
+                "minimum": 0
+              },
+              "height": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "ariaLabel",
+          "mode",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "ids": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ids"
         ],
         "additionalProperties": false
       }

@@ -79,7 +79,7 @@ test("methods are limited by contribution kind and edit mode", () => {
     true,
   );
   assert.equal(isBridgeMethodAllowed("backend.call", { kind: "panel" }), true);
-  assert.equal(bridgeMethodNames.length, 21);
+  assert.equal(bridgeMethodNames.length, 22);
 });
 
 test("requests are validated against the method", () => {
@@ -167,6 +167,78 @@ test("frame errors are a bounded envelope without an id", () => {
       type: "frameError",
       error: { kind: "csp", message: "x".repeat(1001) },
     }).success,
+    false,
+  );
+});
+
+test("menus take the whole tree within the limits, picks take bounded items", () => {
+  const page = { kind: "page" } as const;
+  const anchor = { x: 4, y: 8, width: 20 };
+  const item = (id: string) => ({ id, label: id });
+  const menu = (entries: unknown[]) =>
+    validateBridgeRequest(request("ui.menu", { entries, anchor }), page);
+  assert.equal(
+    menu([
+      { type: "label", label: "File" },
+      { ...item("a"), icon: "file-text", checked: true, shortcut: "Ctrl+A" },
+      { type: "separator" },
+      {
+        type: "submenu",
+        label: "More",
+        items: [{ type: "submenu", label: "Deep", items: [item("b")] }],
+      },
+    ]).ok,
+    true,
+  );
+  const failure = (entries: unknown[]) => {
+    const result = menu(entries);
+    return !result.ok && result.error.code === "invalid_request"
+      ? result.error.message
+      : undefined;
+  };
+  // Three levels of submenus, duplicate ids, nothing to choose, too many entries, bad icon names.
+  const sub = (items: unknown[]) => ({ type: "submenu", label: "S", items });
+  assert.match(
+    failure([sub([sub([sub([item("a")])])])]) ?? "",
+    /nest at most 2/,
+  );
+  assert.match(failure([item("a"), item("a")]) ?? "", /used twice/);
+  assert.match(failure([{ type: "separator" }]) ?? "", /no item/);
+  assert.match(
+    failure(
+      Array.from({ length: bridgeLimits.maxMenuEntries + 1 }, (_, i) =>
+        item(`i${i}`),
+      ),
+    ) ?? "",
+    /limit is 200/,
+  );
+  assert.ok(failure([{ ...item("a"), icon: "No Such Icon!" }]));
+
+  const pick = (params: unknown) =>
+    validateBridgeRequest(request("ui.pick", params), page);
+  const items = [item("a"), item("b")];
+  assert.equal(
+    pick({ ariaLabel: "Pick", mode: "multiple", items, selected: ["a", "b"] })
+      .ok,
+    true,
+  );
+  assert.equal(
+    pick({ ariaLabel: "Pick", mode: "single", items, selected: ["a", "b"] }).ok,
+    false,
+  );
+  assert.equal(
+    pick({ ariaLabel: "Pick", mode: "single", items: [item("a"), item("a")] })
+      .ok,
+    false,
+  );
+  assert.equal(
+    pick({
+      ariaLabel: "Pick",
+      mode: "single",
+      items: Array.from({ length: bridgeLimits.maxPickItems + 1 }, (_, i) =>
+        item(`i${i}`),
+      ),
+    }).ok,
     false,
   );
 });

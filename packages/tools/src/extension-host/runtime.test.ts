@@ -127,9 +127,9 @@ void test("upload file handles stream up to 100 MB, not the 20 MB read limit", a
   );
 });
 
-void test("ctx.extensionStore maps store errors and rejects without a project", async () => {
+void test("ctx.store maps store errors and rejects without a project", async () => {
   const { runtime } = setup();
-  const none = runtime.context(demoExtension).extensionStore;
+  const none = runtime.context(demoExtension).store;
   await assert.rejects(
     none.get("a"),
     (error: unknown) =>
@@ -146,7 +146,7 @@ void test("ctx.extensionStore maps store errors and rejects without a project", 
       extensionPorts: {
         settings: () => ({}),
         accounts: { get: async () => undefined, secret: async () => undefined },
-        extensionStore: {
+        store: {
           get: async (...args: unknown[]) => {
             calls.push(args);
             return undefined;
@@ -161,7 +161,7 @@ void test("ctx.extensionStore maps store errors and rejects without a project", 
     },
     report: { artifacts: new Map() },
   } as unknown as SdkEnvironment;
-  const store = new ExtensionRuntime(env).context(demoExtension).extensionStore;
+  const store = new ExtensionRuntime(env).context(demoExtension).store;
   await store.get("k");
   assert.deepEqual(calls, [[demoExtension.id, "k"]]);
   await assert.rejects(

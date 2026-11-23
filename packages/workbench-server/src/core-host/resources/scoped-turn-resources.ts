@@ -48,7 +48,7 @@ export function scopedTurnResources(options: {
     | ((projectDir: string) => Promise<QuickScriptRegistry>);
   /** The model hosts extensions' availability hooks check. */
   models?: ModelHosts;
-  /** The durable store behind `ctx.extensionStore` in availability hooks. */
+  /** The durable store behind `ctx.store` in availability hooks. */
   extensionStore?: ExtensionStore;
   /** Resolved extension settings and the home's accounts, for this conversation. */
   extensions(

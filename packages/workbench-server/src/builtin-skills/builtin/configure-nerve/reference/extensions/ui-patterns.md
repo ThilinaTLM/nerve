@@ -65,7 +65,7 @@ The frame draws the whole panel, header included; the host adds nothing around i
 </PanelView>
 ```
 
-- Start every panel with one `PanelHeader`: title, count, then at most three icon actions. Put further actions behind a `PanelToolbarButton` (`Ellipsis` icon) whose click opens `host.ui.showMenu(items, { x: rect.right, y: rect.bottom })`, with `rect` from `event.currentTarget.getBoundingClientRect()`.
+- Start every panel with one `PanelHeader`: title, count, then at most three icon actions. Put further actions behind a `PanelToolbarButton` (`Ellipsis` icon) whose click opens `host.ui.menu(entries, { anchor: event.currentTarget })`.
 - Filtering: one `PanelFilterBar` under the header (search, scope chips with counts, or both). The panel filters its own rows.
 - Rows: `PanelRow` in a `PanelList`, nested data in `PanelTree` (`buildPanelTree` for paths, `buildPanelItemTree` for parent keys), multi-row items in `PanelRowCard`. Row actions show on hover; secondary ones go in `menuItems`, which the host draws on right click.
 - Groups: `PanelSectionHeader` for static headings, `PanelSection` when the user collapses groups, `PanelSplit` when several collapsible areas share the height with draggable dividers (Git's repository list, branch, changes). Persist `open` and the split `layout` with `host.tabState`; start `layout` from `emptyPanelSplitLayout()` or the saved value, never `undefined`:
@@ -136,7 +136,7 @@ The frame draws the whole panel, header included; the host adds nothing around i
 ```
 
 - `PageView` is the root: it owns the scroll region and centres the column (`width="wide"` or `"full"` for tables and boards).
-- Settings and forms: a `PageSection divided` of `FieldRow`s (control: `Input`, `SelectField`, `Button`) and `ToggleRow`s. Choices: `SelectField` for a few options, `RadioGroupField` when each needs a description, `CommandList` for long or searchable ones.
+- Settings and forms: a `PageSection divided` of `FieldRow`s (control: `Input`, `SelectField`, `Button`) and `ToggleRow`s. Choices: `SelectField` (the host draws its list, searchable above 8 items), `RadioGroupField` when each needs a description, `host.ui.pick` for several choices or a list that does not belong to a field, `CommandList` inline.
 - Collections: a `PageList` of `PageItem`s in a `PageSection surface={false}`; `onOpen` leads to a detail view whose `PageHeader` has `parent={{ label, onBack }}`.
 - Facts: `PageStatGrid`. Empty states: `PageEmptyState`.
 - Views within a page: `Tabs` in the `below` snippet of `PageHeader`.
@@ -166,7 +166,11 @@ Viewer actions, readouts, find fields and pane notices float over the content in
             onclick={exportBoard}
           />
           <FloatingToolbarMenu
-            items={[{ id: "reset", label: "Reset board", destructive: true }]}
+            items={[
+              { id: "fit", label: "Fit to view", icon: "maximize-2" },
+              { type: "separator" },
+              { id: "reset", label: "Reset board", destructive: true },
+            ]}
             onSelect={runMenu}
           />
         </FloatingToolbarGroup>
@@ -202,8 +206,9 @@ Viewer actions, readouts, find fields and pane notices float over the content in
 | Picker with search (command palette) | `CommandList` inline or in a `FloatingPanel`                                                     |
 | Few choices                          | `SelectField`, `RadioGroupField`, `ToggleGroup` (segmented)                                      |
 | On/off                               | `ToggleRow` in a page, `SwitchField` elsewhere, `Checkbox` for list selection                    |
-| Menu, overflow, right click          | `host.ui.showMenu` (`FloatingToolbarMenu`, `menuItems` of rows)                                  |
-| Confirmation                         | `host.ui.confirm`                                                                                |
+| Menu, overflow, right click          | `host.ui.menu` (`FloatingToolbarMenu`, `menuItems` of rows)                                      |
+| Long or multiple-choice list         | `host.ui.pick` (`mode: "single"` or `"multiple"`)                                                |
+| Confirmation                         | `host.ui.confirm` (from a click or key handler)                                                  |
 | Result of an action                  | `host.ui.notify`                                                                                 |
 | Status                               | `StatusDot`, `Badge`, `ProgressRing`, `Progress`, `Spinner`, `Skeleton`                          |
 | Message in the content               | `Callout` (`layout="strip"` in panels)                                                           |

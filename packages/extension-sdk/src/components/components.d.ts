@@ -56,7 +56,7 @@ export const Progress: Part;
 export const ScrollArea: Part;
 /** Tabs: `<Tabs.Root bind:value><Tabs.List><Tabs.Trigger value="a">…</Tabs.Trigger></Tabs.List><Tabs.Content value="a">…</Tabs.Content></Tabs.Root>`. */
 export const Tabs: Parts<"Root" | "List" | "Trigger" | "Content">;
-/** Tooltip: wrap in `Tooltip.Provider`, then `Root`, `Trigger`, `Content`. Works, but is clipped to the frame. */
+/** Tooltip: wrap in `Tooltip.Provider`, then `Root`, `Trigger`, `Content`. It flips and shifts to stay inside the frame. */
 export const Tooltip: Parts<
   "Root" | "Trigger" | "Content" | "Provider" | "Portal"
 >;
@@ -86,13 +86,21 @@ export const StatusDot: Part;
 export const ProgressRing: Part;
 /** Vertical scroll area that shows overflow with edge shadows. Props: `surface` (`panel`, `card` or `popover`: the background the shadows fade into; default `card`), `height`, `viewport` (bindable element), `children`. */
 export const ScrollRegion: Part;
-/** One entry of a row's right-click menu (`menuItems` of `PanelRow`, `PanelRowCard`, `PanelTree`). The host draws it: submenus are flattened to `Parent › Child`, separators and labels are dropped. */
+/**
+ * One entry of a row's right-click menu (`menuItems` of `PanelRow`, `PanelRowCard`, `PanelTree`). The host draws the whole menu outside the frame, submenus and all (the limits of `host.ui.menu` apply: 200 entries, submenus two deep; more is an error, logged and thrown). In a frame an `icon` is a Lucide icon name in kebab case (`"copy"`, `"trash-2"`), not a component, because the host draws it.
+ */
 export type ContextMenuItem =
   | {
       /** An action entry (the default). */
       type?: "item";
       /** Text shown. */
       label: string;
+      /** Lucide icon name, kebab case (`"file-text"`). */
+      icon?: string;
+      /** Key hint shown at the end (`"Ctrl+K"`); it does not bind a key. */
+      shortcut?: string;
+      /** Shows a check mark: the state of a toggle. */
+      checked?: boolean;
       /** Greyed out and not selectable. */
       disabled?: boolean;
       /** Drawn as a dangerous action. */
@@ -101,21 +109,23 @@ export type ContextMenuItem =
       onSelect?: () => void;
     }
   | {
-      /** Divider; dropped by the host menu. */
+      /** Divider between groups. */
       type: "separator";
     }
   | {
-      /** Caption; dropped by the host menu. */
+      /** Caption above the entries that follow. */
       type: "label";
       /** Caption text. */
       label: string;
     }
   | {
-      /** Nested entries, shown as `label › entry`. */
+      /** Nested menu. */
       type: "submenu";
-      /** Prefix of the nested entries. */
+      /** Text shown. */
       label: string;
-      /** Disables every nested entry. */
+      /** Lucide icon name, kebab case. */
+      icon?: string;
+      /** Greyed out and not openable. */
       disabled?: boolean;
       /** The nested entries. */
       items: ContextMenuItem[];
@@ -131,7 +141,7 @@ export type FieldChoice = {
   /** Not selectable. */
   disabled?: boolean;
 };
-/** Labelled select (the field to put in a `FieldRow` control). Props: `items: FieldChoice[]`, `bind:value`, `id` (for `FieldRow htmlFor`), `placeholder`, `disabled`, `ariaLabel`, `onValueChange`, `class`, `triggerClass`, `contentClass`. The open list is clipped to the frame; for long or searchable lists use `CommandList` in a `FloatingPanel` or inline. */
+/** Labelled select (the field to put in a `FieldRow` control). Props: `items: FieldChoice[]`, `bind:value`, `id` (for `FieldRow htmlFor`), `placeholder`, `disabled`, `ariaLabel`, `onValueChange`, `class`, `triggerClass`, `contentClass`. In a frame the list is the host's picker (`host.ui.pick`, drawn outside the frame with a search field above 8 items), so values are at most 128 characters and there are at most 2,000 items. */
 export const SelectField: Part;
 /** Switch with a label and one-line description, the whole row clickable. Props: `bind:checked`, `label`, `description`, `disabled`, `onCheckedChange`. Inside a `PageSection` prefer `ToggleRow`. */
 export const SwitchField: Part;
@@ -336,6 +346,6 @@ export const FloatingPanel: Part;
 /** Lasting status of the pane, in the `bottomStart` anchor of a `FloatingLayer` (read-only file, truncated content). Props: `tone` (`info` default, `warning`), `onDismiss` (shows a dismiss button), `action` (snippet with one small `Button`), `children` (the message). */
 export const FloatingNotice: Part;
 /**
- * Overflow button of a `FloatingToolbar` for secondary actions: keep 4–8 controls on the bar and put the rest here. Opens a menu drawn by the host (`host.ui.showMenu`) below the button. Props: `items` (`MenuItem[]`: `id`, `label`, `disabled`, `destructive`), `onSelect(id)` (not called when the menu is dismissed), `label` (default "More actions"), `icon` (default the ellipsis).
+ * Overflow button of a `FloatingToolbar` for secondary actions: keep 4–8 controls on the bar and put the rest here. Opens a menu drawn by the host (`host.ui.menu`) below the button. Props: `items` (`MenuEntry[]`: items with `id`, `label`, `icon`, `shortcut`, `checked`, `disabled`, `destructive`; `{ type: "separator" }`; `{ type: "label", label }`; `{ type: "submenu", label, items }`), `onSelect(id)` (not called when the menu is dismissed), `label` (default "More actions"), `icon` (default the ellipsis).
  */
 export const FloatingToolbarMenu: Part;

@@ -179,7 +179,11 @@ void test("host with the fake bridge: handshake, theme, files, host UI and event
       args: { a: 1 },
     });
     assert.equal(await host.ui.confirm({ title: "Sure?" }), true);
-    assert.equal(await host.ui.showMenu([{ id: "a", label: "A" }]), "a");
+    const anchor = { x: 1, y: 2 };
+    assert.equal(
+      await host.ui.menu([{ id: "a", label: "A" }], { anchor }),
+      "a",
+    );
     await host.ui.notify("hi", "success");
     await host.workspace.openFile("b.txt");
     await host.chat.insert("text");
@@ -339,6 +343,110 @@ void test("the fake bridge records clipboard writes and refuses them without a u
         error instanceof BridgeError && error.code === "not_allowed",
     );
     assert.deepEqual(refused.clipboard, []);
+  } finally {
+    refused.close();
+    delete globals["document"];
+  }
+});
+
+void test("host.ui.menu and host.ui.pick send the whole tree, measure element anchors and need a user gesture", async () => {
+  const dom = new JSDOM(
+    "<!doctype html><html><body><button>b</button></body></html>",
+  );
+  const globals = globalThis as Record<string, unknown>;
+  globals["document"] = dom.window.document;
+  const button = dom.window.document.querySelector("button")!;
+  button.getBoundingClientRect = () =>
+    ({ left: 10, top: 20, width: 30, height: 8 }) as DOMRect;
+  const entries = [
+    { type: "label" as const, label: "File" },
+    { id: "a", label: "A", icon: "copy", checked: true, disabled: true },
+    { type: "separator" as const },
+    {
+      type: "submenu" as const,
+      label: "More",
+      items: [{ id: "b", label: "B", destructive: true }],
+    },
+  ];
+  const errors: unknown[] = [];
+  const log = console.error;
+  console.error = (...args: unknown[]) => errors.push(args);
+  const bridge = createFakeBridge({
+    kind: "page",
+    pick: (options) => (options.mode === "single" ? ["b"] : ["a", "b"]),
+  });
+  try {
+    await bridge.ready;
+    // The first enabled item is found inside the submenu; the element anchor is measured.
+    assert.equal(await host.ui.menu(entries, { anchor: button }), "b");
+    assert.deepEqual(bridge.menus[0]?.entries, entries);
+    assert.deepEqual(bridge.menus[0]?.anchor, {
+      x: 10,
+      y: 20,
+      width: 30,
+      height: 8,
+    });
+
+    const items = [
+      { id: "a", label: "A" },
+      { id: "b", label: "B" },
+    ];
+    assert.equal(
+      await host.ui.pick({
+        mode: "single",
+        ariaLabel: "Pick",
+        items,
+        anchor: { x: 1, y: 2 },
+      }),
+      "b",
+    );
+    assert.deepEqual(
+      await host.ui.pick({
+        mode: "multiple",
+        ariaLabel: "Pick",
+        items,
+        selected: ["a"],
+      }),
+      ["a", "b"],
+    );
+    assert.equal(bridge.picks.length, 2);
+
+    // Over the limit: rejected with the reason, and logged for the author.
+    const tooMany = Array.from({ length: 201 }, (_, i) => ({
+      id: `i${i}`,
+      label: "x",
+    }));
+    await assert.rejects(
+      host.ui.menu(tooMany, { anchor: { x: 0, y: 0 } }),
+      (error: unknown) =>
+        error instanceof BridgeError &&
+        error.code === "invalid_request" &&
+        /limit is 200/.test(error.message),
+    );
+    assert.equal(errors.length, 1);
+    assert.equal(bridge.menus.length, 1);
+  } finally {
+    console.error = log;
+    bridge.close();
+  }
+  const refused = createFakeBridge({ kind: "page", userActivation: false });
+  try {
+    await refused.ready;
+    const denied = (error: unknown) =>
+      error instanceof BridgeError && error.code === "not_allowed";
+    await assert.rejects(host.ui.confirm({ title: "Sure?" }), denied);
+    await assert.rejects(
+      host.ui.menu(entries, { anchor: { x: 0, y: 0 } }),
+      denied,
+    );
+    await assert.rejects(
+      host.ui.pick({
+        mode: "single",
+        ariaLabel: "Pick",
+        items: [{ id: "a", label: "A" }],
+      }),
+      denied,
+    );
   } finally {
     refused.close();
     delete globals["document"];

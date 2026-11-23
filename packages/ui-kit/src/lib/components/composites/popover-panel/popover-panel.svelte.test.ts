@@ -66,4 +66,18 @@ describe("PopoverPanel", () => {
     expect(document.activeElement).toBe(anchor);
     anchor.remove();
   });
+
+  it("opens against a virtual anchor (a rect, not an element)", async () => {
+    const onOpenChange = vi.fn();
+    const rect = new DOMRect(40, 60, 100, 20);
+    const anchor = { getBoundingClientRect: () => rect };
+    render(PopoverPanel, {
+      props: { anchor, open: true, children, ariaLabel: "Pick", onOpenChange },
+    });
+    expect(await screen.findByText("Inside")).toBeTruthy();
+
+    // There is no element to hand focus back to; Escape still closes.
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  });
 });

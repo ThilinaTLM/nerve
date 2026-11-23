@@ -358,8 +358,23 @@ function keyboardReorder(node: PanelTreeNode<T>, key: PanelReorderKey): void {
     key,
     reorderSourceIds(sources),
   );
-  if (destination) commitReorder(sources, destination.node, destination.zone);
+  if (!destination) return;
+  commitReorder(sources, destination.node, destination.zone);
+  keyboardMovedId = node.id;
 }
+
+// A keyboard move lands once the host refreshes its data, which can remount
+// the row: give the moved row focus back if the refresh dropped it.
+let keyboardMovedId: string | undefined;
+$effect(() => {
+  void rows;
+  const id = keyboardMovedId;
+  if (!id) return;
+  keyboardMovedId = undefined;
+  const active = document.activeElement;
+  if (active && active !== document.body) return;
+  if (rows.some((row) => row.node.id === id)) void focusRow(id);
+});
 
 function startReorder(event: DragEvent, item: T): void {
   if (!reorder?.canDrag(item) || !event.dataTransfer) return;

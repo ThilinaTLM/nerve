@@ -246,7 +246,13 @@ const frameForbidden: {
     pattern:
       /^@nervekit\/ui-kit\/components\/(ui\/(context-menu|dropdown-menu)|composites\/context-menu-list)(\/|$)/,
     name: "menu",
-    fix: "A frame cannot draw menus outside its rectangle. Call `await host.ui.showMenu([{ id, label }], { x, y })`; the host draws the menu and returns the chosen id.",
+    fix: "A frame cannot draw menus outside its rectangle. In a click handler call `await host.ui.menu([{ id, label }], { anchor: button })`; the host draws the menu (separators, icons, checks, submenus) and returns the chosen id. Rows and trees take `menuItems`.",
+  },
+  {
+    pattern:
+      /^@nervekit\/ui-kit\/components\/(ui\/select|composites\/select-field)(\/|$)/,
+    name: "select",
+    fix: "A frame cannot draw a select list outside its rectangle. Use `SelectField` from '@nervekit/extension-sdk/ui' (the host draws the list), or call `await host.ui.pick({ mode: 'single', ariaLabel, items, anchor })` from a click handler.",
   },
   {
     pattern: /^(@nervekit\/ui-kit\/components\/ui\/sonner|svelte-sonner)(\/|$)/,

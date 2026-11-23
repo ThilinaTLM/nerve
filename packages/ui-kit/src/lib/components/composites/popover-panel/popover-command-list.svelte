@@ -1,5 +1,7 @@
 <script lang="ts" generics="Item extends CommandItem">
 import { onMount, type Snippet } from "svelte";
+import Check from "@lucide/svelte/icons/check";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   filterCommandItems,
   type CommandItem,
@@ -8,6 +10,7 @@ import SearchInput from "../search-input/search-input.svelte";
 import PopoverSearch from "./popover-search.svelte";
 import PopoverBody from "./popover-body.svelte";
 import PopoverSection from "./popover-section.svelte";
+import PopoverFooter from "./popover-footer.svelte";
 import PopoverRow from "../select-row/select-row.svelte";
 import { createListNavigation } from "./list-navigation.svelte.js";
 import { usePopoverPresentation } from "./presentation.js";
@@ -27,6 +30,11 @@ let {
   stableHeight,
   autofocus = true,
   leading,
+  searchable = true,
+  multiple = false,
+  onApply,
+  onCancel,
+  applyLabel = "Apply",
 }: {
   items: Item[];
   query?: string;
@@ -47,6 +55,16 @@ let {
   /** Non-searchable content at the top of the list, below the search field.
    * When present, the empty message is shown only for a non-empty query. */
   leading?: Snippet;
+  /** `false` hides the search field (short lists). Arrow keys, Home/End and
+   * Enter keep working through an invisible field; typing does nothing. */
+  searchable?: boolean;
+  /** Several rows can be selected. `onChoose` toggles a row (the caller owns
+   * the selection) and the list stays open; Space toggles the highlighted row,
+   * Enter and the footer's apply button call `onApply`, Cancel calls `onCancel`. */
+  multiple?: boolean;
+  onApply?: () => void;
+  onCancel?: () => void;
+  applyLabel?: string;
 } = $props();
 const id = $props.id();
 let input = $state<HTMLInputElement | null>(null);
@@ -87,14 +105,22 @@ function chooseContainer(event: MouseEvent | KeyboardEvent, item: Item) {
   onChoose(item);
 }
 function keydown(event: KeyboardEvent) {
-  if (event.key === "Enter") {
+  if (!searchable && event.key.length === 1 && !event.ctrlKey && !event.metaKey)
+    event.preventDefault();
+  if (multiple && event.key === "Enter") {
+    event.preventDefault();
+    onApply?.();
+  } else if (multiple && event.key === " " && navigation.index >= 0) {
+    event.preventDefault();
+    navigation.chooseActive();
+  } else if (event.key === "Enter") {
     event.preventDefault();
     navigation.chooseActive();
   } else navigation.handleKeydown(event);
 }
 </script>
 
-<PopoverSearch class="pt-2">
+<PopoverSearch class={searchable ? "pt-2" : "sr-only"}>
   <SearchInput
     bind:value={query}
     bind:ref={input}
@@ -105,72 +131,103 @@ function keydown(event: KeyboardEvent) {
     onkeydown={keydown}
   />
 </PopoverSearch>
-<PopoverBody bind:ref={viewport} {id} role="listbox" {ariaLabel} {stableHeight}>
-  {#if leading}<div role="group" class="contents">{@render leading()}</div>{/if}
-  {#each groups as group (group.group)}
-    <PopoverSection label={group.group} class="gap-px">
-      {#each group.items as item (item.key)}
-        {@const detail =
-          !row && "detail" in item && typeof item.detail === "string"
-            ? item.detail
-            : undefined}
-        {#snippet leading()}{@render icon?.(item)}{/snippet}
-        {#snippet customLabel()}{@render row?.(item, {
-            active: navigation.activeDescendant === rowId(item),
-            selected: isSelected(item),
-          })}{/snippet}
-        {#if rowMode === "container"}
-          <div
-            id={rowId(item)}
-            role="option"
-            tabindex={-1}
-            aria-selected={isSelected(item)}
-            data-disabled={isDisabled(item) || undefined}
-            class={[
-              "min-h-control rounded-md text-ui",
-              isSelected(item) && "bg-selected",
-              navigation.activeDescendant === rowId(item) &&
-                "outline outline-1 -outline-offset-1 outline-focus",
-            ]}
-            onclick={(event) => chooseContainer(event, item)}
-            onkeydown={(event) => {
-              if (
-                event.key === "Enter" &&
-                event.target === event.currentTarget
-              ) {
-                chooseContainer(event, item);
-                event.preventDefault();
-              }
-            }}
-          >
-            {#if row}{@render row(item, {
-                active: navigation.activeDescendant === rowId(item),
-                selected: isSelected(item),
-              })}{:else}{item.label}{/if}
-          </div>
-        {:else}
-          <PopoverRow
-            id={rowId(item)}
-            role="option"
-            tabindex={-1}
-            aria-selected={isSelected(item)}
-            icon={icon ? leading : undefined}
-            label={row ? customLabel : item.label}
-            {detail}
-            title={detail}
-            highlighted={navigation.activeDescendant === rowId(item)}
-            selected={isSelected(item)}
-            disabled={isDisabled(item)}
-            onclick={() => onChoose(item)}
-          />
-        {/if}
-      {/each}
-    </PopoverSection>
-  {:else}
-    {#if !leading || query}<div
-        class="px-3 py-6 text-center text-ui text-muted-foreground"
-      >
-        {#if typeof empty === "string"}{empty}{:else}{@render empty()}{/if}
+<!-- A row that took focus (a click) also applies on Enter, not only the search field. -->
+<div
+  class="contents"
+  role="presentation"
+  onkeydown={(event) => {
+    if (multiple && event.key === "Enter") {
+      event.preventDefault();
+      onApply?.();
+    }
+  }}
+>
+  <PopoverBody
+    bind:ref={viewport}
+    {id}
+    role="listbox"
+    {ariaLabel}
+    {stableHeight}
+  >
+    {#if leading}<div role="group" class="contents">
+        {@render leading()}
       </div>{/if}
-  {/each}
-</PopoverBody>
+    {#each groups as group (group.group)}
+      <PopoverSection label={group.group} class="gap-px">
+        {#each group.items as item (item.key)}
+          {@const detail =
+            !row && "detail" in item && typeof item.detail === "string"
+              ? item.detail
+              : undefined}
+          {#snippet leading()}{@render icon?.(item)}{/snippet}
+          {#snippet checkMark()}<Check
+              class="size-3.5 text-primary"
+              aria-hidden="true"
+            />{/snippet}
+          {#snippet customLabel()}{@render row?.(item, {
+              active: navigation.activeDescendant === rowId(item),
+              selected: isSelected(item),
+            })}{/snippet}
+          {#if rowMode === "container"}
+            <div
+              id={rowId(item)}
+              role="option"
+              tabindex={-1}
+              aria-selected={isSelected(item)}
+              data-disabled={isDisabled(item) || undefined}
+              class={[
+                "min-h-control rounded-md text-ui",
+                isSelected(item) && "bg-selected",
+                navigation.activeDescendant === rowId(item) &&
+                  "outline outline-1 -outline-offset-1 outline-focus",
+              ]}
+              onclick={(event) => chooseContainer(event, item)}
+              onkeydown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  event.target === event.currentTarget
+                ) {
+                  chooseContainer(event, item);
+                  event.preventDefault();
+                }
+              }}
+            >
+              {#if row}{@render row(item, {
+                  active: navigation.activeDescendant === rowId(item),
+                  selected: isSelected(item),
+                })}{:else}{item.label}{/if}
+            </div>
+          {:else}
+            <PopoverRow
+              id={rowId(item)}
+              role="option"
+              tabindex={-1}
+              aria-selected={isSelected(item)}
+              icon={icon ? leading : undefined}
+              trailing={multiple && isSelected(item) ? checkMark : undefined}
+              label={row ? customLabel : item.label}
+              {detail}
+              title={detail}
+              highlighted={navigation.activeDescendant === rowId(item)}
+              selected={isSelected(item)}
+              disabled={isDisabled(item)}
+              onclick={() => onChoose(item)}
+            />
+          {/if}
+        {/each}
+      </PopoverSection>
+    {:else}
+      {#if !leading || query}<div
+          class="px-3 py-6 text-center text-ui text-muted-foreground"
+        >
+          {#if typeof empty === "string"}{empty}{:else}{@render empty()}{/if}
+        </div>{/if}
+    {/each}
+  </PopoverBody>
+</div>
+{#if multiple}
+  <PopoverFooter class="justify-end">
+    <Button variant="ghost" onclick={() => onCancel?.()}>Cancel</Button>
+    <Button onclick={() => onApply?.()}>{applyLabel}</Button>
+  </PopoverFooter>
+{/if}

@@ -370,7 +370,7 @@ export interface ExtensionContext {
    * the data when the extension is uninstalled and never migrates it: keep a `schemaVersion` in
    * your values.
    */
-  extensionStore: {
+  store: {
     /** The value and revision of `key`; `undefined` when it does not exist. */
     get(key: string): Promise<
       | {

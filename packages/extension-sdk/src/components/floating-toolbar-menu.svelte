@@ -5,12 +5,12 @@ import { Ellipsis } from "@lucide/svelte";
 import {
   FloatingToolbarButton,
   host,
-  type MenuItem,
+  type MenuEntry,
 } from "@nervekit/extension-sdk/ui";
 
 type Props = {
-  /** Entries of the menu. */
-  items: MenuItem[];
+  /** Entries of the menu: items, separators, captions and submenus. */
+  items: MenuEntry[];
   /** Called with the `id` of the chosen item; not called when the menu is dismissed. */
   onSelect: (id: string) => void;
   /** Tooltip and accessible name of the trigger. */
@@ -25,10 +25,10 @@ let {
   icon = Ellipsis,
 }: Props = $props();
 
-// The host draws the menu outside the frame; it opens below the trigger's bottom-right corner.
+// The host draws the menu outside the frame, below the trigger.
 async function open(event: MouseEvent) {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  const id = await host.ui.showMenu(items, { x: rect.right, y: rect.bottom });
+  const anchor = event.currentTarget as HTMLElement;
+  const id = await host.ui.menu(items, { anchor });
   if (id !== null) onSelect(id);
 }
 </script>

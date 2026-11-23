@@ -14,7 +14,9 @@ import type {
   BridgeJson,
   ConfirmOptions,
   ContributionKind,
-  MenuItem,
+  AnchorRect,
+  MenuEntry,
+  PickRequest,
   Mode,
   NotifyLevel,
   PreviewEdit,
@@ -67,7 +69,7 @@ export type FakeBridgeOptions = {
     /** Default `"/project"`. */
     directory?: string;
   };
-  /** Whether the frame has a recent user gesture; default `true`. `false`: `host.clipboard.*` and `host.chat.startConversation` reject `not_allowed`, as the host does outside a click. */
+  /** Whether the frame has a recent user gesture; default `true`. `false`: `host.clipboard.*`, `host.chat.startConversation`, `host.ui.confirm`, `host.ui.menu` and `host.ui.pick` reject `not_allowed`, as the host does outside a click. */
   userActivation?: boolean;
   /** Initial content of `host.store`, by key (each starts at revision 1). */
   store?: Record<string, BridgeJson>;
@@ -78,8 +80,13 @@ export type FakeBridgeOptions = {
   ) => BridgeJson | undefined | Promise<BridgeJson | undefined>;
   /** Answer of `host.ui.confirm`; default `true`. */
   confirm?: boolean | ((options: ConfirmOptions) => boolean);
-  /** Answer of `host.ui.showMenu`: the chosen id; default: the first enabled item. */
-  menu?: string | null | ((items: MenuItem[]) => string | null);
+  /** Answer of `host.ui.menu`: the chosen id or `null` (dismissed); a function gets the entries and the anchor. Default: the first enabled item, found in submenus too. */
+  menu?:
+    | string
+    | null
+    | ((entries: MenuEntry[], anchor: AnchorRect) => string | null);
+  /** Answer of `host.ui.pick`: the chosen ids (one for `single`) or `null` (dismissed); a function gets the options with their `mode`. Default: `single` the first enabled item, `multiple` the items of `selected` (none when empty). */
+  pick?: string[] | null | ((options: PickRequest) => string[] | null);
 };
 
 /** The fake host a test inspects and drives. */
@@ -137,6 +144,22 @@ export type FakeBridge = {
       mediaType: string;
     };
   }[];
+  /** Calls of `host.ui.menu` the fake accepted, in order. Refused calls (no user gesture) are not recorded. */
+  menus: {
+    /** The entries the frame passed. */
+    entries: MenuEntry[];
+    /** The anchor as sent: an element is already measured. */
+    anchor: AnchorRect;
+    /** What the fake answered: the chosen id, or `null`. */
+    chosen: string | null;
+  }[];
+  /** Calls of `host.ui.pick` the fake accepted, in order. Refused calls (no user gesture) are not recorded. */
+  picks: {
+    /** The options as sent, with `mode`; an element anchor is already measured. */
+    options: PickRequest;
+    /** What the fake answered: the chosen ids, or `null`. */
+    chosen: string[] | null;
+  }[];
   /** The frame's `host.store` contents: value and revision by key. Writes through the host follow its rules (`conflict` on a stale `ifRevision`). */
   store: Map<
     string,
@@ -188,7 +211,8 @@ type FakeParams = {
   id: string;
   params?: BridgeJson;
   text: string;
-  items: MenuItem[];
+  entries: MenuEntry[];
+  anchor: AnchorRect;
   dataBase64: string;
   mediaType: string;
   key: string;
@@ -212,6 +236,22 @@ function base64(bytes: Uint8Array): string {
 function unbase64(value: string): Uint8Array {
   const binary = atob(value);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+/** The id of the first enabled item of a menu, submenus included; `null` when there is none. */
+function firstEnabledItem(entries: MenuEntry[]): string | null {
+  for (const entry of entries) {
+    if (entry.type === "submenu") {
+      if (entry.disabled) continue;
+      const found = firstEnabledItem(entry.items);
+      if (found !== null) return found;
+    } else if (
+      (entry.type === undefined || entry.type === "item") &&
+      !entry.disabled
+    )
+      return entry.id;
+  }
+  return null;
 }
 
 /**
@@ -245,6 +285,8 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
     get fileText() {
       return new TextDecoder().decode(bytes);
     },
+    menus: [],
+    picks: [],
     notifications: [],
     opened: { files: [], pages: [] },
     composerText: [],
@@ -298,6 +340,16 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
   const answer = async (id: string, method: string, params: FakeParams) => {
     const reply = (result: unknown) =>
       send({ type: "response", id, ok: true, result });
+    /** Host-drawn UI needs a user gesture, like the clipboard: answers `not_allowed` and returns `true` without one. */
+    const refusedWithoutGesture = (requestId: string, what: string) => {
+      if (options.userActivation !== false) return false;
+      fail(
+        requestId,
+        "not_allowed",
+        `A ${what} can be shown only right after a user gesture (a click or key press) in the frame.`,
+      );
+      return true;
+    };
     const chunks = (offset: number, length: number) => {
       const slice = bytes.subarray(offset, offset + length);
       return {
@@ -359,6 +411,7 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
         bridge.tabState = params["state"];
         return reply({});
       case "ui.confirm": {
+        if (refusedWithoutGesture(id, "confirm")) return;
         const choice = options.confirm ?? true;
         return reply({
           confirmed:
@@ -367,17 +420,35 @@ export function createFakeBridge(options: FakeBridgeOptions = {}): FakeBridge {
               : choice,
         });
       }
-      case "ui.showMenu": {
-        const items = params["items"] as MenuItem[];
+      case "ui.menu": {
+        if (refusedWithoutGesture(id, "menu")) return;
+        const entries = params["entries"];
         const choice = options.menu;
-        return reply({
-          id:
-            typeof choice === "function"
-              ? choice(items)
-              : choice !== undefined
-                ? choice
-                : (items.find((item) => !item.disabled)?.id ?? null),
-        });
+        const chosen =
+          typeof choice === "function"
+            ? choice(entries, params["anchor"])
+            : choice !== undefined
+              ? choice
+              : firstEnabledItem(entries);
+        bridge.menus.push({ entries, anchor: params["anchor"], chosen });
+        return reply({ id: chosen });
+      }
+      case "ui.pick": {
+        if (refusedWithoutGesture(id, "pick")) return;
+        const pick = params as unknown as PickRequest;
+        const choice = options.pick;
+        const chosen =
+          typeof choice === "function"
+            ? choice(pick)
+            : choice !== undefined
+              ? choice
+              : pick.mode === "single"
+                ? [pick.items.find((item) => !item.disabled)?.id].filter(
+                    (value): value is string => value !== undefined,
+                  )
+                : (pick.selected ?? []);
+        bridge.picks.push({ options: pick, chosen });
+        return reply({ ids: chosen });
       }
       case "ui.notify":
         bridge.notifications.push({

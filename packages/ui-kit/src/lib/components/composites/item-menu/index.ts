@@ -8,4 +8,3 @@ export type {
   ItemMenuRendererProps,
 } from "./item-menu-renderer.js";
 export type { ContextMenuItem } from "../context-menu-list/index.js";
-export { flattenMenuItems, type FlatMenuItem } from "./flatten-menu-items.js";

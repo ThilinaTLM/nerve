@@ -79,5 +79,9 @@ await copyFile(
   "src/components/components.d.ts",
   "dist/components/components.d.ts",
 );
-for (const name of ["floating-toolbar-menu.svelte", "item-menu.svelte"])
+for (const name of [
+  "floating-toolbar-menu.svelte",
+  "item-menu.svelte",
+  "select-field.svelte",
+])
   await copyFile(`src/components/${name}`, `dist/components/${name}`);

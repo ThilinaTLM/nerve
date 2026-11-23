@@ -33,8 +33,13 @@ describe("Checklist panel", () => {
     const bridge = createFakeBridge({
       kind: "panel",
       tabState: { items: [{ id: "1", text: "Write tests", done: false }] },
-      menu: (items) =>
-        items.find((item) => item.label === "Delete")?.id ?? null,
+      // The menu arrives as the author wrote it: items, separators, submenus.
+      menu: (entries) => {
+        const found = entries.find(
+          (entry) => entry.type !== "separator" && entry.label === "Delete",
+        );
+        return found && "id" in found ? found.id : null;
+      },
     });
     const component = mount(Checklist, { target: document.body });
     cleanup = () => {

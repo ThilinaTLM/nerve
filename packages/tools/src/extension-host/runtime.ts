@@ -367,7 +367,7 @@ export class ExtensionRuntime {
         },
         freshName: (base, extension) => freshArtifactName(env, base, extension),
       },
-      extensionStore: store,
+      store,
       text: {
         htmlToMarkdown: (html) => isolatedHtmlToMarkdown(html, { signal }),
       },
@@ -417,20 +417,18 @@ function toStoreError(error: unknown): unknown {
   return error;
 }
 
-/** `ctx.extensionStore` of one extension; every call rejects with `BAD_REQUEST` when the host has no project. */
+/** `ctx.store` of one extension; every call rejects with `BAD_REQUEST` when the host has no project. */
 function storeFor(
   ports: ExtensionHostPorts,
   extensionId: string,
-): ExtensionContext["extensionStore"] {
+): ExtensionContext["store"] {
   const run = async <T>(
-    operation: (
-      store: NonNullable<ExtensionHostPorts["extensionStore"]>,
-    ) => Promise<T>,
+    operation: (store: NonNullable<ExtensionHostPorts["store"]>) => Promise<T>,
   ): Promise<T> => {
-    const store = ports.extensionStore;
+    const store = ports.store;
     if (!store)
       throw new ExtensionError("BAD_REQUEST", "No project is open.", {
-        fix: "Use ctx.extensionStore only in a conversation that belongs to a project.",
+        fix: "Use ctx.store only in a conversation that belongs to a project.",
       });
     try {
       return await operation(store);

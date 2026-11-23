@@ -62,7 +62,7 @@ export const bridgeErrorCodeSchema = z.enum([
   "not_found",
   /** A size limit was exceeded. */
   "too_large",
-  /** The user dismissed the request (confirm, menu). */
+  /** The user dismissed the request, or another host-drawn request was already open (confirm, menu, pick). */
   "cancelled",
   /** The extension's backend method failed; `message` is the (shortened) backend error. */
   "backend_error",
@@ -79,11 +79,128 @@ const emptyResult = z.strictObject({});
 const text = (max: number = bridgeLimits.maxLabelLength) =>
   z.string().min(1).max(max);
 
-const menuItemSchema = z.strictObject({
-  id: text(64),
+/** A lucide icon by its kebab-case name (`"file-text"`); the host resolves it and shows nothing for an unknown name. */
+const iconNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, { message: "not a lucide icon name" });
+
+/** An id the frame gets back when the user chooses an entry. */
+const choiceIdSchema = text(bridgeLimits.maxChoiceIdLength);
+
+/** A CSS-pixel rectangle in the frame's viewport; a point is a rectangle without size. */
+const anchorSchema = z.strictObject({
+  x: z.number().finite(),
+  y: z.number().finite(),
+  width: z.number().finite().nonnegative().optional(),
+  height: z.number().finite().nonnegative().optional(),
+});
+export type BridgeAnchor = z.infer<typeof anchorSchema>;
+
+/** One entry of a `ui.menu` menu. */
+export type BridgeMenuEntry =
+  | {
+      type?: "item" | undefined;
+      /** Returned when chosen; unique in the menu. */
+      id: string;
+      label: string;
+      /** Lucide icon name. */
+      icon?: string | undefined;
+      /** Display-only key hint (`Ctrl+K`). */
+      shortcut?: string | undefined;
+      checked?: boolean | undefined;
+      disabled?: boolean | undefined;
+      destructive?: boolean | undefined;
+    }
+  | { type: "separator" }
+  /** A caption above the entries that follow. */
+  | { type: "label"; label: string }
+  | {
+      type: "submenu";
+      label: string;
+      icon?: string | undefined;
+      disabled?: boolean | undefined;
+      items: BridgeMenuEntry[];
+    };
+
+const menuEntrySchema: z.ZodType<BridgeMenuEntry, BridgeMenuEntry> = z.lazy(
+  () =>
+    z.union(
+      [
+        z.strictObject({
+          type: z.literal("item").optional(),
+          id: choiceIdSchema,
+          label: text(),
+          icon: iconNameSchema.optional(),
+          shortcut: text(64).optional(),
+          checked: z.boolean().optional(),
+          disabled: z.boolean().optional(),
+          destructive: z.boolean().optional(),
+        }),
+        z.strictObject({ type: z.literal("separator") }),
+        z.strictObject({ type: z.literal("label"), label: text() }),
+        z.strictObject({
+          type: z.literal("submenu"),
+          label: text(),
+          icon: iconNameSchema.optional(),
+          disabled: z.boolean().optional(),
+          items: z.array(menuEntrySchema).min(1),
+        }),
+      ],
+      {
+        error:
+          'a menu entry is an item ({ id, label }), { type: "separator" }, { type: "label", label } or { type: "submenu", label, items }',
+      },
+    ),
+);
+
+/**
+ * What is wrong with a menu: more entries than `maxMenuEntries` (nested ones included), submenus
+ * nested deeper than `maxMenuDepth`, a repeated item id, or nothing to choose.
+ */
+function menuProblem(entries: readonly BridgeMenuEntry[]): string | undefined {
+  let count = 0;
+  let choices = 0;
+  const ids = new Set<string>();
+  let problem: string | undefined;
+  const visit = (list: readonly BridgeMenuEntry[], depth: number) => {
+    for (const entry of list) {
+      count += 1;
+      if (entry.type === "submenu") {
+        if (depth >= bridgeLimits.maxMenuDepth)
+          problem ??= `submenus nest at most ${bridgeLimits.maxMenuDepth} deep`;
+        visit(entry.items, depth + 1);
+      } else if (entry.type === undefined || entry.type === "item") {
+        choices += 1;
+        if (ids.has(entry.id))
+          problem ??= `the item id '${entry.id}' is used twice`;
+        ids.add(entry.id);
+      }
+    }
+  };
+  visit(entries, 0);
+  if (count > bridgeLimits.maxMenuEntries)
+    return `the menu has ${count} entries; the limit is ${bridgeLimits.maxMenuEntries} (submenu entries included)`;
+  return (
+    problem ?? (choices === 0 ? "the menu has no item to choose" : undefined)
+  );
+}
+
+const pickItemSchema = z.strictObject({
+  id: choiceIdSchema,
   label: text(),
+  /** Heading the item is listed under. */
+  group: text().optional(),
+  /** Muted second line. */
+  detail: z.string().max(bridgeLimits.maxLabelLength).optional(),
+  /** Search terms that are not shown. */
+  keywords: z
+    .array(z.string().max(bridgeLimits.maxLabelLength))
+    .max(bridgeLimits.maxPickKeywords)
+    .optional(),
+  icon: iconNameSchema.optional(),
   disabled: z.boolean().optional(),
-  destructive: z.boolean().optional(),
 });
 
 /** A path inside the open project, relative to its directory or absolute inside it. */
@@ -203,14 +320,55 @@ export const bridgeMethods = {
     }),
     result: z.strictObject({ confirmed: z.boolean() }),
   },
-  "ui.showMenu": {
-    params: z.strictObject({
-      items: z.array(menuItemSchema).min(1).max(bridgeLimits.maxMenuItems),
-      /** Frame-relative position in CSS pixels; the host clamps it to the frame. */
-      position: z.strictObject({ x: z.number(), y: z.number() }).optional(),
-    }),
+  "ui.menu": {
+    params: z
+      .strictObject({
+        entries: z.array(menuEntrySchema).min(1),
+        /** Where the menu opens, in frame CSS pixels; the host keeps it inside the app window. */
+        anchor: anchorSchema,
+      })
+      .superRefine((value, ctx) => {
+        const problem = menuProblem(value.entries);
+        if (problem)
+          ctx.addIssue({ code: "custom", path: ["entries"], message: problem });
+      }),
     /** `id` of the chosen item, `null` when dismissed. */
     result: z.strictObject({ id: z.string().nullable() }),
+  },
+  "ui.pick": {
+    params: z
+      .strictObject({
+        title: text().optional(),
+        placeholder: text().optional(),
+        /** The accessible name of the list. */
+        ariaLabel: text(),
+        mode: z.enum(["single", "multiple"]),
+        items: z.array(pickItemSchema).min(1).max(bridgeLimits.maxPickItems),
+        /** Ids chosen on open; at most one in `single` mode. */
+        selected: z.array(choiceIdSchema).optional(),
+        /** Where the list opens; absent: centered in the frame. */
+        anchor: anchorSchema.optional(),
+      })
+      .superRefine((value, ctx) => {
+        const seen = new Set<string>();
+        for (const item of value.items) {
+          if (seen.has(item.id))
+            ctx.addIssue({
+              code: "custom",
+              path: ["items"],
+              message: `the item id '${item.id}' is used twice`,
+            });
+          seen.add(item.id);
+        }
+        if (value.mode === "single" && (value.selected?.length ?? 0) > 1)
+          ctx.addIssue({
+            code: "custom",
+            path: ["selected"],
+            message: "a single pick has at most one selected id",
+          });
+      }),
+    /** The chosen ids (one in `single` mode); `null` when dismissed or cancelled. */
+    result: z.strictObject({ ids: z.array(z.string()).nullable() }),
   },
   "ui.notify": {
     params: z.strictObject({
@@ -367,7 +525,8 @@ export const bridgeMethodKinds: Record<
   "tabState.get": allKinds,
   "tabState.set": allKinds,
   "ui.confirm": allKinds,
-  "ui.showMenu": allKinds,
+  "ui.menu": allKinds,
+  "ui.pick": allKinds,
   "ui.notify": allKinds,
   "workspace.openFile": allKinds,
   "pages.open": allKinds,

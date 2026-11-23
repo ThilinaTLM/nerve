@@ -33,6 +33,7 @@ const focus = getContext<ContextMenuFocusControl | undefined>(
       label={item.label}
       icon={item.icon}
       shortcut={item.shortcut}
+      checked={item.checked}
       disabled={item.disabled}
       destructive={item.destructive}
       onSelect={() => {

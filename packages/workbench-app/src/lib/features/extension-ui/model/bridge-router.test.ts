@@ -38,6 +38,23 @@ test("routes the handshake and valid requests to the right handler", () => {
     page,
   );
   assert.equal(confirm.type === "request" && confirm.handler, "host");
+  const menu = routeFrameMessage(
+    request("ui.menu", {
+      entries: [{ id: "a", label: "A" }],
+      anchor: { x: 1, y: 2 },
+    }),
+    page,
+  );
+  assert.equal(menu.type === "request" && menu.handler, "host");
+  const pick = routeFrameMessage(
+    request("ui.pick", {
+      ariaLabel: "Pick",
+      mode: "single",
+      items: [{ id: "a", label: "A" }],
+    }),
+    page,
+  );
+  assert.equal(pick.type === "request" && pick.handler, "host");
   const tabState = routeFrameMessage(request("tabState.get"), page);
   assert.equal(tabState.type === "request" && tabState.handler, "host");
 });

@@ -125,11 +125,13 @@ function remove(item: Item) {
             menuItems={[
               {
                 label: item.done ? "Mark open" : "Mark done",
+                icon: item.done ? "rotate-ccw" : "check",
                 onSelect: () => toggle(item),
               },
               { type: "separator" },
               {
                 label: "Delete",
+                icon: "trash-2",
                 destructive: true,
                 onSelect: () => remove(item),
               },

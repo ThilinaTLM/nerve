@@ -8,6 +8,8 @@ import {
   type BridgeClient,
 } from "./client.js";
 import type {
+  Anchor,
+  AnchorRect,
   BridgeJson,
   ClipboardImageType,
   ConfirmOptions,
@@ -16,9 +18,11 @@ import type {
   FileChunk,
   FileInfo,
   FrameInit,
-  MenuItem,
+  MenuEntry,
   Mode,
   NotifyLevel,
+  PickOptions,
+  PickRequest,
   ProjectInfo,
   ThemeChange,
   ThemeKind,
@@ -129,6 +133,33 @@ const request = <M extends Parameters<BridgeClient["request"]>[0]>(
   method: M,
   params: Parameters<BridgeClient["request"]>[1] = {},
 ) => current().request(method, params as never);
+
+/** An element is measured now; a rectangle is sent as given. */
+function anchorRect(anchor: Anchor): AnchorRect {
+  if (!("getBoundingClientRect" in anchor)) return anchor;
+  const rect = anchor.getBoundingClientRect();
+  return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+}
+
+/**
+ * Host-drawn UI is built from author data (menu entries, pick items). A rejected shape or limit
+ * is the author's bug, so besides rejecting it is logged where the author looks during development.
+ */
+async function withAuthorError<T>(
+  call: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (
+      error instanceof BridgeError &&
+      (error.code === "invalid_request" || error.code === "too_large")
+    )
+      console.error(`${call}: ${error.message}`);
+    throw error;
+  }
+}
 
 /**
  * The frame's handle on the host; the one object a Svelte frame uses to talk to Nerve, grouped by
@@ -243,7 +274,7 @@ export const host = {
   },
   /**
    * Durable JSON storage for this extension in the open project, shared by all its frames and its
-   * backend (`ctx.extensionStore`). Unlike `tabState` it is not tied to a tab, and unlike
+   * backend (`ctx.store`). Unlike `tabState` it is not tied to a tab, and unlike
    * `localStorage` (unavailable in frames) it survives reloads. Keys: letters, digits, `.`, `_`,
    * `-`, 1–128 characters, not starting with `.`. Each key has a `revision` (1 on first write, +1
    * on every write). Limits: 4 MiB per value, 1000 keys and 64 MiB per project (`too_large`).
@@ -377,16 +408,45 @@ export const host = {
     confirm: async (options: ConfirmOptions): Promise<boolean> =>
       (await request("ui.confirm", options)).confirmed,
     /**
-     * Shows a menu drawn by the host (1–32 items); resolves with the chosen item's id, or `null`
-     * when dismissed. `position` is frame-relative CSS pixels (the host clamps it to the frame);
-     * absent: where the host decides.
+     * Shows a menu drawn by the host, outside the frame, with the extension's name on it, and
+     * resolves with the chosen item's id, or `null` when dismissed. `entries` are items,
+     * separators, captions and submenus (at most 200 in all, submenus two deep); `anchor` is the
+     * element or rectangle the menu opens next to. Call it from a click or key handler: the host
+     * refuses (`not_allowed`) without a recent user gesture in the frame. An invalid or
+     * over-limit menu rejects with `BridgeError` `invalid_request` and is logged with `console.error`.
      */
-    showMenu: async (
-      items: MenuItem[],
-      position?: { x: number; y: number },
+    menu: (
+      entries: MenuEntry[],
+      options: { anchor: Anchor },
     ): Promise<string | null> =>
-      (await request("ui.showMenu", position ? { items, position } : { items }))
-        .id,
+      withAuthorError(
+        "host.ui.menu",
+        async () =>
+          (
+            await request("ui.menu", {
+              entries,
+              anchor: anchorRect(options.anchor),
+            })
+          ).id,
+      ),
+    /**
+     * Shows a searchable choice list drawn by the host (a popover, a bottom sheet on a phone).
+     * `mode: "single"` resolves with the chosen id; `"multiple"` toggles rows and resolves with
+     * all chosen ids when the user applies. Both resolve `null` when dismissed. The search field
+     * appears for more than 8 items. Needs a user gesture like `menu`; limits: 1–2,000 items.
+     */
+    pick: ((options: PickRequest) =>
+      withAuthorError("host.ui.pick", async () => {
+        const { anchor, ...rest } = options;
+        const { ids } = await request("ui.pick", {
+          ...rest,
+          ...(anchor ? { anchor: anchorRect(anchor) } : {}),
+        });
+        return options.mode === "single" ? (ids?.[0] ?? null) : ids;
+      })) as {
+      (options: PickOptions & { mode: "single" }): Promise<string | null>;
+      (options: PickOptions & { mode: "multiple" }): Promise<string[] | null>;
+    },
     /** A toast drawn by the host (1–20,000 characters); `level` default `info`. */
     notify: async (message: string, level?: NotifyLevel): Promise<void> => {
       await request("ui.notify", level ? { message, level } : { message });

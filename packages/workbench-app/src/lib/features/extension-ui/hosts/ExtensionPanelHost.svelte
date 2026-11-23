@@ -34,6 +34,7 @@ const panel = $derived(
     {projectId}
     extensionId={panel.extensionId}
     extensionName={panel.extensionName}
+    extensionIconName={panel.icon}
     contribution={{ kind: "panel", id: panel.id }}
     frameUrl={panel.frameUrl}
     baseCssUrl={contributions.baseCssUrl}

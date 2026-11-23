@@ -3,12 +3,17 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Icon component interop.
 export type MenuIcon = any;
 
+/** What a menu opens against: an element, or any object that measures a rect. */
+export type AnchorRect = DOMRectReadOnly;
+
 export type ContextMenuItem =
   | {
       type?: "item";
       label: string;
       icon?: MenuIcon;
       shortcut?: string;
+      /** A toggle state: the item shows a check mark when `true`. */
+      checked?: boolean;
       disabled?: boolean;
       destructive?: boolean;
       /**
@@ -42,14 +47,23 @@ import {
 let {
   children,
   items,
+  open = $bindable(false),
+  anchor,
   class: className,
   triggerClass,
   disabled = false,
   nativeTouch = false,
   onOpenChange,
 }: {
-  children: Snippet;
+  /** The element that opens the menu on its context-menu gesture. Leave out
+   * together with `anchor` to open the menu from `open` alone. */
+  children?: Snippet;
   items: ContextMenuItem[];
+  /** Whether the menu is shown; set it to open the menu without a gesture. */
+  open?: boolean;
+  /** Opens the menu at this element or rect (any object with
+   * `getBoundingClientRect`) below it, instead of at the pointer. */
+  anchor?: { getBoundingClientRect(): AnchorRect } | null;
   class?: string;
   triggerClass?: string;
   /** Keep the trigger mounted but inert (e.g. while no actions exist yet). */
@@ -117,16 +131,20 @@ function checkLabel(label: string): void {
 $effect(() => assertNoEllipsis(items));
 </script>
 
-<ContextMenu.Root {onOpenChange}>
-  <ContextMenu.Trigger
-    class={cn(nativeTouch && "select-text", triggerClass)}
-    disabled={disabled || touchPress}
-    onpointerdowncapture={trackPointer}
-  >
-    {@render children()}
-  </ContextMenu.Trigger>
+<ContextMenu.Root bind:open {onOpenChange}>
+  {#if children}
+    <ContextMenu.Trigger
+      class={cn(nativeTouch && "select-text", triggerClass)}
+      disabled={disabled || touchPress}
+      onpointerdowncapture={trackPointer}
+    >
+      {@render children()}
+    </ContextMenu.Trigger>
+  {/if}
   <ContextMenu.Content
     class={className}
+    customAnchor={anchor ?? null}
+    side={anchor ? "bottom" : undefined}
     bind:ref={contentRef}
     onCloseAutoFocus={handleCloseAutoFocus}
   >
