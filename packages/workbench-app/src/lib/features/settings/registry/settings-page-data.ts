@@ -341,6 +341,21 @@ export type SettingsRedirect = {
 /** Turned off only by tests that exercise targets without redirects. */
 export const SETTINGS_REDIRECTS_ENABLED = true;
 
+/**
+ * The scope a deep link resolves in. The settings surface shows user and
+ * project pages together, so user pages (Devices, Notifications…) stay user
+ * pages while a project is open; only the rest resolve in the project.
+ */
+export function settingsScopeForPage(
+  projectOpen: boolean,
+  pageId: string | undefined,
+): SettingsScopeKind {
+  if (!projectOpen) return "user";
+  return pageId && Object.hasOwn(pagesByScope.user, pageId)
+    ? "user"
+    : "project";
+}
+
 /** Old page/section targets and where they live now. */
 export const settingsRedirects: readonly SettingsRedirect[] = [
   { from: { pageId: "integrations" }, to: { pageId: "extensions" } },

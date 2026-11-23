@@ -30,7 +30,10 @@ import {
 } from "$lib/application/workspace/center-tabs.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { selectProject } from "$lib/application/workspace/workspace-actions.svelte";
-import { resolveSettingsTarget } from "$lib/features/settings/registry/settings-pages";
+import {
+  resolveSettingsTarget,
+  settingsScopeForPage,
+} from "$lib/features/settings/registry/settings-pages";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 export type SettingsSaveOptions = {
   immediate?: boolean;
@@ -55,7 +58,7 @@ function targetSettingsPage(
 ) {
   // Project-only pages (Launch, Trust) exist only while a project is open.
   const target = resolveSettingsTarget(
-    workspaceState.selectedProjectId ? "project" : "user",
+    settingsScopeForPage(Boolean(workspaceState.selectedProjectId), pageId),
     {
       pageId,
       item: options.item,

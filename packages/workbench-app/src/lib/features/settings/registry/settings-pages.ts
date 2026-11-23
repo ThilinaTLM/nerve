@@ -30,12 +30,13 @@ import type {
 } from "$lib/presentation/settings";
 import {
   resolveSettingsTarget,
+  settingsScopeForPage,
   pagesByScope,
   type NavLayout,
   type PageData,
 } from "./settings-page-data";
 
-export { resolveSettingsTarget };
+export { resolveSettingsTarget, settingsScopeForPage };
 
 const icons: Record<string, Component> = {
   providers: CloudCog,
