@@ -6,6 +6,7 @@ import {
 import {
   getPasskeyLoginOptions,
   getPasskeyRegistrationOptions,
+  logout,
   redeemPairingCode,
   verifyPasskeyLogin,
   verifyPasskeyRegistration,
@@ -18,6 +19,15 @@ export async function pairThisDevice(input: {
   kind: DeviceKind;
 }): Promise<void> {
   await redeemPairingCode(input);
+}
+
+/**
+ * Signs this device out and reloads, so no cached workspace state outlives the
+ * credential; the reloaded page shows pairing.
+ */
+export async function signOutThisDevice(): Promise<void> {
+  await logout();
+  location.reload();
 }
 
 export async function signInWithPasskey(input: {

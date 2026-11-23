@@ -107,6 +107,11 @@ export async function renameDevice(id: string, name: string): Promise<Device> {
   ).device;
 }
 
+/** Revokes this device's credential and clears its session cookie. */
+export async function logout(): Promise<void> {
+  await apiPost<{ ok: true }>("/api/access/logout", {});
+}
+
 export async function revokeDevice(id: string): Promise<void> {
   await apiDelete<{ ok: true }>(`/api/access/devices/${apiPathSegment(id)}`);
 }

@@ -4,7 +4,6 @@ import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Play from "@lucide/svelte/icons/play";
-import Settings from "@lucide/svelte/icons/settings";
 import SquareTerminal from "@lucide/svelte/icons/square-terminal";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import {
@@ -91,12 +90,6 @@ const tools = $derived([
     icon: NotebookPen,
     live: false,
     open: () => pushMobileScreen({ kind: "notes", projectId }),
-  },
-  {
-    label: "Settings",
-    icon: Settings,
-    live: false,
-    open: () => pushMobileScreen({ kind: "project-settings", projectId }),
   },
 ]);
 </script>
@@ -229,7 +222,7 @@ const tools = $derived([
       {/each}
     </MobileSection>
 
-    <div class="grid grid-cols-4 gap-2 px-3 pt-2">
+    <div class="grid grid-cols-3 gap-2 px-3 pt-2">
       {#each tools as tool (tool.label)}
         {@const ToolIcon = tool.icon}
         <button

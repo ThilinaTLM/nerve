@@ -1,6 +1,9 @@
 <script lang="ts">
 import { untrack } from "svelte";
 import Compass from "@lucide/svelte/icons/compass";
+import LogOut from "@lucide/svelte/icons/log-out";
+import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
+import { toast } from "svelte-sonner";
 import {
   MobileListRow,
   MobileScreen,
@@ -10,28 +13,50 @@ import {
   settingsNavFor,
   settingsPageFor,
 } from "$lib/features/settings/registry/settings-pages";
-import { loadSettingsPanel } from "$lib/application/settings/settings-actions.svelte";
+import ThemePreviewPicker from "$lib/features/settings/views/pages/workbench/ThemePreviewPicker.svelte";
+import { accessGate, signOutThisDevice } from "$lib/features/access";
+import {
+  loadSettingsPanel,
+  setTheme,
+} from "$lib/application/settings/settings-actions.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
+import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
+import type { ColorTheme } from "$lib/api";
 import { discoverTitlebarBadge, openDiscoverPane } from "$lib/app/discover";
 import { openMobileCenter } from "$lib/app/shell/mobile/mobile-route-activation.svelte";
 import {
   backFromMobileScreen,
   pushMobileScreen,
 } from "$lib/app/shell/mobile/mobile-shell.svelte";
-import { mobileSettingsGroups } from "./mobile-settings";
+import { phoneSettingsItems } from "./mobile-settings";
 
 /**
- * User settings index: the nav groups as sections, one row per page, each
- * opening the same page body the desktop renders. Project settings live on
- * the project's own screen.
+ * Phone settings: this device, the few pages that matter away from a desk
+ * (devices, notifications), and the theme. Configuration stays on desktop.
  */
 const discoverBadge = $derived(discoverTitlebarBadge());
 const status = $derived(workspaceSelectors.status);
-const groups = mobileSettingsGroups(settingsNavFor({}));
+const items = phoneSettingsItems(settingsNavFor({}));
+const device = $derived(
+  accessGate.session?.principal === "device"
+    ? accessGate.session.device
+    : undefined,
+);
+let confirmSignOut = $state(false);
 
 $effect(() => {
   untrack(() => void loadSettingsPanel());
 });
+
+async function signOut(): Promise<void> {
+  try {
+    await signOutThisDevice();
+  } catch {
+    toast.error("Could not sign out", {
+      description: "Check the connection and try again.",
+    });
+  }
+}
 </script>
 
 {#snippet discoverDot()}
@@ -44,19 +69,38 @@ $effect(() => {
   onBack={backFromMobileScreen}
   backLabel="Back"
 >
-  {#each groups as group (group.id)}
-    <MobileSection title={group.title}>
-      {#each group.items as item (item.id)}
-        <MobileListRow
-          title={item.label}
-          detail={settingsPageFor({}, item.id).description}
-          icon={item.icon}
-          onclick={() =>
-            pushMobileScreen({ kind: "settings-page", pageId: item.id })}
-        />
-      {/each}
+  {#if device}
+    <MobileSection title="This device">
+      <MobileListRow
+        title="Sign out"
+        detail={device.name}
+        icon={LogOut}
+        chevron={false}
+        onclick={() => (confirmSignOut = true)}
+      />
     </MobileSection>
-  {/each}
+  {/if}
+
+  <MobileSection>
+    {#each items as item (item.id)}
+      <MobileListRow
+        title={item.label}
+        detail={settingsPageFor({}, item.id).description}
+        icon={item.icon}
+        onclick={() =>
+          pushMobileScreen({ kind: "settings-page", pageId: item.id })}
+      />
+    {/each}
+  </MobileSection>
+
+  <MobileSection title="Appearance">
+    <div class="p-3">
+      <ThemePreviewPicker
+        value={appearanceState.theme}
+        onValueChange={(value) => setTheme(value as ColorTheme)}
+      />
+    </div>
+  </MobileSection>
 
   <MobileSection>
     <MobileListRow
@@ -68,4 +112,22 @@ $effect(() => {
       onclick={() => void openMobileCenter("discover", openDiscoverPane)}
     />
   </MobileSection>
+
+  <p class="px-4 pb-4 pt-1 text-caption text-muted-foreground">
+    Providers, agents, tools and project settings are available in Nerve on a
+    computer.
+  </p>
 </MobileScreen>
+
+<ConfirmDialog
+  open={confirmSignOut}
+  destructive
+  title="Sign out of Nerve?"
+  description="This phone is removed from your devices. Pair it again to use Nerve here."
+  confirmLabel="Sign out"
+  onConfirm={() => {
+    confirmSignOut = false;
+    void signOut();
+  }}
+  onOpenChange={(open) => (confirmSignOut = open)}
+/>

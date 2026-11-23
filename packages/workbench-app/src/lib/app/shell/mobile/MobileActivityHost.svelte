@@ -1,6 +1,5 @@
 <script lang="ts">
 import Activity from "@lucide/svelte/icons/activity";
-import Logs from "@lucide/svelte/icons/logs";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
@@ -31,11 +30,10 @@ import {
   openMobileConversation,
   openMobileLaunchOutput,
 } from "./mobile-route-activation.svelte";
-import { pushMobileScreen } from "./mobile-shell.svelte";
 
 /**
  * What is moving right now, across every project: live conversations, live
- * background launches, daemon health, and the application log.
+ * background launches and daemon health.
  */
 const model = $derived(
   buildMobileActivity({
@@ -44,9 +42,6 @@ const model = $derived(
     launches: launchSelectors.launches,
     projects: workspaceSelectors.projects,
   }),
-);
-const logsEnabled = $derived(
-  workspaceSelectors.status?.capabilities.applicationLogs ?? false,
 );
 const subtitle = $derived.by(() => {
   const parts: string[] = [];
@@ -157,17 +152,6 @@ function launchMenu(launchId: string): ContextMenuItem[] {
           </Empty.Description>
         </Empty.Header>
       </Empty.Root>
-    {/if}
-
-    {#if logsEnabled}
-      <MobileSection title="Daemon">
-        <MobileListRow
-          title="Logs"
-          detail="Daemon and application logs"
-          icon={Logs}
-          onclick={() => pushMobileScreen({ kind: "logs" })}
-        />
-      </MobileSection>
     {/if}
   </MobileScreen>
 </MobileNewChatFab>
