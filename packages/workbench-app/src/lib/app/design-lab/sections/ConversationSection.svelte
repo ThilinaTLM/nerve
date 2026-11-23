@@ -647,6 +647,7 @@ const contextTimeline: TimelineItem[] = [
         <div class="h-144 rounded-md border bg-background">
           <ConversationWelcome
             projectSelected
+            projectId={welcomeProject.id}
             projectLabel={welcomeLabel}
             projectPath={welcomeProject.dir}
             defaultProfile="coding"

@@ -3,6 +3,7 @@ import FolderIcon from "@lucide/svelte/icons/folder";
 import StarIcon from "@lucide/svelte/icons/star";
 import type { Snippet } from "svelte";
 import NerveBadge from "../brand/NerveBadge.svelte";
+import ProjectIcon from "../brand/ProjectIcon.svelte";
 import ProfileStarterArt from "./ProfileStarterArt.svelte";
 import type { ConversationStarter } from "./conversation-starters";
 
@@ -12,7 +13,7 @@ let {
   variant = "conversation",
   projectLabel,
   projectPath,
-  projectIcon,
+  projectId,
   starters = [],
   defaultStarter,
   startersDisabled = false,
@@ -24,8 +25,8 @@ let {
   variant?: "launchpad" | "conversation";
   projectLabel?: string;
   projectPath?: string;
-  /** Replaces the folder glyph beside the project label. */
-  projectIcon?: Snippet;
+  /** Shows the project icon instead of a folder glyph beside the label. */
+  projectId?: string;
   starters?: readonly ConversationStarter[];
   /** Profile of the starter marked as the default. */
   defaultStarter?: string;
@@ -118,8 +119,12 @@ const launchpad = $derived(variant === "launchpad");
         class={`${starters.length > 0 ? "mt-4" : "mt-5"} flex max-w-full shrink-0 items-center gap-1.5 text-caption text-muted-foreground`}
         title={projectPath}
       >
-        {#if projectIcon}
-          {@render projectIcon()}
+        {#if projectId}
+          <ProjectIcon
+            {projectId}
+            name={projectLabel}
+            class="size-4 rounded-sm"
+          />
         {:else}
           <FolderIcon class="size-3.5 shrink-0" aria-hidden="true" />
         {/if}

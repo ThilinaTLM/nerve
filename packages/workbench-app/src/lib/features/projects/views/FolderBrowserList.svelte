@@ -17,7 +17,7 @@ import { cn } from "@nervekit/ui-kit/utils";
 import type { FolderBrowser } from "$lib/features/projects/state/folder-browser.svelte";
 import { toDisplayPath } from "$lib/features/projects/state/folder-browser-path";
 import { signalMeta } from "./directory-picker-helpers";
-import ProjectIcon from "./ProjectIcon.svelte";
+import ProjectIcon from "$lib/presentation/brand/ProjectIcon.svelte";
 
 type Props = {
   browser: FolderBrowser;
@@ -193,7 +193,11 @@ function onCreateKeydown(event: KeyboardEvent) {
               aria-hidden="true"
             />
           {:else if projectId}
-            <ProjectIcon {projectId} class="size-4 rounded-sm" />
+            <ProjectIcon
+              {projectId}
+              name={entry.name}
+              class="size-4 rounded-sm"
+            />
           {:else if entry.signals.length}
             <FolderOpen
               class="size-4 shrink-0 text-primary"

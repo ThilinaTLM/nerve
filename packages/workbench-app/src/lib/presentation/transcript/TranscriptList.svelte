@@ -368,6 +368,7 @@ $effect(() => {
   <ConversationSignal
     title="The cursor is yours."
     message="Bring the question. Nerve will bring the map, the tools, and the follow-through."
+    projectId={activeProject?.id}
     projectLabel={activeProjectLabel}
     projectPath={activeProject?.dir}
   />

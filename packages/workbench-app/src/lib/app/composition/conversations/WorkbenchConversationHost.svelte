@@ -16,7 +16,6 @@ import { setConversationUiCapabilities } from "$lib/presentation/context.svelte"
 import WorkbenchComposerAdapter from "./WorkbenchComposerAdapter.svelte";
 import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
 import ConversationWelcome from "$lib/features/conversations/views/ConversationWelcome.svelte";
-import { ProjectIcon } from "$lib/features/projects";
 import { openInlineMermaidPane } from "$lib/features/filesystem";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 
@@ -460,9 +459,9 @@ function menuForTranscript(
   {#snippet emptyExtension()}
     {#if !conversationLoading}<ConversationWelcome
         projectSelected={Boolean(activeProject && onNewConversationInProject)}
+        projectId={activeProject?.id}
         projectLabel={activeProjectLabel}
         projectPath={activeProject?.dir}
-        projectIcon={activeProject ? welcomeProjectIcon : undefined}
         availableProfiles={agentProfiles.map((profile) => profile.name)}
         defaultProfile={defaultAgentProfile}
         onNewChat={(initialProfile) => {
@@ -473,9 +472,3 @@ function menuForTranscript(
       />{/if}
   {/snippet}
 </ConversationPane>
-
-{#snippet welcomeProjectIcon()}
-  {#if activeProject}
-    <ProjectIcon projectId={activeProject.id} class="size-4 rounded-sm" />
-  {/if}
-{/snippet}

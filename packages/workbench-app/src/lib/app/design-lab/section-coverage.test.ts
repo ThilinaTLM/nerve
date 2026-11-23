@@ -77,6 +77,8 @@ const PRESENTATION_EXEMPT: Record<string, string> = {
   // Rendered by the real ConversationWelcome and empty TranscriptList specimens.
   "conversations/ConversationSignal.svelte":
     "ConversationWelcome, TranscriptList",
+  // Rendered beside the project label by the same specimens.
+  "brand/ProjectIcon.svelte": "ConversationWelcome, TranscriptList",
   // Hover wrapper shared by the settings layer parts; covered by OriginGroup and TipBadge.
   "settings/HoverTip.svelte": "OriginGroup, TipBadge",
 };
