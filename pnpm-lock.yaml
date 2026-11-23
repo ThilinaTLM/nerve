@@ -230,7 +230,7 @@ importers:
         specifier: 24.10.1
         version: 24.10.1
       svelte2tsx:
-        specifier: ^0.7.63
+        specifier: 0.7.63
         version: 0.7.63(svelte@5.57.3(@typescript-eslint/types@8.63.0))(typescript@5.9.3)
       tsx:
         specifier: 4.22.4
