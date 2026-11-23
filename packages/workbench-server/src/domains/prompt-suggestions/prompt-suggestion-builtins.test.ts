@@ -82,13 +82,8 @@ void test("builtins: every default-off entry is declared and bodies are plain te
     assert.ok(def.conditionSummary, def.name);
     assert.ok(!/suggested/i.test(def.promptPreview ?? ""), def.name);
     assert.ok(!def.promptPreview?.includes("```"), def.name);
-    // State goes last, as one "Last known state" line for a single root repo.
-    const lines = (def.promptPreview ?? "").split("\n");
-    assert.match(
-      lines.at(-1) ?? "",
-      /^Last known state: `[^`]+`.*\.$/,
-      def.name,
-    );
+    // A single-line request, as the user would type it.
+    assert.match(def.promptPreview ?? "", /^[^\n]+\.$/, def.name);
     assert.equal(def.enabled, def.defaultEnabled);
   }
 });
@@ -189,13 +184,15 @@ void test("builtins: labels carry counts and prompts include context without fen
   const byName = new Map(result.suggestions.map((s) => [s.name, s]));
   assert.equal(byName.get("commit-changes")?.label, "Commit 4 changes");
   assert.equal(byName.get("update-pull-request")?.label, "Update PR #7");
-  const prompt = byName.get("update-pull-request")!.prompt;
-  assert.match(prompt, /PR #7\.$/);
+  assert.equal(
+    byName.get("update-pull-request")!.prompt,
+    "Update PR #7 with the latest changes.",
+  );
   for (const suggestion of result.suggestions)
     assert.ok(!suggestion.prompt.includes("```"));
 });
 
-void test("builtins: state lists only relevant non-zero facts, at the end", () => {
+void test("builtins: prompts name nested or multiple repos; tooltips carry state", () => {
   const repo = {
     ...clean,
     dirty: true,
@@ -204,69 +201,32 @@ void test("builtins: state lists only relevant non-zero facts, at the end", () =
     pullRequest: { ...pr, checks: "failing" as const },
   };
   const defs = builtinPromptSuggestionDefinitions();
-  const input = {
+  const input = (repos: PromptSuggestionRepo[]) => ({
     project: { id: "proj_t", name: "t", dir: "/p" },
     git: {
       projectIsRepo: true,
-      repos: [repo],
+      repos,
       github: { available: true, authenticated: true },
     },
     definitions: [],
-  };
+  });
   const update = defs.find((d) => d.name === "update-pull-request")!;
-  const prompt = update.buildPrompt!(input);
-  assert.match(
-    prompt,
-    /^Update my open pull request with the latest work\.\n\n1\. /,
-  );
-  assert.ok(
-    prompt.endsWith(
-      "Last known state: `feature/x` (base `main`), 3 uncommitted changes, 2 unpushed commits, PR #7, checks failing.",
-    ),
-    prompt,
-  );
   assert.equal(
-    update.buildContext?.(input),
+    update.buildContext?.(input([repo])),
     "feature/x (base main) · 3 uncommitted changes · 2 unpushed commits · PR #7, checks failing",
   );
-  // A failure while other checks still run is reported as in progress.
-  const running = {
-    ...input,
-    git: {
-      ...input.git,
-      repos: [
-        { ...repo, pullRequest: { ...repo.pullRequest, checksRunning: true } },
-      ],
-    },
-  };
-  assert.match(
-    update.buildContext?.(running) ?? "",
-    /PR #7, checks failing \(others still running\)$/,
+  assert.equal(
+    update.buildPrompt!(input([{ ...repo, relativePath: "api" }])),
+    "Update PR #7 with the latest changes. Do this in `api`.",
   );
-  // Commit only reports changes; zero "behind" never appears.
   const commit = defs.find((d) => d.name === "commit-changes")!;
-  assert.ok(
-    commit.buildPrompt!(input).endsWith(
-      "Last known state: `feature/x` (base `main`), 3 uncommitted changes.",
-    ),
-  );
-  // Several repos: a list keyed by name, and a per-repo instruction.
-  const multi = {
-    ...input,
-    git: {
-      ...input.git,
-      repos: [
+  assert.equal(
+    commit.buildPrompt!(
+      input([
         { ...repo, relativePath: "api", name: "api" },
-        { ...repo, relativePath: "web", name: "web", changeCount: 1 },
-      ],
-    },
-  };
-  const text = commit.buildPrompt!(multi);
-  assert.match(text, /Do this in each repository listed below/);
-  assert.ok(
-    text.endsWith(
-      "Last known state:\n- `api`: `feature/x` (base `main`), 3 uncommitted changes\n- `web`: `feature/x` (base `main`), 1 uncommitted change",
+        { ...repo, relativePath: "web", name: "web" },
+      ]),
     ),
-    text,
+    "Commit the changes locally. Do this in `api` and `web`.",
   );
 });

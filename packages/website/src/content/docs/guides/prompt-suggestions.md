@@ -19,9 +19,9 @@ Nerve includes Git suggestions that appear only when they apply:
 - **Fix failing checks** when the open PR's checks fail
 - **Push commits** and **Pull upstream**
 
-Three more are off by default. Turn them on in Settings if you want them: **Review my changes**, **Clean up merged branch**, and **Continue** (after a failed or interrupted turn).
+Three more are off by default. Turn them on in Settings if you want them: **Review changes**, **Clean up merged branch**, and **Continue** (after a failed or interrupted turn).
 
-Labels show counts where useful, such as **Commit 3 changes**. Each prompt reads like a request you'd type, and ends with a short **Last known state** line (branch, relevant counts, PR). It says "last known" because a queued prompt may run after the state has changed. Settings lists every suggestion even when it isn't applicable right now. Expand one to see when it appears and a preview of its prompt.
+Labels show counts where useful, such as **Commit 3 changes**. Each prompt is a short request like one you'd type, such as "Create a PR from the changes." The agent checks the current state itself, so a prompt queued while the agent runs still acts on the latest changes. Settings lists every suggestion even when it isn't applicable right now. Expand one to see when it appears and a preview of its prompt.
 
 ## Click a suggestion while the agent is running
 
