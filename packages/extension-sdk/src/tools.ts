@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 
-/** Runs a tool bundled with the SDK (`tsc`, `vitest`) in the project folder; resolves with its exit code. */
+/** Runs a tool bundled with the SDK (`svelte-check`, `vitest`) in the project folder; resolves with its exit code. */
 function run(script: string, args: string[], cwd: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [script, ...args], {
@@ -18,11 +18,23 @@ function run(script: string, args: string[], cwd: string): Promise<number> {
   });
 }
 
-/** `tsc --noEmit` over the project's tsconfig.json. */
+/**
+ * `svelte-check` over the project's tsconfig.json: type checks the `.ts` files and the `.svelte`
+ * components (their props against the declarations of `@nervekit/extension-sdk/ui`), as the editor does.
+ */
 export function typecheck(projectDir: string): Promise<number> {
   return run(
-    require.resolve("typescript/bin/tsc"),
-    ["--noEmit", "-p", projectDir, "--pretty", "false"],
+    require.resolve("svelte-check/bin/svelte-check"),
+    [
+      "--workspace",
+      projectDir,
+      "--tsconfig",
+      join(projectDir, "tsconfig.json"),
+      "--threshold",
+      "error",
+      "--output",
+      "human",
+    ],
     projectDir,
   );
 }

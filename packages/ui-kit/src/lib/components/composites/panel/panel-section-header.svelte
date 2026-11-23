@@ -1,3 +1,8 @@
+<!--
+@component
+Sticky, always-open heading of a group of rows (a repository, a date). Use `PanelSection` when the user should collapse the group.
+-->
+
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
 
@@ -8,10 +13,15 @@ let {
   meta,
   actions,
 }: {
+  /** Heading text. */
   title: string;
+  /** Icon component before the title. */
   icon?: Component;
+  /** Number of rows in the group. */
   count?: number;
+  /** Muted text after the title. */
   meta?: Snippet;
+  /** Icon actions at the end. */
   actions?: Snippet;
 } = $props();
 </script>

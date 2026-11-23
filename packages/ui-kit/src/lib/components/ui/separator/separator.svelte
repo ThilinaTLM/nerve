@@ -1,3 +1,8 @@
+<!--
+@component
+Divider line; `orientation` is `horizontal` (default) or `vertical`.
+-->
+
 <script lang="ts">
 import { Separator as SeparatorPrimitive } from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";

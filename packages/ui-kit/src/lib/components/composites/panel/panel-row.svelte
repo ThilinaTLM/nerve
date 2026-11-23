@@ -1,3 +1,8 @@
+<!--
+@component
+The row of every panel list and tree: a label with optional leading icon, badges, description and hover actions. Rows in a `PanelRowCard` take `hoverable={false}`.
+-->
+
 <script lang="ts" generics="E = undefined">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
@@ -60,30 +65,41 @@ let {
   class: className,
   onclick,
 }: {
+  /** Primary text. */
   label: string;
   /** Segmented title (e.g. search highlights); label remains the plain accessible fallback. */
   labelContent?: Snippet;
+  /** Classes of the label. */
   labelClass?: string;
   /** Inline metadata alongside the first title line, inside the row target. */
   titleTrailing?: Snippet;
   /** Replaces detail and trailing with a single full-width metadata line. */
   meta?: Snippet;
+  /** Accessible name when it should differ from `label`. */
   ariaLabel?: string;
   /** Maximum visible lines for the primary label. */
   labelLines?: 1 | 2;
+  /** Muted text after the label. */
   description?: string;
   /** Second line under a two-line label, coloured by `detailTone`. */
   detail?: string;
+  /** Colour of `detail`: `neutral`, `brand`, `info`, `success`, `warning`, `destructive`. */
   detailTone?: StatusTone;
+  /** Tooltip. */
   title?: string;
+  /** Monospace label, for paths. */
   mono?: boolean;
+  /** Colour of the label: `neutral`, `brand`, `info`, `success`, `warning`, `destructive`. */
   tone?: StatusTone;
   /** Indentation steps for tree-like lists. */
   indent?: number;
   /** Drops the base row inset so the row aligns with the panel's outer padding. */
   flush?: boolean;
+  /** Selected look. */
   selected?: boolean;
+  /** Current item (`aria-current`), independent of selection. */
   active?: boolean;
+  /** Not activatable. */
   disabled?: boolean;
   /** Uses the compact row rhythm intended for dense file/status lists. */
   dense?: boolean;
@@ -93,6 +109,7 @@ let {
   alwaysShowActions?: boolean;
   /** Reveals actions over the row so hidden controls reserve no width. */
   overlayActions?: boolean;
+  /** Disclosure state when the row expands children. */
   ariaExpanded?: boolean;
   /** Outer row semantics. Tree rows opt into `treeitem`; list rows keep the default. */
   role?: "listitem" | "treeitem" | "none";
@@ -100,11 +117,15 @@ let {
   tabindex?: number;
   /** Overrides the primary content button's tab index. */
   contentTabindex?: number;
+  /** Depth in a tree (`aria-level`). */
   ariaLevel?: number;
+  /** Position among siblings (`aria-posinset`). */
   ariaPosInSet?: number;
+  /** Number of siblings (`aria-setsize`). */
   ariaSetSize?: number;
   /** Stable DOM lookup key for composite widgets such as trees. */
   dataId?: string;
+  /** Makes the row draggable; the `ondrag*` handlers receive the events. */
   draggable?: boolean;
   /** Recedes the row content (e.g. ignored files) without changing its tone. */
   dimmed?: boolean;
@@ -123,16 +144,25 @@ let {
    * and drops its focus and text.
    */
   editorArg?: E;
+  /** Drag started on the row. */
   ondragstart?: (event: DragEvent) => void;
+  /** Drag ended. */
   ondragend?: (event: DragEvent) => void;
+  /** A drag entered the row. */
   ondragenter?: (event: DragEvent) => void;
+  /** A drag is over the row. */
   ondragover?: (event: DragEvent) => void;
+  /** A drag left the row. */
   ondragleave?: (event: DragEvent) => void;
+  /** Something was dropped on the row. */
   ondrop?: (event: DragEvent) => void;
+  /** Key pressed while the row has focus. */
   onkeydown?: (event: KeyboardEvent) => void;
+  /** The row received focus. */
   onfocus?: (event: FocusEvent) => void;
   /** Compact content rendered before the primary label. */
   leading?: Snippet;
+  /** Badges after the label. */
   badges?: Snippet;
   /**
    * Two-line rows only: facts aligned with the first label line. On
@@ -140,9 +170,12 @@ let {
    * or keyboard-focused.
    */
   trailing?: Snippet;
+  /** Icon actions (`PanelToolbarButton dense`), revealed on hover or focus unless `alwaysShowActions`. */
   actions?: Snippet;
+  /** Right-click menu; a host that cannot draw menus in place draws it. */
   menuItems?: ContextMenuItem[];
   class?: string;
+  /** Called when the row is activated. */
   onclick?: (event: MouseEvent) => void;
 } = $props();
 

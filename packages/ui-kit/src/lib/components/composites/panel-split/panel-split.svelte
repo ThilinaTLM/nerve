@@ -1,3 +1,8 @@
+<!--
+@component
+Stacked, collapsible, resizable areas sharing the panel height, like Git's repository list, branch and changes areas: 1px draggable dividers (keyboard: arrows move, Enter resets), collapsed areas shrink to their header. Start `layout` from `emptyPanelSplitLayout()` (never `undefined`) and persist it as plain JSON. Render each area as `<PanelSection {open} onOpenChange={toggle} keepMounted class="h-full min-h-0" bodyClass={overflows ? "min-h-0 flex-1 overflow-y-auto" : "min-h-0 flex-1 overflow-hidden"}>` with `headerPx: 32` in its `PanelSplitArea`, and put `{@attach measure}` on the body's natural-height content. Methods via `bind:this`: `toggle(id)`, `open(id)`.
+-->
+
 <script lang="ts" module>
 import type { Attachment } from "svelte/attachments";
 import type { PanelSplitArea } from "./panel-split-sizing";

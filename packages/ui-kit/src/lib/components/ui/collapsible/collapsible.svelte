@@ -1,3 +1,8 @@
+<!--
+@component
+Collapsible section root; `bind:open`. Holds a `Collapsible.Trigger` and a `Collapsible.Content`.
+-->
+
 <script lang="ts">
 import { Collapsible as CollapsiblePrimitive } from "bits-ui";
 

@@ -1,3 +1,8 @@
+<!--
+@component
+`FieldRow` with a switch.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
@@ -10,10 +15,12 @@ type Props = {
   description?: string;
   /** Switch state (bindable). */
   checked?: boolean;
+  /** Not toggleable. */
   disabled?: boolean;
   class?: string;
   /** Inline after the label. */
   badges?: Snippet;
+  /** Called with the new state. */
   onCheckedChange?: (checked: boolean) => void;
 };
 

@@ -1,3 +1,8 @@
+<!--
+@component
+Panel shown while its `value` is the active tab.
+-->
+
 <script lang="ts">
 import { Tabs as TabsPrimitive } from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";

@@ -1,7 +1,16 @@
 // Build-time reference files of the built-in `configure-nerve` skill. The skill has no Nerve source at
 // runtime, so exact shapes ship as generated files instead of prose: JSON Schemas from the zod
 // schemas in `packages/contracts` and the public `.d.ts` files of the extension API and SDK.
-import { cp, mkdir, readdir, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import ts from "typescript";
 import { z } from "zod";
@@ -14,6 +23,7 @@ import {
   permissionOverlayDocumentSchema,
   permissionRuleSetSchema,
 } from "../../packages/contracts/src/domains/permissions/permission-rule-sets.ts";
+import { generateSdkComponentDeclarations } from "../../packages/extension-sdk/scripts/components-dts.ts";
 import { repoRoot } from "../workspace/repo.ts";
 
 type JsonSchema = Record<string, unknown> & {
@@ -89,10 +99,13 @@ const sdkEntries = ["index.ts", "testing.ts", "ui.ts"];
 
 /**
  * The SDK's public declarations, emitted from its sources: the workbench server may not depend on the
- * SDK (package boundaries), so its `dist/` is not guaranteed to exist when this runs. Hand-written
- * `.d.ts` sources (the UI components) are copied as they are, as the SDK's own build does.
+ * SDK (package boundaries), so its `dist/` is not guaranteed to exist when this runs. The component
+ * declarations are generated from the Svelte sources, as the SDK's own build does, and land in
+ * `components/`.
  */
-function emitSdkDeclarations(sdkDir: string): Map<string, string> {
+async function emitSdkDeclarations(
+  sdkDir: string,
+): Promise<Map<string, string>> {
   const src = join(sdkDir, "src");
   // Never written: emit goes to the callback below.
   const outDir = join(sdkDir, "declarations");
@@ -102,8 +115,33 @@ function emitSdkDeclarations(sdkDir: string): Map<string, string> {
     { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => {} },
   );
   if (!config) throw new Error(`Cannot read ${sdkDir}/tsconfig.json.`);
+  // `ui.ts` re-exports `./components/components.js`, which is generated, not part of `src`.
+  const generated = await mkdtemp(join(tmpdir(), "sdk-components-"));
+  try {
+    const componentFiles = await generateSdkComponentDeclarations(
+      join(generated, "components"),
+    );
+    const files = declarationsOf(src, outDir, config, generated);
+    for (const file of componentFiles)
+      files.set(
+        posixPath(join("components", file)),
+        await readFile(join(generated, "components", file), "utf8"),
+      );
+    return files;
+  } finally {
+    await rm(generated, { recursive: true, force: true });
+  }
+}
+
+function declarationsOf(
+  src: string,
+  outDir: string,
+  config: ts.ParsedCommandLine,
+  generated: string,
+): Map<string, string> {
   const options: ts.CompilerOptions = {
     ...config.options,
+    rootDirs: [src, generated],
     composite: false,
     incremental: false,
     declaration: true,
@@ -160,7 +198,9 @@ export async function writeSkillReferenceAssets(
     apiFiles.filter((file) => !hostOnly.includes(file)),
   );
 
-  const sdk = emitSdkDeclarations(join(repoRoot, "packages", "extension-sdk"));
+  const sdk = await emitSdkDeclarations(
+    join(repoRoot, "packages", "extension-sdk"),
+  );
   const missing = [...sdkEntries, "components/components.ts"]
     .map((entry) => entry.replace(/\.ts$/, ".d.ts"))
     .filter((file) => !sdk.has(file));

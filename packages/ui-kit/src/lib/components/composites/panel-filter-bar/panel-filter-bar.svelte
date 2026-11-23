@@ -1,4 +1,10 @@
+<!--
+@component
+Search field and scope chips under a `PanelHeader` ("Filter repos or branches" with "All 6 · Changed 0 · Attention 0"). The panel filters its rows itself from `query` and `scope`.
+-->
+
 <script lang="ts" module>
+/** Scope chip of a `PanelFilterBar`. */
 export type PanelFilterScope = {
   /** Stable value reported through `scope` / `onScopeChange`. */
   value: string;

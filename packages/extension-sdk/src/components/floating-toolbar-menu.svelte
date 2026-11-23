@@ -1,12 +1,14 @@
+<!--
+@component
+Overflow button of a `FloatingToolbar` for secondary actions: keep 4–8 controls on the bar and put the rest here. Opens a menu drawn by the host (`host.ui.menu`) below the button.
+-->
+
 <script lang="ts">
 /* global MouseEvent, HTMLElement -- a frame component runs in the browser */
 import type { Component } from "svelte";
 import { Ellipsis } from "@lucide/svelte";
-import {
-  FloatingToolbarButton,
-  host,
-  type MenuEntry,
-} from "@nervekit/extension-sdk/ui";
+import { FloatingToolbarButton, host } from "@nervekit/extension-sdk/ui";
+import type { MenuEntry } from "../frame/bridge-types.js";
 
 type Props = {
   /** Entries of the menu: items, separators, captions and submenus. */
@@ -15,6 +17,7 @@ type Props = {
   onSelect: (id: string) => void;
   /** Tooltip and accessible name of the trigger. */
   label?: string;
+  /** Icon component of the trigger (default the ellipsis). */
   icon?: Component<{ class?: string; "aria-hidden"?: boolean | "true" }>;
 };
 

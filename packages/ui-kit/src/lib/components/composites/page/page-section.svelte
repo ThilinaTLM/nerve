@@ -1,4 +1,9 @@
 <!--
+@component
+Titled group on a card surface; hold `FieldRow`/`ToggleRow`s, or a `PageList` with `surface={false}`.
+-->
+
+<!--
   A titled block of a page: heading line above a card surface. Rows
   (`FieldRow`, `ToggleRow`, `PageItem`, `PageEmptyState`) read the surface's
   `data-page-surface` / `data-page-divided` attributes to pad themselves and

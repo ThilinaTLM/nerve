@@ -1,3 +1,8 @@
+<!--
+@component
+Label, description and one control on a line (stacked when narrow). `control` takes `Input`, `SelectField` or `Button`; `children` is full-width content under it.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { Label } from "@nervekit/ui-kit/components/ui/label";

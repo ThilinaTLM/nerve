@@ -615,6 +615,7 @@ function reload(): void {
   {#key request}
     <ExtensionMenuOverlay
       {extensionName}
+      {extensionIconName}
       entries={request.entries}
       anchor={request.anchor}
       onSettle={(id) => settle("menu", id)}

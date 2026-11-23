@@ -777,340 +777,6 @@ export type ExtensionHookContext = Pick<ExtensionContext, "settings" | "accounts
 };
 export type AccountTestContext = Pick<ExtensionContext, "accounts" | "http" | "log">;
 
-===== declarations extension-sdk/src/components/components.d.ts =====
-// Types of `components.impl.ts` (the implementation is compiled by the extension's UI build and
-// stays out of this program: the UI kit's sources need the Svelte compiler to type-check).
-// `test/ui-components.test.ts` keeps both files' export names equal.
-import type { Component } from "svelte";
-
-
-type Part = Component<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-
-type Parts<Names extends string> = Record<Names, Part>;
-
-type ClassValue = string | false | null | undefined | ClassValue[];
-
-
-export function cn(...inputs: ClassValue[]): string;
-
-export const Button: Part;
-
-export function buttonVariants(options?: {
-  
-  variant?: string;
-  
-  size?: string;
-  
-  class?: string;
-}): string;
-
-export const Badge: Part;
-
-export function badgeVariants(options?: {
-  
-  variant?: string;
-  
-  class?: string;
-}): string;
-
-export const Input: Part;
-
-export const Textarea: Part;
-
-export const Label: Part;
-
-export const Checkbox: Part;
-
-export const Switch: Part;
-
-export const Skeleton: Part;
-
-export const Spinner: Part;
-
-export const Kbd: Part;
-
-export const Separator: Part;
-
-export const Progress: Part;
-
-export const ScrollArea: Part;
-
-export const Tabs: Parts<"Root" | "List" | "Trigger" | "Content">;
-
-export const Tooltip: Parts<
-  "Root" | "Trigger" | "Content" | "Provider" | "Portal"
->;
-
-export const Collapsible: Parts<"Root" | "Content" | "Trigger">;
-
-export const Empty: Parts<
-  "Root" | "Header" | "Media" | "Title" | "Description" | "Content"
->;
-
-export const RadioGroup: Parts<"Root" | "Item">;
-
-export const ToggleGroup: Parts<"Root" | "Item">;
-
-export const Resizable: Parts<"PaneGroup" | "Pane" | "Handle">;
-
-export const Callout: Part;
-
-export const GroupLabel: Part;
-
-export const IconAction: Part;
-
-export const SearchInput: Part;
-
-export const StatusDot: Part;
-
-export const ProgressRing: Part;
-
-export const ScrollRegion: Part;
-
-export type ContextMenuItem =
-  | {
-      
-      type?: "item";
-      
-      label: string;
-      
-      icon?: string;
-      
-      shortcut?: string;
-      
-      checked?: boolean;
-      
-      disabled?: boolean;
-      
-      destructive?: boolean;
-      
-      onSelect?: () => void;
-    }
-  | {
-      
-      type: "separator";
-    }
-  | {
-      
-      type: "label";
-      
-      label: string;
-    }
-  | {
-      
-      type: "submenu";
-      
-      label: string;
-      
-      icon?: string;
-      
-      disabled?: boolean;
-      
-      items: ContextMenuItem[];
-    };
-
-export type FieldChoice = {
-  
-  value: string;
-  
-  label: string;
-  
-  detail?: string;
-  
-  disabled?: boolean;
-};
-
-export const SelectField: Part;
-
-export const SwitchField: Part;
-
-export const RadioGroupField: Part;
-
-export type CommandItem = {
-  
-  key: string;
-  
-  label: string;
-  
-  group: string;
-  
-  keywords?: readonly string[];
-};
-
-export const CommandList: Part;
-
-export const VirtualScroller: Part;
-
-// ── Panels ─────────────────────────────────────────────────────────────────
-// A panel is built like Nerve's Git, Files and Launches panels: `PanelView` > banner (`PanelHeader`, optional `PanelFilterBar`) > one scroll region of `PanelList`/`PanelTree` rows or `PanelSection`s.
-
-
-export const PanelView: Part;
-
-export const PanelHeader: Part;
-
-export const PanelToolbarButton: Part;
-
-export const PanelFilterBar: Part;
-
-export type PanelFilterScope = {
-  
-  value: string;
-  
-  label: string;
-  
-  count?: number;
-  
-  title?: string;
-};
-
-export const PanelSectionHeader: Part;
-
-export const PanelSection: Part;
-
-export const PanelSplit: Part;
-
-export type PanelSplitArea = {
-  
-  id: string;
-  
-  collapsible?: boolean;
-  
-  defaultCollapsed?: boolean;
-  
-  minPx: number;
-  
-  autoMaxShare?: number;
-  
-  fill?: number;
-  
-  headerPx?: number;
-  
-  fitContent?: boolean;
-  
-  resizeLabel?: string;
-};
-
-export type PanelSplitLayout = {
-  
-  collapsed: Record<string, boolean>;
-  
-  sizes: Record<string, number>;
-};
-
-export function emptyPanelSplitLayout(): PanelSplitLayout;
-
-export const PanelList: Part;
-
-export const PanelRow: Part;
-
-export const PanelRowCard: Part;
-
-export const PanelCard: Part;
-
-export const PanelTree: Part;
-
-export type PanelTreeNode<T> =
-  | {
-      
-      kind: "item";
-      
-      id: string;
-      
-      label: string;
-      
-      path: readonly string[];
-      
-      value: T;
-      
-      children: readonly PanelTreeNode<T>[];
-      
-      expandable?: boolean;
-    }
-  | {
-      
-      kind: "group";
-      
-      id: string;
-      
-      label: string;
-      
-      path: readonly string[];
-      
-      children: readonly PanelTreeNode<T>[];
-    };
-
-export function buildPanelTree<T>(
-  items: readonly T[],
-  options: {
-    getPath: (item: T) => readonly string[];
-    getKey: (item: T, index: number) => string;
-    compareLabels?: (left: string, right: string) => number;
-  },
-): PanelTreeNode<T>[];
-
-export function buildPanelItemTree<T>(
-  items: readonly T[],
-  options: {
-    getKey: (item: T) => string;
-    getParentKey: (item: T) => string | undefined;
-    getLabel: (item: T) => string;
-    isExpandable?: (item: T) => boolean;
-  },
-): PanelTreeNode<T>[];
-
-export const PanelEmpty: Part;
-
-// ── Pages ──────────────────────────────────────────────────────────────────
-// A page is built like Nerve's settings pages: `PageView` > `PageHeader` > `PageSection`s of `FieldRow`/`ToggleRow` or a `PageList` of `PageItem`s.
-
-
-export const PageView: Part;
-
-export const PageHeader: Part;
-
-export const PageSection: Part;
-
-export const FieldRow: Part;
-
-export const ToggleRow: Part;
-
-export const PageList: Part;
-
-export const PageItem: Part;
-
-export const PageEmptyState: Part;
-
-export const PageStatGrid: Part;
-
-export type PageStat = {
-  
-  label: string;
-  
-  value: string;
-  
-  wide?: boolean;
-  
-  mono?: boolean;
-};
-
-
-export const FloatingLayer: Part;
-
-export const FloatingToolbar: Part;
-
-export const FloatingToolbarGroup: Part;
-
-export const FloatingToolbarButton: Part;
-
-export const FloatingToolbarText: Part;
-
-export const FloatingPanel: Part;
-
-export const FloatingNotice: Part;
-
-export const FloatingToolbarMenu: Part;
-
 ===== declarations extension-sdk/src/frame/bridge-types.d.ts =====
 export type BridgeJson = string | number | boolean | null | BridgeJson[] | {
     [key: string]: BridgeJson;
@@ -1659,6 +1325,632 @@ export type { Anchor, AnchorRect, BridgeErrorCode, BridgeJson, BridgeMethods, Cl
 export * from "./components/components.js";
 export * from "@lucide/svelte";
 export { Badge } from "./components/components.js";
+
+===== components =====
+Button
+  active?: boolean | undefined
+  ariaLabel?: string | undefined
+  pressed?: boolean | undefined
+  ref?: HTMLElement | null | undefined
+  size?: "default" | "sm" | "icon" | "icon-sm" | undefined
+  variant?: "link" | "default" | "outline" | "success" | "ghost" | "destructive" | undefined
+Badge
+  ref?: HTMLElement | null | undefined
+  variant?: "success" | "destructive" | "neutral" | "brand" | "info" | "warning" | undefined
+Input
+  ariaLabel?: string | undefined
+  files?: FileList | undefined
+  ref?: HTMLElement | null | undefined
+  type?: "file" | InputType | undefined
+Textarea
+  ref?: HTMLElement | null | undefined
+Label
+
+Checkbox
+
+Switch
+  busy?: boolean | undefined
+Skeleton
+  ref?: HTMLElement | null | undefined
+Spinner
+  variant?: "ring" | "refresh" | undefined
+Kbd
+  ref?: HTMLElement | null | undefined
+Separator
+
+Progress
+
+ScrollArea
+  children?: Snippet<[]> | undefined
+  orientation?: "vertical" | "horizontal" | "both" | undefined
+  ref?: HTMLElement | null | undefined
+  viewportClass?: string | undefined
+  viewportRef?: HTMLElement | null | undefined
+Tabs.Root
+
+Tabs.Content
+
+Tabs.List
+
+Tabs.Trigger
+
+Tabs.Tabs
+
+Tabs.TabsContent
+
+Tabs.TabsList
+
+Tabs.TabsTrigger
+
+Tooltip.Root
+
+Tooltip.Trigger
+
+Tooltip.Content
+  arrowClasses?: string | undefined
+  portalProps?: Omit<PortalProps, "children"> | undefined
+Tooltip.Provider
+
+Tooltip.Portal
+
+Tooltip.Tooltip
+
+Tooltip.TooltipContent
+  arrowClasses?: string | undefined
+  portalProps?: Omit<PortalProps, "children"> | undefined
+Tooltip.TooltipTrigger
+
+Tooltip.TooltipProvider
+
+Tooltip.TooltipPortal
+
+Collapsible.Root
+
+Collapsible.Content
+
+Collapsible.Trigger
+
+Collapsible.Collapsible
+
+Collapsible.CollapsibleContent
+
+Collapsible.CollapsibleTrigger
+
+Empty.Root
+  ref?: HTMLElement | null | undefined
+Empty.Header
+  ref?: HTMLElement | null | undefined
+Empty.Media
+  ref?: HTMLElement | null | undefined
+  variant?: "default" | "icon" | undefined
+Empty.Title
+  ref?: HTMLElement | null | undefined
+Empty.Description
+  ref?: HTMLElement | null | undefined
+Empty.Content
+  ref?: HTMLElement | null | undefined
+Empty.Empty
+  ref?: HTMLElement | null | undefined
+Empty.EmptyHeader
+  ref?: HTMLElement | null | undefined
+Empty.EmptyMedia
+  ref?: HTMLElement | null | undefined
+  variant?: "default" | "icon" | undefined
+Empty.EmptyTitle
+  ref?: HTMLElement | null | undefined
+Empty.EmptyDescription
+  ref?: HTMLElement | null | undefined
+Empty.EmptyContent
+  ref?: HTMLElement | null | undefined
+RadioGroup.Root
+
+RadioGroup.Item
+
+RadioGroup.RadioGroup
+
+RadioGroup.RadioGroupItem
+
+ToggleGroup.Root
+  orientation?: "vertical" | "horizontal" | undefined
+  spacing?: number | undefined
+ToggleGroup.Item
+
+ToggleGroup.ToggleGroup
+  orientation?: "vertical" | "horizontal" | undefined
+  spacing?: number | undefined
+ToggleGroup.ToggleGroupItem
+
+Resizable.PaneGroup
+  this?: ({ $on?(type: string, callback: (e: any) => void): () => void; $set?(props: Partial<PaneGroupProps>): void; } & { getLayout: () => number[]; setLayout: (newLayout: number[]) => void; getId: () => string; }) | undefined
+Resizable.Pane
+
+Resizable.Handle
+  withHandle?: boolean | undefined
+Resizable.ResizablePaneGroup
+  this?: ({ $on?(type: string, callback: (e: any) => void): () => void; $set?(props: Partial<PaneGroupProps>): void; } & { getLayout: () => number[]; setLayout: (newLayout: number[]) => void; getId: () => string; }) | undefined
+Resizable.ResizablePane
+
+Resizable.ResizableHandle
+  withHandle?: boolean | undefined
+Callout
+  actions?: Snippet<[]> | undefined
+  children?: Snippet<[]> | undefined
+  class?: string | undefined
+  icon?: Component<{}, {}, string> | undefined
+  layout?: "block" | "strip" | undefined
+  text?: string | undefined
+  title?: string | undefined
+  tone?: StatusTone | undefined
+GroupLabel
+  class?: string | undefined
+  count?: number | undefined
+  icon?: Component<{}, {}, string> | undefined
+  label: string
+IconAction
+  active?: boolean | undefined
+  busy?: boolean | undefined
+  class?: string | undefined
+  disabled?: boolean | undefined
+  icon: Component<{ class?: string | undefined; "aria-hidden"?: boolean | "true" | undefined; }, {}, string>
+  label: string
+  onclick?: ((event: MouseEvent) => void) | undefined
+  side?: "top" | "right" | "bottom" | "left" | undefined
+  tone?: "destructive" | "neutral" | undefined
+  tourId?: string | undefined
+SearchInput
+  activeDescendant?: string | undefined
+  ariaLabel?: string | undefined
+  class?: string | undefined
+  clearable?: boolean | undefined
+  controls?: string | undefined
+  describedBy?: string | undefined
+  disabled?: boolean | undefined
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: "true" | undefined; }, {}, string> | undefined
+  inputClass?: string | undefined
+  invalid?: boolean | undefined
+  onValueChange?: ((value: string) => void) | undefined
+  onkeydown?: ((event: KeyboardEvent) => void) | undefined
+  placeholder?: string | undefined
+  ref?: HTMLInputElement | null | undefined
+  trailing?: Snippet<[]> | undefined
+  value?: string | undefined
+StatusDot
+  class?: string | undefined
+  label?: string | undefined
+  pulse?: boolean | undefined
+  size?: StatusDotSize | undefined
+  tone?: StatusTone | undefined
+  variant?: StatusDotVariant | undefined
+ProgressRing
+  class?: string | undefined
+  percent?: number | null | undefined
+  tone?: StatusTone | undefined
+ScrollRegion
+  ariaLabel?: string | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+  contentClass?: string | undefined
+  height?: string | undefined
+  id?: string | undefined
+  role?: "listbox" | undefined
+  surface?: "popover" | "panel" | "card" | undefined
+  viewport?: HTMLDivElement | undefined
+  viewportClass?: string | undefined
+SelectField
+  ariaLabel?: string | undefined
+  class?: string | undefined
+  contentClass?: string | undefined
+  disabled?: boolean | undefined
+  id?: string | undefined
+  items?: SelectItem[] | undefined
+  onValueChange?: ((value: string) => void) | undefined
+  placeholder?: string | undefined
+  triggerClass?: string | undefined
+  value?: string | undefined
+SwitchField
+  checked?: boolean | undefined
+  class?: string | undefined
+  description?: string | undefined
+  disabled?: boolean | undefined
+  label?: string | undefined
+  onCheckedChange?: ((checked: boolean) => void) | undefined
+RadioGroupField
+  ariaLabel?: string | undefined
+  class?: string | undefined
+  disabled?: boolean | undefined
+  items?: RadioItem[] | undefined
+  onValueChange?: ((value: string) => void) | undefined
+  orientation?: "vertical" | "horizontal" | undefined
+  value?: string | undefined
+VirtualScroller
+  anchor?: VirtualScrollerAnchor | undefined
+  atEnd?: boolean | undefined
+  class?: string | undefined
+  contentVisibility?: boolean | undefined
+  controller?: VirtualScrollerController | undefined
+  estimateSize?: ((index: number) => number) | undefined
+  followOutput?: boolean | "smooth" | undefined
+  gap?: number | undefined
+  getKey: (item: T, index: number) => string | number
+  getMeasurementVersion?: ((item: T, index: number) => unknown) | undefined
+  heightCacheKey?: string | undefined
+  horizontalScroll?: boolean | undefined
+  items: T[]
+  overscan?: number | undefined
+  paddingEnd?: number | undefined
+  paddingStart?: number | undefined
+  row: Snippet<[{ item: T; index: number; visible: boolean; }]>
+  rowClass?: string | undefined
+  scrollEndThreshold?: number | undefined
+  structureVersion?: unknown
+  viewportAriaLabel?: string | undefined
+  viewportClass?: string | undefined
+  viewportTabIndex?: number | undefined
+CommandList
+  applyLabel?: string | undefined
+  ariaLabel: string
+  autofocus?: boolean | undefined
+  empty?: string | Snippet<[]> | undefined
+  icon?: Snippet<[Item]> | undefined
+  isDisabled?: ((item: Item) => boolean) | undefined
+  isSelected?: ((item: Item) => boolean) | undefined
+  items: Item[]
+  leading?: Snippet<[]> | undefined
+  multiple?: boolean | undefined
+  onApply?: (() => void) | undefined
+  onCancel?: (() => void) | undefined
+  onChoose: (item: Item) => void
+  placeholder?: string | undefined
+  query?: string | undefined
+  row?: Snippet<[Item, { active: boolean; selected: boolean; }]> | undefined
+  rowMode?: "button" | "container" | undefined
+  searchable?: boolean | undefined
+  stableHeight?: string | undefined
+PanelView
+  banner?: Snippet<[]> | undefined
+  children: Snippet<[]>
+  contentClass?: string | undefined
+  toolbar?: Snippet<[]> | undefined
+PanelHeader
+  class?: string | undefined
+  count?: number | undefined
+  title: string
+  trailing?: Snippet<[]> | undefined
+PanelToolbarButton
+  active?: boolean | undefined
+  ariaLabel?: string | undefined
+  badge?: Snippet<[]> | undefined
+  class?: string | undefined
+  dense?: boolean | undefined
+  disabled?: boolean | undefined
+  download?: string | undefined
+  href?: string | undefined
+  icon: Component<{}, {}, string>
+  label: string
+  loading?: boolean | undefined
+  loadingVariant?: "ring" | "refresh" | undefined
+  onclick?: ((event: MouseEvent) => void) | undefined
+  showLabel?: boolean | undefined
+  title?: string | undefined
+  variant?: "link" | "default" | "outline" | "success" | "ghost" | "destructive" | undefined
+PanelSectionHeader
+  actions?: Snippet<[]> | undefined
+  count?: number | undefined
+  icon?: Component<{}, {}, string> | undefined
+  meta?: Snippet<[]> | undefined
+  title: string
+PanelList
+  ariaLabel?: string | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+  role?: "none" | "list" | undefined
+PanelRow
+  actions?: Snippet<[]> | undefined
+  active?: boolean | undefined
+  alwaysShowActions?: boolean | undefined
+  ariaExpanded?: boolean | undefined
+  ariaLabel?: string | undefined
+  ariaLevel?: number | undefined
+  ariaPosInSet?: number | undefined
+  ariaSetSize?: number | undefined
+  badges?: Snippet<[]> | undefined
+  class?: string | undefined
+  contentTabindex?: number | undefined
+  dataId?: string | undefined
+  dense?: boolean | undefined
+  description?: string | undefined
+  detail?: string | undefined
+  detailTone?: StatusTone | undefined
+  dimmed?: boolean | undefined
+  disabled?: boolean | undefined
+  draggable?: boolean | undefined
+  dropEdge?: "before" | "after" | undefined
+  dropTarget?: boolean | undefined
+  editor?: Snippet<[E]> | undefined
+  editorArg?: E | undefined
+  flush?: boolean | undefined
+  hoverable?: boolean | undefined
+  indent?: number | undefined
+  label: string
+  labelClass?: string | undefined
+  labelContent?: Snippet<[]> | undefined
+  labelLines?: 1 | 2 | undefined
+  leading?: Snippet<[]> | undefined
+  menuItems?: ContextMenuItem[] | undefined
+  meta?: Snippet<[]> | undefined
+  mono?: boolean | undefined
+  onclick?: ((event: MouseEvent) => void) | undefined
+  ondragend?: ((event: DragEvent) => void) | undefined
+  ondragenter?: ((event: DragEvent) => void) | undefined
+  ondragleave?: ((event: DragEvent) => void) | undefined
+  ondragover?: ((event: DragEvent) => void) | undefined
+  ondragstart?: ((event: DragEvent) => void) | undefined
+  ondrop?: ((event: DragEvent) => void) | undefined
+  onfocus?: ((event: FocusEvent) => void) | undefined
+  onkeydown?: ((event: KeyboardEvent) => void) | undefined
+  overlayActions?: boolean | undefined
+  role?: "none" | "listitem" | "treeitem" | undefined
+  selected?: boolean | undefined
+  tabindex?: number | undefined
+  title?: string | undefined
+  titleTrailing?: Snippet<[]> | undefined
+  tone?: StatusTone | undefined
+  trailing?: Snippet<[]> | undefined
+PanelRowCard
+  children: Snippet<[]>
+  class?: string | undefined
+  menuDisabled?: boolean | undefined
+  menuItems?: ContextMenuItem[] | undefined
+  onclick?: ((event: MouseEvent) => void) | undefined
+  role?: "none" | "listitem" | undefined
+  selected?: boolean | undefined
+PanelCard
+  actions?: Snippet<[]> | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+  icon?: Component<{}, {}, string> | undefined
+  meta?: Snippet<[]> | undefined
+  onTitleCancel?: (() => void) | undefined
+  onTitleCommit?: ((title: string) => void) | undefined
+  onTitleDblClick?: (() => void) | undefined
+  title: string
+  titleActions?: Snippet<[]> | undefined
+  titleEditing?: boolean | undefined
+  titleHint?: string | undefined
+  titleLabel?: string | undefined
+  titleMaxLength?: number | undefined
+PanelTree
+  ariaLabel: string
+  baseIndent?: number | undefined
+  class?: string | undefined
+  controller?: PanelTreeController | undefined
+  emptyAreaMenuItems?: ContextMenuItem[] | undefined
+  expandedIds?: ReadonlySet<string> | undefined
+  getGroupMenuItems?: ((path: readonly string[]) => ContextMenuItem[]) | undefined
+  getItemActive?: ((item: T) => boolean) | undefined
+  getItemDimmed?: ((item: T) => boolean) | undefined
+  getItemDraggable?: ((item: T) => boolean) | undefined
+  getItemDropTarget?: ((item: T) => boolean) | undefined
+  getItemEditing?: ((item: T) => boolean) | undefined
+  getItemMenuItems?: ((item: T) => ContextMenuItem[]) | undefined
+  getItemSelected?: ((item: T) => boolean) | undefined
+  getItemTitle?: ((item: T) => string) | undefined
+  getItemTone?: ((item: T) => StatusTone | undefined) | undefined
+  groupActions?: Snippet<[readonly string[]]> | undefined
+  groupIcon?: Snippet<[readonly string[], boolean]> | undefined
+  horizontalScroll?: boolean | undefined
+  itemActions?: Snippet<[T]> | undefined
+  itemBadges?: Snippet<[T]> | undefined
+  itemEditor?: Snippet<[T]> | undefined
+  itemLabel?: Snippet<[T]> | undefined
+  itemLeading?: Snippet<[T]> | undefined
+  itemMono?: boolean | undefined
+  multiselectable?: boolean | undefined
+  nodes: readonly PanelTreeNode<T>[]
+  onGroupExpansionChange?: ((path: readonly string[], expanded: boolean) => void) | undefined
+  onItemActivate?: ((item: T) => void) | undefined
+  onItemClick?: ((event: MouseEvent, item: T) => boolean | void) | undefined
+  onItemDragEnd?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDragEnter?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDragLeave?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDragOver?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDragStart?: ((event: DragEvent, item: T) => void) | undefined
+  onItemDrop?: ((event: DragEvent, item: T) => void) | undefined
+  onItemExpansionChange?: ((item: T, expanded: boolean) => void) | undefined
+  onItemKeydown?: ((event: KeyboardEvent, item: T) => boolean | void) | undefined
+  overlayActions?: boolean | undefined
+  reorder?: PanelTreeReorder<T> | undefined
+  selection?: PanelSelectionState | undefined
+  showDisclosure?: boolean | undefined
+  showGroupDisclosure?: boolean | undefined
+  virtualized?: boolean | undefined
+PanelEmpty
+  action?: Snippet<[]> | undefined
+  description?: string | undefined
+  icon?: Component<{}, {}, string> | undefined
+  title: string
+PanelFilterBar
+  ariaLabel?: string | undefined
+  class?: string | undefined
+  extra?: Snippet<[]> | undefined
+  onScopeChange?: ((scope: string) => void) | undefined
+  placeholder?: string | undefined
+  query?: string | undefined
+  scope?: string | undefined
+  scopeLabel?: string | undefined
+  scopes?: PanelFilterScope[] | undefined
+PanelSection
+  actions?: Snippet<[]> | undefined
+  bodyClass?: string | undefined
+  children?: Snippet<[]> | undefined
+  class?: string | undefined
+  count?: string | number | undefined
+  headerClass?: string | undefined
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: "true" | undefined; }, {}, string> | undefined
+  keepMounted?: boolean | undefined
+  label?: Snippet<[]> | undefined
+  meta?: Snippet<[]> | undefined
+  onOpenChange?: ((open: boolean) => void) | undefined
+  open?: boolean | undefined
+  title?: string | undefined
+PanelSplit
+  area: Snippet<[PanelSplitAreaProps]>
+  areaClass?: string | undefined
+  areas: readonly PanelSplitArea[]
+  class?: string | undefined
+  keyStepPx?: number | undefined
+  layout?: PanelSplitLayout | undefined
+  onChange?: ((layout: PanelSplitLayout) => void) | undefined
+PageView
+  children: Snippet<[]>
+  class?: string | undefined
+  width?: "default" | "wide" | "full" | undefined
+PageHeader
+  actions?: Snippet<[]> | undefined
+  below?: Snippet<[]> | undefined
+  class?: string | undefined
+  description?: string | undefined
+  leading?: Snippet<[]> | undefined
+  parent?: { label: string; onBack: () => void; } | undefined
+  title: string
+PageSection
+  actions?: Snippet<[]> | undefined
+  beforeBody?: Snippet<[]> | undefined
+  bodyClass?: string | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+  description?: string | undefined
+  divided?: boolean | undefined
+  footer?: Snippet<[]> | undefined
+  id?: string | undefined
+  labels?: Snippet<[]> | undefined
+  surface?: boolean | undefined
+  title?: string | undefined
+  titleHint?: Snippet<[]> | undefined
+FieldRow
+  badges?: Snippet<[]> | undefined
+  children?: Snippet<[]> | undefined
+  class?: string | undefined
+  control?: Snippet<[]> | undefined
+  description?: string | undefined
+  hint?: Snippet<[]> | undefined
+  htmlFor?: string | undefined
+  label?: string | undefined
+  layout?: "inline" | "stacked" | "responsive" | undefined
+  mono?: boolean | undefined
+ToggleRow
+  badges?: Snippet<[]> | undefined
+  checked?: boolean | undefined
+  class?: string | undefined
+  description?: string | undefined
+  disabled?: boolean | undefined
+  label: string
+  onCheckedChange?: ((checked: boolean) => void) | undefined
+PageList
+  ariaLabel?: string | undefined
+  children: Snippet<[]>
+  class?: string | undefined
+PageItem
+  actions?: Snippet<[]> | undefined
+  always?: boolean | undefined
+  badges?: Snippet<[]> | undefined
+  checked?: boolean | undefined
+  children?: Snippet<[]> | undefined
+  class?: string | undefined
+  compact?: boolean | undefined
+  disabled?: boolean | undefined
+  icon?: Icon | undefined
+  iconLabel?: string | undefined
+  leading?: Snippet<[]> | undefined
+  lockedBy?: string | undefined
+  meta?: Snippet<[]> | undefined
+  mono?: boolean | undefined
+  muted?: boolean | undefined
+  onCheckedChange?: ((checked: boolean) => void) | undefined
+  onOpen?: (() => void) | undefined
+  openLabel?: string | undefined
+  problem?: string | undefined
+  problemAction?: { label: string; onclick: () => void; } | undefined
+  select?: Snippet<[]> | undefined
+  summary?: string | undefined
+  switchLabel?: string | undefined
+  title: string
+  tourId?: string | undefined
+PageEmptyState
+  actions?: Snippet<[]> | undefined
+  class?: string | undefined
+  description?: string | undefined
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: "true" | undefined; }, {}, string> | undefined
+  title: string
+  variant?: "card" | "plain" | undefined
+PageStatGrid
+  class?: string | undefined
+  items: PageStat[]
+FloatingLayer
+  bottomEnd?: Snippet<[]> | undefined
+  bottomStart?: Snippet<[]> | undefined
+  class?: string | undefined
+  topEnd?: Snippet<[]> | undefined
+  topStart?: Snippet<[]> | undefined
+FloatingToolbar
+  children: Snippet<[]>
+  class?: string | undefined
+  label: string
+  orientation?: "vertical" | "horizontal" | undefined
+  reveal?: "always" | "hover" | undefined
+FloatingToolbarGroup
+  children: Snippet<[]>
+  collapse?: boolean | undefined
+  label?: string | undefined
+FloatingToolbarButton
+  busy?: boolean | undefined
+  disabled?: boolean | undefined
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: boolean | "true" | undefined; }, {}, string> | undefined
+  label: string
+  onclick?: ((event: MouseEvent) => void) | undefined
+  pressed?: boolean | undefined
+  shortcut?: string | undefined
+  side?: "top" | "right" | "bottom" | "left" | undefined
+  text?: string | undefined
+  tone?: "destructive" | "neutral" | undefined
+FloatingToolbarText
+  children: Snippet<[]>
+  class?: string | undefined
+  live?: boolean | undefined
+  title?: string | undefined
+  tone?: "destructive" | "muted" | undefined
+FloatingPanel
+  children: Snippet<[]>
+  label: string
+  onClose?: (() => void) | undefined
+  ref?: HTMLElement | null | undefined
+  role?: "search" | "group" | undefined
+  size?: "sm" | "md" | "lg" | undefined
+FloatingNotice
+  action?: Snippet<[]> | undefined
+  children: Snippet<[]>
+  onDismiss?: (() => void) | undefined
+  tone?: "info" | "warning" | undefined
+FloatingToolbarMenu
+  icon?: Component<{ class?: string | undefined; "aria-hidden"?: boolean | "true" | undefined; }, {}, string> | undefined
+  items: MenuEntry[]
+  label?: string | undefined
+  onSelect: (id: string) => void
+cn(...inputs: ClassValue[]): string
+buttonVariants(props?: ({ variant?: "link" | "default" | "outline" | "success" | "ghost" | "destructive" | undefined; size?: "default" | "sm" | "icon" | "icon-sm" | undefined; } & ClassProp<ClassNameValue>) | undefined): string
+badgeVariants(props?: ({ variant?: "success" | "destructive" | "neutral" | "brand" | "info" | "warning" | undefined; interactive?: boolean | undefined; } & ClassProp<ClassNameValue>) | undefined): string
+buildPanelTree<T>(items: readonly T[], options: BuildPanelTreeOptions<T>): PanelTreeNode<T>[]
+buildPanelItemTree<T>(items: readonly T[], options: BuildPanelItemTreeOptions<T>): PanelTreeNode<T>[]
+emptyPanelSplitLayout(): PanelSplitLayout
+type SelectItem = {    value: string;    label: string;    detail?: string | undefined;    disabled?: boolean | undefined;}
+type RadioItem = {    value: string;    label: string;    detail?: string | undefined;    disabled?: boolean | undefined;}
+type CommandItem = {    key: string;    label: string;    group: string;    keywords?: readonly string[] | undefined;}
+type ContextMenuItem = {    type?: "item" | undefined;    label: string;    icon?: any;    shortcut?: string | undefined;    checked?: boolean | undefined;    disabled?: boolean | undefined;    destructive?: boolean | undefined;    movesFocus?: boolean | undefined;    onSelect?: (() => void) | undefined;} | {    type: "separator";} | {    type: "label";    label: string;    icon?: any;} | {    type: "submenu";    label: string;    icon?: any;    disabled?: boolean | undefined;    items: ContextMenuItem[];}
+type PanelTreeNode = PanelTreeItemNode<T> | PanelTreeGroupNode<T>
+type PanelFilterScope = {    value: string;    label: string;    count?: number | undefined;    title?: string | undefined;}
+type PanelSplitArea = PanelSplitArea
+type PanelSplitLayout = PanelSplitLayout
+type PageStat = {    label: string;    value: string;    wide?: boolean | undefined;    mono?: boolean | undefined;}
 
 ===== ui bridge =====
 {

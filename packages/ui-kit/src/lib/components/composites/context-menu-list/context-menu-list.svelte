@@ -1,35 +1,65 @@
 <script lang="ts" module>
 // @lucide/svelte icons are Svelte components; keep the icon slot loosely typed.
+/**
+ * A menu entry's icon: a Svelte component (a Lucide icon). A menu drawn by a host outside the
+ * page (extension frames, see `setItemMenuRenderer`) takes a Lucide icon name in kebab case
+ * (`"trash-2"`) instead, because the host draws the icon.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Icon component interop.
 export type MenuIcon = any;
 
 /** What a menu opens against: an element, or any object that measures a rect. */
 export type AnchorRect = DOMRectReadOnly;
 
+/**
+ * One entry of a context menu (`menuItems` of `PanelRow`, `PanelRowCard`; `getItemMenuItems` and
+ * `getGroupMenuItems` of `PanelTree`). A host that draws menus outside the page may limit their
+ * size and depth.
+ */
 export type ContextMenuItem =
   | {
+      /** An action entry (the default). */
       type?: "item";
+      /** Text shown. */
       label: string;
+      /** Icon, see `MenuIcon`. */
       icon?: MenuIcon;
+      /** Key hint shown at the end (`"Ctrl+K"`); it does not bind a key. */
       shortcut?: string;
       /** A toggle state: the item shows a check mark when `true`. */
       checked?: boolean;
+      /** Greyed out and not selectable. */
       disabled?: boolean;
+      /** Drawn as a dangerous action. */
       destructive?: boolean;
       /**
        * The action moves focus itself (an inline editor, a dialog), so closing
        * the menu must not hand focus back to the trigger afterwards.
        */
       movesFocus?: boolean;
+      /** Runs when the entry is chosen. */
       onSelect?: () => void;
     }
+  /** Divider between groups. */
   | { type: "separator" }
-  | { type: "label"; label: string }
   | {
-      type: "submenu";
+      /** Caption above the entries that follow. */
+      type: "label";
+      /** Caption text. */
       label: string;
+      /** Icon before the caption, see `MenuIcon`. */
       icon?: MenuIcon;
+    }
+  | {
+      /** Nested menu. */
+      type: "submenu";
+      /** Text shown. */
+      label: string;
+      /** Icon, see `MenuIcon`. */
+      icon?: MenuIcon;
+      /** Greyed out and not openable. */
       disabled?: boolean;
+      /** The nested entries. */
       items: ContextMenuItem[];
     };
 </script>

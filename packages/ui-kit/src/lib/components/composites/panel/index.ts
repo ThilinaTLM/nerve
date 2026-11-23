@@ -9,6 +9,7 @@ export { default as PanelSectionHeader } from "./panel-section-header.svelte";
 export { default as PanelToolbarButton } from "./panel-toolbar-button.svelte";
 export { default as PanelTree } from "./panel-tree.svelte";
 export type { PanelTreeController } from "./panel-tree.svelte";
+export type { ContextMenuItem } from "../context-menu-list/index.js";
 export { PanelSelectionState } from "./panel-selection.svelte.js";
 export type { PanelReorderZone, PanelTreeReorder } from "./panel-reorder.js";
 export {

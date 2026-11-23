@@ -61,4 +61,4 @@ test-results/
 
 # Raw screenshot captures (see packages/website/scripts/screenshots/README.md)
 packages/website/.screenshots/
-data
+data/packages/extension-sdk/.components-*

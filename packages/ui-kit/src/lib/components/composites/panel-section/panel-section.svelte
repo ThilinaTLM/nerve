@@ -1,3 +1,8 @@
+<!--
+@component
+Collapsible section: a chevron header line that stays visible when closed, then the body. Persist `open` yourself when it should survive reloads.
+-->
+
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
@@ -40,7 +45,9 @@ let {
   /** Called after the user toggles the section. */
   onOpenChange?: (open: boolean) => void;
   class?: string;
+  /** Classes of the header line. */
   headerClass?: string;
+  /** Classes of the body. */
   bodyClass?: string;
 } = $props();
 

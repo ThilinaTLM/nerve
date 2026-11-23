@@ -1,3 +1,8 @@
+<!--
+@component
+Toggles its `Collapsible.Root`.
+-->
+
 <script lang="ts">
 import { Collapsible as CollapsiblePrimitive } from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";

@@ -1,3 +1,8 @@
+<!--
+@component
+Command-palette list: a search field over grouped rows with arrow-key navigation and Enter to choose. Rows are filtered by every word of the query against `label`, `group` and `keywords`. Use it inline or inside a `FloatingPanel`.
+-->
+
 <script lang="ts" generics="Item extends CommandItem">
 import { onMount, type Snippet } from "svelte";
 import Check from "@lucide/svelte/icons/check";
@@ -36,21 +41,32 @@ let {
   onCancel,
   applyLabel = "Apply",
 }: {
+  /** Rows to list (`CommandItem`; extra fields allowed). */
   items: Item[];
+  /** Search text; `bind:query`. */
   query?: string;
+  /** Hint of the search field. */
   placeholder?: string;
+  /** Accessible name of the list. */
   ariaLabel: string;
+  /** Marks a row as selected (check mark). */
   isSelected?: (item: Item) => boolean;
+  /** Rows that cannot be chosen. */
   isDisabled?: (item: Item) => boolean;
+  /** Called with the row the user chose (Enter or click). */
   onChoose: (item: Item) => void;
+  /** Replaces a row's label; receives the item and `{ active, selected }`. */
   row?: Snippet<[Item, { active: boolean; selected: boolean }]>;
   /** Leading glyph for button rows, before the label. */
   icon?: Snippet<[Item]>;
   /** Container rows render custom content directly and allow embedded controls.
    * Their controls never choose the row; disabled rows keep those controls usable. */
   rowMode?: "button" | "container";
+  /** Shown when no row matches: text or a snippet. */
   empty?: string | Snippet;
+  /** CSS height that stops the list jumping while filtering. */
   stableHeight?: string;
+  /** Focuses the search field on mount (default true). */
   autofocus?: boolean;
   /** Non-searchable content at the top of the list, below the search field.
    * When present, the empty message is shown only for a non-empty query. */
@@ -62,8 +78,11 @@ let {
    * the selection) and the list stays open; Space toggles the highlighted row,
    * Enter and the footer's apply button call `onApply`, Cancel calls `onCancel`. */
   multiple?: boolean;
+  /** With `multiple`: called by the apply button. */
   onApply?: () => void;
+  /** With `multiple`: called by the cancel button. */
   onCancel?: () => void;
+  /** Text of the apply button. */
   applyLabel?: string;
 } = $props();
 const id = $props.id();

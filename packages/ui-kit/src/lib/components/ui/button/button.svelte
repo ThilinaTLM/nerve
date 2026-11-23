@@ -1,3 +1,8 @@
+<!--
+@component
+Button; a link when `href` is set. Toggle state with `active` (look) or `pressed` (`aria-pressed`). Takes the native button attributes (`onclick`, `disabled`, `type`; default `button`).
+-->
+
 <script lang="ts" module>
 import type {
   HTMLAnchorAttributes,
@@ -6,6 +11,7 @@ import type {
 import type { VariantProps } from "tailwind-variants";
 import { cn, tv, type WithElementRef } from "@nervekit/ui-kit/utils";
 
+/** Class string of a button for other elements: `buttonVariants({ variant, size, class })`, with the `Button` variants and sizes. */
 export const buttonVariants = tv({
   base: "focus-visible:border-ring focus-visible:ring-focus aria-invalid:ring-destructive-strong aria-invalid:border-destructive rounded-md border border-transparent bg-clip-padding text-ui focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px aria-invalid:ring-3 data-[active]:bg-muted data-[active]:text-foreground [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 cursor-pointer items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   variants: {
@@ -44,7 +50,9 @@ export type ButtonSize = VariantProps<typeof buttonVariants>["size"];
 
 export type ButtonProps = WithElementRef<HTMLButtonAttributes> &
   WithElementRef<HTMLAnchorAttributes> & {
+    /** Visual style (default `default`); `success` and `destructive` mark outcomes. */
     variant?: ButtonVariant;
+    /** Height and padding (default `default`); `icon` and `icon-sm` are square, for a lone icon. */
     size?: ButtonSize;
     /** Renders a `data-active` toggle state (used for active toolbar/icon buttons). */
     active?: boolean;

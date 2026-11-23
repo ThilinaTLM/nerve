@@ -1,3 +1,8 @@
+<!--
+@component
+Title of an `Empty` state.
+-->
+
 <script lang="ts">
 import { cn, type WithElementRef } from "@nervekit/ui-kit/utils";
 import type { HTMLAttributes } from "svelte/elements";

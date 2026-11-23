@@ -1,12 +1,19 @@
+<!--
+@component
+Readout inside a `FloatingToolbar` (match count, zoom level, size).
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 import { itemIn, itemOut } from "./floating-motion.js";
 
 type Props = {
+  /** `muted` (default) or `destructive`. */
   tone?: "muted" | "destructive";
   /** Announces changes politely (match counts, search state). */
   live?: boolean;
+  /** Tooltip. */
   title?: string;
   class?: string;
   children: Snippet;

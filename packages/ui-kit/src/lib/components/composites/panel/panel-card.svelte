@@ -1,3 +1,8 @@
+<!--
+@component
+Titled card inside a panel.
+-->
+
 <script lang="ts">
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { tick, type Component, type Snippet } from "svelte";
@@ -19,17 +24,23 @@ let {
   class: className,
   children,
 }: {
+  /** Card title. */
   title: string;
+  /** Icon component before the title. */
   icon?: Component;
   /** Tooltip for the title control. */
   titleHint?: string;
+  /** Called when the title is double-clicked (to start renaming). */
   onTitleDblClick?: () => void;
   /** Swaps the title for an inline editor. */
   titleEditing?: boolean;
+  /** Longest title the inline editor accepts. */
   titleMaxLength?: number;
   /** Accessible name of the inline title editor. */
   titleLabel?: string;
+  /** Called with the new title when the inline editor is confirmed. */
   onTitleCommit?: (title: string) => void;
+  /** Called when the inline editor is dismissed. */
   onTitleCancel?: () => void;
   /** Icon actions rendered inline after the title. */
   titleActions?: Snippet;

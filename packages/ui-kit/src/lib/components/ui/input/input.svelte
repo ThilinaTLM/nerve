@@ -1,3 +1,8 @@
+<!--
+@component
+Text input; `bind:value`. Takes the native input attributes.
+-->
+
 <script lang="ts">
 import type {
   HTMLInputAttributes,
@@ -10,8 +15,17 @@ type InputType = Exclude<HTMLInputTypeAttribute, "file">;
 type Props = WithElementRef<
   Omit<HTMLInputAttributes, "type" | "size"> &
     (
-      | { type: "file"; files?: FileList }
-      | { type?: InputType; files?: undefined }
+      | {
+          /** A file input; `bind:files` reads the selection. */
+          type: "file";
+          /** The selected files. */
+          files?: FileList;
+        }
+      | {
+          /** Input type (default `text`). */
+          type?: InputType;
+          files?: undefined;
+        }
     )
 > & {
   /** Convenience alias for `aria-label`. */

@@ -1,4 +1,9 @@
 <!--
+@component
+Entry of a `PageList` (an integration, a rule, a profile): an icon or mark, title and summary, with optional switch, problem line, badges and actions.
+-->
+
+<!--
   One item in a catalog or entity list (tools, skills, extensions, accounts). Fixed anatomy, all on one row:
     icon · title + exceptional badges / one status line · meta, actions, switch, chevron
   - A selectable row (the chosen account among several) passes `select` in
@@ -27,9 +32,11 @@ import type { Component, Snippet } from "svelte";
 type Icon = Component<{ class?: string; "aria-hidden"?: "true" }>;
 
 type Props = {
+  /** Entry name. */
   title: string;
   /** Identity glyph in a tile. Use `leading` instead for a custom mark (provider logo). */
   icon?: Icon;
+  /** Replaces `icon` with your own mark. */
   leading?: Snippet;
   /** Names the icon's kind in a tooltip; hovering the tile still opens the item. */
   iconLabel?: string;
@@ -45,18 +52,23 @@ type Props = {
   mono?: boolean;
   /** Replaces the summary in warning tone; `action` is its fix. */
   problem?: string;
+  /** Button of the `problem` line. */
   problemAction?: { label: string; onclick: () => void };
   /** Omit for items without a switch. */
   checked?: boolean;
+  /** Called with the new switch state. */
   onCheckedChange?: (checked: boolean) => void;
+  /** Accessible name of the switch; setting `checked` or this adds the switch. */
   switchLabel?: string;
   /** Shows "Always on" in place of the switch. */
   always?: boolean;
   /** Disables the switch; `lockedBy` also explains why. */
   disabled?: boolean;
+  /** Why the entry cannot be changed (shown instead of the switch). */
   lockedBy?: string;
   /** Opens the item's detail view or dialog from anywhere on the row. */
   onOpen?: () => void;
+  /** Accessible name of the row when `onOpen` makes it open a detail. */
   openLabel?: string;
   /** Exceptional states only (Experimental, Shadowed, Default, version). */
   badges?: Snippet;

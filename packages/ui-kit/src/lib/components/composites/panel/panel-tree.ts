@@ -1,8 +1,13 @@
+/** A node holding one of your items. */
 export type PanelTreeItemNode<T> = {
   kind: "item";
+  /** Node id, used by `expandedIds`. */
   id: string;
+  /** Text shown. */
   label: string;
+  /** Labels from the root down to this node. */
   path: readonly string[];
+  /** Your item. */
   value: T;
   /** Nested items; empty for leaves or not-yet-loaded parents. */
   children: readonly PanelTreeNode<T>[];
@@ -10,14 +15,20 @@ export type PanelTreeItemNode<T> = {
   expandable?: boolean;
 };
 
+/** A folder generated from shared path segments. */
 export type PanelTreeGroupNode<T> = {
   kind: "group";
+  /** Node id, used by `expandedIds`. */
   id: string;
+  /** Folder name. */
   label: string;
+  /** Segments from the root down to this folder. */
   path: readonly string[];
+  /** Nested nodes. */
   children: readonly PanelTreeNode<T>[];
 };
 
+/** Node of a `PanelTree`: an item (your value) or a generated folder group. */
 export type PanelTreeNode<T> = PanelTreeItemNode<T> | PanelTreeGroupNode<T>;
 
 export type PanelTreeRow<T> = {
@@ -29,15 +40,22 @@ export type PanelTreeRow<T> = {
 };
 
 export type BuildPanelTreeOptions<T> = {
+  /** Path segments of an item, from the root down to the item's own label. */
   getPath: (item: T) => readonly string[];
+  /** Unique, stable key of an item; it becomes the node id. */
   getKey: (item: T, index: number) => string;
+  /** Orders sibling labels; default is a locale-aware compare with numbers in order (`file2` before `file10`). */
   compareLabels?: (left: string, right: string) => number;
 };
 
 export type BuildPanelItemTreeOptions<T> = {
+  /** Unique, stable key of an item. */
   getKey: (item: T) => string;
+  /** Key of the parent item; `undefined` makes the item a root. */
   getParentKey: (item: T) => string | undefined;
+  /** Text shown. */
   getLabel: (item: T) => string;
+  /** Marks an item expandable before its children are loaded. */
   isExpandable?: (item: T) => boolean;
 };
 
@@ -118,6 +136,10 @@ function projectDirectory<T>(
   };
 }
 
+/**
+ * Tree from path segments (`["src", "lib", "a.ts"]`): items are leaves, shared
+ * prefixes become folder groups.
+ */
 export function buildPanelTree<T>(
   items: readonly T[],
   options: BuildPanelTreeOptions<T>,

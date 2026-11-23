@@ -1,7 +1,7 @@
 <!--
   A menu an extension frame asked the host to draw (`ui.menu`): the frame's entries as a ui-kit
   menu, opened against the anchor in app-window coordinates so it can leave the frame's rectangle.
-  The first line names the extension. Choosing an item settles with its id; Escape, a click
+  The first line names the extension, with its icon like pickers do. Choosing an item settles with its id; Escape, a click
   anywhere else and losing the menu settle with `null`.
 -->
 <script lang="ts">
@@ -9,17 +9,23 @@ import type { BridgeMenuEntry } from "@nervekit/contracts/extensions";
 import ContextMenuList, {
   type AnchorRect,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import type { ExtensionIconComponent } from "../model/extension-icons";
+import {
+  extensionIcon,
+  type ExtensionIconComponent,
+} from "../model/extension-icons";
 import { menuItemsOf, menuIconNames } from "../model/host-overlay";
 import { resolveMenuIcons } from "../model/menu-icon-loader";
 
 let {
   extensionName,
+  extensionIconName,
   entries,
   anchor,
   onSettle,
 }: {
   extensionName: string;
+  /** The extension's own icon (a lucide name), when it has one. */
+  extensionIconName?: string;
   entries: BridgeMenuEntry[];
   anchor: { getBoundingClientRect(): AnchorRect };
   onSettle: (id: string | null) => void;
@@ -39,7 +45,12 @@ $effect(() => {
 });
 
 const items = $derived(
-  menuItemsOf(entries, { extensionName, icons, onChoose: onSettle }),
+  menuItemsOf(entries, {
+    extensionName,
+    icons,
+    extensionIcon: extensionIcon(extensionIconName),
+    onChoose: onSettle,
+  }),
 );
 </script>
 

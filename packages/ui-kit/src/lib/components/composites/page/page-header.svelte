@@ -1,4 +1,9 @@
 <!--
+@component
+Title block of a page; a detail view sets `parent` (breadcrumb back to its list) and `leading`.
+-->
+
+<!--
   A page header. In detail mode (`parent`) the title row becomes a
   breadcrumb, "Extensions › [mark] Name": the parent is the back button,
   the item's description replaces the page's and its actions take the actions

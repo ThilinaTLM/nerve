@@ -1,3 +1,8 @@
+<!--
+@component
+Container of `PanelRow`s with list semantics.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -8,7 +13,9 @@ let {
   class: className,
   children,
 }: {
+  /** Accessible name of the list. */
   ariaLabel?: string;
+  /** `list` (default) or `none`. */
   role?: "list" | "none";
   class?: string;
   children: Snippet;

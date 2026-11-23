@@ -1,3 +1,8 @@
+<!--
+@component
+Empty state of a page or section; `variant` `card` draws a dashed box.
+-->
+
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";

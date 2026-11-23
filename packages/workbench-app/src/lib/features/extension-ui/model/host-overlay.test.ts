@@ -41,12 +41,18 @@ test("a menu is headed by the extension's name and keeps the whole tree", () => 
   ];
   assert.deepEqual(menuIconNames(entries).sort(), ["copy", "no-such-icon"]);
   const copy = (() => null) as never;
+  const notesIcon = (() => null) as never;
   const items = menuItemsOf(entries, {
     extensionName: "Notes",
     icons: new Map([["copy", copy]]),
+    extensionIcon: notesIcon,
     onChoose: (id) => chosen.push(id),
   });
-  assert.deepEqual(items[0], { type: "label", label: "From Notes" });
+  assert.deepEqual(items[0], {
+    type: "label",
+    label: "From Notes",
+    icon: notesIcon,
+  });
   assert.deepEqual(items[1], { type: "separator" });
   const first = items[2];
   assert.ok(

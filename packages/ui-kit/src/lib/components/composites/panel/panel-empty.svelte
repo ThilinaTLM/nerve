@@ -1,3 +1,8 @@
+<!--
+@component
+Empty, loading or unavailable state of a panel.
+-->
+
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
@@ -8,9 +13,13 @@ let {
   description,
   action,
 }: {
+  /** Icon component above the title. */
   icon?: Component;
+  /** Headline. */
   title: string;
+  /** One muted line under the title. */
   description?: string;
+  /** One small `Button`. */
   action?: Snippet;
 } = $props();
 </script>

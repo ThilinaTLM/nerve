@@ -1,8 +1,18 @@
+<!--
+@component
+Radio choices, each with an optional detail line.
+-->
+
 <script lang="ts" module>
+/** Choice of a `RadioGroupField`. */
 export type RadioItem = {
+  /** Reported through `value` / `onValueChange`. */
   value: string;
+  /** Text shown. */
   label: string;
+  /** Muted second line. */
   detail?: string;
+  /** Not selectable. */
   disabled?: boolean;
 };
 </script>
@@ -21,12 +31,18 @@ let {
   class: className,
   onValueChange,
 }: {
+  /** The choices. */
   items?: RadioItem[];
+  /** `value` of the chosen item; `bind:value`. */
   value?: string;
+  /** `vertical` (default) or `horizontal`. */
   orientation?: "horizontal" | "vertical";
+  /** Accessible name of the group. */
   ariaLabel?: string;
+  /** Disables every choice. */
   disabled?: boolean;
   class?: string;
+  /** Called with the chosen `value`. */
   onValueChange?: (value: string) => void;
 } = $props();
 </script>

@@ -97,10 +97,11 @@ test("declaration pointers in the extension references name exports of the gener
         /`(\w+)` \(`(reference\/extensions\/api\/extension-(?:api|sdk)\/[\w/-]+\.d\.ts)`\)/g,
       )) {
         const declaration = await readFile(join(dir, path!), "utf8");
+        // A declaration, or a re-export (`export { Button } from`, `export * as Tabs from`).
         assert.match(
           declaration,
           new RegExp(
-            `export (?:declare )?(?:const|function|type|interface|class|let) ${symbol}\\b`,
+            `export (?:declare )?(?:const|function|type|interface|class|let) ${symbol}\\b|export (?:type )?\\{[^}]*\\b${symbol}\\b[^}]*\\} from|export \\* as ${symbol} from`,
           ),
           `${file}: ${symbol} is not exported by ${path}`,
         );

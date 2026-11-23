@@ -1,6 +1,6 @@
 # UI patterns
 
-Build frames from the patterns of Nerve's own panels, settings pages and viewers. Users then already know how an extension works, and it follows every theme and density. Exact props: `reference/extensions/api/extension-sdk/components/components.d.ts`. Icons: lucide, from the same entry (`import { Plus } from "@nervekit/extension-sdk/ui"`; `Badge` is the component, its icon is `BadgeIcon`).
+Build frames from the patterns of Nerve's own panels, settings pages and viewers. Users then already know how an extension works, and it follows every theme and density. Exact props, with a doc comment on each: `reference/extensions/api/extension-sdk/components/components.d.ts` (index; each export points at the file that types its props). Icons: lucide, from the same entry, never a separate `@lucide/svelte` install (`import { Plus } from "@nervekit/extension-sdk/ui"`; `Badge` is the component, its icon is `BadgeIcon`).
 
 Compose these components instead of styling raw `<button>`, `<input>`, `<select>`, lists or headers. Raw elements look close but drift from Nerve's spacing, focus rings and states. Add Tailwind classes only for layout (flex, gap, width), with theme tokens (`bg-background`, `bg-card`, `bg-panel`, `text-foreground`, `text-muted-foreground`, `border-border`, `text-destructive`, `text-success`, `text-ui`), never fixed colors.
 

@@ -1,3 +1,8 @@
+<!--
+@component
+Empty state root: holds `Empty.Header` (with `Empty.Media`, `Empty.Title`, `Empty.Description`) and `Empty.Content`.
+-->
+
 <script lang="ts">
 import { cn, type WithElementRef } from "@nervekit/ui-kit/utils";
 import type { HTMLAttributes } from "svelte/elements";

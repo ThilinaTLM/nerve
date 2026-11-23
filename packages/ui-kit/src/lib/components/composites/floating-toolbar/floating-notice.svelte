@@ -1,3 +1,8 @@
+<!--
+@component
+Lasting status of the pane, in the `bottomStart` anchor of a `FloatingLayer` (read-only file, truncated content).
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import Info from "@lucide/svelte/icons/info";
@@ -8,6 +13,7 @@ import { cn } from "@nervekit/ui-kit/utils";
 import { floatIn, floatOut } from "./floating-motion.js";
 
 type Props = {
+  /** `info` (default) or `warning`. */
   tone?: "info" | "warning";
   /** Shows a dismiss button. */
   onDismiss?: () => void;

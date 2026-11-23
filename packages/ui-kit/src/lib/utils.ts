@@ -15,6 +15,7 @@ const twMerge = extendTailwindMerge(twMergeConfig);
 /** `tailwind-variants` with the type-role-aware merge; use instead of its `tv`. */
 export const tv = createTV({ twMergeConfig });
 
+/** Joins class names and resolves conflicting Tailwind utilities (the later wins): `cn("px-2", active && "bg-muted", className)`. */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -27,5 +28,6 @@ export type WithoutChildren<T> = T extends { children?: any }
   : T;
 export type WithoutChildrenOrChild<T> = WithoutChildren<WithoutChild<T>>;
 export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & {
+  /** The rendered element; `bind:ref` to reach it. */
   ref?: U | null;
 };

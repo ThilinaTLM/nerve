@@ -1,3 +1,8 @@
+<!--
+@component
+Root of a dock panel: owns the height, the panel surface and padding. Snippets: `banner` (pinned: `PanelHeader`, `PanelFilterBar`, a `Callout layout="strip"`) and `toolbar`; `children` is the content and owns the one scroll region (`ScrollArea`, `PanelTree virtualized`, `PanelSplit`).
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -12,6 +17,7 @@ let {
   toolbar?: Snippet;
   /** Pinned strip between the toolbar and the content. */
   banner?: Snippet;
+  /** Classes of the content area. */
   contentClass?: string;
   children: Snippet;
 } = $props();

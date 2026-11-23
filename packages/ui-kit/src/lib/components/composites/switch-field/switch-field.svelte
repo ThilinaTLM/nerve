@@ -1,13 +1,23 @@
+<!--
+@component
+Switch with a label and a one-line description; the whole row is clickable. Inside a `PageSection` prefer `ToggleRow`.
+-->
+
 <script lang="ts">
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = {
+  /** On/off; `bind:checked`. */
   checked?: boolean;
+  /** Not toggleable. */
   disabled?: boolean;
+  /** Title of the row. */
   label?: string;
+  /** One muted line under the label. */
   description?: string;
   class?: string;
+  /** Called with the new state. */
   onCheckedChange?: (checked: boolean) => void;
 };
 

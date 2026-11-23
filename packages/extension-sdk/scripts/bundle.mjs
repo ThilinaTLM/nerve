@@ -55,7 +55,7 @@ await build({
   ],
   plugins: [
     {
-      // `src/components/components.d.ts` types the implementation, which tsc does not check (it imports Svelte sources).
+      // `components.impl.ts` re-exports Svelte sources, which tsc does not check; its declarations are generated from them.
       name: "ui-components",
       setup(builder) {
         builder.onResolve(
@@ -74,11 +74,9 @@ await build({
     },
   ],
 });
+// `dist/components/*.d.ts` (the generated declarations of the components) come from
+// `scripts/components-dts.ts`, which runs before `tsc` in `pnpm build`.
 await mkdir("dist/components", { recursive: true });
-await copyFile(
-  "src/components/components.d.ts",
-  "dist/components/components.d.ts",
-);
 for (const name of [
   "floating-toolbar-menu.svelte",
   "item-menu.svelte",

@@ -1,3 +1,8 @@
+<!--
+@component
+The bar of a `FloatingLayer` anchor; it positions nothing itself. Holds `FloatingToolbarGroup`, `FloatingToolbarButton` and `FloatingToolbarText`. `orientation` `vertical` is for icon-only buttons (zoom in `bottomEnd`); `reveal` `hover` keeps the bar quiet until the pane is hovered or focused.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";

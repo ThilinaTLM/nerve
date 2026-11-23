@@ -1,3 +1,8 @@
+<!--
+@component
+Tooltip text; place it beside the `Tooltip.Trigger`.
+-->
+
 <script lang="ts">
 import { Tooltip as TooltipPrimitive } from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -18,7 +23,9 @@ let {
   portalProps,
   ...restProps
 }: TooltipPrimitive.ContentProps & {
+  /** Classes of the arrow. */
   arrowClasses?: string;
+  /** Props of the portal the content renders in. */
   portalProps?: WithoutChildrenOrChild<ComponentProps<typeof TooltipPortal>>;
 } = $props();
 </script>

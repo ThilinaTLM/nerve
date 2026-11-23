@@ -1,3 +1,8 @@
+<!--
+@component
+Card list of `PageItem`s; put it in a `PageSection surface={false}`.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";

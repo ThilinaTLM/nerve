@@ -1,3 +1,8 @@
+<!--
+@component
+Keyboard key hint (`<Kbd>⌘K</Kbd>`).
+-->
+
 <script lang="ts">
 import { cn, type WithElementRef } from "@nervekit/ui-kit/utils";
 import type { HTMLAttributes } from "svelte/elements";

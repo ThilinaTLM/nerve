@@ -1,3 +1,8 @@
+<!--
+@component
+Icon-only button with a tooltip. `label` is both; pass the icon as a component (`icon={Copy}`).
+-->
+
 <script lang="ts">
 import type { Component } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -13,13 +18,17 @@ type Props = {
   /** Optional when the action is driven by a wrapper, e.g. a popover trigger,
    * whose own handler arrives here and needs its event forwarded. */
   onclick?: (event: MouseEvent) => void;
+  /** `neutral` (default) or `destructive`. */
   tone?: "neutral" | "destructive";
   /** Marks the action as the current state, e.g. the starred default. */
   active?: boolean;
+  /** Not activatable. */
   disabled?: boolean;
   /** Swaps the icon for a spinner and blocks activation. */
   busy?: boolean;
+  /** Side of the tooltip (default `top`). */
   side?: "top" | "right" | "bottom" | "left";
+  /** Marks the button for guided tours. */
   tourId?: string;
   class?: string;
   /** Forwarded to the trigger element so wrappers like Popover can attach. */

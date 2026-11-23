@@ -1,3 +1,8 @@
+<!--
+@component
+Card holding one or more rows (a pull request with its checks); put `hoverable={false}` on inner `PanelRow`s.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
@@ -16,9 +21,12 @@ let {
   role?: "listitem" | "none";
   /** Marks this card as the list's current item. The card paints hover and selection; put `hoverable={false}` on inner rows. */
   selected?: boolean;
+  /** Right-click menu of the card. */
   menuItems?: ContextMenuItem[];
+  /** Suppresses the menu. */
   menuDisabled?: boolean;
   class?: string;
+  /** Called when the card is activated. */
   onclick?: (event: MouseEvent) => void;
   children: Snippet;
 } = $props();

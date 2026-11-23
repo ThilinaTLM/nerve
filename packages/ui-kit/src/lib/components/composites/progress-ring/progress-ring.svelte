@@ -1,3 +1,8 @@
+<!--
+@component
+Circular progress; `percent` is 0–100.
+-->
+
 <script lang="ts">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -9,6 +14,7 @@ let {
 }: {
   /** 0-100; clamped. */
   percent?: number | null;
+  /** Colour (default `neutral`): `neutral`, `brand`, `info`, `success`, `warning`, `destructive`. */
   tone?: StatusTone;
   class?: string;
 } = $props();

@@ -1,4 +1,10 @@
+<!--
+@component
+Grid of labelled values (counts, sizes, versions); labels must be unique.
+-->
+
 <script lang="ts" module>
+/** One value of a `PageStatGrid`. */
 export type PageStat = {
   /** Caption above the value. */
   label: string;

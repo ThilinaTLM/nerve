@@ -1,3 +1,8 @@
+<!--
+@component
+First line of a panel: title, count and trailing icon actions (`PanelToolbarButton`s).
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -8,8 +13,11 @@ let {
   trailing,
   class: className,
 }: {
+  /** Panel title. */
   title: string;
+  /** Number shown next to the title. */
   count?: number;
+  /** Icon actions at the end of the line. */
   trailing?: Snippet;
   class?: string;
 } = $props();

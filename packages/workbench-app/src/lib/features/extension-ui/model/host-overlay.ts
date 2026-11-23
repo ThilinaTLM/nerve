@@ -88,6 +88,8 @@ export function menuItemsOf(
   options: {
     extensionName: string;
     icons: ReadonlyMap<string, ExtensionIconComponent>;
+    /** The extension's own icon, shown with its name like in pickers. */
+    extensionIcon: ExtensionIconComponent;
     onChoose: (id: string) => void;
   },
 ): ContextMenuItem[] {
@@ -115,7 +117,11 @@ export function menuItemsOf(
       };
     });
   return [
-    { type: "label", label: `From ${options.extensionName}` },
+    {
+      type: "label",
+      label: `From ${options.extensionName}`,
+      icon: options.extensionIcon,
+    },
     { type: "separator" },
     ...convert(entries),
   ];

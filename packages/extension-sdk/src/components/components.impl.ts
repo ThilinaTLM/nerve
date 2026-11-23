@@ -1,6 +1,7 @@
-// The UI kit components that work inside a frame. Dialogs, sheets, context and dropdown menus and
-// toasts do not (a frame cannot draw outside its rectangle); `nerve-ext build` rejects them and
-// points at `host.ui.confirm`, `host.ui.menu`, `host.ui.pick` and `host.ui.notify`.
+// The UI kit components that work inside a frame; their declarations are generated from the sources
+// below (`scripts/components-dts.mjs`). A frame cannot draw outside its rectangle, so what needs to
+// is not exported: `frameForbidden` in `src/ui-build.ts` lists those imports (`nerve-ext build`
+// rejects them and names `host.ui.confirm`, `host.ui.menu`, `host.ui.pick` or `host.ui.notify`).
 import { setItemMenuRenderer } from "@nervekit/ui-kit/components/composites/item-menu";
 import ItemMenu from "./item-menu.svelte";
 
@@ -8,6 +9,21 @@ import ItemMenu from "./item-menu.svelte";
 setItemMenuRenderer(ItemMenu);
 
 export { cn } from "@nervekit/ui-kit";
+
+// Types of component props, from the module that defines them.
+export type { SelectItem } from "@nervekit/ui-kit/components/composites/select-field";
+export type { RadioItem } from "@nervekit/ui-kit/components/composites/radio-group-field";
+export type { CommandItem } from "@nervekit/ui-kit/components/composites/popover-panel";
+export type {
+  ContextMenuItem,
+  PanelTreeNode,
+} from "@nervekit/ui-kit/components/composites/panel";
+export type { PanelFilterScope } from "@nervekit/ui-kit/components/composites/panel-filter-bar";
+export type {
+  PanelSplitArea,
+  PanelSplitLayout,
+} from "@nervekit/ui-kit/components/composites/panel-split";
+export type { PageStat } from "@nervekit/ui-kit/components/composites/page";
 
 export { Button, buttonVariants } from "@nervekit/ui-kit/components/ui/button";
 export { Badge, badgeVariants } from "@nervekit/ui-kit/components/ui/badge";

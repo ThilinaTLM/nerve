@@ -1,3 +1,8 @@
+<!--
+@component
+Labelled select (the field to put in a `FieldRow` control); the same props as the UI kit's. In a frame the list is the host's picker (`host.ui.pick`), drawn outside the frame with a search field above 8 items, so values are at most 128 characters and there are at most 2,000 items.
+-->
+
 <script lang="ts">
 /* global console, MouseEvent, HTMLElement -- a frame component runs in the browser */
 // `SelectField` of frames. Same props as the UI kit's: that one opens a list inside the frame,
@@ -18,16 +23,24 @@ let {
   triggerClass,
   onValueChange,
 }: {
+  /** Id of the button, for `FieldRow htmlFor`. */
   id?: string;
+  /** The choices. */
   items?: SelectItem[];
+  /** `value` of the chosen item; `bind:value`. */
   value?: string;
+  /** Shown while nothing is chosen (default "Select"). */
   placeholder?: string;
+  /** Not openable. */
   disabled?: boolean;
+  /** Accessible name; also the title of the host's list. */
   ariaLabel?: string;
   class?: string;
+  /** Classes of the button; `class` styles its wrapper. */
   triggerClass?: string;
   /** Accepted for compatibility with the UI kit's field; the host draws the list. */
   contentClass?: string;
+  /** Called with the chosen `value`. */
   onValueChange?: (value: string) => void;
 } = $props();
 

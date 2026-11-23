@@ -1,3 +1,8 @@
+<!--
+@component
+Root of a page: fills the tab, owns the scroll region and centres the content column. `width`: `default` (46rem), `wide` (72rem) or `full`.
+-->
+
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";

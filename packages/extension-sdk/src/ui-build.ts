@@ -221,7 +221,12 @@ async function readThemeFile(
 
 // ── Frame compatibility ───────────────────────────────────────────────────
 
-const frameForbidden: {
+/**
+ * Imports a frame cannot use, with the fix each error names. The one list of what a frame cannot
+ * draw: the build rejects them in an extension's sources, and `test/ui-components.test.ts`
+ * checks that `src/components/components.impl.ts` and the SDK's own components import none.
+ */
+export const frameForbidden: readonly {
   pattern: RegExp;
   name: string;
   fix: string;

@@ -1,8 +1,18 @@
+<!--
+@component
+Labelled select; the field to put in a `FieldRow` control.
+-->
+
 <script lang="ts" module>
+/** Choice of a `SelectField`. */
 export type SelectItem = {
+  /** Reported through `value` / `onValueChange`. */
   value: string;
+  /** Text shown. */
   label: string;
+  /** Muted second line. */
   detail?: string;
+  /** Not selectable. */
   disabled?: boolean;
 };
 </script>

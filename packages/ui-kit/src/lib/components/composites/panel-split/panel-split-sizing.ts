@@ -46,6 +46,7 @@ export interface PanelSplitLayout {
   readonly sizes: Readonly<Record<string, number>>;
 }
 
+/** A new empty `PanelSplitLayout`: nothing collapsed, no dragged sizes. */
 export const emptyPanelSplitLayout = (): PanelSplitLayout => ({
   collapsed: {},
   sizes: {},

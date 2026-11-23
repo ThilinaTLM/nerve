@@ -1,3 +1,8 @@
+<!--
+@component
+One radio button of a `RadioGroup.Root`; `value` is what the group reports.
+-->
+
 <script lang="ts">
 import { RadioGroup as RadioGroupPrimitive } from "bits-ui";
 import CircleIcon from "@lucide/svelte/icons/circle";

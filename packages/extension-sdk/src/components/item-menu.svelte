@@ -3,7 +3,8 @@
 // Item-menu renderer of frames: the UI kit's panel rows, trees and cards open their context
 // menu through it, and the host draws the menu (`host.ui.menu`) outside the frame.
 import type { ItemMenuRendererProps } from "@nervekit/ui-kit/components/composites/item-menu";
-import { host, type MenuEntry } from "@nervekit/extension-sdk/ui";
+import { host } from "@nervekit/extension-sdk/ui";
+import type { MenuEntry } from "../frame/bridge-types.js";
 
 let {
   items,

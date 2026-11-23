@@ -1,3 +1,8 @@
+<!--
+@component
+Icon or illustration of an `Empty` state.
+-->
+
 <script lang="ts" module>
 import type { VariantProps } from "tailwind-variants";
 import { cn, tv, type WithElementRef } from "@nervekit/ui-kit/utils";
@@ -30,6 +35,7 @@ let {
   variant = "default",
   ...restProps
 }: WithElementRef<HTMLAttributes<HTMLDivElement>> & {
+  /** `default` (bare) or `icon` (the icon on a rounded tile). */
   variant?: EmptyMediaVariant;
 } = $props();
 </script>

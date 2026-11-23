@@ -1,3 +1,8 @@
+<!--
+@component
+Icon button of a panel header or row, with a tooltip.
+-->
+
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
 import {
@@ -25,20 +30,27 @@ let {
   badge,
   onclick,
 }: {
+  /** Icon component (a Lucide icon). */
   icon: Component;
   /** Accessible name; also the tooltip when `title` is omitted. */
   label: string;
   /** Override the accessible action name while keeping the visible label stable. */
   ariaLabel?: string;
+  /** Tooltip text when it should differ from `label`. */
   title?: string;
   /** Renders the control as a link (used for download actions). */
   href?: string;
+  /** File name; with `href`, downloads the link. */
   download?: string;
+  /** Button style (see `Button`). */
   variant?: ButtonVariant;
+  /** Toggle state. */
   active?: boolean;
+  /** Not activatable. */
   disabled?: boolean;
   /** Swaps the icon for a spinner while an action is in flight. */
   loading?: boolean;
+  /** Spinner style while `loading`. */
   loadingVariant?: "ring" | "refresh";
   /** Renders the label next to the icon instead of icon-only. */
   showLabel?: boolean;
@@ -47,6 +59,7 @@ let {
   class?: string;
   /** Trailing content such as a count badge. */
   badge?: Snippet;
+  /** Called on activation. */
   onclick?: (event: MouseEvent) => void;
 } = $props();
 </script>

@@ -12,6 +12,10 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { z } from "zod";
 import {
+  withGeneratedComponents,
+  type ComponentDeclarations,
+} from "./component-declarations.ts";
+import {
   bridgeEventKinds,
   bridgeEvents,
   bridgeMethodKinds,
@@ -35,8 +39,8 @@ const entries = [
   "extension-sdk/src/ui.ts",
 ].map((entry) => join(packages, entry));
 
-/** Declarations of the public entries, without comments (wording is not surface). */
-function declarations(): Map<string, string> {
+/** Declarations of the public entries, without comments (wording is not surface). `generated` holds the generated `components/`, which `ui.ts` re-exports. */
+function declarations(generated: string): Map<string, string> {
   const apiSrc = join(packages, "extension-api", "src");
   const outDir = join(packages, "declarations-snapshot");
   const program = ts.createProgram(entries, {
@@ -50,6 +54,7 @@ function declarations(): Map<string, string> {
     removeComments: true,
     noEmitOnError: false,
     rootDir: packages,
+    rootDirs: [join(packages, "extension-sdk", "src"), generated],
     outDir,
     baseUrl: join(here, ".."),
     // Read the API's sources, not a possibly stale dist.
@@ -62,10 +67,10 @@ function declarations(): Map<string, string> {
   program.emit(undefined, (fileName, text) => {
     files.set(relative(outDir, fileName).split("\\").join("/"), text);
   });
-  // Hand-written declaration files (the UI components) are surface as they are.
+  // The API's own declaration files are surface as they are.
   for (const source of program.getSourceFiles()) {
     const path = relative(packages, source.fileName).split("\\").join("/");
-    if (source.isDeclarationFile && /^extension-(api|sdk)\/src\//.test(path))
+    if (source.isDeclarationFile && /^extension-api\/src\//.test(path))
       files.set(path, source.text.replace(/\/\*\*[\s\S]*?\*\//g, ""));
   }
   return files;
@@ -75,11 +80,38 @@ const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 const schemaOf = (schema: z.ZodType) =>
   z.toJSONSchema(schema, { io: "input", unrepresentable: "any" });
 
-function snapshot(): string {
+/**
+ * The components as an author sees them: every export of `@nervekit/extension-sdk/ui`'s
+ * components with its props (those the UI kit and SDK declare; native element attributes come
+ * from Svelte), their types, `?` marking the optional ones.
+ */
+function componentSurface(declared: ComponentDeclarations): string {
+  return [
+    ...declared.components.map(
+      (component) =>
+        `${component.name}\n${component.props
+          .map(
+            (prop) => `  ${prop.name}${prop.optional ? "?" : ""}: ${prop.type}`,
+          )
+          .join("\n")}`,
+    ),
+    ...declared.functions.map((entry) => `${entry.name}${entry.signature}`),
+    ...declared.types.map((entry) => `type ${entry.name} = ${entry.text}`),
+  ].join("\n");
+}
+
+async function snapshot(): Promise<string> {
+  const generated = await withGeneratedComponents(
+    ({ root, declarations: declared }) => ({
+      files: declarations(root),
+      components: componentSurface(declared),
+    }),
+  );
   const sections: [string, string][] = [
-    ...[...declarations()]
+    ...[...generated.files]
       .sort(([a], [b]) => (a < b ? -1 : 1))
       .map(([file, text]): [string, string] => [`declarations ${file}`, text]),
+    ["components", generated.components],
     [
       "ui bridge",
       json({
@@ -128,8 +160,8 @@ function firstDifference(expected: string, actual: string): string {
   return "";
 }
 
-void test("the public extension surface matches the committed snapshot", () => {
-  const current = snapshot();
+void test("the public extension surface matches the committed snapshot", async () => {
+  const current = await snapshot();
   if (process.env.UPDATE_SNAPSHOT) {
     writeFileSync(snapshotFile, current);
     return;

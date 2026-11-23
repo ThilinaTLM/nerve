@@ -1,3 +1,8 @@
+<!--
+@component
+Loading placeholder block; size it with `class`.
+-->
+
 <script lang="ts">
 import {
   cn,

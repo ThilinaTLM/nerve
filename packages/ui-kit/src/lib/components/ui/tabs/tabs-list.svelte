@@ -1,3 +1,8 @@
+<!--
+@component
+Row of `Tabs.Trigger`s inside `Tabs.Root`.
+-->
+
 <script lang="ts">
 import { Tabs as TabsPrimitive } from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";

@@ -1,3 +1,8 @@
+<!--
+@component
+Progress bar from 0 to `max` (default 100); `value` is the current amount.
+-->
+
 <script lang="ts">
 import { Progress as ProgressPrimitive } from "bits-ui";
 import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";

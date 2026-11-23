@@ -1,3 +1,8 @@
+<!--
+@component
+Keyboard-navigable tree (files, folders of launches). Build `nodes` with `buildPanelTree` (paths) or `buildPanelItemTree` (parent keys). Without `expandedIds` it keeps expansion itself.
+-->
+
 <script lang="ts" module>
 export type PanelTreeController = {
   /** Scrolls the row into view and, with `focus`, moves keyboard focus to it. */
@@ -48,16 +53,21 @@ import {
 type Props = {
   /** Prebuilt nodes from `buildPanelTree` (paths) or `buildPanelItemTree`. */
   nodes: readonly PanelTreeNode<T>[];
+  /** Accessible name of the tree. */
   ariaLabel: string;
   /** Indentation steps applied to root rows, for trees nested under a header. */
   baseIndent?: number;
+  /** Tooltip of an item row. */
   getItemTitle?: (item: T) => string;
+  /** Whether an item row is selected. */
   getItemSelected?: (item: T) => boolean;
   /** Marks the row as the current item (`aria-current`), independent of selection. */
   getItemActive?: (item: T) => boolean;
+  /** Colour of an item row's label. */
   getItemTone?: (item: T) => StatusTone | undefined;
   /** Controlled expansion state. Node ids are the ids produced by the builders. */
   expandedIds?: ReadonlySet<string>;
+  /** An item with children was expanded or collapsed. */
   onItemExpansionChange?: (item: T, expanded: boolean) => void;
   /** Expansion changes for generated path groups. */
   onGroupExpansionChange?: (path: readonly string[], expanded: boolean) => void;
@@ -69,25 +79,34 @@ type Props = {
   showDisclosure?: boolean;
   /** Hide generated-directory chevrons when folder icons carry state. */
   showGroupDisclosure?: boolean;
+  /** Monospace labels, for paths. */
   itemMono?: boolean;
   /**
    * Activates a leaf or item parent. Item parents also toggle their children on
    * the same click, so selecting and disclosing stay a single gesture.
    */
   onItemActivate?: (item: T) => void;
+  /** Whether an item row can be dragged. */
   getItemDraggable?: (item: T) => boolean;
+  /** Drag started on an item row. */
   onItemDragStart?: (event: DragEvent, item: T) => void;
+  /** Drag ended. */
   onItemDragEnd?: (event: DragEvent, item: T) => void;
   /** Row drop-target handlers; the tree only forwards the events. */
   onItemDragEnter?: (event: DragEvent, item: T) => void;
+  /** A drag is over an item row. */
   onItemDragOver?: (event: DragEvent, item: T) => void;
+  /** A drag left an item row. */
   onItemDragLeave?: (event: DragEvent, item: T) => void;
+  /** Something was dropped on an item row. */
   onItemDrop?: (event: DragEvent, item: T) => void;
+  /** Drop indicator of an item row while dragging over it. */
   getItemDropTarget?: (item: T) => boolean;
   /** Recedes the row (e.g. ignored files). */
   getItemDimmed?: (item: T) => boolean;
   /** Rows for which `itemEditor` replaces the label. */
   getItemEditing?: (item: T) => boolean;
+  /** Replaces an item's label with an inline editor (rename); return a snippet for the item being edited. */
   itemEditor?: Snippet<[T]>;
   /**
    * Called before the default pointer handling; return true to consume the
@@ -115,18 +134,23 @@ type Props = {
   emptyAreaMenuItems?: ContextMenuItem[];
   /** Bindable imperative handle for scroll-to-row and focus. */
   controller?: PanelTreeController;
+  /** Icon or `StatusDot` before an item's label. */
   itemLeading?: Snippet<[T]>;
   /** Replaces the default folder icon of generated path groups. */
   groupIcon?: Snippet<[readonly string[], boolean]>;
   /** Segmented label (e.g. highlighted search matches); the node label stays the accessible fallback. */
   itemLabel?: Snippet<[T]>;
+  /** Badges after an item's label. */
   itemBadges?: Snippet<[T]>;
+  /** Icon actions of an item row (`PanelToolbarButton dense`). */
   itemActions?: Snippet<[T]>;
   /** Actions for generated directory groups, receiving the full path. */
   groupActions?: Snippet<[readonly string[]]>;
   /** Overlay row actions so hidden controls reserve no horizontal space. */
   overlayActions?: boolean;
+  /** Right-click menu of an item row. */
   getItemMenuItems?: (item: T) => ContextMenuItem[];
+  /** Right-click menu of a generated folder, from its path. */
   getGroupMenuItems?: (path: readonly string[]) => ContextMenuItem[];
   class?: string;
 };

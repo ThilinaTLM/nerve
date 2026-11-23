@@ -1,3 +1,8 @@
+<!--
+@component
+Draggable divider between two `Resizable.Pane`s.
+-->
+
 <script lang="ts">
 import * as ResizablePrimitive from "paneforge";
 import { cn, type WithoutChildrenOrChild } from "@nervekit/ui-kit/utils";
@@ -8,6 +13,7 @@ let {
   withHandle = false,
   ...restProps
 }: WithoutChildrenOrChild<ResizablePrimitive.PaneResizerProps> & {
+  /** Shows a grip on the divider. */
   withHandle?: boolean;
 } = $props();
 </script>
