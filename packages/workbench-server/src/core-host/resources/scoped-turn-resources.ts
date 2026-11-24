@@ -31,6 +31,11 @@ const blocked = new Set<string>(subagentBlockedToolNames);
 
 export function scopedTurnResources(options: {
   home: string;
+  /** Whether this conversation has an MCP server its settings leave on (lists the `mcp` namespace). */
+  hasEnabledMcpServers(
+    input: ConfigurationPreviewInput,
+    settings: LeadSettingsOverrides,
+  ): Promise<boolean>;
   service: AgentConfigurationService;
   tools(
     cwd: string,
@@ -126,13 +131,18 @@ export function scopedTurnResources(options: {
     // Only configured namespaces: unavailability stays out of the description so credential changes keep the prompt prefix.
     const quickScriptText = quickScriptDescription(
       {
-        namespaces: configuredNamespaces(
-          (
-            await extensionAvailability(registry, resolution, accounts, {
-              checkSecrets: false,
-            })
-          ).namespaces,
-        ),
+        namespaces: [
+          ...configuredNamespaces(
+            (
+              await extensionAvailability(registry, resolution, accounts, {
+                checkSecrets: false,
+              })
+            ).namespaces,
+          ),
+          ...((await options.hasEnabledMcpServers(input, settings))
+            ? ["mcp"]
+            : []),
+        ],
       },
       registry,
     );

@@ -85,7 +85,8 @@ export function normalizeSettingsOverrides(
   const inheritedEntries = new Map(canonicalSettingsEntries(lower));
   const result: Record<string, unknown> = {};
   for (const [pointer, value] of canonicalSettingsEntries(current)) {
-    if (pointer.startsWith("/skills/")) continue;
+    if (pointer.startsWith("/skills/") || pointer.startsWith("/mcpServers/"))
+      continue;
     if (!equal(value, inheritedEntries.get(pointer)))
       put(result, pointer, value);
   }
@@ -116,6 +117,33 @@ export function normalizeSettingsOverrides(
           value,
         );
     }
+  }
+  const named = current.mcpServers?.servers ?? {};
+  const inheritedNamed = lower.mcpServers?.servers ?? {};
+  const inheritedDefault = lower.mcpServers?.defaults;
+  const localDefault = current.mcpServers?.defaults;
+  // Even an equal default can mask lower-layer named exceptions.
+  const keepDefault =
+    localDefault !== undefined &&
+    (localDefault !== inheritedDefault ||
+      Object.entries(inheritedNamed).some(
+        ([name, value]) =>
+          !Object.hasOwn(named, name) && value !== localDefault,
+      ));
+  if (keepDefault) put(result, "/mcpServers/defaults", localDefault);
+  for (const [name, value] of Object.entries(named)) {
+    const baseline = keepDefault
+      ? localDefault
+      : Object.hasOwn(inheritedNamed, name)
+        ? inheritedNamed[name]
+        : inheritedDefault;
+    // No lower decision: the entry's own `enabled` is the baseline, so any explicit choice is kept.
+    if (baseline === undefined || value !== baseline)
+      put(
+        result,
+        `/mcpServers/servers/${name.replaceAll("~", "~0").replaceAll("/", "~1")}`,
+        value,
+      );
   }
   return leadSettingsOverridesSchema.parse(result);
 }

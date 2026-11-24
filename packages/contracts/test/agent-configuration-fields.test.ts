@@ -82,6 +82,8 @@ const cases: Record<string, readonly [unknown, unknown]> = {
   "/skills/file/example": booleanPair,
   "/skills/nerve/example": booleanPair,
   "/skills/agentBrowser/example": booleanPair,
+  "/mcpServers/defaults": booleanPair,
+  "/mcpServers/servers/example": booleanPair,
   "/subagents/coding/enabled": booleanPair,
   "/subagents/coding/model": [modelA, modelB],
   "/subagents/coding/reasoningLevel": ["low", "high"],
@@ -142,6 +144,7 @@ for (const [path, schema] of schemaFields) {
           nerve: ["example"],
           agentBrowser: ["example"],
         },
+        eligibleMcpServers: ["example"],
       });
     assert.deepEqual(leadSettingsOverridesSchema.parse({}), {});
     const omitted = resolve({});
@@ -182,6 +185,12 @@ for (const [path, schema] of schemaFields) {
         lower,
         "Reset source defaults restore inherited named decisions",
       );
+    }
+    if (path === "/mcpServers/defaults") {
+      const namedPath = "/mcpServers/servers/example";
+      assert.equal(at(omitted.settings, namedPath), lower);
+      assert.equal(at(explicit.settings, namedPath), upper);
+      assert.equal(at(inherited.settings, namedPath), lower);
     }
     if (schema instanceof z.ZodBoolean) {
       assert.equal(lower, true);

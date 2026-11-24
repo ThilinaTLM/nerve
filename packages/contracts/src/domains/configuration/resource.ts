@@ -7,6 +7,7 @@ export const configurationResourceKindSchema = z.enum([
   "rule-set",
   "permission-overlay",
   "launch-catalog",
+  "mcp-servers",
   "skill",
   "prompt-suggestion",
   "extension",

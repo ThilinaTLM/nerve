@@ -9,6 +9,7 @@ import type { ComposerCompletionAction } from "$lib/presentation/composer/compos
 export type CapabilitySettingsPage =
   | "tools"
   | "skills"
+  | "mcp-servers"
   | "agents"
   | "sub-agents";
 

@@ -34,6 +34,8 @@ export type SdkNamespace = {
   helper?: boolean;
   /** The namespace has an extra availability hook (extension-API namespaces only); the host asks the extension's code for the verdict. */
   availability?: true;
+  /** Built-in namespace the description lists only when the host names it configured (`mcp`, once mcp.json has an enabled server), so it costs no prompt otherwise. */
+  listedWhenConfigured?: true;
   /** One line in the `quick_script` description. */
   summary: string;
   /** At most three short lines, added to the description whenever the namespace is configured. */

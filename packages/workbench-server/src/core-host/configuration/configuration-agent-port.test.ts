@@ -1,3 +1,4 @@
+import { McpCatalog } from "../../domains/mcp/mcp-catalog.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -48,6 +49,7 @@ async function setup(t: test.TestContext) {
   });
   const registry = createResourceRegistry({
     home,
+    mcpCatalog: new McpCatalog({ home, trust: { find: () => null } }),
     agentConfiguration: service,
     policy,
     trustedResources: { find: () => null },

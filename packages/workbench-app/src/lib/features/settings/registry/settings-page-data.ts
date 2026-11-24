@@ -40,6 +40,13 @@ const accounts: PageData = {
   description: "Credentials extensions use to reach other services.",
   sections: [{ id: "accounts", label: "Accounts" }],
 };
+const mcpServers: PageData = {
+  label: "MCP servers",
+  description:
+    "Programs and services that give the agent more tools. A project server replaces one of yours with the same name once you approve it.",
+  sections: [{ id: "servers", label: "Servers" }],
+  detail: { param: "server" },
+};
 const general: PageData = {
   label: "General",
   description: "Defaults for new conversations. Projects can override them.",
@@ -98,6 +105,7 @@ const userPages: Record<string, PageData> = {
   providers,
   extensions,
   accounts,
+  "mcp-servers": mcpServers,
   general,
   tools,
   skills,
@@ -196,6 +204,7 @@ const projectPages: Record<string, PageData> = {
   tools,
   // A project skill opens its review page; user skills have none.
   skills: { ...skills, detail: { param: "skill" } },
+  "mcp-servers": mcpServers,
   extensions: {
     ...extensions,
     description:
@@ -256,7 +265,7 @@ const userLayout: NavLayout = [
   {
     id: "connections",
     title: "Connections",
-    pages: ["providers", "extensions", "accounts"],
+    pages: ["providers", "extensions", "accounts", "mcp-servers"],
   },
   { id: "agent", title: "Agent", pages: ["general", "tools", "skills"] },
   {
@@ -286,7 +295,7 @@ const projectLayout: NavLayout = [
   {
     id: "agent",
     title: "Agent",
-    pages: ["general", "tools", "skills", "extensions"],
+    pages: ["general", "tools", "skills", "extensions", "mcp-servers"],
   },
   {
     id: "catalog",

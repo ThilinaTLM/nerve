@@ -1,5 +1,6 @@
 import type { ExtensionAgentPort } from "../../extension-host/agent-port.js";
 import type { LaunchesAgentPort } from "./launches/launches-port.js";
+import type { McpAgentPort } from "./mcp/mcp-port.js";
 import type { ConfigurationAgentPort } from "./configuration/configuration-port.js";
 import type { ExtensionHostPorts } from "../../extension-host/ports.js";
 import type { ExtensionCodeAdapter } from "../../extension-host/code-adapter.js";
@@ -62,6 +63,8 @@ export interface ExtensionExecutionContext {
   configurationAgent?: ConfigurationAgentPort;
   /** The project's launch catalog (`launches.*`); absent: the namespace fails with FORBIDDEN. */
   launchesAgent?: LaunchesAgentPort;
+  /** The user's MCP servers (`mcp.*`); absent: the namespace fails with FORBIDDEN. */
+  mcpAgent?: McpAgentPort;
   /** How the host reaches extension code; absent: in the host process. */
   extensionCodeAdapter?: ExtensionCodeAdapter;
   /** Set while an extension's direct tool runs: streams into a live view section; false when the section is not live. */
@@ -142,6 +145,12 @@ export type SdkMethod = {
   risk: MethodRisk;
   /** The risk depends on argument values; the scanner needs literal arguments to decide it (see `MethodDefinition.riskFromArgs`). */
   riskFromArgs?: boolean;
+  /**
+   * Options that alone decide the method's authorization (operation, targets, risk). The scan
+   * reads them from an object literal and passes every other option as `null`, so a call whose
+   * other options are computed (`mcp.tools.call`'s `arguments`) still names its targets.
+   */
+  scanOptions?: readonly string[];
   /** Checked as this direct tool at run time (`launches.start` as `bash`), not as an operation; operation rules cannot admit it. */
   directTool?: string;
   /** TypeScript method declaration, optionally led by a one-line JSDoc comment; generates the declarations `sdk.describe` serves (sdk-dts.ts). */

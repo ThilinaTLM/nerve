@@ -143,6 +143,8 @@ export function createSettingsPageControllers(deps: {
     { kind: "create" } | { kind: "edit"; definition: LaunchDefinition }
   >();
   let launchSaving = $state(false);
+  /** The Add server dialog of the MCP servers page, opened from its header. */
+  let mcpAddOpen = $state(false);
   function openLaunchDialog(id?: string): void {
     const definition = id
       ? launchCatalog?.definitions.find((entry) => entry.id === id)
@@ -329,6 +331,12 @@ export function createSettingsPageControllers(deps: {
       return launchSaving;
     },
     openLaunchDialog,
+    get mcpAddOpen() {
+      return mcpAddOpen;
+    },
+    set mcpAddOpen(value) {
+      mcpAddOpen = value;
+    },
     launchFolders,
     saveLaunchDialog,
     trustEntries,

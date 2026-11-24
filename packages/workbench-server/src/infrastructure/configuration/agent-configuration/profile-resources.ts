@@ -15,6 +15,7 @@ export interface ResourceSnapshot {
     ResolutionOptions,
     | "process"
     | "eligibleSkills"
+    | "eligibleMcpServers"
     | "clampThinking"
     | "referenceAvailable"
     | "subagentDefaults"

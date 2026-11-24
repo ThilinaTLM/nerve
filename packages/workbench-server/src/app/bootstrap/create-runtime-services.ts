@@ -1,3 +1,4 @@
+import { McpSecrets } from "../../domains/mcp/mcp-secrets.js";
 import { createPinnedFetch } from "@nervekit/tools/execution";
 import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/index.js";
@@ -228,6 +229,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scopedConfiguration,
     admissionPolicy,
     configurationResources,
+    mcp,
+    mcpService,
   } = createConversationCore(
     { ...deps, accounts, extensionCatalog, extensionStore },
     { launches, definitions: launchDefinitions },
@@ -236,6 +239,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       await completions.dispose(projectId);
       git.invalidateProjectReads(projectId);
       await extensionStore.deleteProject(projectId);
+      // Trust rows go with the project (cascade); its MCP secrets live in the vault.
+      await new McpSecrets(deps.secrets).deleteProject(projectId);
     },
     undefined,
     projectMigration,
@@ -536,6 +541,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scopedConfiguration,
     admissionPolicy,
     configurationResources,
+    mcp,
+    mcpService,
     coreStorage,
     launches,
     launchDefinitions,

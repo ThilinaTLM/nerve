@@ -1,6 +1,6 @@
 ---
 name: configure-nerve
-description: Use when the user wants to set up or understand Nerve itself (project instructions, skills, prompt suggestions, extensions, launches, agent profiles and teammates, permissions), including complaints like "it keeps asking before running tests". Not for project code.
+description: Use when the user wants to set up or understand Nerve itself (project instructions, skills, prompt suggestions, extensions, MCP servers, launches, agent profiles and teammates, permissions), including complaints like "it keeps asking before running tests". Not for project code.
 ---
 
 # Configure Nerve
@@ -17,16 +17,16 @@ You shape Nerve to the user's work by editing its configuration. Paths in this s
 
 Candidates are listed cheapest first. Take the first that solves the problem.
 
-| The user says                                      | Candidates                                                                            | Take the later one when                                                                                       |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| "It keeps forgetting our conventions"              | `AGENTS.md`, a skill, profile instructions                                            | A skill: the guidance is long or applies to one kind of task. Profile: it applies to one way of working only. |
-| "It keeps asking before X"                         | An overlay rule                                                                       | —                                                                                                             |
-| "I keep typing the same request"                   | A prompt suggestion, a skill                                                          | A skill: the request needs steps or files, not one prompt.                                                    |
-| "I want it to work with service X"                 | An allow rule for a CLI that exists, a skill around the CLI, an integration extension | Extension: there is no CLI, or calls need accounts, typed operations or their own permission rules.           |
-| "I want a second opinion on changes"               | A sub-agent profile, a lead profile                                                   | Lead profile: the user wants to talk to the reviewer directly.                                                |
-| "It should work differently for this kind of work" | A lead profile, a rule set                                                            | Rule set: the difference is what may run without asking.                                                      |
-| "I want to see or open X in Nerve"                 | A preview, page or panel extension                                                    | —                                                                                                             |
-| "Start my dev server"                              | A launch definition                                                                   | —                                                                                                             |
+| The user says                                      | Candidates                                                                                           | Take the later one when                                                                                                                                  |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "It keeps forgetting our conventions"              | `AGENTS.md`, a skill, profile instructions                                                           | A skill: the guidance is long or applies to one kind of task. Profile: it applies to one way of working only.                                            |
+| "It keeps asking before X"                         | An overlay rule                                                                                      | —                                                                                                                                                        |
+| "I keep typing the same request"                   | A prompt suggestion, a skill                                                                         | A skill: the request needs steps or files, not one prompt.                                                                                               |
+| "I want it to work with service X"                 | An allow rule for a CLI that exists, a skill around the CLI, an MCP server, an integration extension | MCP server: the service publishes one. Extension: there is no CLI or MCP server, or calls need accounts, typed operations or their own permission rules. |
+| "I want a second opinion on changes"               | A sub-agent profile, a lead profile                                                                  | Lead profile: the user wants to talk to the reviewer directly.                                                                                           |
+| "It should work differently for this kind of work" | A lead profile, a rule set                                                                           | Rule set: the difference is what may run without asking.                                                                                                 |
+| "I want to see or open X in Nerve"                 | A preview, page or panel extension                                                                   | —                                                                                                                                                        |
+| "Start my dev server"                              | A launch definition                                                                                  | —                                                                                                                                                        |
 
 ## What you can configure
 
@@ -41,8 +41,9 @@ Candidates are listed cheapest first. Take the first that solves the problem.
 | Permission overlays  | `<home>/config/permissions.json`            | `<project>/.nerve/config/permissions.json` (user approves)    | user for a personal rule                          | `reference/permissions.md`        |
 | Agent preferences    | `<home>/config/agent.json`                  | `<project>/.nerve/config/agent.json` (user approves)          | edit only on an exact request                     | `reference/agent-profiles.md`     |
 | Extensions           | `<home>/agent/extensions/<id>/`             | `<project>/.nerve/extensions/<id>/` (user consents)           | user                                              | `guide/extensions.md`             |
+| MCP servers          | `<home>/config/mcp.json` (user approves)    | `<project>/.nerve/config/mcp.json` (user approves)            | user for a personal one, project for a team one   | `reference/mcp.md`                |
 
-Choose project scope for what the team should share, and name in your hand-over the approval the user must give. Choose user scope for what is personal: it works without approval.
+Choose project scope for what the team should share, and name in your hand-over the approval the user must give. Choose user scope for what is personal: it works without approval (MCP servers excepted: the user approves every entry).
 
 Model providers, accounts and credentials, extension settings, conversation defaults and appearance are the user's in Settings. Point them to the page instead of editing those files. A conversation's own files under `<home>/data/conversations/` are managed by Nerve; do not edit them.
 

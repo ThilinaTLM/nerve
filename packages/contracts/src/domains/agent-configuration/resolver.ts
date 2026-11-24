@@ -32,6 +32,8 @@ export interface ResolutionOptions {
   frozenDefaults?: CompleteChildSettings;
   launch?: z.infer<typeof childLaunchOverridesSchema>;
   eligibleSkills?: Partial<Record<"file" | "nerve" | "agentBrowser", string[]>>;
+  /** MCP servers defined for the conversation's project after precedence (user and project files). */
+  eligibleMcpServers?: string[];
   /** Inject the existing model-catalog clamp; required when checking model compatibility. */
   clampThinking?: (
     model: ModelSelection,
@@ -223,6 +225,7 @@ export function resolveAgentConfiguration(
         }
       }
   }
+  resolveMcpServers(result, layers, options, profile?.name);
   const { model, reasoningLevel } = result.settings;
   if (!model)
     result.diagnostics.push({ code: "model-required", pointer: "/model" });
@@ -259,6 +262,48 @@ export function resolveAgentConfiguration(
         result.diagnostics.push({ code: "missing-reference", pointer });
   return result;
 }
+const escapePointer = (name: string) =>
+  name.replaceAll("~", "~0").replaceAll("/", "~1");
+/**
+ * Per server name, the highest layer with a decision wins; within a layer a named entry beats that
+ * layer's `defaults` (the skills rule). A name no layer decides is left out: the entry's own
+ * `enabled` in mcp.json decides. Only eligible names stay in the result's `servers`.
+ */
+function resolveMcpServers(
+  result: ResolutionResult,
+  layers: { source: ConfigurationSource; value: LeadSettingsOverrides }[],
+  options: ResolutionOptions,
+  profile: string | undefined,
+) {
+  for (const pointer of Object.keys(result.provenance))
+    if (pointer.startsWith("/mcpServers/servers/"))
+      delete result.provenance[pointer];
+  if (result.settings.mcpServers) delete result.settings.mcpServers.servers;
+  const names = new Set(
+    options.eligibleMcpServers ??
+      layers.flatMap((layer) =>
+        Object.keys(layer.value.mcpServers?.servers ?? {}),
+      ),
+  );
+  for (const name of names)
+    for (const layer of [...layers].reverse()) {
+      const mcp = layer.value.mcpServers;
+      const named = mcp?.servers;
+      const decision =
+        (named && Object.hasOwn(named, name) ? named[name] : undefined) ??
+        (mcp && "defaults" in mcp ? mcp.defaults : undefined);
+      if (decision === undefined) continue;
+      const pointer = `/mcpServers/servers/${escapePointer(name)}`;
+      put(result.settings, pointer, decision);
+      result.provenance[pointer] = {
+        source: layer.source,
+        ...(layer.source === "requirement" || layer.source === "recommendation"
+          ? { profile }
+          : {}),
+      };
+      break;
+    }
+}
 /** Capture below requirements; never copy parent preferences. */
 export function freezeChildPreferences(
   options: Omit<ResolutionOptions, "role" | "frozenDefaults" | "conversation">,
@@ -291,6 +336,17 @@ export function freezeChildPreferences(
         eligible.has(name),
       ),
     );
+  }
+  if (frozen.mcpServers) {
+    const names = new Set(options.eligibleMcpServers ?? []);
+    frozen.mcpServers = {
+      ...frozen.mcpServers,
+      servers: Object.fromEntries(
+        Object.entries(frozen.mcpServers.servers ?? {}).filter(([name]) =>
+          names.has(name),
+        ),
+      ),
+    };
   }
   return frozen;
 }
@@ -332,9 +388,13 @@ export function applySettingsMutation(
       const match = /^\/overrides\/skills\/defaults\/([^/]+)$/.exec(lock);
       return match && overlaps(path, `/overrides/skills/${match[1]}`);
     });
+    const mcpDefaultLock =
+      locks.includes("/overrides/mcpServers/defaults") &&
+      path.startsWith("/overrides/mcpServers/servers");
     if (
       locks.some((lock) => overlaps(path, lock)) ||
       skillDefaultLock ||
+      mcpDefaultLock ||
       requirementOverlaps(parsed.changes, requirements).length
     )
       throw new Error("Required field is not editable");

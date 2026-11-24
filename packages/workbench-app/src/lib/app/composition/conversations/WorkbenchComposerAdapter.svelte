@@ -43,6 +43,8 @@ import type { PromptComposerProps } from "$lib/features/conversations/views/prom
 import { deriveComposerAvailability } from "$lib/features/conversations/adapters/composer-availability";
 import { resolveDroppedFiles } from "./dropped-files";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import { listConversationMcpServers } from "$lib/application/mcp/mcp-api";
+import type { CapabilityMcpServer } from "$lib/presentation/composer/composer-capabilities.svelte";
 import { listAvailableSkills } from "$lib/features/skills/api/skills.api";
 import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
@@ -156,6 +158,7 @@ let lastComposerEscapeToken: number | undefined;
 let lastMicShortcutToken: number | undefined;
 let audioAuthDialogOpen = $state(false);
 let capabilitySkills = $state<AvailableSkill[]>([]);
+let capabilityMcpServers = $state<CapabilityMcpServer[]>([]);
 let capabilityError = $state<string>();
 let capabilityLoading = $state(false);
 let capabilityRefreshGeneration = 0;
@@ -201,9 +204,15 @@ async function refreshCapabilities() {
   const projectId = activeProject.id;
   capabilityLoading = true;
   try {
-    const result = await listAvailableSkills(projectId);
-    if (generation === capabilityRefreshGeneration)
+    const [result, mcpServers] = await Promise.all([
+      listAvailableSkills(projectId),
+      // MCP is optional here: a failure leaves the list out, not the panel.
+      listConversationMcpServers(projectId).catch(() => []),
+    ]);
+    if (generation === capabilityRefreshGeneration) {
       capabilitySkills = result.skills;
+      capabilityMcpServers = mcpServers;
+    }
   } catch (error) {
     if (generation !== capabilityRefreshGeneration) return;
     capabilityError = error instanceof Error ? error.message : String(error);
@@ -219,6 +228,7 @@ $effect(() => {
   untrack(() => {
     capabilityRefreshGeneration += 1;
     capabilitySkills = [];
+    capabilityMcpServers = [];
     capabilityError = undefined;
     configuringToolGroup = undefined;
     void refreshCapabilities();
@@ -650,6 +660,7 @@ function handleMicContextMenu(event: MouseEvent) {
     completionSource,
     capabilityConfiguration,
     capabilitySkills,
+    capabilityMcpServers,
     capabilityLoading:
       capabilityLoading ||
       composerView?.status === "loading" ||

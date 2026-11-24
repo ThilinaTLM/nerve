@@ -73,6 +73,13 @@ const columnPage = $derived(
       onclick={() => controllers.openLaunchDialog()}
       ><Plus class="size-3.5" />New launch</Button
     >
+  {:else if page.id === "mcp-servers"}
+    <Button
+      size="sm"
+      variant="outline"
+      onclick={() => (controllers.mcpAddOpen = true)}
+      ><Plus class="size-3.5" />Add server</Button
+    >
   {:else if page.id === "agents" || page.id === "sub-agents"}
     <ProfilesPageActions pageId={page.id} />
   {:else if page.id === "storage"}

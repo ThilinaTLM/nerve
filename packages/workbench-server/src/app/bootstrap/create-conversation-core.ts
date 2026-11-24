@@ -36,7 +36,6 @@ import { createLaunchesAgentPort } from "../../core-host/configuration/launches-
 import { createResourceRegistry } from "../../core-host/configuration/create-resource-registry.js";
 import { createConfigurationAgentPort } from "../../core-host/configuration/configuration-agent-port.js";
 import { createScopedPermissionSource } from "../../core-host/permissions/scoped-permission-source.js";
-import { resolveAgentModel } from "@nervekit/harness/models";
 import { scopedConversationCreation } from "../../core-host/configuration/scoped-conversation-creation.js";
 import { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import { bundledAgentProfiles } from "../../infrastructure/configuration/agent-configuration/builtins/index.js";
@@ -68,7 +67,6 @@ import {
   classifyQuickScriptArguments,
   quickScriptToolRisk,
 } from "@nervekit/tools/quick-script";
-import { listAvailableSkills } from "../../core-host/resources/resource-loader.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
 import { createModelHosts } from "../../core-host/model-hosts.js";
 import { createPermissionPort } from "../../core-host/permissions/permission.adapter.js";
@@ -78,6 +76,17 @@ import { createQuickScriptAuthorizer } from "../../core-host/quick-script-broker
 import { isToolEnabled } from "../../core-host/tool-enablement.js";
 import { createExecutionAdmission } from "../../core-host/permissions/execution-admission/admission.js";
 import type { RuntimeDeps } from "./create-runtime-services.js";
+import {
+  discoverFileSkillNames,
+  resourceGenerationOf,
+  referenceAvailable,
+} from "./agent-resource-capture.js";
+import { mcpRunOf } from "../../domains/mcp/mcp-enablement.js";
+import {
+  createMcpHub,
+  createMcpService,
+  McpServerNames,
+} from "./create-mcp.js";
 import { ImageGenerationService } from "../../domains/image-generation/image-generation.service.js";
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
 
@@ -146,6 +155,8 @@ export function createConversationCore(
       listModels: () => imageGeneration.listModels(),
     },
   });
+  const mcpParts = createMcpHub(deps, () => core);
+  const { hub: mcp, catalog: mcpCatalog } = mcpParts;
   const launchRuns = new LaunchRuns({
     launches: launchServices.launches,
     notify: (conversationId, launch, text) => {
@@ -324,6 +335,13 @@ export function createConversationCore(
                 },
                 shell,
               }),
+              mcpAgent: mcp.port(
+                mcpRunOf(
+                  resources.projectId,
+                  input.projectDir ?? input.cwd,
+                  settings,
+                ),
+              ),
               extensionAgent: extensionCatalog.agentPort({
                 projectDir: input.projectDir ?? input.cwd,
                 switchOf: (id) => extensionStates(extensions)(id)?.enabled,
@@ -419,10 +437,12 @@ export function createConversationCore(
   for (const { type } of projectConfigurationDescriptors)
     projectMigration.register(type);
   const discoveredSkills = new Map<string, string[]>();
+  const mcpServerNames = new McpServerNames(mcpCatalog);
   const discoveries = new Map<string, Promise<void>>();
   const resourceFingerprint = () =>
     JSON.stringify({
       discoveredSkills: [...discoveredSkills],
+      mcpServerNames: mcpServerNames.snapshot(),
       credentialEpoch,
       extensionEpoch,
       modelConfiguration: deps.storage.configuration.providers,
@@ -432,16 +452,7 @@ export function createConversationCore(
       trust: core.trust.generation,
       projects: core.projects.generation,
     });
-  let resourceVersion = 0;
-  let previousResourceFingerprint = "";
-  const resourceGeneration = () => {
-    const fingerprint = resourceFingerprint();
-    if (fingerprint !== previousResourceFingerprint) {
-      resourceVersion++;
-      previousResourceFingerprint = fingerprint;
-    }
-    return resourceVersion;
-  };
+  const resourceGeneration = resourceGenerationOf(resourceFingerprint);
   const agentConfiguration = new AgentConfigurationService({
     home: deps.storage.paths.home,
     projectDirectory: (id) => storage.projects.get(id)?.directory,
@@ -488,28 +499,22 @@ export function createConversationCore(
         path,
         toTrustedDigest(digest),
       ),
-    prepareResources: (projectId) => {
+    prepareResources: async (projectId) => {
+      await mcpServerNames.refresh(
+        projectId,
+        storage.projects.get(projectId)!.directory,
+      );
       const key = `${projectId}:${storage.projects.get(projectId)!.directory}`;
       let pending = discoveries.get(key);
       if (!pending) {
-        pending = listAvailableSkills(
+        pending = discoverFileSkillNames(
           storage.projects.get(projectId)!.directory,
           {
             storageHome: deps.storage.paths.home,
             nerveSkills: deps.nerveSkills.skills,
             agentBrowserSkills: deps.agentBrowserSkills.skills,
           },
-        ).then(({ skills }) => {
-          discoveredSkills.set(
-            projectId,
-            skills
-              .filter(
-                (skill) =>
-                  skill.source === "project" || skill.source === "user",
-              )
-              .map((skill) => skill.name),
-          );
-        });
+        ).then((names) => void discoveredSkills.set(projectId, names));
         discoveries.set(key, pending);
       }
       return pending;
@@ -519,6 +524,7 @@ export function createConversationCore(
       const models = deps.providerCatalog.resolvedModels();
       return {
         options: {
+          eligibleMcpServers: projectId ? mcpServerNames.get(projectId) : [],
           eligibleSkills: {
             file: projectId ? (discoveredSkills.get(projectId) ?? []) : [],
             nerve: deps.nerveSkills.skills.map((skill) => skill.name),
@@ -528,21 +534,7 @@ export function createConversationCore(
           },
           clampThinking: (model, thinking) =>
             clampAgentThinkingLevel(model, thinking, models),
-          referenceAvailable: (pointer, value) => {
-            if (pointer.endsWith("/model")) {
-              const selection = value as { provider: string; modelId: string };
-              try {
-                const model = resolveAgentModel(selection, models);
-                return (
-                  model.provider === selection.provider &&
-                  model.id === selection.modelId
-                );
-              } catch {
-                return false;
-              }
-            }
-            return true;
-          },
+          referenceAvailable: referenceAvailable(models),
         },
         isCurrent: () => generation === resourceGeneration(),
       };
@@ -615,6 +607,10 @@ export function createConversationCore(
     service: agentConfiguration,
     prepare: scopedTurnResources({
       home: deps.storage.paths.home,
+      hasEnabledMcpServers: (input, settings) =>
+        mcp.hasEnabledServers(
+          mcpRunOf(input.conversation.projectId, input.projectDir, settings),
+        ),
       service: agentConfiguration,
       tools: tools.definitions,
       nerveSkills: () => deps.nerveSkills.skills,
@@ -643,6 +639,7 @@ export function createConversationCore(
   });
   const configurationResources = createResourceRegistry({
     home: deps.storage.paths.home,
+    mcpCatalog,
     agentConfiguration,
     policy: admissionPolicy,
     trustedResources: storage.trustedResources,
@@ -652,6 +649,17 @@ export function createConversationCore(
       ...deps.nerveSkills.skills,
       ...deps.agentBrowserSkills.skills,
     ],
+  });
+  const mcpService = createMcpService({
+    deps,
+    parts: mcpParts,
+    core: () => core,
+    agentConfiguration,
+    projectDirectory,
+    invalidate: () => {
+      admissionPolicy.invalidate();
+      agentConfiguration.invalidateResources();
+    },
   });
   const userApproved = (toolCallId: string) => {
     const supervision = storage.toolCalls.get(toolCallId)?.supervision;
@@ -786,5 +794,7 @@ export function createConversationCore(
     admissionPolicy,
     configurationResources,
     subagentHost,
+    mcp,
+    mcpService,
   };
 }

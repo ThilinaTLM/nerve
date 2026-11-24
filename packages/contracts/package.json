@@ -146,6 +146,10 @@
       "types": "./dist/domains/launch-definitions/index.d.ts",
       "import": "./dist/domains/launch-definitions/index.js"
     },
+    "./mcp": {
+      "types": "./dist/domains/mcp/index.d.ts",
+      "import": "./dist/domains/mcp/index.js"
+    },
     "./launches": {
       "types": "./dist/domains/launches/index.d.ts",
       "import": "./dist/domains/launches/index.js"

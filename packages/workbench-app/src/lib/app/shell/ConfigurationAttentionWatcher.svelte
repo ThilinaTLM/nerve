@@ -21,6 +21,7 @@ const CHANGE_EVENTS = [
   "settings.updated",
   "agentProfiles.changed",
   "launchCatalog.changed",
+  "mcp.changed",
   "project.configuration.health",
   "project.permissions.updated",
   "prompt_suggestions.trust_updated",

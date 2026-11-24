@@ -7,6 +7,8 @@ import type { ScopedPermissionPolicySource } from "../permissions/scoped-permiss
 import { agentConfigurationProvider } from "./providers/agent-configuration-provider.js";
 import { extensionProvider } from "./providers/extension-provider.js";
 import { launchProvider } from "./providers/launch-provider.js";
+import type { McpCatalog } from "../../domains/mcp/mcp-catalog.js";
+import { mcpProvider } from "./providers/mcp-provider.js";
 import { permissionProvider } from "./providers/permission-provider.js";
 import { skillProvider } from "./providers/skill-provider.js";
 import { createProjectSkillTrust } from "../resources/project-skill-trust.js";
@@ -18,6 +20,7 @@ import { ConfigurationResourceRegistry } from "./resource-registry.js";
  */
 export function createResourceRegistry(options: {
   home: string;
+  mcpCatalog: McpCatalog;
   agentConfiguration: AgentConfigurationService;
   policy: ScopedPermissionPolicySource;
   trustedResources: Pick<CoreStorage["trustedResources"], "find">;
@@ -41,6 +44,7 @@ export function createResourceRegistry(options: {
   registry.register(
     launchProvider({ launchDefinitions: options.launchDefinitions }),
   );
+  registry.register(mcpProvider({ catalog: options.mcpCatalog }));
   registry.register(
     skillProvider({
       storageHome: options.home,

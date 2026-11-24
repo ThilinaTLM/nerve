@@ -11,7 +11,7 @@ import type { QuickScriptRegistry } from "../registry.js";
  */
 
 export type QuickScriptCapabilities = {
-  /** Ids of the configured extension namespaces (`jira`, `web`, `diagram`, …); built-in capabilities are always present. */
+  /** Ids of the configured extension namespaces (`jira`, `web`, `diagram`, …) and of built-ins listed only when configured (`mcp`); other built-in capabilities are always present. */
   namespaces?: readonly string[];
 };
 
@@ -36,7 +36,8 @@ export function quickScriptDescription(
 ): string {
   const active = registry.namespaces.filter(
     (namespace) =>
-      namespace.source === "builtin" || configured.includes(namespace.id),
+      (namespace.source === "builtin" && !namespace.listedWhenConfigured) ||
+      configured.includes(namespace.id),
   );
   const listed = active.filter(
     (namespace) => namespace.id !== "sdk" && namespace.id !== "libraries",

@@ -7,6 +7,7 @@ import { maintenanceOperationDefinitions } from "../domains/maintenance/maintena
 import { extensionOperationDefinitions } from "../domains/extensions/extension-operations.js";
 import { extensionUiOperationDefinitions } from "../domains/extensions/extension-ui-operations.js";
 import { backgroundJobsOperationDefinitions } from "../domains/background-jobs/background-jobs-operations.js";
+import { mcpOperationDefinitions } from "../domains/mcp/mcp-operations.js";
 import { z } from "zod";
 export type {
   OperationDefinition,
@@ -35,6 +36,7 @@ const methodDefinitions = [
   ...scopedProfileOperationDefinitions,
   ...extensionOperationDefinitions,
   ...extensionUiOperationDefinitions,
+  ...mcpOperationDefinitions,
   ...maintenanceOperationDefinitions,
   ...activityOperationDefinitions,
   ...backgroundJobsOperationDefinitions,

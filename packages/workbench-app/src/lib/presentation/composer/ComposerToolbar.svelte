@@ -25,7 +25,10 @@ import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import ComposerPermissionPicker from "./ComposerPermissionPicker.svelte";
 import ComposerSettingsPopover from "./ComposerSettingsPopover.svelte";
-import type { ComposerCapabilityProps } from "./composer-capabilities.svelte.js";
+import type {
+  CapabilityMcpServer,
+  ComposerCapabilityProps,
+} from "./composer-capabilities.svelte.js";
 import type { CapabilityToolGroup } from "./capability-tool-labels";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
 import type { CapabilitySubagentProfile } from "./capability-subagent-profiles";
@@ -77,6 +80,7 @@ type Props = {
   onOpenPermissionSettings?: () => void;
   capabilityConfiguration?: AgentEditorView;
   capabilitySkills?: AvailableSkill[];
+  capabilityMcpServers?: CapabilityMcpServer[];
   capabilityLoading?: boolean;
   capabilityError?: string;
   capabilityScopeKey?: string;
@@ -88,7 +92,7 @@ type Props = {
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
   onOpenCapabilitySettings?: (
-    page: "tools" | "skills" | "agents" | "sub-agents",
+    page: "tools" | "skills" | "mcp-servers" | "agents" | "sub-agents",
   ) => void;
   /** Picked via the attach button; omit to hide the button. */
   onAttachFiles?: (files: File[]) => void;
@@ -140,6 +144,7 @@ let {
   onOpenPermissionSettings,
   capabilityConfiguration,
   capabilitySkills = [],
+  capabilityMcpServers = [],
   capabilityLoading = false,
   capabilityError,
   capabilityScopeKey,
@@ -190,6 +195,7 @@ const capability = $derived<ComposerCapabilityProps>({
   subagentControlsEnabled,
   subagentProfiles: capabilitySubagentProfiles,
   skills: capabilitySkills,
+  mcpServers: capabilityMcpServers,
   loading: capabilityLoading,
   error: capabilityError,
   disabled: capabilityDisabled,

@@ -2,6 +2,7 @@ import type {
   ConfigurationResource,
   ConfigurationResourceKind,
 } from "@nervekit/contracts/configuration";
+import { mcpItemId } from "$lib/application/mcp/mcp-item";
 
 /** The two groups of the bell: items that wait for the user, and items that do not work. */
 export type AttentionGroup = "review" | "broken";
@@ -40,6 +41,7 @@ const KIND_LABELS: Record<ConfigurationResourceKind, string> = {
   "rule-set": "Permission rule set",
   "permission-overlay": "Permission rules",
   "launch-catalog": "Launch definitions",
+  "mcp-servers": "MCP servers",
   skill: "Skill",
   "prompt-suggestion": "Suggestion",
   extension: "Extension",
@@ -60,6 +62,11 @@ export function kindLabel(kind: ConfigurationResourceKind): string {
 }
 
 function subject(resource: ConfigurationResource): string {
+  // The `mcp.json` file itself, or one server in it.
+  if (resource.kind === "mcp-servers")
+    return resource.id === "mcp.json"
+      ? KIND_LABELS[resource.kind]
+      : `MCP server ${resource.id}`;
   return FILE_KINDS.has(resource.kind)
     ? KIND_LABELS[resource.kind]
     : `${KIND_LABELS[resource.kind]} ${resource.id}`;
@@ -118,6 +125,11 @@ export function attentionTarget(
       return { scope, pageId: "suggestions" };
     case "launch-catalog":
       return scope === "project" ? { scope, pageId: "launch" } : undefined;
+    case "mcp-servers":
+      // A server waiting for review opens its page; the file itself has no item.
+      return group === "review" && resource.id !== "mcp.json"
+        ? { scope, pageId: "mcp-servers", item: mcpItemId(scope, resource.id) }
+        : { scope, pageId: "mcp-servers" };
     case "agent-profile":
       return { scope, pageId: "agents" };
     case "rule-set":
@@ -136,6 +148,8 @@ function reviewDetail(resource: ConfigurationResource): string {
       ? "Changed since you approved it. Not used until you approve it again."
       : "Not used until you approve it.";
   if (resource.kind === "extension") return "Not loaded until you allow it.";
+  if (resource.kind === "mcp-servers")
+    return "Not started until you approve it.";
   return "Ignored until you approve it.";
 }
 

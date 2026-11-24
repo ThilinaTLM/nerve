@@ -1,6 +1,8 @@
 import { FILES_DTS_TYPES, IMAGE_CHAIN_OPS } from "./files/dts-types.js";
 import { LAUNCHES_DTS_TYPES } from "./launches/dts-types.js";
 import { launchesMethods } from "./launches/launches-methods.js";
+import { MCP_DTS_TYPES } from "./mcp/dts-types.js";
+import { mcpMethods } from "./mcp/mcp-methods.js";
 import { CONFIGURATION_DTS_TYPES } from "./configuration/dts-types.js";
 import { configurationMethods } from "./configuration/configuration-methods.js";
 import { EXTENSIONS_DTS_TYPES } from "./extensions/dts-types.js";
@@ -91,6 +93,21 @@ export const runtimeNamespaces: SdkNamespace[] = [
     methods: launchesMethods,
     types: LAUNCHES_DTS_TYPES,
     docs: [],
+  },
+  {
+    id: "mcp",
+    listedWhenConfigured: true,
+    summary:
+      "tools and resources of the configured MCP servers: tools.search(query) first, then tools.get, tools.call; servers.list(), tools.list(server?), resources.list/get",
+    methods: mcpMethods,
+    types: MCP_DTS_TYPES,
+    docs: [
+      {
+        id: "mcp/usage",
+        whenToRead: "before calling an MCP tool for the first time",
+        file: "mcp.md",
+      },
+    ],
   },
   {
     id: "libraries",

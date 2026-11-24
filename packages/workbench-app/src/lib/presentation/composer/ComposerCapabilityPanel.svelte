@@ -43,6 +43,12 @@ const section = $derived(
   capabilities.sections.find((candidate) => candidate.kind === kind)!,
 );
 const rows = $derived(capabilities.rows(kind));
+/** The section title inside a sentence: lowercase unless it holds an acronym (MCP). */
+const noun = $derived(
+  /[A-Z]/.test(section.title.slice(1))
+    ? section.title
+    : section.title.toLowerCase(),
+);
 
 onMount(() => capabilities.props.onRefresh?.());
 </script>
@@ -150,8 +156,8 @@ onMount(() => capabilities.props.onRefresh?.());
     <Button
       size="icon-sm"
       variant="ghost"
-      ariaLabel={`Open ${kind === "subagents" ? "sub-agent" : kind} settings`}
-      title={`Open ${kind === "subagents" ? "sub-agent" : kind} settings`}
+      ariaLabel={`Open ${kind === "subagents" ? "sub-agent" : kind === "mcp" ? "MCP" : kind} settings`}
+      title={`Open ${kind === "subagents" ? "sub-agent" : kind === "mcp" ? "MCP" : kind} settings`}
       onclick={() => capabilities.openSettings(kind)}
     >
       <Settings class="size-3.5" aria-hidden="true" />
@@ -194,7 +200,7 @@ onMount(() => capabilities.props.onRefresh?.());
     items={rows}
     bind:query
     ariaLabel={section.title}
-    placeholder={`Search ${section.title.toLowerCase()}`}
+    placeholder={`Search ${noun}`}
     isSelected={(row) => row.enabled}
     isDisabled={(row) => capabilities.rowDisabled(row)}
     onChoose={(row) => capabilities.toggleRow(row)}
@@ -203,8 +209,10 @@ onMount(() => capabilities.props.onRefresh?.());
         ? "No optional tools are available."
         : kind === "skills"
           ? "No skills are available for this project."
-          : "No sub-agent profiles are available."
-      : `No ${section.title.toLowerCase()} match.`}
+          : kind === "mcp"
+            ? "No MCP servers are available for this project."
+            : "No sub-agent profiles are available."
+      : `No ${noun} match.`}
   >
     {#snippet row(item)}
       {@render capabilityRow(item)}

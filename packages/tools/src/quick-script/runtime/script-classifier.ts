@@ -11,6 +11,7 @@ import {
   editsWorkspace,
   literalValue,
   NOT_LITERAL,
+  scanOptionsValue,
   writesWorkspace,
 } from "./script-literals.js";
 import { sdkGlobals } from "./sdk-globals.js";
@@ -101,7 +102,10 @@ async function literalChecks(
   args: Token[][],
   registry: QuickScriptRegistry,
 ): Promise<ScannedCall[] | undefined> {
-  const values = args.map(literalValue);
+  let values = args.map(literalValue);
+  // Only the options that decide the authorization need to be literal (`mcp.tools.call`'s `server` and `tool`, not its `arguments`).
+  if (values.includes(NOT_LITERAL) && method.scanOptions)
+    values = [scanOptionsValue(args, method.scanOptions)];
   if (values.includes(NOT_LITERAL)) return undefined;
   try {
     let scanEnvironment = scanEnvironments.get(registry);

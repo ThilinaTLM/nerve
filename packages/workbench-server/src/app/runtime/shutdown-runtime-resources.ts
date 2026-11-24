@@ -7,6 +7,8 @@ export interface RuntimeShutdownResources {
   workspaceMonitor: { close(): Promise<void> };
   launches: { shutdown(): Promise<void> };
   conversationCore: { close(): Promise<void> };
+  /** MCP server connections; stdio servers are child processes. */
+  mcp?: { close(): Promise<void> };
 }
 
 /** Each producer fully settles before dependencies close, even when a drain rejects. */
@@ -51,6 +53,11 @@ export async function shutdownRuntimeResources(
   }
   try {
     await resources.conversationCore.close();
+  } catch (error) {
+    failures.push(error);
+  }
+  try {
+    await resources.mcp?.close();
   } catch (error) {
     failures.push(error);
   }

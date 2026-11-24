@@ -111,6 +111,29 @@ test("review lands in the scope and page that holds the item", () => {
     pageId: "extensions",
     item: "csv",
   });
+  assert.deepEqual(target({ kind: "mcp-servers", id: "github" }), {
+    scope: "project",
+    pageId: "mcp-servers",
+    item: "project:github",
+  });
+  assert.deepEqual(
+    target({ kind: "mcp-servers", id: "github", scope: "user" }),
+    {
+      scope: "user",
+      pageId: "mcp-servers",
+      item: "user:github",
+    },
+  );
+  assert.deepEqual(target({ kind: "mcp-servers", id: "mcp.json" }), {
+    scope: "project",
+    pageId: "mcp-servers",
+  });
+  assert.equal(
+    attentionEntry(
+      resource({ kind: "mcp-servers", id: "github", state: "needs_approval" }),
+    )?.title,
+    "MCP server github",
+  );
   assert.deepEqual(target({ kind: "prompt-suggestion", id: "next" }), {
     scope: "project",
     pageId: "suggestions",
