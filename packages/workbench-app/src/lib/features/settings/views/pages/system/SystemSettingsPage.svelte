@@ -11,6 +11,7 @@ import type {
   UpdateApplicationConfigurationRequest,
 } from "$lib/api";
 import {
+  pendingRestarts,
   RestartNeededCallout,
   SettingsFieldRow,
   SettingsSection,
@@ -182,7 +183,7 @@ const diagnostics = $derived<PageStat[]>([
 
 {#if configuration}
   <RestartNeededCallout
-    {configuration}
+    {...pendingRestarts(configuration)}
     canRestart={daemonCapability?.canRestart ?? false}
     restarting={daemonRestarting}
     onRestart={onRestartDaemon}

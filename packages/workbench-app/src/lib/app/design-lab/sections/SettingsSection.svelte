@@ -47,6 +47,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import {
+  RestartNeededCallout,
   SettingsFieldRow,
   SettingsInfoHint,
   SettingsSection,
@@ -469,6 +470,17 @@ let oauthResponse = $state("");
           />
         {/snippet}
       </SettingsSelectRow>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="RestartNeededCallout"
+      source="settings/RestartNeededCallout"
+      usage="2 files · settings"
+      layout="stack"
+      description="Saved application settings that wait for a restart, with the daemon restart action."
+    >
+      <RestartNeededCallout daemon desktop={false} canRestart />
+      <RestartNeededCallout daemon desktop canRestart restarting />
     </GallerySpecimen>
 
     <GallerySpecimen

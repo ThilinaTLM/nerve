@@ -18,6 +18,7 @@ import type {
 import { describeTunnel } from "$lib/application/access/tunnel-view";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import {
+  pendingRestarts,
   RestartNeededCallout,
   SettingsFieldRow,
   SettingsSection,
@@ -104,8 +105,7 @@ function saveTunnel(
 
 {#if configuration && network}
   <RestartNeededCallout
-    {configuration}
-    groups={["network"]}
+    {...pendingRestarts(configuration, ["network"])}
     canRestart={canRestartDaemon}
     restarting={daemonRestarting}
     onRestart={onRestartDaemon}
