@@ -49,8 +49,26 @@ There is also a cost for the agent. Finding a tool across servers means `mcp.too
 The project file sits next to the project's `permissions.json` and `agent.json`, and is resolved by the same `projectConfigurationRoot`.
 
 - **Same name: the project entry wins, whole, like skills and profiles.** A project entry replaces a user entry of the same name only while it is approved. Until then the user's entry keeps working, and `servers.list()` reports the project one as waiting.
-- **Overrides that only narrow need no approval.** A project entry with neither `command` nor `url` (pi-mcp's `isMcpServerOverride`) may only set `enabled: false`. It turns a user server off in that project and starts nothing. Any other field in an override is invalid.
-- **No merging of fields** between scopes, apart from that override.
+- **No merging of fields** between scopes. An entry is defined in one file, whole. Turning a server on or off is not part of the entry: see [Enablement](#enablement).
+- **Only Nerve's files are read.** `.mcp.json` (Claude Code), `.vscode/mcp.json` and other clients' files are neither read nor imported. The entry shape is the same, so the user copies an entry over.
+
+### Enablement
+
+Servers are switched on and off the way skills are: a sparse per-name map in the agent settings ([`schemas.ts`](../../packages/contracts/src/domains/agent-configuration/schemas.ts)), resolved by [`resolveAgentConfiguration`](../../packages/contracts/src/domains/agent-configuration/resolver.ts) over the same layers.
+
+```json
+{ "overrides": { "mcpServers": { "defaults": true, "github": false } } }
+```
+
+- **Layers, highest first:** requirement (profile), launch, conversation, recommendation, process, project (`<project>/.nerve/config/agent.json`), user (`<home>/config/agent.json`), built-in (`defaults: true`). Each server name is resolved on its own. The highest layer with a decision wins, and within a layer a named entry beats that layer's `defaults`. This is the skills rule.
+- **Eligible names** are the servers defined for the conversation's project after precedence, so a project server's toggle never reaches another project.
+- **A project toggle is shared**, exactly as for project skills. It is written to the project's `agent.json`, which is gated by `project_capabilities` trust; the project column is locked while that file is untrusted. A personal choice for one conversation is a conversation-layer toggle in the composer's capability view, as for skills.
+- **Profiles** can enable or require servers as they do skills. For example, a profile that needs `github` lists it as a requirement.
+- **Enablement and consent are independent.** A disabled server stays off even when approved, and an enabled server still waits for consent. `servers.list()` reports `disabled` before `needs_approval`, so the agent is not told to ask for a review of a server the user turned off.
+- **`enabled: false` in `mcp.json`** stays accepted, because entries copied from other clients carry it. It acts as the entry's own default, below every layer. Settings never writes it; Settings writes the map.
+- **The hub resolves enablement per run.** `McpServerHub.port` takes the conversation's resolved map along with the project directory. A disabled server is not started, not indexed and not searched.
+
+No database or migration is involved. The map is an optional field of the agent-settings schema, which the existing layers already read and write.
 
 ### Consent
 
@@ -89,8 +107,9 @@ Values the user enters as secret are stored in the credential vault ([`SecretPro
 
 | Part        | Content                                                                                                                                                                                                                                                                                                                |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| List        | Name, description, transport and state (`connected`, `idle`, `failed` with the reason, `disabled`, `needs approval`, `rejected`). Once indexed: tool count. The project page also lists the user's servers it inherits, marked "from your settings", with the project's override.                                      |
-| Row actions | Enable/disable, Test, Edit, Remove, Disconnect (a running connection). On the project page, a pending entry shows **Review** instead of Edit.                                                                                                                                                                          |
+| List        | Name, description, transport and state (`connected`, `idle`, `failed` with the reason, `disabled`, `needs approval`, `rejected`). Once indexed: tool count. The project page also lists the user's servers it inherits, marked "from your settings".                                                                   |
+| Enabled     | The layered switches of the Skills page (`Layered`, `LayerSwitches`): a user column and a project column, each showing inherited or overridden, with ↺ to clear. The project column writes the project's `agent.json` and is locked while that file is untrusted.                                                      |
+| Row actions | Test, Edit, Remove, Disconnect (a running connection). On the project page, a pending entry shows **Review** instead of Edit.                                                                                                                                                                                          |
 | Add / Edit  | A form: name; stdio (command, args, env, cwd) or HTTP (URL, headers); timeout; description. Each env or header value can be marked secret, which saves it to the vault. **Paste JSON** accepts an `mcpServers` snippet as server READMEs show it and fills the form. An **Edit JSON** mode shows the entry as written. |
 | Test        | Connects (starting a stdio server) and shows server name and version, instructions, tools and resources, or the error with the stderr tail. Test on a pending entry is not offered: review first.                                                                                                                      |
 | Detail      | What the agent sees: each tool with its description and input schema, resources, and the server's instructions.                                                                                                                                                                                                        |
@@ -116,8 +135,8 @@ Approve and reject use the existing `trust.decide`. A `mcp.changed` event refres
 Every change follows [agent-facing content](../agent-facing.md).
 
 - **`servers.list()`** gains `scope: "user" | "project"` and the states `needs_approval` and `rejected`. `error` says where the user acts: "Waiting for your approval in Project settings → MCP servers". Still no command, URL, header or environment value.
-- **Calls to a pending, rejected or disabled server** fail with `FORBIDDEN` (not `NOT_FOUND`), naming the state and the page. A retry does not help until the user acts, and the agent should tell the user so.
-- **The description line** stays cache-stable. It lists method names only; server names and tools stay out, because they change with the project and with consent. The namespace stays listed while at least one server is enabled at either scope.
+- **Calls to a disabled, pending or rejected server** fail with `FORBIDDEN` (not `NOT_FOUND`), naming the state and the page. A retry does not help until the user acts, and the agent should tell the user so.
+- **The description line** stays cache-stable. It lists method names only; server names and tools stay out, because they change with the project and with consent. The namespace stays listed while the conversation has at least one enabled server.
 - **configure-nerve.** `reference/mcp.md` gains the project file, precedence, overrides and the approval hand-over. The agent writes a project entry, then reports that it waits for review in Project settings → MCP servers. Secrets: the agent never writes a token; it asks the user to add it as a secret in Settings.
 - **Server text is data.** Tool descriptions, instructions and resource contents come from the server. Search results and `servers.list()` keep them in their own fields and never merge them into Nerve's own text.
 
@@ -145,11 +164,11 @@ const matches = await mcp.tools.search("create issue");
 
 ## Phases
 
-| Phase | Outcome                                                                                    | Touches                                              |
-| ----- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| 1     | Tool search: index, ranking, `McpToolMatch`, `limit`                                       | `tools`, `workbench-server`                          |
-| 2     | Consent for both scopes, project file, precedence, overrides, `${secret:…}`, UI operations | `contracts`, `workbench-server`, `conversation-core` |
-| 3     | Settings pages (user and project), Review, Trust page entries, attention targets           | `workbench-app`                                      |
+| Phase | Outcome                                                                                         | Touches                                              |
+| ----- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 1     | Tool search: index, ranking, `McpToolMatch`, `limit`                                            | `tools`, `workbench-server`                          |
+| 2     | Consent for both scopes, project file, precedence, enablement map, `${secret:…}`, UI operations | `contracts`, `workbench-server`, `conversation-core` |
+| 3     | Settings pages (user and project), Review, Trust page entries, attention targets                | `workbench-app`                                      |
 
 Phase 1 does not depend on the others and can ship first. Phases 2 and 3 ship together: once consent exists, user entries written by hand wait for review, and only the Settings pages offer it.
 
@@ -157,15 +176,11 @@ Phase 1 does not depend on the others and can ship first. Phases 2 and 3 ship to
 
 - **User entries need consent too, except those saved in Settings.** This costs one click for entries written by hand, and in exchange no entry the agent wrote can start a program unreviewed. The alternative was to check a stdio start as a `bash` command. That gives no answer for HTTP entries or for variables sent to a URL, and it asks at call time instead of once.
 - **Per-entry consent.** It matches how users think about servers and avoids re-approving every server when one is added.
-- **The project file lives in `.nerve/config/mcp.json`**, alongside Nerve's other project configuration, rather than in `.mcp.json` at the root (Claude Code's file). See open questions.
+- **The project file lives in `.nerve/config/mcp.json`**, alongside Nerve's other project configuration. Other clients' files (`.mcp.json`, `.vscode/mcp.json`) are neither read nor imported.
+- **Enablement reuses the skills model.** One layered per-name map in the agent settings lets a profile, the project and a conversation switch servers the same way they switch skills, and the Settings page reuses the skills switches. A project choice is shared through the repository, as for skills. There is no personal per-project store, and none is added for MCP alone.
+- **No per-tool enablement.** A server is on or off as a whole. Permission rules on `mcp:tool/<server>/<tool>` remain the way to deny a single tool.
 - **Search improves `tools.search` instead of adding a method.** This follows the rule of one name per idea.
 - **No database schema change.** Trust uses the existing table, secrets the existing vault, and the index the cache folder.
-
-## Open questions
-
-1. **Read `.mcp.json` (Claude Code) and `.vscode/mcp.json` as well?** This would help interoperability, at the cost of more files to watch and a different key in VS Code (`servers`). A one-time **Import** on the project page is a cheaper first step.
-2. **Turning one of the user's servers off for one project, for that user only.** Project settings are shared through the repository, so there is no place for a personal per-project override today. Is "disable it in the project file" enough?
-3. **Tool-level enablement.** Should Settings let the user hide individual tools of a server from the agent? Permission rules on `mcp:tool/<server>/<tool>` already deny them. Hiding would also shrink search results.
 
 ## Later
 
@@ -175,6 +190,7 @@ Phase 1 does not depend on the others and can ship first. Phases 2 and 3 ship to
 ## Testing
 
 - **Unit:**
+  - enablement resolution: layer order, a named entry over `defaults`, eligible names per project, and `enabled: false` in the file as the lowest default;
   - digests and re-approval per entry;
   - precedence and overrides;
   - secret scoping (a project entry cannot reach user secrets);
