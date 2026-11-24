@@ -1,4 +1,5 @@
 import { MCP_SETTINGS_PAGE, type CatalogEntry } from "./mcp-catalog.js";
+import type { McpAudience } from "./mcp-config.js";
 
 /**
  * The conversation's resolved `mcpServers` settings: a decision per server name, and the highest
@@ -69,13 +70,26 @@ function turnedOffBy(
   return "an MCP switch of the conversation, the agent profile, the project's agent settings or the user's agent settings";
 }
 
-/** Said to the agent and the user: the state and where the user acts. */
+/**
+ * The state and who acts, worded for its reader. The agent is told what to say to the user;
+ * Settings speaks to the user directly (it is already on the page where they act).
+ */
 export function mcpBlockMessage(
   entry: CatalogEntry,
   block: McpBlock,
   enablement?: McpEnablement,
+  audience: McpAudience = "agent",
 ): string {
   const page = MCP_SETTINGS_PAGE[entry.scope];
+  if (audience === "user")
+    switch (block) {
+      case "disabled":
+        return `Turned off by ${turnedOffBy(entry, enablement)}. Turn it on to use it.`;
+      case "needs_approval":
+        return "Waiting for your approval. Review it to use it.";
+      default:
+        return "You rejected this entry. Approve it to use it.";
+    }
   switch (block) {
     case "disabled":
       return `Turned off by ${turnedOffBy(entry, enablement)}. The user turns it on in ${page}.`;

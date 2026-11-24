@@ -133,9 +133,6 @@ export async function readMcpFile(
   return { ...parseMcpConfig(path, text), exists: true };
 }
 
-/** Reads `<home>/config/mcp.json`. */
-export const readMcpConfig = (home: string) => readMcpFile(mcpConfigPath(home));
-
 /** `${NAME}` and `${NAME:-default}` from the daemon's environment. */
 const VARIABLE = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g;
 /** `${secret:name}` from the credential vault. */
@@ -260,21 +257,23 @@ export function mcpGrantSnapshot(entry: McpServerEntry): McpGrantSnapshot {
   };
 }
 
-/** What else to weigh in a review: environment entries as written, the ones that change what runs, the inherited environment. */
+/**
+ * What else to weigh in a review, beyond what the grants list shows (env entries, headers):
+ * the inherited environment, and why flagged variables are flagged.
+ */
 export function mcpReviewNotes(grants: McpGrantSnapshot): string[] {
   const notes: string[] = [];
   if (grants.inheritsEnvironment)
     notes.push(
-      `Starts \`${grants.command}\` with Nerve's whole environment (every variable Nerve was started with), plus the entries below.`,
+      `Starts \`${grants.command}\` with Nerve's whole environment (every variable Nerve was started with), plus the entries listed.`,
     );
-  for (const variable of grants.env ?? [])
+  const flagged = (grants.env ?? [])
+    .filter((variable) => variable.changesExecution)
+    .map((variable) => `\`${variable.name}\``);
+  if (flagged.length > 0)
     notes.push(
-      variable.changesExecution
-        ? `Sets \`${variable.name}\` to \`${variable.value}\`. This changes what runs or where it looks.`
-        : `Sets \`${variable.name}\` to \`${variable.value}\`.`,
+      `${flagged.join(", ")} change${flagged.length === 1 ? "s" : ""} what runs or where it looks.`,
     );
-  for (const header of grants.headers ?? [])
-    notes.push(`Sends header \`${header.name}\`: \`${header.value}\`.`);
   return notes;
 }
 
@@ -365,6 +364,47 @@ export function mcpEntryDigest(scope: McpScope, entry: McpServerEntry): string {
 const expandHome = (path: string) =>
   path === "~" || path.startsWith("~/") ? join(homedir(), path.slice(1)) : path;
 
+/** Who reads a message: the agent (tool errors) or the user (Settings). */
+export type McpAudience = "agent" | "user";
+
+/** Variables or secrets an entry references that have no value. One fact, two renderings. */
+export class McpUnsetError extends Error {
+  constructor(
+    readonly env: string[],
+    readonly secrets: string[],
+    private readonly secretsPage: string,
+  ) {
+    super("");
+    this.message = this.describe("agent");
+  }
+
+  describe(audience: McpAudience): string {
+    const list = (names: string[]) => names.map((n) => `\`${n}\``).join(", ");
+    const plural = (names: string[]) => names.length !== 1;
+    const parts: string[] = [];
+    if (audience === "agent") {
+      if (this.env.length > 0)
+        parts.push(
+          `environment variable${plural(this.env) ? "s" : ""} ${this.env.join(", ")} ${plural(this.env) ? "are" : "is"} not set in Nerve's environment (referenced in mcp.json)`,
+        );
+      if (this.secrets.length > 0)
+        parts.push(
+          `secret${plural(this.secrets) ? "s" : ""} ${this.secrets.join(", ")} ${plural(this.secrets) ? "are" : "is"} not set; the user adds ${plural(this.secrets) ? "them" : "it"} in ${this.secretsPage}`,
+        );
+      return parts.join("; ");
+    }
+    if (this.env.length > 0)
+      parts.push(
+        `Environment variable${plural(this.env) ? "s" : ""} ${list(this.env)} ${plural(this.env) ? "are" : "is"} not set in Nerve's environment. Set ${plural(this.env) ? "them" : "it"} where Nerve starts, then restart it.`,
+      );
+    if (this.secrets.length > 0)
+      parts.push(
+        `Secret${plural(this.secrets) ? "s" : ""} ${list(this.secrets)} ${plural(this.secrets) ? "are" : "is"} not set. Set ${plural(this.secrets) ? "them" : "it"} in Edit.`,
+      );
+    return parts.join(" ");
+  }
+}
+
 /** An entry ready to connect: variables expanded, `cwd` absolute. */
 export type ResolvedMcpServer =
   | {
@@ -412,15 +452,11 @@ export function resolveMcpServer(
       headers: expandAll(entry.config.headers),
     };
   }
-  const problems: string[] = [];
-  if (missing.env.size > 0)
-    problems.push(
-      `environment variable${missing.env.size === 1 ? "" : "s"} ${[...missing.env].join(", ")} ${missing.env.size === 1 ? "is" : "are"} not set in Nerve's environment (referenced in mcp.json)`,
+  if (missing.env.size > 0 || missing.secrets.size > 0)
+    throw new McpUnsetError(
+      [...missing.env],
+      [...missing.secrets],
+      secretsPage,
     );
-  if (missing.secrets.size > 0)
-    problems.push(
-      `secret${missing.secrets.size === 1 ? "" : "s"} ${[...missing.secrets].join(", ")} ${missing.secrets.size === 1 ? "is" : "are"} not set; the user adds ${missing.secrets.size === 1 ? "it" : "them"} in ${secretsPage}`,
-    );
-  if (problems.length > 0) throw new Error(problems.join("; "));
   return resolved;
 }

@@ -254,13 +254,13 @@ void test("the review lists literal environment entries, flags the ones that cha
     ],
   );
   assert.equal(local?.grants.inheritsEnvironment, true);
-  const notes = (local?.notes ?? []).join("\n");
-  assert.match(notes, /Nerve's whole environment/);
-  assert.match(
-    notes,
-    /Sets `NODE_OPTIONS` to `--require \/tmp\/evil\.js`\. This changes what runs/,
-  );
-  assert.match(notes, /Sets `FEATURE` to `on`\./);
+  // Notes cover what the env list does not show: the inherited environment and why keys are flagged.
+  assert.deepEqual(local?.notes, [
+    "Starts `" +
+      process.execPath +
+      "` with Nerve's whole environment (every variable Nerve was started with), plus the entries listed.",
+    "`NODE_OPTIONS` changes what runs or where it looks.",
+  ]);
   const remote = await service.review({ target: user, name: "remote" });
   assert.deepEqual(remote?.grants.headers, [
     { name: "X-Org", value: "acme" },
@@ -348,4 +348,33 @@ void test("a decision is checked against the entry as it is now and takes the se
     service.checkDecision({ ...decision, projectId: "proj_1" }),
     /no MCP server/i,
   );
+});
+
+void test("rows, refusals and test failures speak to the user; the agent's wording is unchanged", async () => {
+  await using context = await setup();
+  const { env, service, userFile } = context;
+  await service.save({
+    target: project,
+    name: "team",
+    entry: { ...fake, env: { TOKEN: "${secret:token}" } },
+  });
+  const [row] = (await service.list(project)).servers;
+  assert.equal(row.state, "failed");
+  assert.equal(row.error, "Secret `token` is not set. Set it in Edit.");
+  const tested = await service.test({ target: project, name: "team" });
+  assert.deepEqual(tested, {
+    status: "failed",
+    error: "Secret `token` is not set. Set it in Edit.",
+  });
+  await mkdir(join(env.home, "config"), { recursive: true });
+  await writeFile(userFile, JSON.stringify({ mcpServers: { s: fake } }));
+  const [pending] = (await service.list(user)).servers;
+  assert.equal(
+    pending.error,
+    "Waiting for your approval. Review it to use it.",
+  );
+  const refused = await service.test({ target: user, name: "s" });
+  assert.equal(refused.status, "refused");
+  for (const text of [row.error, pending.error, JSON.stringify(refused)])
+    assert.doesNotMatch(text ?? "", /the user|Project settings|User settings/i);
 });

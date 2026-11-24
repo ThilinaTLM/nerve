@@ -60,4 +60,11 @@ export class McpSecrets {
     for (const name of names)
       await this.vault.delete(McpSecrets.key(scope, projectId, name));
   }
+
+  /** Deletes every secret of a project's entries (the project was removed). */
+  async deleteProject(projectId: string) {
+    const prefix = `mcp:project:${projectId}:`;
+    for (const name of await this.vault.list())
+      if (name.startsWith(prefix)) await this.vault.delete(name);
+  }
 }

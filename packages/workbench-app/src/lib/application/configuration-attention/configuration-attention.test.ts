@@ -114,14 +114,20 @@ test("review lands in the scope and page that holds the item", () => {
   assert.deepEqual(target({ kind: "mcp-servers", id: "github" }), {
     scope: "project",
     pageId: "mcp-servers",
+    item: "github",
   });
   assert.deepEqual(
     target({ kind: "mcp-servers", id: "github", scope: "user" }),
     {
       scope: "user",
       pageId: "mcp-servers",
+      item: "github",
     },
   );
+  assert.deepEqual(target({ kind: "mcp-servers", id: "mcp.json" }), {
+    scope: "project",
+    pageId: "mcp-servers",
+  });
   assert.equal(
     attentionEntry(
       resource({ kind: "mcp-servers", id: "github", state: "needs_approval" }),

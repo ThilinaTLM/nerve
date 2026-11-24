@@ -20,6 +20,7 @@ import type {
 import {
   mcpEntrySecretNames,
   mcpRedactor,
+  McpUnsetError,
   resolveMcpServer,
   type ResolvedMcpServer,
 } from "./mcp-config.js";
@@ -97,6 +98,8 @@ export type McpConnectionStatus = {
   instructions?: string;
   /** Tools in the index, once known. */
   toolCount?: number;
+  /** For `failed` because variables or secrets have no value: the facts, to word for the user. */
+  unset?: McpUnsetError;
 };
 
 type RequestOptions = { signal?: AbortSignal };
@@ -267,7 +270,11 @@ export class McpServerHub {
     try {
       prepared = await this.#prepare(entry, projectDirectory);
     } catch (error) {
-      return { state: "failed", error: messageOf(error) };
+      return {
+        state: "failed",
+        error: messageOf(error),
+        ...(error instanceof McpUnsetError ? { unset: error } : {}),
+      };
     }
     // A stdio server runs per project directory: any of its connections says it is up.
     const live = this.#matching(entry).find((connection) => connection.ready);
@@ -320,7 +327,7 @@ export class McpServerHub {
     if (review !== "approved")
       return {
         ok: false,
-        error: mcpBlockMessage(entry, review),
+        error: mcpBlockMessage(entry, review, undefined, "user"),
       };
     try {
       const prepared = await this.#prepare(entry, projectDirectory);
@@ -356,7 +363,13 @@ export class McpServerHub {
         };
       });
     } catch (error) {
-      return { ok: false, error: messageOf(error) };
+      return {
+        ok: false,
+        error:
+          error instanceof McpUnsetError
+            ? error.describe("user")
+            : messageOf(error),
+      };
     }
   }
 

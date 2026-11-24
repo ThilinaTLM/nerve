@@ -125,7 +125,10 @@ export function attentionTarget(
     case "launch-catalog":
       return scope === "project" ? { scope, pageId: "launch" } : undefined;
     case "mcp-servers":
-      return { scope, pageId: "mcp-servers" };
+      // A server waiting for review opens its review dialog; the file itself has no item.
+      return group === "review" && resource.id !== "mcp.json"
+        ? { scope, pageId: "mcp-servers", item: resource.id }
+        : { scope, pageId: "mcp-servers" };
     case "agent-profile":
       return { scope, pageId: "agents" };
     case "rule-set":

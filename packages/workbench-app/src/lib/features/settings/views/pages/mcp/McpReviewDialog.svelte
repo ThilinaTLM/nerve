@@ -10,6 +10,7 @@ import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import McpInlineCode from "./McpInlineCode.svelte";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 
 let {
@@ -102,7 +103,7 @@ const where = $derived(
           <GroupLabel label="Notes" />
           <ul class="grid gap-1 text-ui text-muted-foreground">
             {#each review.notes as note (note)}
-              <li>{note}</li>
+              <li><McpInlineCode text={note} /></li>
             {/each}
           </ul>
         </section>
@@ -117,7 +118,9 @@ const where = $derived(
                   class="mt-0.5 size-3.5 flex-none text-warning"
                   aria-hidden="true"
                 />
-                <span class="text-foreground">{sentence}</span>
+                <span class="text-foreground"
+                  ><McpInlineCode text={sentence} /></span
+                >
               </li>
             {/each}
           </ul>

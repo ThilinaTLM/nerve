@@ -1,3 +1,4 @@
+import { requestMcpReview } from "$lib/application/mcp/mcp-review-request.svelte";
 import {
   getApplicationConfiguration,
   getAuthProviders,
@@ -70,6 +71,9 @@ function targetSettingsPage(
     settingsState.activeItemId = target.item ?? "";
   }
   if (target.section) settingsState.activeSectionId = target.section;
+  // The MCP page opens a server's review in a dialog, not as a detail view.
+  if (target.pageId === "mcp-servers" && options.item)
+    requestMcpReview(options.item);
 }
 
 /** Opens (or focuses) the settings tab with this project open. */

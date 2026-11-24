@@ -170,8 +170,8 @@ export class McpService {
     const state = block ?? status?.state ?? "idle";
     const error =
       block !== undefined
-        ? mcpBlockMessage(entry, block, context.enablement)
-        : status?.error;
+        ? mcpBlockMessage(entry, block, context.enablement, "user")
+        : (status?.unset?.describe("user") ?? status?.error);
     return {
       name: entry.name,
       scope: entry.scope,
@@ -455,7 +455,12 @@ export class McpService {
       return {
         status: "refused",
         state: found.entry.review,
-        reason: `${mcpBlockMessage(found.entry, found.entry.review)} Review it first.`,
+        reason: mcpBlockMessage(
+          found.entry,
+          found.entry.review,
+          undefined,
+          "user",
+        ),
       };
     const result = await this.options.hub.inspect(
       found.entry,

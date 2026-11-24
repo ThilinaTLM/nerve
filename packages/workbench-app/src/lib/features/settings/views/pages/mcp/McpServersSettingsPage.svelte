@@ -5,6 +5,7 @@
   daemon; this page never writes the file.
 -->
 <script lang="ts">
+import { untrack } from "svelte";
 import Plug from "@lucide/svelte/icons/plug";
 import Plus from "@lucide/svelte/icons/plus";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
@@ -23,6 +24,8 @@ import {
   type McpTestResult,
   testMcpServer,
 } from "$lib/application/mcp/mcp-api";
+import { configurationAttention } from "$lib/application/configuration-attention/configuration-attention-state.svelte";
+import { mcpReviewRequest } from "$lib/application/mcp/mcp-review-request.svelte";
 import { McpServersState } from "$lib/application/mcp/mcp-servers-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
@@ -72,6 +75,44 @@ $effect(() => {
 $effect(() => list.observe());
 $effect(() => userEditor.observe());
 $effect(() => projectEditor.observe());
+
+// The files change without an event (an edit, a pull). The attention list reads
+// them again when it learns of a change, so follow what it knows about MCP, and
+// read again when the window regains focus.
+const mcpAttention = $derived(
+  configurationAttention.resources
+    .filter((resource) => resource.kind === "mcp-servers")
+    .map((resource) => `${resource.scope}:${resource.id}:${resource.state}`)
+    .join("|"),
+);
+let lastMcpAttention: string | undefined;
+$effect(() => {
+  const signature = mcpAttention;
+  if (lastMcpAttention !== undefined && signature !== lastMcpAttention)
+    untrack(() => void list.reload());
+  lastMcpAttention = signature;
+});
+$effect(() => {
+  const onFocus = () => {
+    void list.reload();
+    configurationAttention.refreshSoon();
+  };
+  window.addEventListener("focus", onFocus);
+  return () => window.removeEventListener("focus", onFocus);
+});
+
+// A link that names a server (the attention list) opens its review.
+$effect(() => {
+  const name = mcpReviewRequest.name;
+  if (!name || !list.loaded) return;
+  const row =
+    rows.find(
+      (r) =>
+        r.name === name && r.review !== "approved" && r.scope === "project",
+    ) ?? rows.find((r) => r.name === name && r.review !== "approved");
+  mcpReviewRequest.name = undefined;
+  if (row) untrack(() => review(row));
+});
 
 const ready = $derived(
   list.loaded &&

@@ -1,20 +1,13 @@
 <!-- One MCP server row: identity, state, enabled switches and its actions. -->
 <script lang="ts">
-import Eye from "@lucide/svelte/icons/eye";
-import FlaskConical from "@lucide/svelte/icons/flask-conical";
-import Pencil from "@lucide/svelte/icons/pencil";
+import Ellipsis from "@lucide/svelte/icons/ellipsis";
 import Plug from "@lucide/svelte/icons/plug";
-import Trash2 from "@lucide/svelte/icons/trash-2";
-import Unplug from "@lucide/svelte/icons/unplug";
 import type { McpServerRow } from "@nervekit/contracts/mcp";
 import { PageItem } from "@nervekit/ui-kit/components/composites/page";
-import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
-import {
-  LayerSwitches,
-  TipBadge,
-  type SettingsLayer,
-} from "$lib/presentation/settings";
+import { buttonVariants } from "@nervekit/ui-kit/components/ui/button";
+import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
+import { LayerSwitches, type SettingsLayer } from "$lib/presentation/settings";
 import {
   mcpCommandLine,
   mcpPending,
@@ -60,8 +53,18 @@ let {
 const pending = $derived(mcpPending(row));
 const badge = $derived(mcpStateBadge(row.state));
 const toolCount = $derived(mcpToolCount(row));
+/** Where it comes from, kept in the status line so the name never loses room to badges. */
+const origin = $derived(
+  row.shadowed
+    ? "Replaced in project"
+    : row.replacesUser
+      ? "Replaces yours"
+      : row.inherited
+        ? "From your settings"
+        : undefined,
+);
 const summary = $derived(
-  [toolCount, row.description ?? mcpCommandLine(row)]
+  [origin, toolCount, row.description ?? mcpCommandLine(row)]
     .filter(Boolean)
     .join(" · "),
 );
@@ -72,51 +75,42 @@ const summary = $derived(
   icon={Plug}
   muted={row.state === "disabled"}
   {summary}
-  mono={!row.description && !toolCount}
+  mono={!row.description && !toolCount && !origin}
   problem={mcpProblem(row)}
   problemAction={pending ? { label: "Review", onclick: onReview } : undefined}
   {onOpen}
   openLabel={pending ? `Review ${row.name}` : `Show what ${row.name} offers`}
 >
   {#snippet badges()}
-    <Badge variant={badge.variant}>{badge.label}</Badge>
-    {#if row.inherited}
-      <TipBadge
-        text="From your settings"
-        tip="Defined in your user settings. It applies in every project."
-      />
-    {/if}
-    {#if row.replacesUser}
-      <TipBadge
-        text="Replaces yours"
-        tip={`This project's ${row.name} is used here instead of yours${pending ? ", once you approve it" : ""}.`}
-      />
-    {/if}
-    {#if row.shadowed}
-      <TipBadge
-        text="Replaced in project"
-        tip={`The project has its own ${row.name}; this one is not used there.`}
-      />
-    {/if}
+    <!-- Narrow pages drop the badge so the name keeps its room; a problem line still says why a row is not working. -->
+    <Badge variant={badge.variant} class="hidden @xl/page:inline-flex"
+      >{badge.label}</Badge
+    >
   {/snippet}
   {#snippet meta()}
-    <div class="flex w-28 flex-none items-center justify-end">
-      {#if pending}
-        <IconAction icon={Eye} label="Review" onclick={onReview} />
-      {:else}
-        <IconAction icon={FlaskConical} label="Test" onclick={onTest} />
-        <IconAction icon={Pencil} label="Edit" onclick={onEdit} />
-        {#if row.state === "connected"}
-          <IconAction icon={Unplug} label="Disconnect" onclick={onDisconnect} />
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
+        class={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+        aria-label={`More actions for ${row.name}`}
+      >
+        <Ellipsis class="size-4" aria-hidden="true" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content align="end" class="w-40">
+        {#if pending}
+          <DropdownMenu.Item onSelect={onReview}>Review</DropdownMenu.Item>
+        {:else}
+          <DropdownMenu.Item onSelect={onTest}>Test</DropdownMenu.Item>
+          <DropdownMenu.Item onSelect={onEdit}>Edit</DropdownMenu.Item>
+          {#if row.state === "connected"}
+            <DropdownMenu.Item onSelect={onDisconnect}
+              >Disconnect</DropdownMenu.Item
+            >
+          {/if}
         {/if}
-      {/if}
-      <IconAction
-        icon={Trash2}
-        tone="destructive"
-        label="Remove"
-        onclick={onRemove}
-      />
-    </div>
+        <DropdownMenu.Separator />
+        <DropdownMenu.Item onSelect={onRemove}>Remove</DropdownMenu.Item>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
     <LayerSwitches
       name={row.name}
       {user}
