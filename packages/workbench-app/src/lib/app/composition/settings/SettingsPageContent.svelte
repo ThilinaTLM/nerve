@@ -3,6 +3,7 @@ import { PageEmptyState } from "@nervekit/ui-kit/components/composites/page";
 import TitlesSettingsPage from "$lib/features/settings/views/pages/titles/TitlesSettingsPage.svelte";
 import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
 import SkillReviewPage from "$lib/features/settings/views/pages/skills/SkillReviewPage.svelte";
+import McpServerDetailPage from "$lib/features/settings/views/pages/mcp/McpServerDetailPage.svelte";
 import McpServersSettingsPage from "$lib/features/settings/views/pages/mcp/McpServersSettingsPage.svelte";
 import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
 import ProfilesSettingsPage from "$lib/features/settings/views/pages/agent-profiles/ProfilesSettingsPage.svelte";
@@ -124,7 +125,7 @@ let {
   onThemeChange?: (theme: ColorTheme) => void;
   onSkillsRetry?: () => void;
   /** Opens another page of the surface (the Trust page from a trust warning). */
-  onOpenPage?: (pageId: string) => void;
+  onOpenPage?: (pageId: string, item?: string) => void;
 } = $props();
 
 const scope = $derived(target.kind);
@@ -265,6 +266,9 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       projectId={layerProjectId}
       projectDirectory={project?.directory}
       entries={controllers.trustEntries()}
+      onOpenMcpServer={onOpenPage
+        ? (item) => onOpenPage("mcp-servers", item)
+        : undefined}
     />
   {:else if page.id === "providers"}
     <ProvidersSettingsPage {models} {authProviders} />
@@ -295,11 +299,21 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       error={skillsError}
       onOpenItem={(name) => onOpenItem?.(name)}
     />
+  {:else if page.id === "mcp-servers" && itemId}
+    <McpServerDetailPage
+      {itemId}
+      projectId={layerProjectId}
+      {projectName}
+      onBack={() => onCloseItem?.()}
+      onOpenItem={(id) => onOpenItem?.(id)}
+    />
   {:else if page.id === "mcp-servers"}
     <McpServersSettingsPage
       projectId={layerProjectId}
       {projectName}
       onReviewTrust={reviewTrust}
+      bind:addOpen={controllers.mcpAddOpen}
+      onOpenItem={(id) => onOpenItem?.(id)}
     />
   {:else if page.id === "storage"}
     <StorageSettingsPage controller={controllers.storageController} />

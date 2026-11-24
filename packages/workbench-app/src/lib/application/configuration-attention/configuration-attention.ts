@@ -2,6 +2,7 @@ import type {
   ConfigurationResource,
   ConfigurationResourceKind,
 } from "@nervekit/contracts/configuration";
+import { mcpItemId } from "$lib/application/mcp/mcp-item";
 
 /** The two groups of the bell: items that wait for the user, and items that do not work. */
 export type AttentionGroup = "review" | "broken";
@@ -125,9 +126,9 @@ export function attentionTarget(
     case "launch-catalog":
       return scope === "project" ? { scope, pageId: "launch" } : undefined;
     case "mcp-servers":
-      // A server waiting for review opens its review dialog; the file itself has no item.
+      // A server waiting for review opens its page; the file itself has no item.
       return group === "review" && resource.id !== "mcp.json"
-        ? { scope, pageId: "mcp-servers", item: resource.id }
+        ? { scope, pageId: "mcp-servers", item: mcpItemId(scope, resource.id) }
         : { scope, pageId: "mcp-servers" };
     case "agent-profile":
       return { scope, pageId: "agents" };

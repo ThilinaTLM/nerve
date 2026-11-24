@@ -200,9 +200,9 @@ function statusText(): string {
       {theme}
       {onThemeChange}
       {onSkillsRetry}
-      onOpenPage={(pageId) => {
+      onOpenPage={(pageId, item) => {
         activePageId = pageId;
-        activeItemId = "";
+        activeItemId = item ?? "";
       }}
     />
   {/snippet}

@@ -52,8 +52,10 @@ type Props = {
   projectDirectory?: string;
   /** Capabilities and permissions files, from their controllers. */
   entries: TrustEntry[];
+  /** Opens one MCP server's page, where its entry is reviewed. */
+  onOpenMcpServer?: (item: string) => void;
 };
-let { projectId, projectDirectory, entries }: Props = $props();
+let { projectId, projectDirectory, entries, onOpenMcpServer }: Props = $props();
 
 const root = $derived(
   projectDirectory?.replaceAll("\\", "/").replace(/\/$/, ""),
@@ -319,7 +321,7 @@ async function trustProfile(): Promise<void> {
   {/if}
 </SettingsSection>
 
-{#if projectId}<McpTrustSection {projectId} />{/if}
+{#if projectId}<McpTrustSection {projectId} onOpen={onOpenMcpServer} />{/if}
 
 <ExtensionConsentDialog
   bind:open={extensionReviewOpen}

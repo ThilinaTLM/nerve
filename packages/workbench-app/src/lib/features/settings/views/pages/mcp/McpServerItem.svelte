@@ -26,10 +26,9 @@ type Props = {
   /** The project's settings file is not trusted. */
   locked?: boolean;
   onChange: (layer: SettingsLayer, next: boolean) => void;
+  /** Opens the server's page (its review while it waits for one). */
   onOpen: () => void;
-  onTest: () => void;
   onEdit: () => void;
-  onReview: () => void;
   onDisconnect: () => void;
   onRemove: () => void;
 };
@@ -43,9 +42,7 @@ let {
   locked = false,
   onChange,
   onOpen,
-  onTest,
   onEdit,
-  onReview,
   onDisconnect,
   onRemove,
 }: Props = $props();
@@ -77,9 +74,9 @@ const summary = $derived(
   {summary}
   mono={!row.description && !toolCount && !origin}
   problem={mcpProblem(row)}
-  problemAction={pending ? { label: "Review", onclick: onReview } : undefined}
+  problemAction={pending ? { label: "Review", onclick: onOpen } : undefined}
   {onOpen}
-  openLabel={pending ? `Review ${row.name}` : `Show what ${row.name} offers`}
+  openLabel={pending ? `Review ${row.name}` : `Open ${row.name}`}
 >
   {#snippet badges()}
     <!-- Narrow pages drop the badge so the name keeps its room; a problem line still says why a row is not working. -->
@@ -96,18 +93,15 @@ const summary = $derived(
         <Ellipsis class="size-4" aria-hidden="true" />
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="end" class="w-40">
-        {#if pending}
-          <DropdownMenu.Item onSelect={onReview}>Review</DropdownMenu.Item>
-        {:else}
-          <DropdownMenu.Item onSelect={onTest}>Test</DropdownMenu.Item>
+        {#if !pending}
           <DropdownMenu.Item onSelect={onEdit}>Edit</DropdownMenu.Item>
           {#if row.state === "connected"}
             <DropdownMenu.Item onSelect={onDisconnect}
               >Disconnect</DropdownMenu.Item
             >
           {/if}
+          <DropdownMenu.Separator />
         {/if}
-        <DropdownMenu.Separator />
         <DropdownMenu.Item onSelect={onRemove}>Remove</DropdownMenu.Item>
       </DropdownMenu.Content>
     </DropdownMenu.Root>

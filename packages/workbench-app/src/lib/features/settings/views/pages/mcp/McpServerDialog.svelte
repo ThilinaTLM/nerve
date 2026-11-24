@@ -34,7 +34,8 @@ type Props = {
   row?: McpServerRow;
   /** The open project, offered as a level when adding. */
   project?: { id: string; name: string };
-  onSaved: () => void;
+  /** Called with the saved name (a rename changes it). */
+  onSaved: (name: string) => void;
 };
 let { open = $bindable(false), row, project, onSaved }: Props = $props();
 
@@ -130,7 +131,7 @@ async function save(replaceInvalid = false) {
     });
     if (result.status === "saved") {
       open = false;
-      onSaved();
+      onSaved(submission.name);
     } else if (result.status === "invalid") {
       fileProblems = undefined;
       error = result.problems.join(" ");

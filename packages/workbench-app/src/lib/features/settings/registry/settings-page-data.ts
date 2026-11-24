@@ -45,6 +45,7 @@ const mcpServers: PageData = {
   description:
     "Programs and services that give the agent more tools. A project server replaces one of yours with the same name once you approve it.",
   sections: [{ id: "servers", label: "Servers" }],
+  detail: { param: "server" },
 };
 const general: PageData = {
   label: "General",

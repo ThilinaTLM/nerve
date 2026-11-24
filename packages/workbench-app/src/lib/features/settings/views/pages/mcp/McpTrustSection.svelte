@@ -1,7 +1,6 @@
-<!-- The project's MCP servers on its Trust page: each entry waits for, or records, the user's decision. -->
+<!-- The project's MCP servers on its Trust page: each entry waits for, or records, the user's decision, made on the server's page. -->
 <script lang="ts">
 import Plug from "@lucide/svelte/icons/plug";
-import type { McpServerRow } from "@nervekit/contracts/mcp";
 import {
   PageEmptyState,
   PageItem,
@@ -12,10 +11,17 @@ import { mcpTarget } from "$lib/application/mcp/mcp-api";
 import { McpServersState } from "$lib/application/mcp/mcp-servers-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { SettingsSection, TipBadge } from "$lib/presentation/settings";
-import McpReviewHost from "./McpReviewHost.svelte";
+import { mcpItemId } from "$lib/application/mcp/mcp-item";
 import { mcpCommandLine } from "./mcp-view";
 
-let { projectId }: { projectId: string } = $props();
+let {
+  projectId,
+  onOpen,
+}: {
+  projectId: string;
+  /** Opens a server's page on Settings › MCP servers (`mcpItemId`). */
+  onOpen?: (item: string) => void;
+} = $props();
 
 const list = new McpServersState();
 $effect(() => {
@@ -42,9 +48,6 @@ const status = {
     tip: "You rejected this entry. It stays off until you approve it.",
   },
 } as const;
-
-let reviewRow = $state<McpServerRow>();
-let reviewOpen = $state(false);
 </script>
 
 <SettingsSection id="mcp-servers" title="MCP servers" surface={false}>
@@ -67,10 +70,8 @@ let reviewOpen = $state(false);
             <Button
               size="sm"
               variant="outline"
-              onclick={() => {
-                reviewRow = row;
-                reviewOpen = true;
-              }}
+              disabled={!onOpen}
+              onclick={() => onOpen?.(mcpItemId(row.scope, row.name))}
               >{row.review === "approved"
                 ? "Review"
                 : "Review and trust"}</Button
@@ -81,10 +82,3 @@ let reviewOpen = $state(false);
     </PageList>
   {/if}
 </SettingsSection>
-
-<McpReviewHost
-  bind:open={reviewOpen}
-  row={reviewRow}
-  {projectId}
-  onDecided={() => void list.reload()}
-/>

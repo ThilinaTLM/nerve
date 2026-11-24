@@ -1,43 +1,45 @@
 <!--
-  The result of connecting to a server: its name and version, instructions,
-  tools and resources, or why it did not connect. Also the detail view of a
-  server: what the agent sees.
+  What the agent sees of a server, from connecting to it: its instructions,
+  tools and resources, or why it did not connect.
 -->
 <script lang="ts">
+import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
-import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import type { McpTestResult } from "$lib/application/mcp/mcp-api";
+import { SettingsSection } from "$lib/presentation/settings";
 import McpToolList from "./McpToolList.svelte";
 
 let {
-  open = $bindable(false),
-  name,
   result,
   busy = false,
   error,
-  onRetest,
+  onTest,
 }: {
-  open?: boolean;
-  name: string;
+  /** Absent until the first test. */
   result?: McpTestResult;
   busy?: boolean;
   /** The request itself failed. */
   error?: string;
-  onRetest: () => void;
+  onTest: () => void;
 } = $props();
 </script>
 
-<DialogShell
-  bind:open
-  size="md"
-  title={name}
+<SettingsSection
+  title="What the agent sees"
   description={result?.status === "ok" && result.server
     ? `${result.server.name} ${result.server.version}`
     : undefined}
 >
+  {#snippet actions()}
+    <Button size="sm" variant="outline" disabled={busy} onclick={onTest}
+      ><RefreshCw class="size-3.5" />{result || error
+        ? "Test again"
+        : "Test"}</Button
+    >
+  {/snippet}
   {#if busy}
     <p class="flex items-center gap-2 text-ui text-muted-foreground">
       <Spinner />Connecting. A local command may take a moment to start.
@@ -98,11 +100,9 @@ let {
         </section>
       {/if}
     </div>
+  {:else}
+    <p class="text-ui text-muted-foreground">
+      Test connects to the server once to list its tools.
+    </p>
   {/if}
-  {#snippet footer()}
-    <Button variant="outline" disabled={busy} onclick={onRetest}
-      >Test again</Button
-    >
-    <Button onclick={() => (open = false)}>Close</Button>
-  {/snippet}
-</DialogShell>
+</SettingsSection>

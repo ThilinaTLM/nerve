@@ -1,13 +1,13 @@
 <!--
   Settings › MCP servers. Lists the servers of the user's mcp.json and, with a
   project open, of the project's, with the layered Enabled switches of the
-  Skills page. Adding, editing, testing, removing and reviewing go through the
-  daemon; this page never writes the file.
+  Skills page. A row opens the server's page (review, what the agent sees).
+  Adding, editing and removing go through the daemon; this page never writes
+  the file.
 -->
 <script lang="ts">
 import { untrack } from "svelte";
 import Plug from "@lucide/svelte/icons/plug";
-import Plus from "@lucide/svelte/icons/plus";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { McpServerRow } from "@nervekit/contracts/mcp";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
@@ -21,11 +21,9 @@ import {
   disconnectMcpServer,
   mcpTarget,
   removeMcpServer,
-  type McpTestResult,
-  testMcpServer,
 } from "$lib/application/mcp/mcp-api";
 import { configurationAttention } from "$lib/application/configuration-attention/configuration-attention-state.svelte";
-import { mcpReviewRequest } from "$lib/application/mcp/mcp-review-request.svelte";
+import { mcpItemId } from "$lib/application/mcp/mcp-item";
 import { McpServersState } from "$lib/application/mcp/mcp-servers-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
@@ -35,22 +33,26 @@ import {
 } from "$lib/presentation/settings";
 import { applyLayerChange } from "../../shared/layer-change";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
-import McpReviewHost from "./McpReviewHost.svelte";
 import McpServerDialog from "./McpServerDialog.svelte";
 import McpServerItem from "./McpServerItem.svelte";
-import McpTestDialog from "./McpTestDialog.svelte";
 import { mcpEnablementLayers, mcpEnabledPointer } from "./mcp-enablement";
 
 let {
   projectId,
   projectName,
   onReviewTrust,
+  addOpen = $bindable(false),
+  onOpenItem,
 }: {
   /** The open project; without one the page has a single (User) column. */
   projectId?: string;
   projectName?: string;
   /** Opens the project's Trust page. */
   onReviewTrust?: () => void;
+  /** The Add server dialog, opened from the page header. */
+  addOpen?: boolean;
+  /** Opens a server's page (`mcpItemId`). */
+  onOpenItem?: (id: string) => void;
 } = $props();
 
 const list = new McpServersState();
@@ -99,19 +101,6 @@ $effect(() => {
   };
   window.addEventListener("focus", onFocus);
   return () => window.removeEventListener("focus", onFocus);
-});
-
-// A link that names a server (the attention list) opens its review.
-$effect(() => {
-  const name = mcpReviewRequest.name;
-  if (!name || !list.loaded) return;
-  const row =
-    rows.find(
-      (r) =>
-        r.name === name && r.review !== "approved" && r.scope === "project",
-    ) ?? rows.find((r) => r.name === name && r.review !== "approved");
-  mcpReviewRequest.name = undefined;
-  if (row) untrack(() => review(row));
 });
 
 const ready = $derived(
@@ -188,36 +177,9 @@ const project = $derived(
 );
 const targetOf = (row: McpServerRow) => mcpTarget(row.scope, projectId);
 
-// Dialogs.
-let addOpen = $state(false);
-let editRow = $state<McpServerRow>();
-let editOpen = $state(false);
-let reviewRow = $state<McpServerRow>();
-let reviewOpen = $state(false);
 let removeRow = $state<McpServerRow>();
 let removeOpen = $state(false);
 let actionError = $state<string>();
-
-let testRow = $state<McpServerRow>();
-let testOpen = $state(false);
-let testBusy = $state(false);
-let testResult = $state<McpTestResult>();
-let testError = $state<string>();
-
-async function runTest(row: McpServerRow) {
-  testRow = row;
-  testOpen = true;
-  testBusy = true;
-  testResult = testError = undefined;
-  try {
-    testResult = await testMcpServer(targetOf(row), row.name);
-  } catch (cause) {
-    testError = cause instanceof Error ? cause.message : String(cause);
-  } finally {
-    testBusy = false;
-    void list.reload();
-  }
-}
 
 async function run(action: () => Promise<unknown>) {
   actionError = undefined;
@@ -229,18 +191,10 @@ async function run(action: () => Promise<unknown>) {
   }
 }
 
-const openRow = (row: McpServerRow) => {
-  if (row.review === "approved") void runTest(row);
-  else review(row);
-};
-function review(row: McpServerRow) {
-  reviewRow = row;
-  reviewOpen = true;
-}
-function edit(row: McpServerRow) {
-  editRow = row;
-  editOpen = true;
-}
+let editRow = $state<McpServerRow>();
+let editOpen = $state(false);
+const open = (row: McpServerRow) =>
+  onOpenItem?.(mcpItemId(row.scope, row.name));
 const onRetry = () =>
   Promise.all([
     list.reload(),
@@ -279,23 +233,14 @@ const onRetry = () =>
 {#if !ready && !error}
   <Skeleton class="h-8 w-full" />
 {:else if ready}
-  <div class="flex items-center gap-2">
-    {#if rows.length >= SETTINGS_SEARCH_MIN}
-      <SearchInput
-        bind:value={query}
-        placeholder="Search MCP servers"
-        ariaLabel="Search MCP servers"
-        class="max-w-xs"
-      />
-    {/if}
-    <Button
-      size="sm"
-      variant="outline"
-      class="ml-auto"
-      onclick={() => (addOpen = true)}
-      ><Plus class="size-3.5" />Add server</Button
-    >
-  </div>
+  {#if rows.length >= SETTINGS_SEARCH_MIN}
+    <SearchInput
+      bind:value={query}
+      placeholder="Search MCP servers"
+      ariaLabel="Search MCP servers"
+      class="max-w-xs"
+    />
+  {/if}
 
   {#each groups as group (group.origin.kind)}
     <OriginGroup
@@ -314,10 +259,11 @@ const onRetry = () =>
           projectSet={state.value.project !== undefined}
           {locked}
           onChange={(layer, next) => void change(row, layer, next)}
-          onOpen={() => openRow(row)}
-          onTest={() => void runTest(row)}
-          onEdit={() => edit(row)}
-          onReview={() => review(row)}
+          onOpen={() => open(row)}
+          onEdit={() => {
+            editRow = row;
+            editOpen = true;
+          }}
           onDisconnect={() =>
             void run(() => disconnectMcpServer(targetOf(row), row.name))}
           onRemove={() => {
@@ -335,13 +281,7 @@ const onRetry = () =>
       icon={Plug}
       title="No MCP servers"
       description="MCP servers give the agent more tools, such as GitHub or a database."
-    >
-      {#snippet actions()}
-        <Button size="sm" variant="outline" onclick={() => (addOpen = true)}
-          ><Plus class="size-3.5" />Add server</Button
-        >
-      {/snippet}
-    </PageEmptyState>
+    />
   {/if}
 {/if}
 
@@ -355,20 +295,6 @@ const onRetry = () =>
   row={editRow}
   {project}
   onSaved={() => void list.reload()}
-/>
-<McpTestDialog
-  bind:open={testOpen}
-  name={testRow?.name ?? ""}
-  result={testResult}
-  busy={testBusy}
-  error={testError}
-  onRetest={() => testRow && void runTest(testRow)}
-/>
-<McpReviewHost
-  bind:open={reviewOpen}
-  row={reviewRow}
-  {projectId}
-  onDecided={() => void list.reload()}
 />
 <ConfirmDialog
   bind:open={removeOpen}
