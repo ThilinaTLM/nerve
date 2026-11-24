@@ -6,15 +6,15 @@ import {
   McpCatalog,
   type McpProject,
   type McpTrustLookup,
-} from "./mcp-catalog.js";
-import { McpSecrets } from "./mcp-secrets.js";
+} from "../../../src/domains/mcp/mcp-catalog.js";
+import { McpSecrets } from "../../../src/domains/mcp/mcp-secrets.js";
 import {
   McpServerHub,
   type McpRun,
   type McpServerHubOptions,
-} from "./mcp-server-hub.js";
-import { McpToolIndex } from "./mcp-tool-index.js";
-import type { SecretProvider } from "../../infrastructure/secrets/index.js";
+} from "../../../src/domains/mcp/mcp-server-hub.js";
+import { McpToolIndex } from "../../../src/domains/mcp/mcp-tool-index.js";
+import type { SecretProvider } from "../../../src/infrastructure/secrets/index.js";
 
 /** In-memory consent rows keyed like the trusted_resource table. */
 export class MemoryTrust implements McpTrustLookup {
@@ -99,12 +99,16 @@ export async function createTestMcp(
       });
   };
   const run = (
-    enablement?: Record<string, boolean>,
+    servers?: Record<string, boolean>,
     project?: { projectId: string; projectDirectory: string },
+    defaults?: boolean,
   ): McpRun => ({
     ...(project ? { projectId: project.projectId } : {}),
     projectDirectory: project?.projectDirectory ?? home,
-    enablement: async () => enablement,
+    enablement: async () =>
+      servers === undefined && defaults === undefined
+        ? undefined
+        : { servers, defaults },
   });
   return {
     home,

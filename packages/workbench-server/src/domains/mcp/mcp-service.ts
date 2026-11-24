@@ -1,6 +1,8 @@
 import { homedir } from "node:os";
 import type { TrustedResource, TrustDecision } from "@nervekit/contracts/core";
 import type {
+  McpGrantSnapshot,
+  McpServerEntry as McpEntryInput,
   McpReview,
   McpServerRow,
   McpTarget,
@@ -15,10 +17,12 @@ import {
   type McpCatalog,
   type McpProject,
 } from "./mcp-catalog.js";
+import type { McpServerEntry as McpServerEntryConfig } from "./mcp-config.js";
 import {
   mcpConfigPath,
   mcpEntrySecretNames,
   mcpGrantSnapshot,
+  mcpReviewNotes,
   mcpSendsSentences,
   parseMcpConfig,
   projectMcpConfigPath,
@@ -33,8 +37,9 @@ import type { McpSecrets } from "./mcp-secrets.js";
 import {
   mcpBlock,
   mcpBlockMessage,
-  type McpServerHub,
-} from "./mcp-server-hub.js";
+  type McpEnablement,
+} from "./mcp-enablement.js";
+import type { McpServerHub } from "./mcp-server-hub.js";
 
 type SaveRequest = z.infer<typeof mcpSaveRequestSchema>;
 type SaveResult = z.infer<typeof mcpSaveResultSchema>;
@@ -58,9 +63,7 @@ export type McpServiceOptions = {
   /** The directory of a project; absent: no such project. */
   projectDirectory(projectId: string): string | undefined;
   /** The resolved `mcpServers.servers` of the target's agent settings. */
-  enablement(
-    target: McpTarget,
-  ): Promise<Readonly<Record<string, boolean>> | undefined>;
+  enablement(target: McpTarget): Promise<McpEnablement | undefined>;
   /** After any change: the agent settings' eligible names and the pages that show them are stale. */
   changed(target: McpTarget): void;
 };
@@ -155,7 +158,7 @@ export class McpService {
       inherited: boolean;
       shadowed: boolean;
       replacesUser: boolean;
-      enablement: Readonly<Record<string, boolean>> | undefined;
+      enablement: McpEnablement | undefined;
       directory: string;
     },
   ): Promise<McpServerRow> {
@@ -166,7 +169,9 @@ export class McpService {
         : undefined;
     const state = block ?? status?.state ?? "idle";
     const error =
-      block !== undefined ? mcpBlockMessage(entry, block) : status?.error;
+      block !== undefined
+        ? mcpBlockMessage(entry, block, context.enablement)
+        : status?.error;
     return {
       name: entry.name,
       scope: entry.scope,
@@ -177,7 +182,7 @@ export class McpService {
       ...(entry.server.config.description
         ? { description: entry.server.config.description }
         : {}),
-      entry: entry.server.config,
+      entry: writtenEntry(entry.server.config),
       state,
       ...(error ? { error } : {}),
       review: entry.review,
@@ -239,6 +244,14 @@ export class McpService {
     if (problems.length > 0 && !request.replaceInvalid)
       return { status: "file_invalid", problems };
     const previous = problems.length > 0 ? {} : document.servers;
+    const renamed = previousName !== undefined && previousName !== name;
+    if (renamed && Object.hasOwn(previous, name))
+      return {
+        status: "invalid",
+        problems: [
+          `server "${name}": the name is already used by another entry`,
+        ],
+      };
     const servers = withEntry(
       previous,
       name,
@@ -266,22 +279,21 @@ export class McpService {
       status: "trusted",
       grants: mcpGrantSnapshot(server),
     });
-    if (previousName && previousName !== name) {
-      this.#forgetApproval(scope, projectId, previousName);
-      const old = parseMcpConfig(
-        path,
-        JSON.stringify({
-          mcpServers: { [previousName]: previous[previousName] },
-        }),
-      ).servers[0];
-      if (old)
-        await this.#deleteUnusedSecrets(
-          scope,
-          projectId,
-          mcpEntrySecretNames(old.config),
-          servers,
-        );
-    }
+    if (renamed) this.#forgetApproval(scope, projectId, previousName);
+    // Secrets the old entry used and the file no longer references are deleted.
+    const old = parseMcpConfig(
+      path,
+      JSON.stringify({
+        mcpServers: { [previousName ?? name]: previous[previousName ?? name] },
+      }),
+    ).servers[0];
+    if (old)
+      await this.#deleteUnusedSecrets(
+        scope,
+        projectId,
+        mcpEntrySecretNames(old.config),
+        servers,
+      );
     await this.#changed(target);
     const row = (await this.list(target)).servers.find(
       (candidate) => candidate.name === name && !candidate.inherited,
@@ -397,7 +409,35 @@ export class McpService {
       digest: found.entry.digest,
       grants,
       sends: mcpSendsSentences(grants),
+      notes: mcpReviewNotes(grants),
     };
+  }
+
+  /**
+   * A decision through `trust.decide` on an entry: the review is recomputed here, the digest must
+   * be that of the entry as it is now, and the stored grants are the ones computed here, not the
+   * caller's. Throws when the entry is gone or changed since the user looked.
+   */
+  async checkDecision(input: {
+    projectId: string | null;
+    resourceKey: string;
+    contentDigest: string;
+  }): Promise<McpGrantSnapshot> {
+    const review = await this.review({
+      target: input.projectId
+        ? { scope: "project", projectId: input.projectId }
+        : { scope: "user" },
+      name: input.resourceKey,
+    });
+    if (!review || review.scope !== (input.projectId ? "project" : "user"))
+      throw new Error(
+        `There is no MCP server "${input.resourceKey}" to decide on.`,
+      );
+    if (review.digest !== input.contentDigest)
+      throw new Error(
+        `MCP server "${input.resourceKey}" changed since it was reviewed. Review it again.`,
+      );
+    return review.grants;
   }
 
   async test(request: {
@@ -447,10 +487,7 @@ export class McpService {
   }): Promise<{ disconnected: boolean }> {
     const found = await this.#find(request.target, request.name);
     if (!found) return { disconnected: false };
-    const disconnected = await this.options.hub.disconnect(
-      found.entry,
-      this.#directory(found.project),
-    );
+    const disconnected = await this.options.hub.disconnect(found.entry);
     if (disconnected) this.options.changed(request.target);
     return { disconnected };
   }
@@ -467,4 +504,15 @@ export class McpService {
     await this.options.hub.reconcile().catch(() => undefined);
     this.options.changed(target);
   }
+}
+
+/** The entry as the form edits it: `streamable-http` (accepted in files) is the `http` transport. */
+function writtenEntry(config: McpServerEntryConfig["config"]): McpEntryInput {
+  const { type, ...rest } = config;
+  return {
+    ...rest,
+    ...(type === undefined
+      ? {}
+      : { type: type === "stdio" ? ("stdio" as const) : ("http" as const) }),
+  };
 }

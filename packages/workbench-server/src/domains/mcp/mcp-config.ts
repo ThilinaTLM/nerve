@@ -140,6 +140,9 @@ export const readMcpConfig = (home: string) => readMcpFile(mcpConfigPath(home));
 const VARIABLE = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g;
 /** `${secret:name}` from the credential vault. */
 const SECRET = /\$\{secret:([A-Za-z0-9_-]+)\}/g;
+/** Either kind, in one regex, so expansion makes a single pass. */
+const REFERENCE =
+  /\$\{(?:secret:([A-Za-z0-9_-]+)|([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?)\}/g;
 
 /** The values a resolved entry draws on besides its own text. */
 export type McpExpansion = {
@@ -155,20 +158,28 @@ export function expandVariables(
   expansion: McpExpansion,
   missing: MissingReferences,
 ): string {
-  return value
-    .replace(SECRET, (_, name: string) => {
-      const found = expansion.secrets[name];
-      if (found !== undefined) return found;
-      missing.secrets.add(name);
-      return "";
-    })
-    .replace(VARIABLE, (_, name: string, fallback?: string) => {
-      const found = expansion.env[name];
+  // One pass over the original text: an expanded value is never expanded again.
+  return value.replace(
+    REFERENCE,
+    (
+      _,
+      secret: string | undefined,
+      name: string | undefined,
+      fallback: string | undefined,
+    ) => {
+      if (secret !== undefined) {
+        const found = expansion.secrets[secret];
+        if (found !== undefined) return found;
+        missing.secrets.add(secret);
+        return "";
+      }
+      const found = expansion.env[name!];
       if (found !== undefined && found !== "") return found;
       if (fallback !== undefined) return fallback;
-      missing.env.add(name);
+      missing.env.add(name!);
       return "";
-    });
+    },
+  );
 }
 
 /** Every `${VAR}` and `${secret:name}` the entry references, with where the value goes. */
@@ -215,18 +226,56 @@ export const mcpEntrySecretNames = (config: McpServerEntry["config"]) => [
   ),
 ];
 
-/** What the user reviews and approves: the command line or URL, the working directory and where each reference goes. */
+/** Variables that change what a program runs or where it looks, whatever else the entry says. */
+const EXECUTION_VARIABLE =
+  /^(PATH|NODE_OPTIONS|NODE_PATH|NODE_EXTRA_CA_CERTS|NODE_TLS_REJECT_UNAUTHORIZED|LD_.*|DYLD_.*|PYTHON.*|PERL5?LIB|PERL5OPT|RUBY.*|GEM_.*|CLASSPATH|JAVA_TOOL_OPTIONS|_JAVA_OPTIONS|JDK_JAVA_OPTIONS|BASH_ENV|ENV|SHELL|IFS|HOME|USERPROFILE|PATHEXT|COMSPEC|GIT_SSH.*|GIT_EXEC_PATH|GOFLAGS|GOPATH|CARGO_.*|RUSTC.*|PIP_.*|NPM_CONFIG_.*|UV_.*)$/i;
+
+/** What the user reviews and approves: the command line or URL, the working directory, every environment entry or header as written and where each reference goes. */
 export function mcpGrantSnapshot(entry: McpServerEntry): McpGrantSnapshot {
   const references = mcpEntryReferences(entry.config);
-  return entry.kind === "stdio"
-    ? {
-        transport: "stdio",
-        command: entry.config.command,
-        ...(entry.config.args?.length ? { args: entry.config.args } : {}),
-        ...(entry.config.cwd ? { cwd: entry.config.cwd } : {}),
-        references,
-      }
-    : { transport: "http", url: entry.config.url, references };
+  if (entry.kind === "http") {
+    const headers = Object.entries(entry.config.headers ?? {}).map(
+      ([name, value]) => ({ name, value }),
+    );
+    return {
+      transport: "http",
+      url: entry.config.url,
+      ...(headers.length ? { headers } : {}),
+      references,
+    };
+  }
+  const env = Object.entries(entry.config.env ?? {}).map(([name, value]) => ({
+    name,
+    value,
+    changesExecution: EXECUTION_VARIABLE.test(name),
+  }));
+  return {
+    transport: "stdio",
+    command: entry.config.command,
+    ...(entry.config.args?.length ? { args: entry.config.args } : {}),
+    ...(entry.config.cwd ? { cwd: entry.config.cwd } : {}),
+    ...(env.length ? { env } : {}),
+    inheritsEnvironment: true,
+    references,
+  };
+}
+
+/** What else to weigh in a review: environment entries as written, the ones that change what runs, the inherited environment. */
+export function mcpReviewNotes(grants: McpGrantSnapshot): string[] {
+  const notes: string[] = [];
+  if (grants.inheritsEnvironment)
+    notes.push(
+      `Starts \`${grants.command}\` with Nerve's whole environment (every variable Nerve was started with), plus the entries below.`,
+    );
+  for (const variable of grants.env ?? [])
+    notes.push(
+      variable.changesExecution
+        ? `Sets \`${variable.name}\` to \`${variable.value}\`. This changes what runs or where it looks.`
+        : `Sets \`${variable.name}\` to \`${variable.value}\`.`,
+    );
+  for (const header of grants.headers ?? [])
+    notes.push(`Sends header \`${header.name}\`: \`${header.value}\`.`);
+  return notes;
 }
 
 /** "Sends `TOKEN` to `https://…` in header `Authorization`": what can leave the machine, never a value. */
@@ -249,6 +298,45 @@ export function mcpSendsSentences(grants: McpGrantSnapshot): string[] {
         return `Uses ${what} in the command \`${where}\`.`;
     }
   });
+}
+
+/** Shortest value worth hiding: shorter ones would mangle ordinary text. */
+const MIN_REDACTED_LENGTH = 4;
+
+/**
+ * A function that replaces the values this entry expanded (secrets as `[secret:name]`, referenced
+ * environment variables as `[env:NAME]`, also URL- and JSON-escaped) in text that leaves the host:
+ * a server's stderr, an HTTP error body, a failure reason. Values shorter than four characters
+ * are not hidden.
+ */
+export function mcpRedactor(
+  config: McpServerEntry["config"],
+  expansion: McpExpansion,
+): (text: string) => string {
+  const replacements: [string, string][] = [];
+  for (const reference of mcpEntryReferences(config)) {
+    const value =
+      reference.kind === "secret"
+        ? expansion.secrets[reference.name]
+        : expansion.env[reference.name];
+    if (value === undefined || value.length < MIN_REDACTED_LENGTH) continue;
+    const label =
+      reference.kind === "secret"
+        ? `[secret:${reference.name}]`
+        : `[env:${reference.name}]`;
+    for (const form of new Set([
+      value,
+      encodeURIComponent(value),
+      JSON.stringify(value).slice(1, -1),
+    ]))
+      replacements.push([form, label]);
+  }
+  replacements.sort(([a], [b]) => b.length - a.length);
+  return (text) =>
+    replacements.reduce(
+      (result, [value, label]) => result.split(value).join(label),
+      text,
+    );
 }
 
 function canonicalJson(value: unknown): string {

@@ -81,7 +81,7 @@ import {
   resourceGenerationOf,
   referenceAvailable,
 } from "./agent-resource-capture.js";
-import { mcpRunOf } from "../../domains/mcp/mcp-server-hub.js";
+import { mcpRunOf } from "../../domains/mcp/mcp-enablement.js";
 import {
   createMcpHub,
   createMcpService,

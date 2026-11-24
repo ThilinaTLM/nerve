@@ -203,7 +203,9 @@ onMount(() => capabilities.props.onRefresh?.());
         ? "No optional tools are available."
         : kind === "skills"
           ? "No skills are available for this project."
-          : "No sub-agent profiles are available."
+          : kind === "mcp"
+            ? "No MCP servers are available for this project."
+            : "No sub-agent profiles are available."
       : `No ${section.title.toLowerCase()} match.`}
   >
     {#snippet row(item)}

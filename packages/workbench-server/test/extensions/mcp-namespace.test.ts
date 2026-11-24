@@ -5,7 +5,7 @@ import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import type { Nested } from "@nervekit/tools/quick-script/testing";
 import { classifyQuickScriptScript } from "@nervekit/tools/quick-script";
-import { createTestMcp } from "../../src/domains/mcp/mcp-test-fixture.js";
+import { createTestMcp } from "../fixtures/mcp/test-hub.js";
 import { executeQuickScript, registry } from "./registry.js";
 
 const FAKE_SERVER = fileURLToPath(
@@ -144,7 +144,12 @@ void test("a listing without a server checks each server and skips a refused one
 });
 
 function fakePort(
-  servers: Array<{ name: string; state: string }>,
+  servers: Array<{
+    name: string;
+    state: string;
+    scope?: string;
+    duplicate?: true;
+  }>,
   tools: Record<string, string[]>,
   seen: string[] = [],
 ) {
@@ -154,6 +159,7 @@ function fakePort(
         ...entry,
         transport: "stdio",
         scope: "user",
+        ...entry,
       })),
     listTools: async (server: string) => {
       seen.push(server);
@@ -203,6 +209,33 @@ void test("tools.search skips disabled, unapproved and rejected servers with a n
     /not used: off \(disabled\), wait \(needs_approval\), no \(rejected\)/,
   );
   assert.match(result.content, /MCP server "broken" skipped: cannot start/);
+});
+
+void test("a pending project row with the name of a working user server is not reported as not used; pages are named", async () => {
+  const result = await executeQuickScript(
+    { code: `return await mcp.tools.search("item");` },
+    {
+      cwd: home,
+      conversationDir: join(home, "conversation"),
+      mcpAgent: fakePort(
+        [
+          { name: "github", state: "idle" },
+          {
+            name: "github",
+            state: "needs_approval",
+            scope: "project",
+            duplicate: true,
+          },
+          { name: "other", state: "rejected", scope: "project" },
+        ],
+        { github: ["get_item"] },
+      ),
+      authorizeNested: async () => {},
+    },
+  );
+  assert.match(result.content, /not used: other \(rejected\)\. Only the user/);
+  assert.doesNotMatch(result.content, /github \(needs_approval\)/);
+  assert.match(result.content, /in Project settings → Agent → MCP servers\./);
 });
 
 void test("tools.search cuts at limit with a note naming the total", async () => {

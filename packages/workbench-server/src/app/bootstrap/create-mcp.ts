@@ -83,24 +83,27 @@ export function createMcpService(options: {
     projectDirectory: options.projectDirectory,
     enablement: async (target) => {
       try {
-        if (target.scope === "user") {
-          const user = await agentConfiguration.ensureLoaded({ scope: "user" });
-          if (user.status === "unavailable") return undefined;
-          return resolveAgentConfiguration({
-            role: "lead",
-            user: user.value.document.overrides,
-            eligibleMcpServers: (await parts.catalog.user()).servers.map(
-              (server) => server.name,
-            ),
-          }).settings.mcpServers?.servers;
-        }
-        const defaults = await agentConfiguration.captureDefaults(
-          target.projectId,
+        const resolution =
+          target.scope === "user"
+            ? await resolveUser(agentConfiguration, parts.catalog)
+            : resolveAgentConfiguration({
+                role: "lead",
+                ...(await agentConfiguration.captureDefaults(target.projectId))
+                  .options,
+              });
+        if (!resolution) return undefined;
+        const { servers, defaults } = resolution.settings.mcpServers ?? {};
+        // The layer behind each decision, so "turned off" can say where.
+        const sources = Object.fromEntries(
+          Object.keys(servers ?? {}).flatMap((name) => {
+            const source =
+              resolution.provenance[
+                `/mcpServers/servers/${name.replaceAll("~", "~0").replaceAll("/", "~1")}`
+              ]?.source;
+            return source ? [[name, source]] : [];
+          }),
         );
-        return resolveAgentConfiguration({
-          role: "lead",
-          ...defaults.options,
-        }).settings.mcpServers?.servers;
+        return { servers, defaults, sources };
       } catch {
         return undefined;
       }
@@ -113,5 +116,21 @@ export function createMcpService(options: {
           void deps.logger.warn("MCP change notification failed", { error });
         });
     },
+  });
+}
+
+/** The user layer alone: what Settings → Connections shows. */
+async function resolveUser(
+  agentConfiguration: AgentConfigurationService,
+  catalog: McpCatalog,
+) {
+  const user = await agentConfiguration.ensureLoaded({ scope: "user" });
+  if (user.status === "unavailable") return undefined;
+  return resolveAgentConfiguration({
+    role: "lead",
+    user: user.value.document.overrides,
+    eligibleMcpServers: (await catalog.user()).servers.map(
+      (server) => server.name,
+    ),
   });
 }

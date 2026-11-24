@@ -20,6 +20,7 @@ import { SettingsSection, TipBadge } from "$lib/presentation/settings";
 import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
 import type { ExtensionCatalogEntry } from "@nervekit/contracts/extensions";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
+import McpTrustSection from "../mcp/McpTrustSection.svelte";
 import ExtensionConsentDialog from "../extensions/ExtensionConsentDialog.svelte";
 import { installedProblem } from "../extensions/extensions-view";
 import ProfileTrustReviewDialog from "../agent-profiles/ProfileTrustReviewDialog.svelte";
@@ -317,6 +318,8 @@ async function trustProfile(): Promise<void> {
     </PageList>
   {/if}
 </SettingsSection>
+
+{#if projectId}<McpTrustSection {projectId} />{/if}
 
 <ExtensionConsentDialog
   bind:open={extensionReviewOpen}

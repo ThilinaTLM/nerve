@@ -4,11 +4,11 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import type { McpTarget } from "@nervekit/contracts/mcp";
-import { createTestMcp } from "./mcp-test-fixture.js";
-import { McpService } from "./mcp-service.js";
+import { createTestMcp } from "../../fixtures/mcp/test-hub.js";
+import { McpService } from "../../../src/domains/mcp/mcp-service.js";
 
 const FAKE_SERVER = fileURLToPath(
-  new URL("../../../test/fixtures/mcp/fake-mcp-server.mjs", import.meta.url),
+  new URL("../../fixtures/mcp/fake-mcp-server.mjs", import.meta.url),
 );
 const fake = { command: process.execPath, args: [FAKE_SERVER] };
 
@@ -218,5 +218,134 @@ void test("project entries: saved ones are approved, project secrets are separat
   await assert.rejects(
     service.list({ scope: "project", projectId: "nope" }),
     /Project not found/,
+  );
+});
+
+void test("the review lists literal environment entries, flags the ones that change what runs, and headers", async () => {
+  await using context = await setup();
+  const { env, service } = context;
+  await mkdir(join(env.home, "config"), { recursive: true });
+  await writeFile(
+    join(env.home, "config", "mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        local: {
+          ...fake,
+          env: {
+            NODE_OPTIONS: "--require /tmp/evil.js",
+            FEATURE: "on",
+            TOKEN: "${secret:t}",
+          },
+        },
+        remote: {
+          url: "https://example.com/mcp",
+          headers: { "X-Org": "acme", Authorization: "Bearer ${secret:t}" },
+        },
+      },
+    }),
+  );
+  const local = await service.review({ target: user, name: "local" });
+  assert.deepEqual(
+    local?.grants.env?.map((v) => [v.name, v.value, v.changesExecution]),
+    [
+      ["NODE_OPTIONS", "--require /tmp/evil.js", true],
+      ["FEATURE", "on", false],
+      ["TOKEN", "${secret:t}", false],
+    ],
+  );
+  assert.equal(local?.grants.inheritsEnvironment, true);
+  const notes = (local?.notes ?? []).join("\n");
+  assert.match(notes, /Nerve's whole environment/);
+  assert.match(
+    notes,
+    /Sets `NODE_OPTIONS` to `--require \/tmp\/evil\.js`\. This changes what runs/,
+  );
+  assert.match(notes, /Sets `FEATURE` to `on`\./);
+  const remote = await service.review({ target: user, name: "remote" });
+  assert.deepEqual(remote?.grants.headers, [
+    { name: "X-Org", value: "acme" },
+    { name: "Authorization", value: "Bearer ${secret:t}" },
+  ]);
+  assert.equal(remote?.grants.inheritsEnvironment, undefined);
+});
+
+void test("renaming onto an existing name is refused; updating drops secrets the entry no longer uses; streamable-http shows as http", async () => {
+  await using context = await setup();
+  const { env, service, userFile } = context;
+  await service.save({
+    target: user,
+    name: "a",
+    entry: { ...fake, env: { K: "${secret:old}" } },
+    secrets: { old: "1" },
+  });
+  await service.save({ target: user, name: "b", entry: fake });
+  const clash = await service.save({
+    target: user,
+    name: "b2",
+    previousName: "a",
+    entry: fake,
+  });
+  assert.equal(clash.status, "saved");
+  const taken = await service.save({
+    target: user,
+    name: "b",
+    previousName: "b2",
+    entry: fake,
+  });
+  assert.equal(taken.status, "invalid");
+  assert.match(
+    taken.status === "invalid" ? taken.problems[0] : "",
+    /already used/,
+  );
+  assert.deepEqual(
+    Object.keys(JSON.parse(await readFile(userFile, "utf8")).mcpServers),
+    ["b2", "b"],
+  );
+  assert.equal(env.vault.values.has("mcp:user:old"), false);
+  // Updating in place deletes the secret the new entry stops referencing.
+  await service.save({
+    target: user,
+    name: "c",
+    entry: { ...fake, env: { K: "${secret:one}" } },
+    secrets: { one: "1" },
+  });
+  await service.save({ target: user, name: "c", entry: fake });
+  assert.equal(env.vault.values.has("mcp:user:one"), false);
+  await writeFile(
+    userFile,
+    JSON.stringify({
+      mcpServers: {
+        h: { type: "streamable-http", url: "https://example.com/mcp" },
+      },
+    }),
+  );
+  const [row] = (await service.list(user)).servers;
+  assert.equal(row.transport, "http");
+  assert.equal(row.entry.type, "http");
+});
+
+void test("a decision is checked against the entry as it is now and takes the server's grants", async () => {
+  await using context = await setup();
+  const { env, service, userFile } = context;
+  await mkdir(join(env.home, "config"), { recursive: true });
+  await writeFile(userFile, JSON.stringify({ mcpServers: { s: fake } }));
+  const review = await service.review({ target: user, name: "s" });
+  const decision = {
+    projectId: null,
+    resourceKey: "s",
+    contentDigest: review!.digest,
+  };
+  assert.deepEqual(await service.checkDecision(decision), review!.grants);
+  await assert.rejects(
+    service.checkDecision({ ...decision, contentDigest: "sha256:00" }),
+    /changed since it was reviewed/,
+  );
+  await assert.rejects(
+    service.checkDecision({ ...decision, resourceKey: "gone" }),
+    /no MCP server "gone"/i,
+  );
+  await assert.rejects(
+    service.checkDecision({ ...decision, projectId: "proj_1" }),
+    /no MCP server/i,
   );
 });

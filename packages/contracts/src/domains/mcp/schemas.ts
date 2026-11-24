@@ -81,6 +81,23 @@ export const mcpGrantSnapshotSchema = z.strictObject({
   args: z.array(z.string()).optional(),
   url: z.string().optional(),
   cwd: z.string().optional(),
+  /** Every environment entry of a stdio server, values as written (a `${…}` reference stays a reference). */
+  env: z
+    .array(
+      z.strictObject({
+        name: z.string(),
+        value: z.string(),
+        /** The variable changes what runs or where (PATH, NODE_OPTIONS, LD_*, PYTHON*, …). */
+        changesExecution: z.boolean(),
+      }),
+    )
+    .optional(),
+  /** Every header of an HTTP server, values as written. */
+  headers: z
+    .array(z.strictObject({ name: z.string(), value: z.string() }))
+    .optional(),
+  /** A stdio server starts with Nerve's whole environment plus `env`. */
+  inheritsEnvironment: z.boolean().optional(),
   references: z.array(mcpReferenceSchema),
 });
 export type McpGrantSnapshot = z.infer<typeof mcpGrantSnapshotSchema>;
@@ -95,6 +112,8 @@ export const mcpReviewSchema = z.strictObject({
   grants: mcpGrantSnapshotSchema,
   /** What can leave the machine, in sentences: "Sends `TOKEN` to `https://…` in header `Authorization`". */
   sends: z.array(z.string()),
+  /** Other things to weigh: environment entries as written, ones that change what runs, the inherited environment. */
+  notes: z.array(z.string()).optional(),
 });
 export type McpReview = z.infer<typeof mcpReviewSchema>;
 

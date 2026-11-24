@@ -158,3 +158,25 @@ void test("the review names what leaves the machine and never a value", () => {
     "Passes environment variable `TOKEN` to `npx` in environment variable `TOKEN`.",
   ]);
 });
+
+void test("an expanded value is never expanded again", () => {
+  const entry = entryOf({
+    command: "run",
+    args: ["${secret:a}", "${B}"],
+  });
+  assert.deepEqual(
+    resolveMcpServer(
+      entry,
+      "/p",
+      { env: { B: "plain" }, secrets: { a: "${B}" } },
+      "Settings",
+    ),
+    {
+      kind: "stdio",
+      command: "run",
+      args: ["${B}", "plain"],
+      env: {},
+      cwd: "/p",
+    },
+  );
+});

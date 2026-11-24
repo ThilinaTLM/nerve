@@ -99,11 +99,25 @@ async function eachServer<T>(
   if (server !== undefined) return await read(server);
   const all = await port(env).listServers();
   const servers = all.filter((entry) => !SKIPPED_STATES.has(entry.state));
-  const skipped = all.filter((entry) => SKIPPED_STATES.has(entry.state));
-  if (skipped.length > 0)
+  const inUse = new Set(servers.map((entry) => entry.name));
+  // A second row of a name that works (a pending project entry next to the user's) is not "not used".
+  const skipped = all.filter(
+    (entry) => SKIPPED_STATES.has(entry.state) && !inUse.has(entry.name),
+  );
+  if (skipped.length > 0) {
+    const pages = [
+      ...new Set(
+        skipped.map((entry) =>
+          entry.scope === "project"
+            ? "Project settings → Agent → MCP servers"
+            : "User settings → Connections → MCP servers",
+        ),
+      ),
+    ];
     env.report.notes.push(
-      `MCP servers not used: ${skipped.map((entry) => `${entry.name} (${entry.state})`).join(", ")}. Only the user can turn them on or approve them (settings, MCP servers).`,
+      `MCP servers not used: ${skipped.map((entry) => `${entry.name} (${entry.state})`).join(", ")}. Only the user can turn them on or approve them, in ${pages.join(" or ")}.`,
     );
+  }
   const results = await settleLimited(
     servers,
     SEARCH_PARALLEL,
@@ -230,7 +244,7 @@ export async function toToolResult(
 }
 
 /**
- * `mcp.*`: the tools and resources of the MCP servers in the user's `mcp.json`. A tool call is
+ * `mcp.*`: the tools and resources of the MCP servers in the user's and the project's `mcp.json`. A tool call is
  * one operation per server and tool (`mcp:tool/<server>/<tool>`), so operation rules can allow a
  * tool by name; its effect is unknown to Nerve, so it is declared destructive.
  */
@@ -241,7 +255,7 @@ export const mcpMethods: SdkMethod[] = [
     risk: "read",
     options: [],
     signature:
-      "/** The configured servers (user and project), connected or not; connects to none. `state` says whether a server can be used; `error` says why one failed; `scope` says where it is defined. */ list(): Promise<McpServer[]>",
+      "/** The configured servers (user and project), connected or not; connects to none. `state` says whether a server can be used; `error` says why one failed; `scope` says where it is defined; `duplicate` marks a second entry of a name that is in use. */ list(): Promise<McpServer[]>",
     parse: () => undefined,
     resource: () => "MCP servers",
     run: async (_, env) => await port(env).listServers(),

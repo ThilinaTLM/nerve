@@ -4,6 +4,7 @@ import Users from "@lucide/svelte/icons/users";
 import Folder from "@lucide/svelte/icons/folder";
 import Globe from "@lucide/svelte/icons/globe";
 import User from "@lucide/svelte/icons/user";
+import Plug from "@lucide/svelte/icons/plug";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import type { Component } from "svelte";
 import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
@@ -28,8 +29,21 @@ import {
   editableToolOverrideResets,
 } from "./capability-tool-locks";
 
-export type CapabilityKind = "tools" | "skills" | "subagents";
-export type CapabilitySettingsPage = "tools" | "skills" | "sub-agents";
+export type CapabilityKind = "tools" | "skills" | "mcp" | "subagents";
+export type CapabilitySettingsPage =
+  | "tools"
+  | "skills"
+  | "mcp-servers"
+  | "sub-agents";
+
+/** An approved MCP server the conversation's project defines. */
+export type CapabilityMcpServer = {
+  name: string;
+  scope: "user" | "project";
+  description?: string;
+  /** Whether the settings layers below the conversation switch it on. */
+  enabled: boolean;
+};
 
 export type CapabilityRow = {
   key: string;
@@ -61,6 +75,8 @@ export type CapabilitySection = {
 export type ComposerCapabilityProps = {
   configuration?: AgentEditorView;
   skills?: AvailableSkill[];
+  /** Without servers the MCP list is not offered. */
+  mcpServers?: CapabilityMcpServer[];
   loading?: boolean;
   error?: string;
   disabled?: boolean;
@@ -85,7 +101,11 @@ const escape = (v: string) => v.replaceAll("~", "~0").replaceAll("/", "~1");
 export function capabilitySettingsPage(
   kind: CapabilityKind,
 ): CapabilitySettingsPage {
-  return kind === "subagents" ? "sub-agents" : kind;
+  return kind === "subagents"
+    ? "sub-agents"
+    : kind === "mcp"
+      ? "mcp-servers"
+      : kind;
 }
 
 /** Rows, counts and overrides for the conversation's tools, skills and
@@ -114,6 +134,7 @@ export class ComposerCapabilities {
         (n, group) => n + Object.keys(group).length,
         0,
       ),
+      mcp: Object.keys(overrides?.mcpServers?.servers ?? {}).length,
       subagents:
         Object.keys(overrides?.subagents ?? {}).length +
         Number(overrides?.tools?.subagents !== undefined),
@@ -123,6 +144,7 @@ export class ComposerCapabilities {
   readonly overrideCount = $derived(
     this.overrideCounts.tools +
       this.overrideCounts.skills +
+      this.overrideCounts.mcp +
       this.overrideCounts.subagents,
   );
 
@@ -252,6 +274,44 @@ export class ComposerCapabilities {
     });
   });
 
+  #mcpEnabled(server: CapabilityMcpServer): boolean {
+    return (
+      this.props.configuration?.resolution.settings.mcpServers?.servers?.[
+        server.name
+      ] ?? server.enabled
+    );
+  }
+
+  readonly #mcpCount = $derived.by(() => {
+    const servers = this.props.mcpServers ?? [];
+    return `${servers.filter((server) => this.#mcpEnabled(server)).length}/${servers.length}`;
+  });
+
+  readonly mcpRows = $derived.by<CapabilityRow[]>(() => {
+    const { configuration, mcpServers = [], onPatch } = this.props;
+    return mcpServers.map((server) => {
+      const pointer = `/mcpServers/servers/${escape(server.name)}`;
+      const provenance = configuration?.resolution.provenance[pointer];
+      return {
+        key: `${server.scope}:${server.name}`,
+        label: server.name,
+        group: server.scope === "project" ? "Project" : "User",
+        detail: server.description,
+        keywords: server.description ? [server.description] : undefined,
+        enabled: this.#mcpEnabled(server),
+        overridden:
+          configuration?.overrides.mcpServers?.servers?.[server.name] !==
+            undefined && provenance?.source !== "requirement",
+        icon: server.scope === "project" ? Folder : User,
+        lockedBy:
+          provenance?.source === "requirement" ? provenance.profile : undefined,
+        toggle: (enabled) =>
+          onPatch?.({ mcpServers: { servers: { [server.name]: enabled } } }),
+        reset: () => onPatch?.({}, [`/overrides${pointer}`]),
+      };
+    });
+  });
+
   readonly subagentRows = $derived.by<CapabilityRow[]>(() => {
     const {
       configuration,
@@ -310,6 +370,16 @@ export class ComposerCapabilities {
         icon: BookOpen,
         count: this.#skillCount,
       },
+      ...(this.props.mcpServers?.length
+        ? [
+            {
+              kind: "mcp" as const,
+              title: "MCP servers",
+              icon: Plug,
+              count: this.#mcpCount,
+            },
+          ]
+        : []),
       {
         kind: "subagents",
         title: "Sub-agents",
@@ -324,7 +394,9 @@ export class ComposerCapabilities {
       ? this.toolRows
       : kind === "skills"
         ? this.skillRows
-        : this.subagentRows;
+        : kind === "mcp"
+          ? this.mcpRows
+          : this.subagentRows;
   }
 
   rowDisabled(row: CapabilityRow): boolean {

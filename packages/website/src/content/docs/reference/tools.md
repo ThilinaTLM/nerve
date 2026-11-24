@@ -71,7 +71,7 @@ await launches.update({ name: "Docs", port: 4322 });
 
 ## MCP servers
 
-Nerve connects to the MCP (Model Context Protocol) servers in `~/.nerve/config/mcp.json` (the Nerve home's `config/mcp.json`), in the `mcpServers` shape other MCP clients use: stdio servers (`command`, `args`, `env`, `cwd`) and Streamable HTTP servers (`url`, `headers`), plus `description`, `enabled` and `timeout`. `${VAR}` references are expanded from Nerve's environment. Their tools are not separate tools: agents reach them through the `mcp` namespace of `quick_script`, which is listed in its description once a server is configured.
+Nerve connects to the MCP (Model Context Protocol) servers in `~/.nerve/config/mcp.json` (the Nerve home's `config/mcp.json`) and in a project's `.nerve/config/mcp.json`, in the `mcpServers` shape other MCP clients use: stdio servers (`command`, `args`, `env`, `cwd`) and Streamable HTTP servers (`url`, `headers`), plus `description`, `enabled` and `timeout`. `${VAR}` references are expanded from Nerve's environment, and `${secret:name}` from secrets you store in Settings. You approve each entry once (entries you save in Settings are approved already), and a project entry replaces a user entry of the same name; manage them under Settings → Connections → MCP servers (user) or a project's Settings → Agent → MCP servers. Their tools are not separate tools: agents reach them through the `mcp` namespace of `quick_script`, which is listed in its description while a conversation has a server turned on.
 
 ```ts
 await mcp.servers.list(); // state, instructions

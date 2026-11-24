@@ -3,11 +3,11 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { mcpBlock } from "./mcp-server-hub.js";
-import { createTestMcp } from "./mcp-test-fixture.js";
+import { mcpBlock } from "../../../src/domains/mcp/mcp-enablement.js";
+import { createTestMcp } from "../../fixtures/mcp/test-hub.js";
 
 const FAKE_SERVER = fileURLToPath(
-  new URL("../../../test/fixtures/mcp/fake-mcp-server.mjs", import.meta.url),
+  new URL("../../fixtures/mcp/fake-mcp-server.mjs", import.meta.url),
 );
 
 const fake = (extra: Record<string, unknown> = {}) => ({
@@ -230,7 +230,7 @@ void test("settings turn a server off or on per name, above the entry's own enab
   );
   await assert.rejects(disabled.listTools("on"), {
     code: "FORBIDDEN",
-    message: /Turned off in the settings/,
+    message: /Turned off by an MCP switch of the conversation/,
   });
   assert.equal(started, 0);
   assert.equal(
@@ -336,7 +336,7 @@ void test("the tool index answers without starting, follows the entry and refres
   assert.ok((await names()).includes("grow"));
   assert.equal(await starts(), 1);
   const [approved] = (await env.catalog.load()).active;
-  assert.equal(await env.hub.disconnect(approved, env.home), true);
+  assert.equal(await env.hub.disconnect(approved), true);
   // Served from the index: the program is not started again.
   assert.ok((await names()).includes("grow"));
   assert.equal(await starts(), 1);
@@ -369,7 +369,7 @@ void test("reconcile closes connections of entries that changed or lost approval
   assert.equal((await env.hub.status(entry, env.home)).state, "idle");
 });
 
-void test("mcpBlock puts disabled before approval", () => {
+void test("mcpBlock: a named decision, then the defaults, then the entry's own enabled; disabled before approval", () => {
   const entry = {
     name: "x",
     scope: "user",
@@ -377,7 +377,174 @@ void test("mcpBlock puts disabled before approval", () => {
     digest: "sha256:0",
     review: "needs_approval",
   } as const;
-  assert.equal(mcpBlock(entry, { x: false }), "disabled");
+  assert.equal(mcpBlock(entry, { servers: { x: false } }), "disabled");
   assert.equal(mcpBlock(entry, undefined), "needs_approval");
-  assert.equal(mcpBlock(entry, { x: true }), "needs_approval");
+  assert.equal(mcpBlock(entry, { servers: { x: true } }), "needs_approval");
+  assert.equal(mcpBlock(entry, { defaults: false }), "disabled");
+  assert.equal(
+    mcpBlock(entry, { defaults: false, servers: { x: true } }),
+    "needs_approval",
+  );
+  const off = {
+    ...entry,
+    server: { ...entry.server, config: { command: "c", enabled: false } },
+  } as const;
+  assert.equal(mcpBlock(off, undefined), "disabled");
+  assert.equal(mcpBlock(off, { defaults: true }), "needs_approval");
+});
+
+void test("defaults: false turns off a server outside the resolved map; the message names where when known", async () => {
+  await using env = await setup({
+    unlisted: fake(),
+    off: fake({ enabled: false }),
+  });
+  await env.approveAll();
+  const port = env.hub.port(env.run({}, undefined, false));
+  assert.deepEqual(
+    (await port.listServers()).map((server) => server.state),
+    ["disabled", "disabled"],
+  );
+  await assert.rejects(port.listTools("unlisted"), { code: "FORBIDDEN" });
+  const entryOff = (await port.listServers())[1];
+  assert.match(entryOff.error ?? "", /Turned off by an MCP switch/);
+  const plain = env.hub.port(env.run());
+  assert.match(
+    (await plain.listServers())[1].error ?? "",
+    /Turned off by "enabled": false in the entry/,
+  );
+  const known = env.hub.port({
+    ...env.run(),
+    enablement: async () => ({
+      servers: { unlisted: false },
+      sources: { unlisted: "conversation" },
+    }),
+  });
+  assert.match(
+    (await known.listServers())[0].error ?? "",
+    /Turned off by this conversation's MCP switch/,
+  );
+});
+
+void test("a rejected project entry leaves the user entry working and is marked duplicate", async () => {
+  await using env = await setup({ shared: fake({ description: "user" }) });
+  const project = {
+    projectId: "proj_1",
+    projectDirectory: join(env.home, "p"),
+  };
+  await writeProject(project.projectDirectory, {
+    shared: fake({ description: "project" }),
+  });
+  await env.approveAll();
+  const [projectEntry] = (await env.catalog.load(project)).waiting;
+  env.trust.decide({
+    projectId: "proj_1",
+    resourceKey: "shared",
+    contentDigest: projectEntry.digest,
+    status: "rejected",
+  });
+  const port = env.hub.port(env.run(undefined, project));
+  const rows = await port.listServers();
+  assert.deepEqual(
+    rows.map((row) => [row.scope, row.state, row.duplicate]),
+    [
+      ["user", "idle", undefined],
+      ["project", "rejected", true],
+    ],
+  );
+  assert.equal(
+    (await port.callTool("shared", "echo", { text: "x" })).content.length,
+    1,
+  );
+});
+
+void test("values an entry expanded never appear in errors, failures or the list", async () => {
+  process.env.NERVE_TEST_REDACT = "env-value-9876";
+  try {
+    const warnings: string[] = [];
+    await using env = await setup(
+      {
+        leaky: {
+          command: process.execPath,
+          args: [
+            "-e",
+            "console.error('token=' + process.env.T + ' env=' + process.env.E); process.exit(3)",
+          ],
+          env: { T: "${secret:tok}", E: "${NERVE_TEST_REDACT}" },
+        },
+      },
+      {
+        warn: (message, context) =>
+          warnings.push(message + JSON.stringify(context)),
+      },
+    );
+    env.vault.values.set("mcp:user:tok", "s3cr3t-value-1234");
+    await env.approveAll();
+    const port = env.hub.port(env.run());
+    const error = await port.listTools("leaky").catch((e: Error) => e);
+    assert.ok(error instanceof Error);
+    assert.ok(warnings.length > 0);
+    for (const text of [
+      error.message,
+      JSON.stringify(await port.listServers()),
+      JSON.stringify(warnings),
+      (await env.hub.inspect((await env.catalog.load()).active[0], env.home)).ok
+        ? ""
+        : JSON.stringify(
+            await env.hub.inspect(
+              (await env.catalog.load()).active[0],
+              env.home,
+            ),
+          ),
+    ]) {
+      assert.ok(!text.includes("s3cr3t-value-1234"), text);
+      assert.ok(!text.includes("env-value-9876"), text);
+    }
+    assert.match(
+      error.message,
+      /token=\[secret:tok\] env=\[env:NERVE_TEST_REDACT\]/,
+    );
+  } finally {
+    delete process.env.NERVE_TEST_REDACT;
+  }
+});
+
+void test("a user server started in a project directory is seen and closed from the user page", async () => {
+  await using env = await setup({ fake: fake() });
+  await env.approveAll();
+  const project = {
+    projectId: "proj_1",
+    projectDirectory: join(env.home, "p"),
+  };
+  await mkdir(project.projectDirectory, { recursive: true });
+  const port = env.hub.port(env.run(undefined, project));
+  await port.callTool("fake", "echo", { text: "a" });
+  const [entry] = (await env.catalog.load()).active;
+  // The user page asks with its own directory, not the project's.
+  assert.equal((await env.hub.status(entry, env.home)).state, "connected");
+  assert.equal(await env.hub.disconnect(entry), true);
+  assert.equal((await env.hub.status(entry, env.home)).state, "idle");
+  assert.equal(await env.hub.disconnect(entry), false);
+});
+
+void test("an entry withdrawn while it starts leaves no recorded failure; inspect refuses a pending entry", async () => {
+  await using env = await setup({
+    slow: {
+      command: process.execPath,
+      args: ["-e", "setTimeout(() => process.exit(3), 300)"],
+    },
+  });
+  await env.approveAll();
+  const port = env.hub.port(env.run());
+  const [entry] = (await env.catalog.load()).active;
+  const call = port.listTools("slow").catch((error: Error) => error);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  env.trust.rows.clear();
+  await env.hub.reconcile();
+  await call;
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal((await env.hub.status(entry, env.home)).state, "idle");
+  const pending = (await env.catalog.load()).active[0];
+  assert.equal(pending.review, "needs_approval");
+  const result = await env.hub.inspect(pending, env.home);
+  assert.equal(result.ok, false);
 });

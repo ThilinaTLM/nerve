@@ -51,7 +51,6 @@ const FILE_KINDS = new Set<ConfigurationResourceKind>([
   "agent-preferences",
   "permission-overlay",
   "launch-catalog",
-  "mcp-servers",
 ]);
 
 export const PROJECT_ORIGIN = "In this project, from the repository";
@@ -62,6 +61,11 @@ export function kindLabel(kind: ConfigurationResourceKind): string {
 }
 
 function subject(resource: ConfigurationResource): string {
+  // The `mcp.json` file itself, or one server in it.
+  if (resource.kind === "mcp-servers")
+    return resource.id === "mcp.json"
+      ? KIND_LABELS[resource.kind]
+      : `MCP server ${resource.id}`;
   return FILE_KINDS.has(resource.kind)
     ? KIND_LABELS[resource.kind]
     : `${KIND_LABELS[resource.kind]} ${resource.id}`;
@@ -121,7 +125,7 @@ export function attentionTarget(
     case "launch-catalog":
       return scope === "project" ? { scope, pageId: "launch" } : undefined;
     case "mcp-servers":
-      return undefined;
+      return { scope, pageId: "mcp-servers" };
     case "agent-profile":
       return { scope, pageId: "agents" };
     case "rule-set":
@@ -140,6 +144,8 @@ function reviewDetail(resource: ConfigurationResource): string {
       ? "Changed since you approved it. Not used until you approve it again."
       : "Not used until you approve it.";
   if (resource.kind === "extension") return "Not loaded until you allow it.";
+  if (resource.kind === "mcp-servers")
+    return "Not started until you approve it.";
   return "Ignored until you approve it.";
 }
 

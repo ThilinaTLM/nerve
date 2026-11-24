@@ -139,6 +139,7 @@ function submit(): void {
     onOpenCapabilitySettings={actions.onOpenCapabilitySettings}
     capabilityConfiguration={model.capabilityConfiguration}
     capabilitySkills={model.capabilitySkills}
+    capabilityMcpServers={model.capabilityMcpServers}
     capabilityLoading={model.capabilityLoading}
     capabilityDisabled={model.capabilityDisabled ?? controlsDisabled}
     capabilityError={model.capabilityError}

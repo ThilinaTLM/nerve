@@ -1,6 +1,6 @@
 /**
- * What a script may do with the user's MCP (Model Context Protocol) servers, configured in
- * `mcp.json`: list them, list and call their tools, and list and read their resources. The host
+ * What a script may do with the MCP (Model Context Protocol) servers configured in the user's and
+ * the project's `mcp.json`: list them, list and call their tools, and list and read their resources. The host
  * starts or connects to a server on first use and keeps the connection for later runs.
  *
  * Shapes are the MCP protocol's own (`tools/list`, `tools/call`, `resources/read`), reduced to
@@ -29,6 +29,12 @@ export type McpServerSummary = {
   scope: "user" | "project";
   state: McpServerState;
   error?: string;
+  /**
+   * A second entry with the name of a server that is in use (a project entry waiting for review or
+   * rejected, next to the user's entry that works). Calls by this name reach the other row, not
+   * this one.
+   */
+  duplicate?: true;
   /** The server's own name and version, once connected. */
   server?: { name: string; version: string };
   /** The server's usage instructions, once connected. */

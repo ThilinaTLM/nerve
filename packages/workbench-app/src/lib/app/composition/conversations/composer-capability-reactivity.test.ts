@@ -50,6 +50,7 @@ let activeConversation = $state(null);
 let activePendingConversation = $state({ id: 'draft', overrides: { subagents: { developer: { enabled: true } } } });
 let capabilityRefreshGeneration = 0;
 let capabilitySkills = [];
+let capabilityMcpServers = [];
 let capabilityError;
 let configuringToolGroup;
 let refreshes = 0;

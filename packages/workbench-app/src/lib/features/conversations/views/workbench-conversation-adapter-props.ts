@@ -135,7 +135,7 @@ export type WorkbenchConversationAdapterProps =
     onRefreshPermissionRuleSets?: () => void;
     onOpenPermissionSettings?: () => void;
     onOpenCapabilitySettings?: (
-      page: "tools" | "skills" | "agents" | "sub-agents",
+      page: "tools" | "skills" | "mcp-servers" | "agents" | "sub-agents",
     ) => void;
     onForcePushQueuedPrompts?: (
       prompt: QueuedPromptRecord,
