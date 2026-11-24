@@ -154,6 +154,14 @@ const userPages: Record<string, PageData> = {
       "Work Nerve does on its own. A job that keeps failing shows in the notification bell.",
     sections: [{ id: "jobs", label: "Jobs" }],
   },
+  remote: {
+    label: "Remote connections",
+    description: "Open Nerve from your phone or another computer.",
+    sections: [
+      { id: "tailscale", label: "Tailscale" },
+      { id: "local-network", label: "Same network" },
+    ],
+  },
   devices: {
     label: "Devices",
     description:
@@ -166,9 +174,9 @@ const userPages: Record<string, PageData> = {
   },
   system: {
     label: "System",
-    description: "Network, diagnostics and daemon controls.",
+    description: "Listener, diagnostics and daemon controls.",
     sections: [
-      { id: "network", label: "Network" },
+      { id: "network", label: "Listener" },
       { id: "diagnostics", label: "Diagnostics" },
       { id: "resource-concurrency", label: "Resource concurrency" },
       { id: "daemon", label: "Daemon" },
@@ -270,7 +278,7 @@ const userLayout: NavLayout = [
   {
     id: "system",
     title: "System",
-    pages: ["storage", "background-jobs", "devices", "system"],
+    pages: ["storage", "background-jobs", "remote", "devices", "system"],
   },
 ];
 

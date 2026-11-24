@@ -7,6 +7,7 @@ export { default as SettingsInfoHint } from "./SettingsInfoHint.svelte";
 export { default as SettingsSection } from "./SettingsSection.svelte";
 export { default as SettingsSelectRow } from "./SettingsSelectRow.svelte";
 export { default as SettingsFieldRow } from "./SettingsFieldRow.svelte";
+export { default as RestartNeededCallout } from "./RestartNeededCallout.svelte";
 export { default as SettingsPreviewCards } from "./SettingsPreviewCards.svelte";
 export type { SettingsPreviewOption } from "./SettingsPreviewCards.svelte";
 export { default as SettingsToolbar } from "./SettingsToolbar.svelte";
