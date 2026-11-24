@@ -12,6 +12,7 @@ import Library from "@lucide/svelte/icons/library";
 import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import Mic from "@lucide/svelte/icons/mic";
 import Monitor from "@lucide/svelte/icons/monitor";
+import Plug from "@lucide/svelte/icons/plug";
 import Play from "@lucide/svelte/icons/play";
 import Blocks from "@lucide/svelte/icons/blocks";
 import Server from "@lucide/svelte/icons/server";
@@ -43,6 +44,7 @@ const icons: Record<string, Component> = {
   providers: CloudCog,
   extensions: Blocks,
   accounts: KeyRound,
+  "mcp-servers": Plug,
   general: SlidersHorizontal,
   tools: Wrench,
   skills: Library,
@@ -78,6 +80,7 @@ export const layeredPageIds: readonly string[] = [
   "tools",
   "skills",
   "extensions",
+  "mcp-servers",
 ];
 
 /** Pages that are only about the open project. */

@@ -176,6 +176,16 @@ export function createConversationProtocolSession(
       void state.logger.warn("Configuration health retry failed", { error });
     });
   };
+  /** An approval of an MCP entry: connections of entries that lost it close, and open pages refresh. */
+  const mcpApprovalChanged = (projectId: string | null) => {
+    void platform.mcp
+      .approvalChanged(
+        projectId ? { scope: "project", projectId } : { scope: "user" },
+      )
+      .catch((error) => {
+        void state.logger.warn("MCP approval change failed", { error });
+      });
+  };
   const permissionMutation = async <T>(
     operation: () => Promise<T>,
   ): Promise<T> => {
@@ -221,20 +231,28 @@ export function createConversationProtocolSession(
       return null;
     },
     "trust.list": ({ projectId, kind }) => core.trust.list(projectId, kind),
-    "trust.decide": (input) => {
+    "trust.decide": async (input) => {
       // Extension consent needs the reviewed content hash (`extensions.grantConsent`); here the
       // user can only withdraw it.
       if (input.kind === "extension" && input.status === "trusted")
         throw new Error(
           "Extensions are trusted by reviewing them in Settings.",
         );
-      const result = core.trust.decide(input);
+      // An MCP decision is on the entry as it is now, with grants computed here.
+      const decision =
+        input.kind === "mcp_server"
+          ? { ...input, grants: await platform.mcp.checkDecision(input) }
+          : input;
+      const result = core.trust.decide(decision);
       configurationPublished();
+      if (input.kind === "mcp_server") mcpApprovalChanged(input.projectId);
       return result;
     },
     "trust.delete": ({ trustedResourceId }) => {
+      const removed = state.coreStorage.trustedResources.get(trustedResourceId);
       core.trust.delete(trustedResourceId);
       configurationPublished();
+      if (removed?.kind === "mcp_server") mcpApprovalChanged(removed.projectId);
       return null;
     },
     "conversation.create": async (input) => {

@@ -8,7 +8,6 @@ import {
   StdioTransport,
   StreamableHttpTransport,
   type McpTransport,
-  type Tool,
 } from "@earendil-works/pi-mcp";
 import { pathToFileURL } from "node:url";
 import { ToolExecutionError } from "@nervekit/tools/execution";
@@ -19,11 +18,32 @@ import type {
   McpTool,
 } from "@nervekit/tools/quick-script";
 import {
-  readMcpConfig,
+  mcpEntrySecretNames,
+  mcpRedactor,
+  McpUnsetError,
   resolveMcpServer,
-  type McpServerEntry,
   type ResolvedMcpServer,
 } from "./mcp-config.js";
+import {
+  MCP_SETTINGS_PAGE,
+  type CatalogEntry,
+  type McpCatalog,
+} from "./mcp-catalog.js";
+import type { McpSecrets } from "./mcp-secrets.js";
+import type { McpToolIndex } from "./mcp-tool-index.js";
+import { mcpBlock, mcpBlockMessage, type McpRun } from "./mcp-enablement.js";
+import {
+  failure,
+  indexKeyOf,
+  isApprovedAs,
+  keyOf,
+  notFound,
+  projectOf,
+  sameEntry,
+  toTool,
+  withTimeout,
+  type Prepared,
+} from "./mcp-hub-support.js";
 
 /** Default per-request timeout when the entry sets none. */
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -39,6 +59,16 @@ const INVALID_PARAMS = -32602;
 type Connection = {
   key: string;
   name: string;
+  /** The catalog entry it was started from; a changed or withdrawn entry drops it. */
+  entry: CatalogEntry;
+  projectId?: string;
+  projectDirectory: string;
+  /** Where its tools are indexed. */
+  indexKey: string;
+  /** Hides the values this entry expanded in text that leaves the host. */
+  redact: (text: string) => string;
+  /** Closed on purpose (disconnect, a changed or withdrawn entry): a failure after that is not recorded. */
+  superseded: boolean;
   client: McpClient;
   stderr: string;
   tools?: McpTool[];
@@ -50,18 +80,29 @@ type Connection = {
 };
 
 export type McpServerHubOptions = {
-  home: string;
   version: string;
+  catalog: McpCatalog;
+  secrets: McpSecrets;
+  index: McpToolIndex;
   idleMs?: number;
   /** Replaces the real transports (tests). */
   transport?: (server: ResolvedMcpServer) => McpTransport;
   warn?: (message: string, context: Record<string, unknown>) => void;
 };
 
-type RequestOptions = { signal?: AbortSignal };
+/** How a configured server stands, apart from consent and settings. */
+export type McpConnectionStatus = {
+  state: "connected" | "idle" | "failed";
+  error?: string;
+  server?: { name: string; version: string };
+  instructions?: string;
+  /** Tools in the index, once known. */
+  toolCount?: number;
+  /** For `failed` because variables or secrets have no value: the facts, to word for the user. */
+  unset?: McpUnsetError;
+};
 
-const failure = (code: "NOT_FOUND" | "SERVER_ERROR", message: string) =>
-  new ToolExecutionError(code, message);
+type RequestOptions = { signal?: AbortSignal };
 
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -70,109 +111,315 @@ const messageOf = (error: unknown) =>
  * The daemon's MCP connections. A server is started (stdio) or connected (HTTP) on first use and
  * shared by later calls with the same resolved entry; a stdio server runs per project directory,
  * which is its default `cwd` and the root offered to it. Idle connections close after ten
- * minutes. The configuration is re-read on every call, so edits to mcp.json apply to the next one.
+ * minutes. The files are re-read on every call, so edits apply to the next one. Nothing starts,
+ * connects or is indexed before the user approved the exact entry, and a server the conversation's
+ * settings turn off is left alone.
  */
 export class McpServerHub {
   /** Every connection, including ones still connecting, by key. */
   readonly #connections = new Map<string, Connection>();
   readonly #pending = new Map<string, Promise<Connection>>();
   /** Last connection failure per key, until a later attempt succeeds. */
-  readonly #failures = new Map<string, string>();
+  readonly #failures = new Map<
+    string,
+    { message: string; entry: CatalogEntry; projectDirectory: string }
+  >();
+  /** Advances whenever approvals may have changed (`reconcile`); a start that began earlier checks again. */
+  #generation = 0;
   #closed = false;
 
   constructor(private readonly options: McpServerHubOptions) {}
 
-  /** The port a quick_script run uses; `projectDirectory` is the default cwd and the root offered to stdio servers. */
-  port(projectDirectory: string): McpAgentPort {
+  /** The port a quick_script run uses. */
+  port(run: McpRun): McpAgentPort {
     return {
-      listServers: () => this.listServers(projectDirectory),
-      listTools: (server, options) =>
-        this.#use(server, projectDirectory, options, (connection) =>
+      listServers: () => this.listServers(run),
+      listTools: async (server, options) => {
+        const target = await this.#target(server, run);
+        // A server that was indexed answers without being started.
+        if (!this.#connections.get(target.key)?.ready) {
+          const indexed = await this.options.index
+            .get(target.indexKey)
+            .catch(() => undefined);
+          if (indexed) return indexed;
+        }
+        return this.#use(target, options, (connection) =>
           this.#tools(connection, options),
+        );
+      },
+      callTool: async (server, tool, args, options) =>
+        this.#use(
+          await this.#target(server, run),
+          options,
+          async (connection) => {
+            try {
+              return await connection.client.callTool(tool, args, {
+                signal: options?.signal,
+                timeoutMs: connection.timeoutMs,
+              });
+            } catch (error) {
+              throw await this.#toolFailure(connection, tool, error, options);
+            }
+          },
         ),
-      callTool: (server, tool, args, options) =>
-        this.#use(server, projectDirectory, options, async (connection) => {
-          try {
-            return await connection.client.callTool(tool, args, {
+      listResources: async (server, options) =>
+        this.#use(
+          await this.#target(server, run),
+          options,
+          async (connection) => {
+            if (!connection.client.serverCapabilities?.resources) return [];
+            const resources = await connection.client.listResources({
               signal: options?.signal,
               timeoutMs: connection.timeoutMs,
             });
-          } catch (error) {
-            throw await this.#toolFailure(connection, tool, error, options);
-          }
-        }),
-      listResources: (server, options) =>
-        this.#use(server, projectDirectory, options, async (connection) => {
-          if (!connection.client.serverCapabilities?.resources) return [];
-          const resources = await connection.client.listResources({
-            signal: options?.signal,
-            timeoutMs: connection.timeoutMs,
-          });
-          return resources.map(
-            (resource): McpResource => ({
-              server,
-              uri: resource.uri,
-              name: resource.name,
-              ...(resource.title ? { title: resource.title } : {}),
-              ...(resource.description
-                ? { description: resource.description }
-                : {}),
-              ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
-              ...(resource.size !== undefined ? { size: resource.size } : {}),
-            }),
-          );
-        }),
-      readResource: (server, uri, options) =>
-        this.#use(server, projectDirectory, options, async (connection) => {
-          const result = await connection.client.readResource(uri, {
-            signal: options?.signal,
-            timeoutMs: connection.timeoutMs,
-          });
-          return result.contents;
-        }),
+            return resources.map(
+              (resource): McpResource => ({
+                server,
+                uri: resource.uri,
+                name: resource.name,
+                ...(resource.title ? { title: resource.title } : {}),
+                ...(resource.description
+                  ? { description: resource.description }
+                  : {}),
+                ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+                ...(resource.size !== undefined ? { size: resource.size } : {}),
+              }),
+            );
+          },
+        ),
+      readResource: async (server, uri, options) =>
+        this.#use(
+          await this.#target(server, run),
+          options,
+          async (connection) => {
+            const result = await connection.client.readResource(uri, {
+              signal: options?.signal,
+              timeoutMs: connection.timeoutMs,
+            });
+            return result.contents;
+          },
+        ),
     };
   }
 
   /** Every configured server with its state; connects to none and waits for none. */
-  async listServers(projectDirectory: string): Promise<McpServerSummary[]> {
-    const file = await readMcpConfig(this.options.home);
-    return file.servers.map((entry): McpServerSummary => {
+  async listServers(run: McpRun): Promise<McpServerSummary[]> {
+    const view = await this.options.catalog.load(projectOf(run));
+    const enablement = await run.enablement();
+    const summaries: McpServerSummary[] = [];
+    const rows = [
+      ...view.active.map((entry) => ({ entry, duplicate: false })),
+      ...view.waiting.map((entry) => ({ entry, duplicate: true })),
+    ];
+    for (const { entry, duplicate } of rows) {
       const base = {
         name: entry.name,
-        ...(entry.config.description
-          ? { description: entry.config.description }
+        ...(entry.server.config.description
+          ? { description: entry.server.config.description }
           : {}),
-        transport: entry.kind,
+        transport: entry.server.kind,
+        scope: entry.scope,
+        ...(duplicate ? { duplicate: true as const } : {}),
       };
-      if (entry.config.enabled === false) return { ...base, state: "disabled" };
-      let key: string;
-      try {
-        key = keyOf(
-          entry,
-          resolveMcpServer(entry, projectDirectory),
-          projectDirectory,
-        );
-      } catch (error) {
-        return { ...base, state: "failed", error: messageOf(error) };
+      const block = mcpBlock(entry, enablement);
+      if (block) {
+        summaries.push({
+          ...base,
+          state: block,
+          error: mcpBlockMessage(entry, block, enablement),
+        });
+        continue;
       }
-      const connection = this.#connections.get(key);
-      if (connection?.ready) {
+      const status = await this.status(entry, run.projectDirectory);
+      summaries.push({
+        ...base,
+        state: status.state,
+        ...(status.error ? { error: status.error } : {}),
+        ...(status.server ? { server: status.server } : {}),
+        ...(status.instructions ? { instructions: status.instructions } : {}),
+      });
+    }
+    return summaries;
+  }
+
+  /**
+   * Whether the conversation has a server its settings leave on: then the `mcp` namespace is listed
+   * in quick_script's description. A server waiting for approval counts, so the agent can say so.
+   */
+  async hasEnabledServers(run: McpRun): Promise<boolean> {
+    const view = await this.options.catalog.load(projectOf(run));
+    const enablement = await run.enablement();
+    return view.active.some(
+      (entry) => mcpBlock(entry, enablement) !== "disabled",
+    );
+  }
+
+  /** Connections started from this entry (any project directory). */
+  #matching(entry: CatalogEntry): Connection[] {
+    return [...this.#connections.values()].filter((connection) =>
+      sameEntry(connection.entry, entry),
+    );
+  }
+
+  /** The connection state of an approved entry; `failed` also for variables or secrets that are not set. */
+  async status(
+    entry: CatalogEntry,
+    projectDirectory: string,
+  ): Promise<McpConnectionStatus> {
+    let prepared: Prepared;
+    try {
+      prepared = await this.#prepare(entry, projectDirectory);
+    } catch (error) {
+      return {
+        state: "failed",
+        error: messageOf(error),
+        ...(error instanceof McpUnsetError ? { unset: error } : {}),
+      };
+    }
+    // A stdio server runs per project directory: any of its connections says it is up.
+    const live = this.#matching(entry).find((connection) => connection.ready);
+    const toolCount = (
+      await this.options.index
+        .get(live?.indexKey ?? prepared.indexKey)
+        .catch(() => undefined)
+    )?.length;
+    if (live) {
+      const info = live.client.serverInfo;
+      const instructions = live.client.instructions;
+      return {
+        state: "connected",
+        ...(info ? { server: { name: info.name, version: info.version } } : {}),
+        ...(instructions ? { instructions } : {}),
+        ...(toolCount !== undefined ? { toolCount } : {}),
+      };
+    }
+    const failed = [...this.#failures.values()].find((failure) =>
+      sameEntry(failure.entry, entry),
+    );
+    return {
+      state: failed ? "failed" : "idle",
+      ...(failed ? { error: failed.message } : {}),
+      ...(toolCount !== undefined ? { toolCount } : {}),
+    };
+  }
+
+  /** Connects an approved entry and reports what the server offers (Settings → Test). */
+  async inspect(
+    entry: CatalogEntry,
+    projectDirectory: string,
+  ): Promise<
+    | {
+        ok: true;
+        server?: { name: string; version: string };
+        instructions?: string;
+        tools: McpTool[];
+        resources: McpResource[];
+      }
+    | { ok: false; error: string }
+  > {
+    // Consent is checked here, whatever the caller did: a pending entry is never started.
+    const review = this.options.catalog.review(
+      entry.scope,
+      entry.projectId,
+      entry.name,
+      entry.digest,
+    );
+    if (review !== "approved")
+      return {
+        ok: false,
+        error: mcpBlockMessage(entry, review, undefined, "user"),
+      };
+    try {
+      const prepared = await this.#prepare(entry, projectDirectory);
+      return await this.#use(prepared, undefined, async (connection) => {
+        const tools = await this.#tools(connection, undefined);
+        const resources = connection.client.serverCapabilities?.resources
+          ? (
+              await connection.client.listResources({
+                timeoutMs: connection.timeoutMs,
+              })
+            ).map(
+              (resource): McpResource => ({
+                server: entry.name,
+                uri: resource.uri,
+                name: resource.name,
+                ...(resource.description
+                  ? { description: resource.description }
+                  : {}),
+                ...(resource.mimeType ? { mimeType: resource.mimeType } : {}),
+              }),
+            )
+          : [];
         const info = connection.client.serverInfo;
         const instructions = connection.client.instructions;
         return {
-          ...base,
-          state: "connected",
+          ok: true as const,
           ...(info
             ? { server: { name: info.name, version: info.version } }
             : {}),
           ...(instructions ? { instructions } : {}),
+          tools,
+          resources,
         };
-      }
-      const failed = this.#failures.get(key);
-      return failed
-        ? { ...base, state: "failed", error: failed }
-        : { ...base, state: "idle" };
-    });
+      });
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof McpUnsetError
+            ? error.describe("user")
+            : messageOf(error),
+      };
+    }
+  }
+
+  /** Closes every running connection of the entry, whatever project directory it started in; true when there was one. */
+  async disconnect(entry: CatalogEntry): Promise<boolean> {
+    const connections = this.#matching(entry);
+    for (const [key, failure] of this.#failures)
+      if (sameEntry(failure.entry, entry)) this.#failures.delete(key);
+    for (const connection of connections) {
+      connection.superseded = true;
+      this.#drop(connection);
+    }
+    return connections.length > 0;
+  }
+
+  /**
+   * After an approval, a file edit or a removal: closes connections whose entry is gone, changed or
+   * no longer approved, and forgets their failures and index.
+   */
+  async reconcile(): Promise<void> {
+    // A start that began before this must check approval again before it connects.
+    this.#generation++;
+    const currentOf = async (entry: CatalogEntry, projectDirectory: string) => {
+      const view = await this.options.catalog.load(
+        entry.projectId
+          ? { projectId: entry.projectId, projectDirectory }
+          : undefined,
+      );
+      return view.active.find((candidate) => candidate.name === entry.name);
+    };
+    for (const connection of [...this.#connections.values()]) {
+      const current = await currentOf(
+        connection.entry,
+        connection.projectDirectory,
+      );
+      if (current && isApprovedAs(current, connection.entry)) continue;
+      connection.superseded = true;
+      this.#drop(connection);
+      this.#failures.delete(connection.key);
+      if (!current || current.digest !== connection.entry.digest)
+        await this.options.index
+          .delete(connection.indexKey)
+          .catch(() => undefined);
+    }
+    for (const [key, failure] of [...this.#failures]) {
+      const current = await currentOf(failure.entry, failure.projectDirectory);
+      if (!current || !isApprovedAs(current, failure.entry))
+        this.#failures.delete(key);
+    }
+    this.#generation++;
   }
 
   /** Closes every connection, including ones still connecting (daemon shutdown). */
@@ -189,59 +436,94 @@ export class McpServerHub {
     );
   }
 
-  async #entry(name: string): Promise<McpServerEntry> {
-    const file = await readMcpConfig(this.options.home);
-    const entry = file.servers.find((server) => server.name === name);
-    if (entry) {
-      if (entry.config.enabled === false)
-        throw failure(
-          "NOT_FOUND",
-          `MCP server "${name}" is disabled in ${file.path} ("enabled": false).`,
-        );
-      return entry;
-    }
-    const invalid = file.problems.find((problem) =>
-      problem.startsWith(`server "${name}"`),
-    );
-    if (invalid)
-      throw failure("NOT_FOUND", `MCP server "${name}": ${invalid}.`);
-    if (file.servers.length > 0)
-      throw failure(
-        "NOT_FOUND",
-        `No MCP server "${name}". Configured: ${file.servers.map((server) => server.name).join(", ")}.`,
-      );
-    throw failure(
-      "NOT_FOUND",
-      file.problems.length > 0
-        ? `${file.path} is invalid: ${file.problems.join("; ")}.`
-        : `No MCP servers are configured. Add them to ${file.path} (see the configure-nerve skill).`,
-    );
-  }
-
-  async #use<T>(
-    name: string,
-    projectDirectory: string,
-    options: RequestOptions | undefined,
-    run: (connection: Connection) => Promise<T>,
-  ): Promise<T> {
+  /** The entry a name resolves to for this run, if it may run. */
+  async #target(name: string, run: McpRun): Promise<Prepared> {
     if (this.#closed) throw failure("SERVER_ERROR", "Nerve is shutting down.");
-    const entry = await this.#entry(name);
-    let resolved: ResolvedMcpServer;
+    const view = await this.options.catalog.load(projectOf(run));
+    const entry = view.active.find((candidate) => candidate.name === name);
+    if (!entry) throw notFound(name, view);
+    const enablement = await run.enablement();
+    const block = mcpBlock(entry, enablement);
+    if (block)
+      throw failure(
+        "FORBIDDEN",
+        `MCP server "${name}": ${mcpBlockMessage(entry, block, enablement)} Retrying does not help until then; tell the user.`,
+      );
     try {
-      resolved = resolveMcpServer(entry, projectDirectory);
+      return await this.#prepare(entry, run.projectDirectory);
     } catch (error) {
       throw failure(
         "SERVER_ERROR",
         `MCP server "${name}": ${messageOf(error)}.`,
       );
     }
-    options?.signal?.throwIfAborted();
-    const connection = await this.#connect(
-      keyOf(entry, resolved, projectDirectory),
+  }
+
+  /** Expands the entry (variables and secrets of its own scope) and keys it. Starts nothing. */
+  async #prepare(
+    entry: CatalogEntry,
+    projectDirectory: string,
+  ): Promise<Prepared> {
+    const generation = this.#generation;
+    const secrets = await this.options.secrets.values(
+      entry.scope,
+      entry.projectId,
+      mcpEntrySecretNames(entry.server.config),
+    );
+    const expansion = { env: process.env, secrets };
+    const resolved = resolveMcpServer(
+      entry.server,
+      projectDirectory,
+      expansion,
+      MCP_SETTINGS_PAGE[entry.scope],
+    );
+    return {
       entry,
       resolved,
       projectDirectory,
-    );
+      generation,
+      key: keyOf(entry, resolved, projectDirectory),
+      indexKey: indexKeyOf(entry, resolved, projectDirectory),
+      redact: mcpRedactor(entry.server.config, expansion),
+    };
+  }
+
+  /**
+   * Approval may be withdrawn between choosing the entry and starting it: when approvals changed
+   * since the target was prepared, look at the files and the decision again.
+   */
+  async #assertStillApproved(target: Prepared): Promise<void> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (target.generation === this.#generation) return;
+      target.generation = this.#generation;
+      const view = await this.options.catalog.load(
+        target.entry.projectId
+          ? {
+              projectId: target.entry.projectId,
+              projectDirectory: target.projectDirectory,
+            }
+          : undefined,
+      );
+      const current = view.active.find(
+        (entry) => entry.name === target.entry.name,
+      );
+      if (!current || !isApprovedAs(current, target.entry))
+        throw failure(
+          "FORBIDDEN",
+          `MCP server "${target.entry.name}": the entry changed or lost its approval while the call started. ${mcpBlockMessage(current ?? target.entry, current?.review === "rejected" ? "rejected" : "needs_approval")} Retrying does not help until then; tell the user.`,
+        );
+    }
+  }
+
+  async #use<T>(
+    target: Prepared,
+    options: RequestOptions | undefined,
+    run: (connection: Connection) => Promise<T>,
+  ): Promise<T> {
+    if (this.#closed) throw failure("SERVER_ERROR", "Nerve is shutting down.");
+    options?.signal?.throwIfAborted();
+    await this.#assertStillApproved(target);
+    const connection = await this.#connect(target);
     connection.busy += 1;
     clearTimeout(connection.idle);
     try {
@@ -256,7 +538,7 @@ export class McpServerHub {
       if (error instanceof ToolExecutionError) throw error;
       throw failure(
         "SERVER_ERROR",
-        `MCP server "${name}": ${messageOf(error)}`,
+        `MCP server "${target.entry.name}": ${target.redact(messageOf(error))}`,
       );
     } finally {
       connection.busy -= 1;
@@ -283,31 +565,35 @@ export class McpServerHub {
         );
       return failure(
         "SERVER_ERROR",
-        `${prefix}: ${error.message} (invalid arguments: check the tool's inputSchema with mcp.tools.get).`,
+        `${prefix}: ${connection.redact(error.message)} (invalid arguments: check the tool's inputSchema with mcp.tools.get).`,
       );
     }
     if (error instanceof McpTimeoutError || error instanceof McpAbortError)
       return failure(
         "SERVER_ERROR",
-        `${prefix}: ${error.message}. The tool may have run; check its effect before calling it again.`,
+        `${prefix}: ${connection.redact(error.message)}. The tool may have run; check its effect before calling it again.`,
       );
-    return error instanceof Error ? error : new Error(String(error));
+    return error instanceof Error
+      ? new Error(connection.redact(error.message), { cause: error })
+      : new Error(connection.redact(String(error)));
   }
 
-  #connect(
-    key: string,
-    entry: McpServerEntry,
-    resolved: ResolvedMcpServer,
-    projectDirectory: string,
-  ): Promise<Connection> {
+  #connect(target: Prepared): Promise<Connection> {
+    const { key, entry, resolved, projectDirectory } = target;
     const existing = this.#pending.get(key);
     if (existing) return existing;
-    const timeoutMs = entry.config.timeout
-      ? entry.config.timeout * 1000
+    const timeoutMs = entry.server.config.timeout
+      ? entry.server.config.timeout * 1000
       : DEFAULT_TIMEOUT_MS;
     const connection: Connection = {
       key,
       name: entry.name,
+      entry,
+      ...(entry.projectId ? { projectId: entry.projectId } : {}),
+      projectDirectory,
+      indexKey: target.indexKey,
+      redact: target.redact,
+      superseded: false,
       client: new McpClient({
         name: "nerve",
         version: this.options.version,
@@ -352,6 +638,7 @@ export class McpServerHub {
         "notifications/tools/list_changed",
         () => {
           connection.tools = undefined;
+          void this.#refreshIndex(connection);
         },
       );
       try {
@@ -363,18 +650,27 @@ export class McpServerHub {
       } catch (error) {
         await connection.client.close().catch(() => undefined);
         const stderr = connection.stderr.trim();
-        const reason = `${messageOf(error)}${stderr ? `\nstderr: ${stderr}` : ""}`;
+        // Servers print what they were given, and HTTP errors echo headers: hide expanded values.
+        const reason = target.redact(
+          `${messageOf(error)}${stderr ? `\nstderr: ${stderr}` : ""}`,
+        );
         this.options.warn?.(`MCP server failed to ${verb}`, {
           server: entry.name,
           error: reason,
         });
         throw new Error(reason, { cause: error });
       }
-      if (this.#closed) {
+      if (this.#closed || connection.superseded) {
         await connection.client.close().catch(() => undefined);
-        throw new Error("Nerve is shutting down");
+        throw new Error(
+          this.#closed
+            ? "Nerve is shutting down"
+            : "The entry changed or lost its approval while it started",
+        );
       }
       connection.ready = true;
+      // Fill the index in the background: a later search answers without starting the server.
+      void this.#refreshIndex(connection);
       return connection;
     })();
     this.#connections.set(key, connection);
@@ -383,7 +679,13 @@ export class McpServerHub {
       () => this.#failures.delete(key),
       (error: unknown) => {
         this.#drop(connection);
-        this.#failures.set(key, messageOf(error));
+        // An entry withdrawn while it started has no failure to remember.
+        if (!connection.superseded)
+          this.#failures.set(key, {
+            message: messageOf(error),
+            entry,
+            projectDirectory,
+          });
       },
     );
     return pending.catch((error: unknown) => {
@@ -416,7 +718,22 @@ export class McpServerHub {
       timeoutMs: connection.timeoutMs,
     });
     connection.tools = tools.map((tool) => toTool(connection.name, tool));
+    await this.options.index
+      .set(connection.indexKey, connection.tools)
+      .catch(() => undefined);
     return connection.tools;
+  }
+
+  /** Re-reads the tools after connecting or a `list_changed` notification; a failure drops the stale index. */
+  async #refreshIndex(connection: Connection): Promise<void> {
+    if (!this.#connections.has(connection.key)) return;
+    try {
+      await this.#tools(connection, undefined);
+    } catch {
+      await this.options.index
+        .delete(connection.indexKey)
+        .catch(() => undefined);
+    }
   }
 
   #scheduleIdle(connection: Connection) {
@@ -431,48 +748,5 @@ export class McpServerHub {
       if (connection.busy === 0) this.#drop(connection);
     }, this.options.idleMs ?? DEFAULT_IDLE_MS);
     connection.idle.unref();
-  }
-}
-
-/** Calls share a connection when the resolved entry is the same; a stdio server also per project (its roots). */
-function keyOf(
-  entry: McpServerEntry,
-  resolved: ResolvedMcpServer,
-  projectDirectory: string,
-): string {
-  return JSON.stringify([
-    entry.name,
-    resolved,
-    resolved.kind === "stdio" ? projectDirectory : "",
-  ]);
-}
-
-function toTool(server: string, tool: Tool): McpTool {
-  return {
-    server,
-    name: tool.name,
-    ...(tool.title ? { title: tool.title } : {}),
-    ...(tool.description ? { description: tool.description } : {}),
-    inputSchema: tool.inputSchema,
-    ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
-    ...(tool.annotations ? { annotations: tool.annotations } : {}),
-  };
-}
-
-async function withTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  message: string,
-): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(message)), ms);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
   }
 }

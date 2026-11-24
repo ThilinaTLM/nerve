@@ -1,7 +1,12 @@
 // A small MCP server over stdio for tests and manual QA: newline-delimited JSON-RPC.
 // Tools: echo (text), add (structured), pixel (image), fail (tool error), whereami (cwd and env),
 // crash (the process exits).
+import { appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
+
+// FAKE_MCP_START_LOG: a file that gets one byte per start, to count starts.
+if (process.env.FAKE_MCP_START_LOG)
+  appendFileSync(process.env.FAKE_MCP_START_LOG, "x");
 
 const PIXEL =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
@@ -48,8 +53,26 @@ const tools = [
   },
 ];
 
+// With FAKE_MCP_GROW set, a `grow` tool adds a tool `extra` and sends tools/list_changed.
+if (process.env.FAKE_MCP_GROW)
+  tools.push({
+    name: "grow",
+    description: "Adds the tool extra and notifies",
+    inputSchema: { type: "object", properties: {} },
+  });
+
 function call(name, args) {
   switch (name) {
+    case "grow":
+      tools.push({
+        name: "extra",
+        description: "Added by grow",
+        inputSchema: { type: "object", properties: {} },
+      });
+      process.stdout.write(
+        `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/tools/list_changed" })}\n`,
+      );
+      return { content: [{ type: "text", text: "grown" }] };
     case "echo":
       return { content: [{ type: "text", text: String(args.text) }] };
     case "add": {

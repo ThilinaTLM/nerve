@@ -46,6 +46,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./maintenance",
       "./background-jobs",
       "./launch-definitions",
+      "./mcp",
       "./launches",
       "./tools",
       "./transcription",

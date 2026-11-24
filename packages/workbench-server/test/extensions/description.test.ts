@@ -78,6 +78,6 @@ void test("mcp is listed only when the host names it configured", () => {
   assert.doesNotMatch(quickScriptDescription({}, registry), /\bmcp \(/);
   assert.match(
     quickScriptDescription({ namespaces: ["mcp"] }, registry),
-    /; mcp \(tools and resources of the user's MCP servers/,
+    /; mcp \(tools and resources of the configured MCP servers/,
   );
 });

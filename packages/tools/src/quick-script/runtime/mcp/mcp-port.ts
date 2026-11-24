@@ -1,6 +1,6 @@
 /**
- * What a script may do with the user's MCP (Model Context Protocol) servers, configured in
- * `mcp.json`: list them, list and call their tools, and list and read their resources. The host
+ * What a script may do with the MCP (Model Context Protocol) servers configured in the user's and
+ * the project's `mcp.json`: list them, list and call their tools, and list and read their resources. The host
  * starts or connects to a server on first use and keeps the connection for later runs.
  *
  * Shapes are the MCP protocol's own (`tools/list`, `tools/call`, `resources/read`), reduced to
@@ -12,8 +12,12 @@ export type McpServerState =
   | "connected"
   /** Configured and enabled; connects on first use. */
   | "idle"
-  /** `enabled: false` in mcp.json. */
+  /** Turned off by the user's settings or by `enabled: false` in mcp.json. Never started; calls fail with FORBIDDEN. */
   | "disabled"
+  /** Not reviewed yet: the user must approve the entry before it starts. Never started; calls fail with FORBIDDEN. */
+  | "needs_approval"
+  /** The user reviewed the entry and rejected it. Never started; calls fail with FORBIDDEN. */
+  | "rejected"
   /** The last connection attempt failed; `error` says why. The next call tries again. */
   | "failed";
 
@@ -21,8 +25,16 @@ export type McpServerSummary = {
   name: string;
   description?: string;
   transport: "stdio" | "http";
+  /** Where the entry is defined: the user's mcp.json or the project's. */
+  scope: "user" | "project";
   state: McpServerState;
   error?: string;
+  /**
+   * A second entry with the name of a server that is in use (a project entry waiting for review or
+   * rejected, next to the user's entry that works). Calls by this name reach the other row, not
+   * this one.
+   */
+  duplicate?: true;
   /** The server's own name and version, once connected. */
   server?: { name: string; version: string };
   /** The server's usage instructions, once connected. */
@@ -94,7 +106,13 @@ export type McpRequestOptions = { signal?: AbortSignal };
 export interface McpAgentPort {
   /** Every configured server, connected or not; connects to none. */
   listServers(): Promise<McpServerSummary[]>;
-  /** Connects when needed. Fails with NOT_FOUND naming the configured servers for an unknown name. */
+  /**
+   * Connects when needed (a server with an index may answer without connecting). Fails with
+   * NOT_FOUND naming the configured servers for an unknown name, and with FORBIDDEN for a server
+   * that is disabled, needs approval or is rejected; the message names the state and where the
+   * user acts (User settings → Connections → MCP servers, or Project settings → Agent → MCP
+   * servers). The other methods fail the same way.
+   */
   listTools(server: string, options?: McpRequestOptions): Promise<McpTool[]>;
   callTool(
     server: string,

@@ -1,5 +1,6 @@
 import type { TrustedResourceService } from "@nervekit/conversation-core";
 import { toTrustedDigest } from "@nervekit/contracts/core";
+import { extensionGrantSnapshotSchema } from "@nervekit/contracts/extensions";
 import { hashExtensionContent } from "./content-hash.js";
 import {
   buildConsent,
@@ -57,11 +58,15 @@ export class ExtensionConsentRepository implements ExtensionTrustGate {
     if (approved && approved.contentDigest === toTrustedDigest(contentHash))
       return "trusted";
     const grants = grantSnapshot(candidate.manifest);
+    // An extension row holds an extension snapshot; a row of another kind has none to compare.
+    const approvedGrants = extensionGrantSnapshotSchema.safeParse(
+      approved?.grants,
+    ).data;
     if (
       scope &&
-      approved?.grants &&
+      approvedGrants &&
       candidate.source === "user" &&
-      isEmptyGrant(newGrants(approved.grants, grants))
+      isEmptyGrant(newGrants(approvedGrants, grants))
     ) {
       // Code-only change (or fewer grants): consent stands, and is narrowed to what is granted now.
       this.sources.trust().decide({
@@ -80,7 +85,7 @@ export class ExtensionConsentRepository implements ExtensionTrustGate {
       consent: buildConsent({
         manifest: candidate.manifest,
         contentHash,
-        ...(approved?.grants ? { previous: approved.grants } : {}),
+        ...(approvedGrants ? { previous: approvedGrants } : {}),
       }),
     };
   }

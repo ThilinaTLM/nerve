@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { extensionGrantSnapshotSchema } from "../extensions/catalog.js";
+import { mcpGrantSnapshotSchema } from "../mcp/schemas.js";
 
 /** See docs/architecture/trust.md. Kinds are validated here, not by SQL, so a new kind needs no table rebuild. */
 export const trustedResourceKindSchema = z.enum([
@@ -9,6 +10,7 @@ export const trustedResourceKindSchema = z.enum([
   "agent_profile",
   "project_skill",
   "extension",
+  "mcp_server",
 ]);
 export const trustedResourceStatusSchema = z.enum(["trusted", "rejected"]);
 /** `sha256:<hex>` of the approved content; the prefix lets the algorithm change later. */
@@ -20,13 +22,19 @@ export const trustedContentDigestSchema = z
 export const toTrustedDigest = (hex: string): string =>
   hex.startsWith("sha256:") ? hex : `sha256:${hex}`;
 
-/** The `grants` a kind stores; every kind but `extension` has none. */
+const trustedGrantsSchema = z
+  .union([extensionGrantSnapshotSchema, mcpGrantSnapshotSchema])
+  .nullable();
+
+/** The `grants` a kind stores; every kind but `extension` and `mcp_server` has none. */
 export function trustedResourceGrantsSchema(
   kind: z.infer<typeof trustedResourceKindSchema>,
 ) {
   return kind === "extension"
     ? extensionGrantSnapshotSchema.nullable()
-    : z.null();
+    : kind === "mcp_server"
+      ? mcpGrantSnapshotSchema.nullable()
+      : z.null();
 }
 
 const trustedResourceShape = z.object({
@@ -37,7 +45,7 @@ const trustedResourceShape = z.object({
   name: z.string().nullable(),
   contentDigest: trustedContentDigestSchema,
   status: trustedResourceStatusSchema,
-  grants: extensionGrantSnapshotSchema.nullable(),
+  grants: trustedGrantsSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -62,7 +70,7 @@ export const trustDecisionSchema = z.object({
   name: z.string().nullable(),
   contentDigest: trustedContentDigestSchema,
   status: trustedResourceStatusSchema,
-  grants: extensionGrantSnapshotSchema.nullable().optional(),
+  grants: trustedGrantsSchema.optional(),
 });
 export type TrustDecision = z.infer<typeof trustDecisionSchema>;
 export type TrustedResourceKind = z.infer<typeof trustedResourceKindSchema>;

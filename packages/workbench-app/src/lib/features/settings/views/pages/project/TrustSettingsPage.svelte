@@ -20,6 +20,7 @@ import { SettingsSection, TipBadge } from "$lib/presentation/settings";
 import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
 import type { ExtensionCatalogEntry } from "@nervekit/contracts/extensions";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
+import McpTrustSection from "../mcp/McpTrustSection.svelte";
 import ExtensionConsentDialog from "../extensions/ExtensionConsentDialog.svelte";
 import { installedProblem } from "../extensions/extensions-view";
 import ProfileTrustReviewDialog from "../agent-profiles/ProfileTrustReviewDialog.svelte";
@@ -51,8 +52,10 @@ type Props = {
   projectDirectory?: string;
   /** Capabilities and permissions files, from their controllers. */
   entries: TrustEntry[];
+  /** Opens one MCP server's page, where its entry is reviewed. */
+  onOpenMcpServer?: (item: string) => void;
 };
-let { projectId, projectDirectory, entries }: Props = $props();
+let { projectId, projectDirectory, entries, onOpenMcpServer }: Props = $props();
 
 const root = $derived(
   projectDirectory?.replaceAll("\\", "/").replace(/\/$/, ""),
@@ -317,6 +320,8 @@ async function trustProfile(): Promise<void> {
     </PageList>
   {/if}
 </SettingsSection>
+
+{#if projectId}<McpTrustSection {projectId} onOpen={onOpenMcpServer} />{/if}
 
 <ExtensionConsentDialog
   bind:open={extensionReviewOpen}

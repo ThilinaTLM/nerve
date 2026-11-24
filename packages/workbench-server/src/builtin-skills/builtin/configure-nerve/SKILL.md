@@ -41,9 +41,9 @@ Candidates are listed cheapest first. Take the first that solves the problem.
 | Permission overlays  | `<home>/config/permissions.json`            | `<project>/.nerve/config/permissions.json` (user approves)    | user for a personal rule                          | `reference/permissions.md`        |
 | Agent preferences    | `<home>/config/agent.json`                  | `<project>/.nerve/config/agent.json` (user approves)          | edit only on an exact request                     | `reference/agent-profiles.md`     |
 | Extensions           | `<home>/agent/extensions/<id>/`             | `<project>/.nerve/extensions/<id>/` (user consents)           | user                                              | `guide/extensions.md`             |
-| MCP servers          | `<home>/config/mcp.json`                    | none                                                          | user                                              | `reference/mcp.md`                |
+| MCP servers          | `<home>/config/mcp.json` (user approves)    | `<project>/.nerve/config/mcp.json` (user approves)            | user for a personal one, project for a team one   | `reference/mcp.md`                |
 
-Choose project scope for what the team should share, and name in your hand-over the approval the user must give. Choose user scope for what is personal: it works without approval.
+Choose project scope for what the team should share, and name in your hand-over the approval the user must give. Choose user scope for what is personal: it works without approval (MCP servers excepted: the user approves every entry).
 
 Model providers, accounts and credentials, extension settings, conversation defaults and appearance are the user's in Settings. Point them to the page instead of editing those files. A conversation's own files under `<home>/data/conversations/` are managed by Nerve; do not edit them.
 

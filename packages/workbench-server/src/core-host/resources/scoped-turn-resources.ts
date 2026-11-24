@@ -7,7 +7,6 @@ import type { ConfigurationPreviewInput } from "@nervekit/conversation-core";
 import type { ToolDefinition } from "@nervekit/tools/catalog";
 import type { Skill } from "@nervekit/harness/resources";
 import type { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
-import { hasEnabledMcpServers } from "../../domains/mcp/mcp-config.js";
 import { loadHarnessResources } from "./resource-loader.js";
 import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { withAgentProfiles } from "./turn-resources.adapter.js";
@@ -32,6 +31,11 @@ const blocked = new Set<string>(subagentBlockedToolNames);
 
 export function scopedTurnResources(options: {
   home: string;
+  /** Whether this conversation has an MCP server its settings leave on (lists the `mcp` namespace). */
+  hasEnabledMcpServers(
+    input: ConfigurationPreviewInput,
+    settings: LeadSettingsOverrides,
+  ): Promise<boolean>;
   service: AgentConfigurationService;
   tools(
     cwd: string,
@@ -135,7 +139,9 @@ export function scopedTurnResources(options: {
               })
             ).namespaces,
           ),
-          ...((await hasEnabledMcpServers(options.home)) ? ["mcp"] : []),
+          ...((await options.hasEnabledMcpServers(input, settings))
+            ? ["mcp"]
+            : []),
         ],
       },
       registry,

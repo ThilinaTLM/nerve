@@ -3,6 +3,7 @@ import {
   profileExtensionsSchema,
   type ProfileExtensions,
 } from "../extensions/document.js";
+import { mcpServerNameSchema } from "../mcp/schemas.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
 import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
 import {
@@ -93,6 +94,20 @@ const skills = capabilitySkillsSchema
     description:
       "Per-skill overrides by source (`file`, `nerve`, `agentBrowser`) and source defaults.",
   });
+const mcpServersDescription =
+  "Which MCP servers the agent may use, by server name. A named entry beats `defaults`; a server with no decision follows its own `enabled` in mcp.json (default on).";
+const mcpServers = z
+  .strictObject({
+    defaults: z
+      .boolean()
+      .meta({ description: "Default for servers without a named entry." })
+      .optional(),
+    servers: z
+      .record(mcpServerNameSchema, z.boolean())
+      .meta({ description: "Per-server on/off by server name." })
+      .optional(),
+  })
+  .meta({ description: mcpServersDescription });
 const toolEntryDescription = "Tool entry; at least one field is required.";
 function payload<S extends z.ZodType>(settings: S) {
   return z
@@ -189,6 +204,7 @@ const childShape = {
   retry: retry.partial().meta({ description: retryDescription }).optional(),
   tools: childTools.optional(),
   skills: skills.optional(),
+  mcpServers: mcpServers.optional(),
 };
 export const childSettingsOverridesSchema = z.strictObject(childShape);
 export const leadSettingsOverridesSchema = z.strictObject({
@@ -228,6 +244,8 @@ export const completeChildSettingsSchema = childSettingsOverridesSchema.extend({
   retry,
   tools: completeTools,
   skills: capabilitySkillsSchema.extend({ defaults: sourceDefaults }).strict(),
+  // Optional: configurations frozen before MCP settings existed omit it.
+  mcpServers: mcpServers.optional(),
 });
 export type CompleteChildSettings = z.infer<typeof completeChildSettingsSchema>;
 export const sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -245,6 +263,18 @@ const profileSettingsOverridesSchema = leadSettingsOverridesSchema.extend({
     .meta({
       description:
         "Per-skill overrides by source (`file`, `nerve`, `agentBrowser`). Profiles cannot set `defaults`.",
+    })
+    .optional(),
+  mcpServers: z
+    .strictObject({
+      servers: z
+        .record(mcpServerNameSchema, z.boolean())
+        .meta({ description: "Per-server on/off by server name." })
+        .optional(),
+    })
+    .meta({
+      description:
+        "Per-server overrides by server name. Profiles cannot set `defaults`.",
     })
     .optional(),
 });
@@ -514,6 +544,13 @@ export function requirementOverlaps(
     b = canonicalSettingsEntries(requirements).map(([p]) => p);
   function overlaps(x: string, y: string) {
     if (x === y || x.startsWith(y + "/") || y.startsWith(x + "/")) return true;
+    if (
+      (x.startsWith("/mcpServers/defaults") &&
+        y.startsWith("/mcpServers/servers/")) ||
+      (y.startsWith("/mcpServers/defaults") &&
+        x.startsWith("/mcpServers/servers/"))
+    )
+      return true;
     const source = (p: string) =>
       p.startsWith("/skills/defaults/")
         ? p.slice(17)

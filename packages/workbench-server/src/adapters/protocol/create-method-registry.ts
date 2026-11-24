@@ -1,4 +1,5 @@
 import { scopedConfigurationMethodHandlers } from "./handlers/scoped-configuration-method-handlers.js";
+import { mcpMethodHandlers } from "./handlers/mcp-method-handlers.js";
 import { extensionMethodHandlers } from "./handlers/extension-method-handlers.js";
 import { completionMethodHandlers } from "./handlers/completion-method-handlers.js";
 import { activityMethodHandlers } from "./handlers/activity-method-handlers.js";
@@ -39,6 +40,12 @@ export function bindWorkbenchOperationHandlers(
     ),
     bindWorkbenchMethodHandlerGroup(
       extensionMethodHandlers,
+      contexts.platform,
+      diagnostics,
+      invocation,
+    ),
+    bindWorkbenchMethodHandlerGroup(
+      mcpMethodHandlers,
       contexts.platform,
       diagnostics,
       invocation,
