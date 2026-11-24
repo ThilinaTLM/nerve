@@ -1,3 +1,4 @@
+import { protocolSocketUrl } from "./protocol-socket-url";
 import {
   conversationChannelOperations,
   conversationChannelEventSchemas,
@@ -157,15 +158,7 @@ function dispatchNotice(type: string, data: unknown): void {
 
 export async function connectConversationChannel(wsUrl: string): Promise<void> {
   await connection?.close();
-  const url = new URL(wsUrl);
-  if (
-    globalThis.location?.protocol === "http:" ||
-    globalThis.location?.protocol === "https:"
-  ) {
-    url.host = globalThis.location.host;
-    url.protocol = globalThis.location.protocol === "https:" ? "wss:" : "ws:";
-  }
-  url.pathname = "/ws/conversations";
+  const url = new URL(protocolSocketUrl(wsUrl, "/ws/conversations"));
   const messages = createMessageFactory({
     source: {
       role: "ui",

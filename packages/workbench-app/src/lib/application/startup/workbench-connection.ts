@@ -1,3 +1,4 @@
+import { protocolSocketUrl } from "./protocol-socket-url";
 import { createMessageFactory } from "@nervekit/protocol";
 import {
   ProtocolClientConnection,
@@ -87,15 +88,7 @@ export async function connectWorkbenchChannel(
   recoverMonitors: () => Promise<void>,
 ): Promise<void> {
   await connection?.close();
-  const url = new URL(wsUrl);
-  if (
-    globalThis.location?.protocol === "http:" ||
-    globalThis.location?.protocol === "https:"
-  ) {
-    url.host = globalThis.location.host;
-    url.protocol = globalThis.location.protocol === "https:" ? "wss:" : "ws:";
-  }
-  url.pathname = "/ws/workbench";
+  const url = new URL(protocolSocketUrl(wsUrl, "/ws/workbench"));
   const messages = createMessageFactory({
     source: {
       role: "ui",
