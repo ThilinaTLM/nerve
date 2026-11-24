@@ -8,6 +8,7 @@ import {
   resolveSettingsTarget,
   settingsPageDetail,
   settingsPageIds,
+  settingsScopeForPage,
   type SettingsRedirect,
 } from "./settings-page-data";
 
@@ -24,7 +25,7 @@ describe("settings page registry", () => {
         ["agents", "sub-agents", "permission-rules", "models", "suggestions"],
       ],
       ["App", ["workbench", "notifications", "shortcuts", "voice", "titles"]],
-      ["System", ["storage", "background-jobs", "devices", "system"]],
+      ["System", ["storage", "background-jobs", "remote", "devices", "system"]],
     ]);
   });
 
@@ -63,6 +64,16 @@ describe("settings page registry", () => {
 });
 
 describe("settings deep-link targets", () => {
+  it("keeps user pages in the user scope while a project is open", () => {
+    // Links to Devices or Notifications used to land on project General.
+    for (const pageId of ["devices", "notifications", "providers"]) {
+      assert.equal(settingsScopeForPage(true, pageId), "user");
+    }
+    assert.equal(settingsScopeForPage(true, "trust"), "project");
+    assert.equal(settingsScopeForPage(true, undefined), "project");
+    assert.equal(settingsScopeForPage(false, "trust"), "user");
+  });
+
   const redirects: SettingsRedirect[] = [
     {
       from: { pageId: "integrations", section: "tavily-accounts" },

@@ -185,4 +185,41 @@ describe("DeviceStore", () => {
     await writeFile(path, "{broken");
     assert.deepEqual(await new DeviceStore(path).list(), []);
   });
+  it("keeps push subscriptions off device views and removes them with the device", async () => {
+    const { store, path, open } = await fixture();
+    const a = await store.create({
+      name: "a",
+      kind: "mobile",
+      method: "pairing",
+    });
+    const b = await store.create({
+      name: "b",
+      kind: "mobile",
+      method: "pairing",
+    });
+    const subscription = {
+      endpoint: "https://push.example/abc",
+      keys: { p256dh: "p", auth: "a" },
+    };
+    assert.equal(
+      await store.setPushSubscription(a.device.id, subscription),
+      true,
+    );
+    assert.equal(
+      await store.setPushSubscription("dev_missing", subscription),
+      false,
+    );
+    assert.ok(!JSON.stringify(await store.list()).includes("push.example"));
+    assert.deepEqual(await open().pushSubscription(a.device.id), subscription);
+    assert.equal((await store.subscribedDevices()).length, 1);
+    assert.match(await readFile(path, "utf8"), /push\.example/);
+
+    await store.clearPushSubscription(a.device.id);
+    assert.equal(await store.pushSubscription(a.device.id), undefined);
+
+    await store.setPushSubscription(b.device.id, subscription);
+    await store.revoke(b.device.id);
+    assert.deepEqual(await store.subscribedDevices(), []);
+    assert.ok(!(await readFile(path, "utf8")).includes("push.example"));
+  });
 });

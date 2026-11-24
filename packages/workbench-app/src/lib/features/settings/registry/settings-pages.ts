@@ -21,6 +21,7 @@ import SlidersHorizontal from "@lucide/svelte/icons/sliders-horizontal";
 import Users from "@lucide/svelte/icons/users";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Smartphone from "@lucide/svelte/icons/smartphone";
+import Radio from "@lucide/svelte/icons/radio";
 import Boxes from "@lucide/svelte/icons/boxes";
 import type {
   SettingsNavBadge,
@@ -30,12 +31,13 @@ import type {
 } from "$lib/presentation/settings";
 import {
   resolveSettingsTarget,
+  settingsScopeForPage,
   pagesByScope,
   type NavLayout,
   type PageData,
 } from "./settings-page-data";
 
-export { resolveSettingsTarget };
+export { resolveSettingsTarget, settingsScopeForPage };
 
 const icons: Record<string, Component> = {
   providers: CloudCog,
@@ -56,6 +58,7 @@ const icons: Record<string, Component> = {
   suggestions: Lightbulb,
   storage: HardDrive,
   "background-jobs": Timer,
+  remote: Radio,
   devices: Smartphone,
   system: Server,
   launch: Play,
@@ -105,7 +108,7 @@ const surfaceLayout: NavLayout = [
   {
     id: "system",
     title: "System",
-    pages: ["storage", "background-jobs", "devices", "system"],
+    pages: ["storage", "background-jobs", "remote", "devices", "system"],
   },
 ];
 

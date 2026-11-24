@@ -7,6 +7,7 @@ import MobileBranchesHost from "./MobileBranchesHost.svelte";
 import MobileCenterRouteScreen from "./MobileCenterRouteScreen.svelte";
 import MobileConversationScreen from "./MobileConversationScreen.svelte";
 import MobileConversationsHost from "./MobileConversationsHost.svelte";
+import MobileDesktopOnlyScreen from "./MobileDesktopOnlyScreen.svelte";
 import MobileGitChangesHost from "./MobileGitChangesHost.svelte";
 import MobileProjectHomeHost from "./MobileProjectHomeHost.svelte";
 import MobilePullRequestsHost from "./MobilePullRequestsHost.svelte";
@@ -14,8 +15,8 @@ import type { MobileRoute } from "./mobile-routes";
 
 /**
  * Route → screen. Screens that bind feature internals (files, notes,
- * launches, logs, settings) live in the composition root and load on first use, so the
- * phone shell does not pull settings or log tooling into the startup bundle.
+ * launches, settings) live in the composition root and load on first use, so
+ * the phone shell does not pull settings tooling into the startup bundle.
  */
 let {
   route,
@@ -46,6 +47,8 @@ let {
   />
 {:else if route.kind === "branches"}
   <MobileBranchesHost model={gitPanel.model} actions={gitPanel.actions} />
+{:else if route.kind === "desktop-only"}
+  <MobileDesktopOnlyScreen title={route.title} />
 {:else if route.kind === "pull-requests"}
   <MobilePullRequestsHost model={gitPanel.model} actions={gitPanel.actions} />
 {:else if route.kind === "center"}

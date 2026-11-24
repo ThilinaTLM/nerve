@@ -11,9 +11,6 @@ type LazyMobileRouteKind =
   | "note"
   | "settings"
   | "settings-page"
-  | "project-settings"
-  | "project-settings-page"
-  | "logs"
   | "launches"
   | "launch";
 
@@ -31,10 +28,6 @@ export const mobileScreenLoaders = {
   note: () => import("./MobileNoteEditorHost.svelte"),
   settings: () => import("./MobileSettingsHost.svelte"),
   "settings-page": () => import("./MobileSettingsPageHost.svelte"),
-  "project-settings": () => import("./MobileProjectSettingsHost.svelte"),
-  "project-settings-page": () =>
-    import("./MobileProjectSettingsPageHost.svelte"),
-  logs: () => import("./MobileLogsHost.svelte"),
   launches: () => import("./MobileLaunchesHost.svelte"),
   launch: () => import("./MobileLaunchOutputHost.svelte"),
 } satisfies Record<LazyMobileRouteKind, () => MobileScreenModule>;

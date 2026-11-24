@@ -14,6 +14,7 @@ import {
 import { gitMethodHandlers } from "./handlers/git-method-handlers.js";
 import { platformMethodHandlers } from "./handlers/platform-method-handlers.js";
 import { projectMethodHandlers } from "./handlers/project-method-handlers.js";
+import { presenceMethodHandlers } from "./handlers/presence-method-handlers.js";
 import { launchMethodHandlers } from "./handlers/launch-method-handlers.js";
 
 export const WORKBENCH_OPERATION_METHODS = allOperationDefinitions()
@@ -56,6 +57,12 @@ export function bindWorkbenchOperationHandlers(
     ),
     bindWorkbenchMethodHandlerGroup(
       platformMethodHandlers,
+      contexts.platform,
+      diagnostics,
+      invocation,
+    ),
+    bindWorkbenchMethodHandlerGroup(
+      presenceMethodHandlers,
       contexts.platform,
       diagnostics,
       invocation,

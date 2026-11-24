@@ -6,6 +6,7 @@ import {
   type DeviceKind,
   type DeviceMethod,
   type DeviceView,
+  type PushSubscriptionData,
 } from "@nervekit/contracts/access";
 import {
   readDevicesFile,
@@ -264,6 +265,57 @@ export class DeviceStore {
     );
     if (removed.length > 0) await this.#persist();
     return removed;
+  }
+
+  // ---- web push subscriptions -------------------------------------------
+
+  /** Store (replace) the push subscription of an existing device. */
+  async setPushSubscription(
+    deviceId: string,
+    subscription: PushSubscriptionData,
+  ): Promise<boolean> {
+    const file = await this.#load();
+    const record = file.devices.find((entry) => entry.device.id === deviceId);
+    if (!record) return false;
+    record.pushSubscription = structuredClone(subscription);
+    await this.#persist();
+    return true;
+  }
+
+  async clearPushSubscription(deviceId: string): Promise<void> {
+    const file = await this.#load();
+    const record = file.devices.find((entry) => entry.device.id === deviceId);
+    if (!record?.pushSubscription) return;
+    record.pushSubscription = undefined;
+    await this.#persist();
+  }
+
+  async pushSubscription(
+    deviceId: string,
+  ): Promise<PushSubscriptionData | undefined> {
+    const file = await this.#load();
+    const found = file.devices.find(
+      (entry) => entry.device.id === deviceId,
+    )?.pushSubscription;
+    return found && structuredClone(found);
+  }
+
+  /** Subscriptions of devices whose credentials still work. */
+  async subscribedDevices(): Promise<
+    Array<{ deviceId: string; subscription: PushSubscriptionData }>
+  > {
+    const file = await this.#load();
+    const now = this.#now();
+    return file.devices.flatMap(({ device, pushSubscription }) =>
+      pushSubscription && this.#state(device, now) === "active"
+        ? [
+            {
+              deviceId: device.id,
+              subscription: structuredClone(pushSubscription),
+            },
+          ]
+        : [],
+    );
   }
 
   // ---- owner passkeys ----------------------------------------------------

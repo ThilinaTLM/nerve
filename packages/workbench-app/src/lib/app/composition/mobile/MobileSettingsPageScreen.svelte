@@ -2,7 +2,6 @@
 import { PageEmptyState } from "@nervekit/ui-kit/components/composites/page";
 import { appearanceState } from "$lib/platform/appearance/appearance.svelte";
 import { untrack } from "svelte";
-import type { Project } from "@nervekit/contracts/core";
 import Monitor from "@lucide/svelte/icons/monitor";
 import { MobileScreen } from "$lib/presentation/shell";
 import { settingsPageFor } from "$lib/features/settings/registry/settings-pages";
@@ -11,41 +10,35 @@ import { settingsState } from "$lib/features/settings/state/settings-state.svelt
 import { settingsSelectors } from "$lib/features/settings";
 import {
   loadSettingsPanel,
-  loadSettingsSkills,
   queueSettingsSave,
   restartOwnedDaemon,
   saveApplicationConfiguration,
   setTheme,
 } from "$lib/application/settings/settings-actions.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
-import {
-  backFromMobileScreen,
-  pushMobileScreen,
-} from "$lib/app/shell/mobile/mobile-shell.svelte";
+import { backFromMobileScreen } from "$lib/app/shell/mobile/mobile-shell.svelte";
 import SettingsPageActions from "../settings/SettingsPageActions.svelte";
 import SettingsPageContent from "../settings/SettingsPageContent.svelte";
 import { createSettingsPageControllers } from "../settings/settings-page-controllers.svelte";
-import { isDesktopOnlySettingsPage } from "./mobile-settings";
+import { isPhoneSettingsPage } from "./mobile-settings";
 
 /**
  * One settings page as a phone screen. The body is the desktop page component;
- * only the navigation around it (sidebar, section links) is phone-native. The
- * target comes from the route, so the active project never retargets it.
+ * only the navigation around it (sidebar, section links) is phone-native.
+ * Pages the phone does not offer (a link from elsewhere) say so instead.
  */
 let {
   target,
-  project,
   pageId,
   backLabel,
 }: {
   target: SettingsScopeTarget;
-  project?: Project;
   pageId: string;
   backLabel: string;
 } = $props();
 
 // Routes can outlive the registry (restored state); unknown pages show the default.
-const page = $derived(settingsPageFor({ projectName: project?.name }, pageId));
+const page = $derived(settingsPageFor({}, pageId));
 /** Open detail item of pages with a detail view; "" shows the list. */
 let itemId = $state("");
 let sectionId = $state<string>();
@@ -54,13 +47,12 @@ $effect(() => {
   void page.id;
   untrack(() => (itemId = ""));
 });
-const desktopOnly = $derived(isDesktopOnlySettingsPage(page.id));
+const desktopOnly = $derived(!isPhoneSettingsPage(page.id));
 const status = $derived(workspaceSelectors.status);
 const controllers = createSettingsPageControllers({
   target: () => target,
-  project: () => project,
+  project: () => undefined,
 });
-const skillsProjectId = $derived(project?.id);
 const saveLabel = $derived.by(() => {
   const message = settingsSelectors.settingsMessage;
   if (message) return message;
@@ -74,7 +66,7 @@ const saveLabel = $derived.by(() => {
     case "error":
       return "Could not save settings";
     default:
-      return project?.name;
+      return undefined;
   }
 });
 
@@ -82,11 +74,6 @@ $effect(() => {
   untrack(() => {
     if (!settingsState.settingsDraft) void loadSettingsPanel();
   });
-});
-
-$effect(() => {
-  if (settingsState.skillsProjectId === (skillsProjectId ?? null)) return;
-  void loadSettingsSkills(skillsProjectId);
 });
 </script>
 
@@ -101,7 +88,6 @@ $effect(() => {
         {page}
         {controllers}
         settingsDraft={settingsState.settingsDraft}
-        {project}
         onSettingsChange={queueSettingsSave}
       />{/if}
   {/snippet}
@@ -125,14 +111,6 @@ $effect(() => {
           sectionId = section;
         }}
         onCloseItem={() => (itemId = "")}
-        onOpenPage={project
-          ? (nextPageId) =>
-              pushMobileScreen({
-                kind: "project-settings-page",
-                projectId: project.id,
-                pageId: nextPageId,
-              })
-          : undefined}
         {status}
         settingsDraft={settingsState.settingsDraft}
         applicationConfiguration={settingsState.applicationConfiguration}
@@ -140,11 +118,6 @@ $effect(() => {
         daemonRestarting={settingsState.daemonRestarting}
         models={settingsState.models}
         authProviders={settingsState.authProviders}
-        {project}
-        skills={settingsState.skills}
-        skillsLoading={settingsState.skillsLoading}
-        skillsError={settingsState.skillsError}
-        onSkillsRetry={() => loadSettingsSkills(skillsProjectId)}
         onSettingsChange={queueSettingsSave}
         onApplicationConfigurationChange={saveApplicationConfiguration}
         onRestartDaemon={restartOwnedDaemon}

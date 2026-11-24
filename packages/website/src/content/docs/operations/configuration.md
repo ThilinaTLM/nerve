@@ -29,7 +29,7 @@ Defaults are `NERVE_HOME=~/.nerve`, host `127.0.0.1`, HTTP port `3747`, remote a
 - Linux Electron Ozone platform and font rendering;
 - whether closing the window hides Nerve in the tray (**Close to system tray**) instead of quitting, which is the default.
 
-Enabling **Allow remote connections** also changes a loopback bind host to `0.0.0.0`, so the next daemon launch can accept LAN clients. Disabling it restores `127.0.0.1` when the host is a wildcard. You can still enter a specific interface address in the advanced host field.
+Enabling **Allow devices on this network** (**Settings → Remote connections**) also changes a loopback bind host to `0.0.0.0`, so the next daemon launch can accept LAN clients. Disabling it restores `127.0.0.1` when the host is a wildcard. You can still enter a specific interface address in the advanced host field.
 
 Resource concurrency defaults to automatic. At daemon startup, Nerve uses effective CPU capacity and total memory to choose separate limits; normal developer machines with at least 12 GiB RAM admit ten primary model runs, while tool batches, and subprocesses retain independent safety limits. The System page shows detected, recommended, and effective values. GPU capacity is intentionally not treated as generic concurrency because local-model memory requirements are model-specific.
 

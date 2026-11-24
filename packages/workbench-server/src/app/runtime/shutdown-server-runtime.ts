@@ -9,6 +9,8 @@ export interface ServerShutdownResources {
   logger: { flush(): Promise<void> };
   /** Flushes buffered device `lastSeenAt` updates. */
   access?: { dispose(): Promise<void> };
+  /** Closes the tunnel listener and removes our Serve entry (bounded, best effort). */
+  tunnel?: { close(): Promise<void> };
 }
 
 const shutdownOperations = new WeakMap<
@@ -51,6 +53,11 @@ export function shutdownServerRuntime(
     }
     try {
       await state.subscriptionUsage.stop();
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      await state.tunnel?.close();
     } catch (error) {
       failures.push(error);
     }

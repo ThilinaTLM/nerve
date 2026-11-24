@@ -53,6 +53,28 @@ test("picks the remembered network, then the current one, then the best", () => 
   assert.equal(pick(undefined, "http://127.0.0.1:3747"), "Local network");
 });
 
+test("prefers the private tunnel without a remembered choice", () => {
+  const links = [
+    {
+      kind: "lan",
+      label: "Local network",
+      url: "https://192.168.1.2:3748/#pair=X",
+    },
+    {
+      kind: "tunnel",
+      label: "Tailscale (private HTTPS)",
+      url: "https://a.ts.net/#pair=X",
+    },
+  ] as const;
+  const pick = (remembered?: string) =>
+    defaultPairingLink(links, {
+      remembered,
+      origin: "https://192.168.1.2:3748",
+    })?.label;
+  assert.equal(pick(), "Tailscale (private HTTPS)");
+  assert.equal(pick("Local network"), "Local network");
+});
+
 test("encodes a QR matrix", () => {
   const matrix = buildQrMatrix("https://nerve.test/#pair=ABCD-EFGH");
   assert.ok(matrix.size >= 21);

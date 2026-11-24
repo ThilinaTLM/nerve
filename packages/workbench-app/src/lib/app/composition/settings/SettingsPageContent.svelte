@@ -22,7 +22,10 @@ import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
 import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
-import { DevicesSettingsPage } from "$lib/features/access";
+import {
+  DevicesSettingsPage,
+  RemoteAccessSettingsPage,
+} from "$lib/features/access";
 import GeneralSettingsPage from "$lib/features/settings/views/pages/general/GeneralSettingsPage.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
 import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifications/NotificationsSettingsPage.svelte";
@@ -298,6 +301,16 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
     <AccountSignInDialog flow={accountSignIn} />
   {:else if page.id === "background-jobs"}
     <BackgroundJobsSettingsPage />
+  {:else if page.id === "remote"}
+    <RemoteAccessSettingsPage
+      configuration={applicationConfiguration}
+      tunnel={status?.tunnel}
+      canRestartDaemon={daemonCapability?.canRestart ?? false}
+      {daemonRestarting}
+      onConfigurationChange={onApplicationConfigurationChange}
+      {onRestartDaemon}
+      onOpenDevices={onOpenPage ? () => onOpenPage("devices") : undefined}
+    />
   {:else if page.id === "devices"}
     <DevicesSettingsPage />
   {:else if page.id === "system"}

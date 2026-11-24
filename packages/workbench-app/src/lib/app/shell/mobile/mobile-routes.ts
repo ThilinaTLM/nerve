@@ -30,11 +30,11 @@ export type MobileRoute =
   | { kind: "pull-requests"; projectId: string }
   | { kind: "branches"; projectId: string }
   | { kind: "center"; identity: MobileCenterIdentity }
+  /** Phone settings: the few pages that make sense on a phone. */
   | { kind: "settings" }
   | { kind: "settings-page"; pageId: string }
-  | { kind: "project-settings"; projectId: string }
-  | { kind: "project-settings-page"; projectId: string; pageId: string }
-  | { kind: "logs" };
+  /** A desktop area the phone does not offer, reached through a link. */
+  | { kind: "desktop-only"; title: string };
 
 export type MobileNavState = {
   tab: MobileTabId;
@@ -69,12 +69,9 @@ export function mobileRouteKey(route: MobileRoute): string {
       return `center:${route.identity.kind}:${route.identity.id}`;
     case "settings-page":
       return `settings-page:${route.pageId}`;
-    case "project-settings":
-      return `project-settings:${route.projectId}`;
-    case "project-settings-page":
-      return `project-settings-page:${route.projectId}:${route.pageId}`;
+    case "desktop-only":
+      return `desktop-only:${route.title}`;
     case "settings":
-    case "logs":
       return route.kind;
   }
 }
@@ -187,8 +184,9 @@ export function mobileHistoryDepth(state: MobileNavState): number {
 }
 
 /**
- * The route a center-tab activation lands on. Settings and logs have native
- * phone screens; everything else renders its registered center host.
+ * The route a center-tab activation lands on. Settings has a native phone
+ * screen (pages the phone does not offer show as desktop-only there); logs are
+ * desktop-only; everything else renders its registered center host.
  * `settingsPageId` is the page the settings tab is showing.
  */
 export function mobileRouteForCenterTab(
@@ -200,7 +198,7 @@ export function mobileRouteForCenterTab(
       ? { kind: "settings-page", pageId: settingsPageId }
       : { kind: "settings" };
   }
-  if (identity.kind === "logs") return { kind: "logs" };
+  if (identity.kind === "logs") return { kind: "desktop-only", title: "Logs" };
   return { kind: "center", identity: { kind: identity.kind, id: identity.id } };
 }
 
@@ -208,11 +206,11 @@ export function mobileRouteForCenterTab(
  * The stack survives a page reload through per-tab session storage. Restored
  * data is untrusted: anything malformed resets to the inbox, and center routes
  * other than conversations are dropped because their tab view state is gone.
+ * Desktop-only notices and routes from older versions are dropped too.
  */
 
 const PROJECT_ROUTE_KINDS = new Set([
   "project",
-  "project-settings",
   "conversations",
   "launches",
   "notes",
@@ -257,12 +255,7 @@ function parseMobileRoute(value: unknown): MobileRoute | undefined {
     }
     case "settings-page":
       return isText(route.pageId) ? { kind, pageId: route.pageId } : undefined;
-    case "project-settings-page":
-      return isText(route.projectId) && isText(route.pageId)
-        ? { kind, projectId: route.projectId, pageId: route.pageId }
-        : undefined;
     case "settings":
-    case "logs":
       return { kind };
     default:
       return undefined;

@@ -3,12 +3,14 @@ import {
   classifyPresence,
   createSoundThrottle,
   decideDelivery,
-  mostUrgent,
   MUTE_DURATION_MS,
-  type AttentionInputKind,
-  type AttentionKind,
   type AttentionPresence,
 } from "./attention-policy";
+import {
+  mostUrgent,
+  type AttentionInputKind,
+  type AttentionKind,
+} from "@nervekit/contracts/core";
 import {
   notificationState,
   notifyNative,
@@ -113,6 +115,11 @@ export function attentionPresence(conversationId: string): AttentionPresence {
     now: Date.now(),
     viewing: isViewing(conversationId),
   });
+}
+
+/** This window is focused with recent input (what the daemon calls active). */
+export function isPresenceActive(): boolean {
+  return attentionPresence("") !== "away";
 }
 
 export function deliverAttention(

@@ -6,7 +6,6 @@ import {
   mobileHistoryDepth,
   mobileRouteForCenterTab,
   mobileRouteProjectId,
-  mobileRoutesEqual,
   parseMobileNav,
   popMobileRoute,
   popMobileRouteTo,
@@ -127,29 +126,23 @@ describe("mobile routes", () => {
     );
   });
 
-  it("carries the project on project settings routes", () => {
-    const index: MobileRoute = { kind: "project-settings", projectId: "p1" };
-    const page: MobileRoute = {
-      kind: "project-settings-page",
-      projectId: "p1",
-      pageId: "tools",
-    };
-    assert.equal(mobileRouteProjectId(index), "p1");
-    assert.equal(mobileRouteProjectId(page), "p1");
-    // Another project's page is a different screen, not a duplicate.
-    assert.equal(mobileRoutesEqual(page, { ...page, projectId: "p2" }), false);
+  it("drops desktop-only notices and retired routes on restore", () => {
     let state = pushMobileRoute(initialMobileNavState(), project);
-    state = pushMobileRoute(state, index);
-    state = pushMobileRoute(state, page);
-    assert.deepEqual(popMobileRoute(state).stacks.inbox, [project, index]);
-    assert.deepEqual(parseMobileNav(serializeMobileNav(state)), state);
-    assert.deepEqual(
-      pruneMissingRoutes(state, {
-        projectIds: new Set(["p9"]),
-        conversationIds: new Set(),
-      }).stacks.inbox,
-      [],
-    );
+    state = pushMobileRoute(state, { kind: "desktop-only", title: "Logs" });
+    assert.deepEqual(parseMobileNav(serializeMobileNav(state)).stacks.inbox, [
+      project,
+    ]);
+    const stored = JSON.stringify({
+      tab: "inbox",
+      stacks: {
+        inbox: [project, { kind: "project-settings", projectId: "p1" }],
+        projects: [{ kind: "logs" }],
+        activity: [],
+      },
+    });
+    const restored = parseMobileNav(stored);
+    assert.deepEqual(restored.stacks.inbox, [project]);
+    assert.deepEqual(restored.stacks.projects, []);
   });
 
   it("keys launch output routes by run so switching runs replaces the screen", () => {
@@ -180,7 +173,8 @@ describe("mobile routes", () => {
       { kind: "settings-page", pageId: "models" },
     );
     assert.deepEqual(mobileRouteForCenterTab({ kind: "logs", id: "logs" }), {
-      kind: "logs",
+      kind: "desktop-only",
+      title: "Logs",
     });
     assert.deepEqual(mobileRouteForCenterTab({ kind: "file", id: "f1" }), {
       kind: "center",

@@ -26,6 +26,7 @@ import { AccessGate, type ClientInfo, type Principal } from "./access-gate.js";
 import { PeerMatcher } from "../../infrastructure/network/client-address.js";
 import { DeviceSockets } from "./device-sockets.js";
 import { DeviceStore } from "./device-store.js";
+import { PushService } from "./push-service.js";
 import { FailureLimiter } from "./failure-limiter.js";
 import type { ShareOrigin } from "../../infrastructure/network/share-origins.js";
 import {
@@ -67,7 +68,10 @@ export function accessSettingsFromSnapshot(
 }
 
 export interface AccessServiceOptions {
-  paths: Pick<StoragePaths, "home" | "devicesPath" | "accessAuditPath">;
+  paths: Pick<
+    StoragePaths,
+    "home" | "devicesPath" | "vapidKeysPath" | "accessAuditPath"
+  >;
   localToken: string;
   settings?: AccessSettings;
   now?: () => number;
@@ -97,6 +101,7 @@ export class AccessService {
   readonly sockets = new DeviceSockets();
   readonly gate: AccessGate;
   readonly passkeys: PasskeyService;
+  readonly push: PushService;
   notifier: AccessNotifier = noopNotifier;
   /** Late-bound so the service can exist before the logger does. */
   logger: { warn(message: string): void } | undefined;
@@ -104,6 +109,8 @@ export class AccessService {
   onLocalTokenRotated: ((token: string) => void) | undefined;
   /** Late-bound: per-network HTTPS origins, known once mobile HTTPS is up. */
   shareOrigins: () => readonly ShareOrigin[] = () => [];
+  /** Late-bound: the private tunnel's origin while it serves requests. */
+  tunnelOrigin: URL | undefined;
 
   readonly #now: () => number;
   readonly #loginLimiter: FailureLimiter;
@@ -122,6 +129,12 @@ export class AccessService {
       options.settings?.trustProxyPeers ?? DEFAULT_TRUST_PROXY_PEERS,
     );
     this.store = new DeviceStore(options.paths.devicesPath, { now: this.#now });
+    this.push = new PushService({
+      devices: this.store,
+      vapidKeysPath: options.paths.vapidKeysPath,
+      now: this.#now,
+      logger: { warn: (message) => this.logger?.warn(message) },
+    });
     this.pairing = new PairingCodes({ now: this.#now });
     this.audit = new AccessAuditLog(options.paths.accessAuditPath, {
       now: this.#now,
@@ -143,6 +156,7 @@ export class AccessService {
       config: () => ({
         publicUrl: this.#publicUrl,
         trustedPeers: this.#trustedPeers,
+        tunnelOrigin: this.tunnelOrigin,
       }),
       limiter: new FailureLimiter({
         perKey: 20,
@@ -179,6 +193,10 @@ export class AccessService {
   /** Hosts the Host allowlist must accept in addition to loopback and bound addresses. */
   get publicHost(): string | undefined {
     return this.#publicUrl?.host;
+  }
+
+  get tunnelHost(): string | undefined {
+    return this.tunnelOrigin?.host;
   }
 
   async enrollmentGateClosed(): Promise<boolean> {
@@ -306,15 +324,20 @@ export class AccessService {
 
   #withLinks(code: IssuedPairingCode): PairingCode {
     const fragment = `/#pair=${code.code}`;
-    const links: PairingLink[] = this.#publicUrl
-      ? [
-          {
-            kind: "public",
-            label: "Public URL",
-            url: `${this.#publicUrl.origin}${fragment}`,
-          },
-        ]
-      : [];
+    const links: PairingLink[] = [];
+    // Trusted HTTPS with no CA install: the best link whenever it is on.
+    if (this.tunnelOrigin)
+      links.push({
+        kind: "tunnel",
+        label: "Tailscale (private HTTPS)",
+        url: `${this.tunnelOrigin.origin}${fragment}`,
+      });
+    if (this.#publicUrl)
+      links.push({
+        kind: "public",
+        label: "Public URL",
+        url: `${this.#publicUrl.origin}${fragment}`,
+      });
     for (const share of this.shareOrigins()) {
       if (share.origin === this.#publicUrl?.origin) continue;
       links.push({

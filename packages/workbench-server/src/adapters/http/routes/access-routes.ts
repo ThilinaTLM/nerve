@@ -1,5 +1,6 @@
 import { clearSessionCookies } from "../../../domains/access/access-cookies.js";
 import {
+  pushSubscriptionSchema,
   pairingCodeCreateRequestSchema,
   pairRedeemRequestSchema,
   passkeyLoginVerifyRequestSchema,
@@ -50,6 +51,19 @@ function requireLocal(c: Context): void {
       "This action is only available to the local owner on the host machine.",
     );
   }
+}
+
+/** Push belongs to one paired device; the local owner has native notifications. */
+function requireDevice(c: Context): string {
+  const principal = requireSession(c);
+  if (principal.kind !== "device") {
+    throw new AccessError(
+      403,
+      "FORBIDDEN",
+      "Push notifications are only available to paired devices.",
+    );
+  }
+  return principal.deviceId;
 }
 
 function grantResponse(c: Context, issued: IssuedGrant): Response {
@@ -241,6 +255,33 @@ export function createAccessRoutes(access: AccessService): Hono {
         500,
       );
       return c.json({ events: await access.audit.recent(limit) });
+    }),
+  );
+
+  // ---- web push (paired devices) ----------------------------------------
+  app.get(
+    "/push",
+    handle(async (c) => c.json(await access.push.state(requireDevice(c)))),
+  );
+  app.put(
+    "/push/subscription",
+    handle(async (c) => {
+      const deviceId = requireDevice(c);
+      const subscription = pushSubscriptionSchema.parse(await body(c));
+      return c.json(await access.push.subscribe(deviceId, subscription));
+    }),
+  );
+  app.delete(
+    "/push/subscription",
+    handle(async (c) =>
+      c.json(await access.push.unsubscribe(requireDevice(c))),
+    ),
+  );
+  app.post(
+    "/push/test",
+    handle(async (c) => {
+      await access.push.sendTest(requireDevice(c));
+      return c.json({ ok: true });
     }),
   );
 

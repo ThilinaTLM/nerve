@@ -1,50 +1,17 @@
-import { conversationTitleToPlainText } from "@nervekit/contracts/core";
-import type { ConversationSummary } from "@nervekit/contracts/core";
-import type { AttentionEvent } from "$lib/application/notifications/attention-delivery.svelte";
 import {
-  mostUrgent,
+  AttentionEdgeTracker,
+  conversationTitleToPlainText,
+  type AttentionEdge,
   type AttentionKind,
-  type AttentionPresence,
-} from "$lib/application/notifications/attention-policy";
+  type ConversationSummary,
+} from "@nervekit/contracts/core";
+import type { AttentionEvent } from "$lib/application/notifications/attention-delivery.svelte";
+import type { AttentionPresence } from "$lib/application/notifications/attention-policy";
 import {
   clearSuppressedCompletion,
   consumeSuppressedCompletion,
 } from "./user-stop";
 import { pendingInputTitle } from "$lib/presentation/conversations/conversation-activity";
-
-export type AttentionEdge = Pick<AttentionEvent, "kind" | "inputKind">;
-
-const isBusy = (row: ConversationSummary): boolean =>
-  row.status === "running" || row.status === "waiting" || row.pendingWork;
-
-/** Edges between two summaries of the same root conversation. */
-export function detectAttentionEdges(
-  previous: ConversationSummary,
-  next: ConversationSummary,
-): AttentionEdge[] {
-  const edges: AttentionEdge[] = [];
-  if (
-    next.pendingInput &&
-    previous.pendingInput?.toolCallId !== next.pendingInput.toolCallId
-  ) {
-    edges.push({ kind: "input", inputKind: next.pendingInput.kind });
-  }
-  if (
-    isBusy(previous) &&
-    next.status === "idle" &&
-    !next.pendingWork &&
-    !next.pendingInput
-  ) {
-    edges.push({ kind: "finished" });
-  }
-  if (next.status === "failed" && previous.status !== "failed") {
-    edges.push({ kind: "failed" });
-  }
-  if (next.status === "interrupted" && previous.status !== "interrupted") {
-    edges.push({ kind: "interrupted" });
-  }
-  return edges;
-}
 
 export type ConversationAttentionDeps = {
   deliver(event: AttentionEvent): void;
@@ -67,40 +34,28 @@ const titles = {
  * (list loads, reconnects) only record state and never notify.
  */
 export class ConversationAttention {
-  private readonly previous = new Map<string, ConversationSummary>();
-  private readonly now: () => number;
+  private readonly edges: AttentionEdgeTracker;
 
   constructor(private readonly deps: ConversationAttentionDeps) {
-    this.now = deps.now ?? Date.now;
+    const now = deps.now ?? Date.now;
+    this.edges = new AttentionEdgeTracker((conversationId) =>
+      consumeSuppressedCompletion(conversationId, now()),
+    );
   }
 
   /** Replaces the baseline without notifying. */
   seed(rows: readonly ConversationSummary[]): void {
-    this.reset();
-    for (const row of rows) {
-      if (row.parentConversationId === null) this.previous.set(row.id, row);
-    }
+    this.edges.seed(rows);
   }
 
   /** Forgets all baselines; the next summary per conversation is quiet. */
   reset(): void {
-    this.previous.clear();
+    this.edges.reset();
   }
 
   observe(summary: ConversationSummary): void {
-    // Sub-agents surface through their root's pendingInput, never directly.
-    if (summary.parentConversationId !== null) return;
-    const previous = this.previous.get(summary.id);
-    this.previous.set(summary.id, summary);
-    if (!previous) return;
-    const edge = mostUrgent(detectAttentionEdges(previous, summary));
+    const edge = this.edges.observe(summary);
     if (!edge) return;
-    if (
-      (edge.kind === "finished" || edge.kind === "interrupted") &&
-      consumeSuppressedCompletion(summary.id, this.now())
-    ) {
-      return;
-    }
     if (
       edge.kind !== "input" &&
       this.deps.presence(summary.id) !== "watching"
@@ -111,7 +66,7 @@ export class ConversationAttention {
   }
 
   forget(conversationId: string): void {
-    this.previous.delete(conversationId);
+    this.edges.forget(conversationId);
     clearSuppressedCompletion(conversationId);
     this.deps.unseen.delete(conversationId);
   }

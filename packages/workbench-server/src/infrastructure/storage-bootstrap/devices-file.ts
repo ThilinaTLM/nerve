@@ -1,5 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { deviceSchema } from "@nervekit/contracts/access";
+import {
+  deviceSchema,
+  pushSubscriptionSchema,
+} from "@nervekit/contracts/access";
 import { z } from "zod";
 import { atomicWriteFile } from "./file-mutations.js";
 
@@ -25,6 +28,8 @@ export const deviceRecordSchema = z.object({
   /** Previous secret, valid until `previousUntil` to absorb parallel requests. */
   previousHash: z.string().length(64).optional(),
   previousUntil: z.number().optional(),
+  /** Web Push subscription; stays server-side (never part of `device`). */
+  pushSubscription: pushSubscriptionSchema.optional(),
 });
 export type DeviceRecord = z.infer<typeof deviceRecordSchema>;
 

@@ -11,6 +11,8 @@ import type {
   UpdateApplicationConfigurationRequest,
 } from "$lib/api";
 import {
+  pendingRestarts,
+  RestartNeededCallout,
   SettingsFieldRow,
   SettingsSection,
   SettingsSelectRow,
@@ -21,7 +23,6 @@ import {
   MAX_PARALLEL_TOOLS_PER_RUN,
   MIN_DAEMON_MAX_OLD_SPACE_MB,
 } from "@nervekit/contracts/settings";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 
 const ozoneOptions = [
@@ -116,25 +117,6 @@ function saveNumber(
   save(apply(parsed));
 }
 
-const pendingDaemonRestart = $derived(
-  configuration
-    ? Object.values(configuration.application).some((group) =>
-        Object.values(group).some(
-          (item) => item.pendingRestart && item.restartTarget === "daemon",
-        ),
-      )
-    : false,
-);
-const pendingDesktopRestart = $derived(
-  configuration
-    ? Object.values(configuration.application).some((group) =>
-        Object.values(group).some(
-          (item) => item.pendingRestart && item.restartTarget === "desktop",
-        ),
-      )
-    : false,
-);
-
 const automaticResources = $derived(
   configuration?.application.resources.mode.savedValue === "automatic",
 );
@@ -200,38 +182,18 @@ const diagnostics = $derived<PageStat[]>([
 </script>
 
 {#if configuration}
-  {#if pendingDaemonRestart || pendingDesktopRestart}
-    <div class="flex items-center gap-2">
-      <Callout
-        layout="block"
-        class="min-w-0 flex-1"
-        tone="warning"
-        text={`${pendingDaemonRestart ? "Changes saved. Restart the daemon to apply them." : ""}${pendingDesktopRestart ? " Restart Nerve to apply desktop changes." : ""}`}
-      />
-      {#if pendingDaemonRestart && daemonCapability?.canRestart}
-        <Button size="sm" disabled={daemonRestarting} onclick={onRestartDaemon}>
-          {daemonRestarting ? "Restarting…" : "Restart daemon"}
-        </Button>
-      {/if}
-    </div>
-  {/if}
+  <RestartNeededCallout
+    {...pendingRestarts(configuration)}
+    canRestart={daemonCapability?.canRestart ?? false}
+    restarting={daemonRestarting}
+    onRestart={onRestartDaemon}
+  />
 
   <SettingsSection
     id="network"
-    title="Network"
-    info="Configure the daemon listener and optional LAN/PWA access."
+    title="Listener"
+    description="Where the daemon listens on this computer. Phone and remote access are in Remote connections."
   >
-    <ToggleRow
-      label="Allow remote connections"
-      description={describe(
-        "Bind to the local network so trusted devices can connect.",
-        configuration.application.network.allowRemote,
-      )}
-      checked={controlValue(configuration.application.network.allowRemote)}
-      disabled={!configuration.application.network.allowRemote.editable}
-      onCheckedChange={(allowRemote) =>
-        save({ application: { network: { allowRemote } } })}
-    />
     <div class="grid gap-3 sm:grid-cols-2">
       <SettingsFieldRow
         id="settings-server-host"
@@ -262,34 +224,6 @@ const diagnostics = $derived<PageStat[]>([
           }))}
       />
     </div>
-    <ToggleRow
-      label="Mobile HTTPS"
-      description={describe(
-        "Serve a local-CA HTTPS endpoint for installable mobile PWA access.",
-        configuration.application.network.mobileHttps,
-      )}
-      checked={controlValue(configuration.application.network.mobileHttps)}
-      disabled={!configuration.application.network.mobileHttps.editable}
-      onCheckedChange={(mobileHttps) =>
-        save({ application: { network: { mobileHttps } } })}
-    />
-    <SettingsFieldRow
-      id="settings-https-port"
-      label="HTTPS port"
-      type="number"
-      min={1}
-      max={65535}
-      value={String(controlValue(configuration.application.network.httpsPort))}
-      disabled={!configuration.application.network.httpsPort.editable}
-      hint={describe(
-        "Used only when Mobile HTTPS is enabled.",
-        configuration.application.network.httpsPort,
-      )}
-      onValueChange={(value) =>
-        saveNumber(value, 1, (httpsPort) => ({
-          application: { network: { httpsPort } },
-        }))}
-    />
   </SettingsSection>
 
   <SettingsSection id="diagnostics" title="Diagnostics">

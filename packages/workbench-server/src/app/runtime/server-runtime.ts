@@ -62,6 +62,11 @@ import {
   type ServerAdapterContexts,
 } from "../../adapters/contexts.js";
 import { RuntimeLifecycle } from "./runtime-lifecycle.js";
+import { createTunnelRuntime } from "./tunnel-runtime.js";
+import type {
+  TunnelService,
+  TunnelListener,
+} from "../../domains/access/tunnel-service.js";
 import { version } from "../version.js";
 import {
   AccessService,
@@ -76,6 +81,12 @@ export interface ServerRuntime {
   mobileHttps?: MobileHttpsInfo & { caCertPem: string; hosts: string[] };
   storage: InitializedStorage;
   access: AccessService;
+  /** Private Tailscale Serve tunnel; applied after the app is mounted. */
+  tunnel: TunnelService;
+  /** Set by the daemon once the app can serve a tunnel listener. */
+  setTunnelListenerFactory(
+    open: (port: number | undefined) => Promise<TunnelListener>,
+  ): void;
   events: WorkbenchNoticePublisher;
   logger: ApplicationLogger;
   applicationLogsEnabled: boolean;
@@ -295,6 +306,28 @@ export function composeServerRuntime(
   access.onLocalTokenRotated = (token) => {
     storage.localToken = token;
   };
+  const pushCore = services.conversationCore;
+  access.push.start({
+    subscribe: (listener) => pushCore.subscribe(listener),
+    listSummaries: () =>
+      pushCore.projects.list().flatMap((project) =>
+        pushCore.listConversations({
+          projectId: project.id,
+          parentConversationId: null,
+        }),
+      ),
+    projectName: (projectId) => pushCore.projects.get(projectId)?.name,
+  });
+  const tunnelRuntime = createTunnelRuntime({
+    storage,
+    access,
+    publish: (status) =>
+      events.publishBestEffort("access.tunnel_changed", { status }),
+    logger: {
+      warn: (message, context) =>
+        void logger.warn(message, { context: { data: context } }),
+    },
+  });
   const infrastructure = {
     daemonId,
     host,
@@ -318,6 +351,8 @@ export function composeServerRuntime(
     agentBrowserSkills,
     performanceDiagnostics,
     applicationConfiguration,
+    tunnel: tunnelRuntime.tunnel,
+    push: access.push,
     statusResponse: () => statusResponse(runtime),
   };
   const runtime: ServerRuntime = {
@@ -327,6 +362,8 @@ export function composeServerRuntime(
     port,
     storage,
     access,
+    tunnel: tunnelRuntime.tunnel,
+    setTunnelListenerFactory: tunnelRuntime.setListenerFactory,
     events,
     logger,
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
@@ -420,6 +457,7 @@ export function statusResponse(state: ServerRuntime): StatusResponse {
     version,
     startedAt: state.startedAt,
     dataDir: state.storage.paths.home,
+    tunnel: state.tunnel.status,
     mobileHttps: state.mobileHttps
       ? {
           port: state.mobileHttps.port,

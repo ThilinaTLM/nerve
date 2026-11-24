@@ -11,6 +11,9 @@ import {
   type AccessSettings,
 } from "../../../src/domains/access/access-service.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
+import { EventEmitter } from "node:events";
+import type { Server, Socket } from "node:net";
+import { markTunnelListener } from "../../../src/infrastructure/network/tunnel-sockets.js";
 import { withPeer } from "../../support/peer-address.js";
 
 const roots: string[] = [];
@@ -465,6 +468,71 @@ describe("passkey gate with publicUrl", () => {
     assert.equal(
       ((await response.json()) as { error: { code: string } }).error.code,
       "PUBLIC_URL_REQUIRED",
+    );
+  });
+
+  it("serves push only to paired devices", async () => {
+    const { app } = await fixture();
+    const peer = withPeer(app);
+    for (const [method, path] of [
+      ["GET", "/api/access/push"],
+      ["DELETE", "/api/access/push/subscription"],
+      ["POST", "/api/access/push/test"],
+    ] as const) {
+      const response = await peer.request(path, { method, headers: local });
+      assert.equal(response.status, 403, `${method} ${path}`);
+    }
+  });
+});
+
+describe("private tunnel requests", () => {
+  const HOST = "pc.tail1234.ts.net";
+
+  /** A request on a socket the tunnel listener accepted (loopback peer). */
+  function fromTunnel<T extends Hono>(app: T): T {
+    const server = new EventEmitter();
+    markTunnelListener(server as unknown as Server);
+    const socket = { remoteAddress: "127.0.0.1" } as Socket;
+    server.emit("connection", socket);
+    const original = app.request.bind(app);
+    app.request = ((input: RequestInfo | URL, init?: RequestInit) =>
+      original(input, init, { incoming: { socket } })) as T["request"];
+    return app;
+  }
+
+  it("refuses the legacy daemon-token bearer, however it is presented", async () => {
+    const { app, access } = await fixture();
+    access.tunnelOrigin = new URL(`https://${HOST}`);
+    const response = await fromTunnel(app).request(`https://${HOST}/api/ping`, {
+      headers: { ...local, "x-forwarded-for": "100.64.0.9" },
+    });
+    assert.equal(response.status, 401);
+    assert.equal(access.legacyBearerSeen, false);
+  });
+
+  it("refuses requests marked as Funnel traffic", async () => {
+    const { app, access } = await fixture();
+    access.tunnelOrigin = new URL(`https://${HOST}`);
+    const response = await fromTunnel(app).request(`https://${HOST}/api/ping`, {
+      headers: { "tailscale-funnel-request": "?1" },
+    });
+    assert.equal(response.status, 403);
+  });
+
+  it("lists the tunnel pairing link first, and only while it is on", async () => {
+    const { access } = await fixture();
+    assert.equal(
+      (await access.createPairingCode("mobile", 120)).links.some(
+        (link) => link.kind === "tunnel",
+      ),
+      false,
+    );
+    access.tunnelOrigin = new URL(`https://${HOST}:8443`);
+    const links = (await access.createPairingCode("mobile", 120)).links;
+    assert.equal(links[0]?.kind, "tunnel");
+    assert.ok(
+      links[0]?.url.startsWith(`https://${HOST}:8443/#pair=`),
+      links[0]?.url,
     );
   });
 });

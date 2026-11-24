@@ -196,9 +196,27 @@ export function writeSettings(
   );
 }
 
+/**
+ * Records the loopback port the private tunnel listens on. Daemon-internal:
+ * the settings patch schema does not accept it from clients.
+ */
+export function writeTunnelListenerPort(
+  storage: InitializedStorage,
+  listenerPort: number,
+): Promise<Settings> {
+  return serializeSettingsMutation(storage, () =>
+    applySettingsPatch(
+      storage,
+      { application: {} },
+      { tunnelListenerPort: listenerPort },
+    ),
+  );
+}
+
 async function applySettingsPatch(
   storage: InitializedStorage,
   patch: UpdateSettingsRequest,
+  internal: { tunnelListenerPort?: number } = {},
 ): Promise<Settings> {
   const next = settingsSchema.parse({
     ...storage.settings,
@@ -209,6 +227,18 @@ async function applySettingsPatch(
       network: {
         ...storage.settings.application.network,
         ...(patch.application?.network ?? {}),
+        tunnel:
+          patch.application?.network?.tunnel ||
+          storage.settings.application.network.tunnel ||
+          internal.tunnelListenerPort !== undefined
+            ? {
+                ...storage.settings.application.network.tunnel,
+                ...patch.application?.network?.tunnel,
+                ...(internal.tunnelListenerPort !== undefined
+                  ? { listenerPort: internal.tunnelListenerPort }
+                  : {}),
+              }
+            : undefined,
         // An empty string clears the saved public URL.
         publicUrl:
           (patch.application?.network?.publicUrl ??

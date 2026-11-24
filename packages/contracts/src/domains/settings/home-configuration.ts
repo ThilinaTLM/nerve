@@ -20,6 +20,7 @@ import {
   publicUrlSchema,
   trustProxySchema,
 } from "./application-configuration.js";
+import { tunnelHttpsPortSchema } from "../access/tunnel.js";
 
 const homeMigrationLedgerSchema = z.array(
   z
@@ -80,6 +81,14 @@ export const daemonConfigSchema = z
         httpsPort: z.number().int().min(1).max(65_535),
         publicUrl: publicUrlSchema.optional(),
         trustProxy: trustProxySchema.optional(),
+        tunnel: z
+          .object({
+            enabled: z.boolean(),
+            httpsPort: tunnelHttpsPortSchema,
+            listenerPort: z.number().int().min(1).max(65_535).optional(),
+          })
+          .strict()
+          .optional(),
       })
       .strict(),
     diagnostics: z

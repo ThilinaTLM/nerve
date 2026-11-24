@@ -154,6 +154,14 @@ const userPages: Record<string, PageData> = {
       "Work Nerve does on its own. A job that keeps failing shows in the notification bell.",
     sections: [{ id: "jobs", label: "Jobs" }],
   },
+  remote: {
+    label: "Remote connections",
+    description: "Open Nerve from your phone or another computer.",
+    sections: [
+      { id: "tailscale", label: "Tailscale" },
+      { id: "local-network", label: "Same network" },
+    ],
+  },
   devices: {
     label: "Devices",
     description:
@@ -166,9 +174,9 @@ const userPages: Record<string, PageData> = {
   },
   system: {
     label: "System",
-    description: "Network, diagnostics and daemon controls.",
+    description: "Listener, diagnostics and daemon controls.",
     sections: [
-      { id: "network", label: "Network" },
+      { id: "network", label: "Listener" },
       { id: "diagnostics", label: "Diagnostics" },
       { id: "resource-concurrency", label: "Resource concurrency" },
       { id: "daemon", label: "Daemon" },
@@ -270,7 +278,7 @@ const userLayout: NavLayout = [
   {
     id: "system",
     title: "System",
-    pages: ["storage", "background-jobs", "devices", "system"],
+    pages: ["storage", "background-jobs", "remote", "devices", "system"],
   },
 ];
 
@@ -340,6 +348,21 @@ export type SettingsRedirect = {
 
 /** Turned off only by tests that exercise targets without redirects. */
 export const SETTINGS_REDIRECTS_ENABLED = true;
+
+/**
+ * The scope a deep link resolves in. The settings surface shows user and
+ * project pages together, so user pages (Devices, Notifications…) stay user
+ * pages while a project is open; only the rest resolve in the project.
+ */
+export function settingsScopeForPage(
+  projectOpen: boolean,
+  pageId: string | undefined,
+): SettingsScopeKind {
+  if (!projectOpen) return "user";
+  return pageId && Object.hasOwn(pagesByScope.user, pageId)
+    ? "user"
+    : "project";
+}
 
 /** Old page/section targets and where they live now. */
 export const settingsRedirects: readonly SettingsRedirect[] = [

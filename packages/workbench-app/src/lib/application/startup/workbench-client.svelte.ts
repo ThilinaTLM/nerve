@@ -26,7 +26,10 @@ import {
   startReleasePolling,
   stopReleasePolling,
 } from "$lib/features/releases";
-import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
+import {
+  loadWorkspaceState,
+  setTunnelStatus,
+} from "$lib/application/workspace/workspace-actions.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { conversationDraftStore } from "$lib/application/workspace/conversation-draft-store";
 import { withConversationRow } from "$lib/application/workspace/conversation-rows";
@@ -42,6 +45,7 @@ import {
   conversationAttention,
   startConversationAttention,
 } from "$lib/application/activity/conversation-attention.svelte";
+import { startPresenceReporting } from "$lib/application/notifications/presence-reporting.svelte";
 import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 const usagePoll = createPoll({
   run: refreshSubscriptionUsage,
@@ -50,6 +54,7 @@ const usagePoll = createPoll({
 let unobserve: (() => void) | undefined;
 let stopAppearanceSync: (() => void) | undefined;
 let stopAttention: (() => void) | undefined;
+let stopPresence: (() => void) | undefined;
 
 export async function initializeWorkbench(): Promise<boolean> {
   const generation = beginWorkbenchStartup();
@@ -71,6 +76,10 @@ export async function initializeWorkbench(): Promise<boolean> {
     unobserve = observeConversationChannel({
       recover: async (id) => {
         if (!id) {
+          // Tunnel events sent while disconnected are gone: re-read the state.
+          void getClientConfig()
+            .then((fresh) => setTunnelStatus(fresh.status.tunnel))
+            .catch(() => undefined);
           await loadWorkspaceState();
           conversationAttention.seed(workspaceState.conversations);
         }
@@ -116,6 +125,8 @@ export async function initializeWorkbench(): Promise<boolean> {
     conversationAttention.seed(workspaceState.conversations);
     stopAttention?.();
     stopAttention = startConversationAttention();
+    stopPresence?.();
+    stopPresence = startPresenceReporting();
     workspaceState.connection = "connected";
     workspaceState.error = undefined;
     transitionWorkbenchStartup(generation, "core-ready");
@@ -142,6 +153,8 @@ export function disconnectWorkbench(): void {
   unobserve = undefined;
   stopAttention?.();
   stopAttention = undefined;
+  stopPresence?.();
+  stopPresence = undefined;
   stopReleasePolling();
   workspaceMonitorDemand.reset();
   disconnectWorkbenchChannel();

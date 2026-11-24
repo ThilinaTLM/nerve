@@ -221,3 +221,14 @@ export { setConversationAgentProfileRequestSchema } from "./core-operations.js";
 export type { SetConversationAgentProfileRequest } from "./core-operations.js";
 
 export * from "./conversation-title.js";
+export {
+  AttentionEdgeTracker,
+  attentionUrgency,
+  detectAttentionEdges,
+  mostUrgent,
+} from "./attention.js";
+export type {
+  AttentionEdge,
+  AttentionInputKind,
+  AttentionKind,
+} from "./attention.js";

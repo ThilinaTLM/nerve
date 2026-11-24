@@ -14,6 +14,11 @@ export interface GateRequest {
   peerAddress: string;
   /** TLS terminated by this process. */
   secureTransport: boolean;
+  /**
+   * Arrived on the private tunnel listener: TLS was terminated by the tunnel
+   * daemon on this host. Set from the listening socket, never from headers.
+   */
+  viaTunnel?: boolean;
 }
 
 export interface ClientInfo {
@@ -38,11 +43,15 @@ export interface ClientInfo {
   transportOk: boolean;
   /** Eligible for the local (tier 1) credential: loopback peer + host, no forwarding. */
   localEligible: boolean;
+  /** Arrived on the private tunnel listener (a remote client even though the peer is loopback). */
+  viaTunnel: boolean;
 }
 
 export interface ClientResolution {
   publicUrl?: URL;
   trustedPeers: PeerMatcher;
+  /** Origin of the private tunnel while it is on. */
+  tunnelOrigin?: URL;
 }
 
 const FORWARDING_HEADERS = [
@@ -75,10 +84,40 @@ function forwardedClient(
   return hops[0] ?? normalizeAddress(peerAddress);
 }
 
+/**
+ * A tunnel request is a remote HTTPS client even though its TCP peer is the
+ * tunnel daemon on loopback: never local, always secure, and the client
+ * address is the rightmost `X-Forwarded-For` entry (the one tailscaled
+ * appended; anything left of it is client-supplied).
+ */
+function resolveTunnelClient(
+  request: GateRequest,
+  config: ClientResolution,
+): ClientInfo {
+  const { headers } = request;
+  const host = headers.get("host") ?? request.url.host;
+  return {
+    ip:
+      normalizeAddress(
+        headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ?? "",
+      ) || normalizeAddress(request.peerAddress),
+    loopbackPeer: isLoopbackAddress(normalizeAddress(request.peerAddress)),
+    forwarded: true,
+    viaTrustedProxy: false,
+    secure: true,
+    host,
+    origin: config.tunnelOrigin?.origin ?? `https://${host}`,
+    transportOk: true,
+    localEligible: false,
+    viaTunnel: true,
+  };
+}
+
 export function resolveClient(
   request: GateRequest,
   config: ClientResolution,
 ): ClientInfo {
+  if (request.viaTunnel) return resolveTunnelClient(request, config);
   const { headers } = request;
   const peer = normalizeAddress(request.peerAddress);
   const forwarded = FORWARDING_HEADERS.some((name) => headers.has(name));
@@ -117,5 +156,6 @@ export function resolveClient(
     origin,
     transportOk: secure || (loopbackPeer && !forwarded),
     localEligible: loopbackPeer && loopbackHost && !forwarded,
+    viaTunnel: false,
   };
 }

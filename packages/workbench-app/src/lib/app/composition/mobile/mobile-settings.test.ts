@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SettingsNavGroup } from "$lib/presentation/settings";
-import { mobileSettingsGroups } from "./mobile-settings";
+import { phoneSettingsItems } from "./mobile-settings";
 
 function group(id: string, ids: string[]): SettingsNavGroup {
   return {
@@ -11,18 +11,15 @@ function group(id: string, ids: string[]): SettingsNavGroup {
   };
 }
 
-test("mobile settings drop desktop-only pages and the groups they empty", () => {
-  const groups = mobileSettingsGroups([
+test("phone settings keep only devices and notifications, in nav order", () => {
+  const items = phoneSettingsItems([
     group("agent", ["general", "tools"]),
-    group("catalog", ["agents", "sub-agents", "permission-rules", "models"]),
-    group("app", ["workbench", "shortcuts", "voice"]),
+    group("app", ["workbench", "notifications", "voice"]),
+    group("system", ["storage", "devices", "system"]),
   ]);
 
   assert.deepEqual(
-    groups.map((entry) => [entry.id, entry.items.map((item) => item.id)]),
-    [
-      ["agent", ["general", "tools"]],
-      ["app", ["workbench", "voice"]],
-    ],
+    items.map((item) => item.id),
+    ["notifications", "devices"],
   );
 });

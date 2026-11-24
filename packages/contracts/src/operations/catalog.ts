@@ -26,6 +26,7 @@ import { storageOperationDefinitions } from "../domains/storage/operations.js";
 import { launchDefinitionOperationDefinitions } from "../domains/launch-definitions/operations.js";
 import { launchesOperationDefinitions } from "../domains/launches/operations.js";
 import { usageOperationDefinitions } from "../domains/usage/operations.js";
+import { accessOperationDefinitions } from "../domains/access/push.js";
 
 const methodDefinitions = [
   ...conversationChannelOperations,
@@ -50,6 +51,7 @@ const methodDefinitions = [
   ...launchDefinitionOperationDefinitions,
   ...launchesOperationDefinitions,
   ...usageOperationDefinitions,
+  ...accessOperationDefinitions,
 ] as const;
 
 const methods = methodDefinitions.map((definition) => definition.method);

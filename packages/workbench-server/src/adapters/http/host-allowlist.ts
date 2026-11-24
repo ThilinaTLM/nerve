@@ -8,8 +8,8 @@ export interface HostAllowlistSource {
   host: string;
   /** Hosts the mobile HTTPS certificate covers (LAN addresses). */
   mobileHttps?: { hosts: string[] };
-  /** `network.publicUrl` host, once the access service knows it. */
-  access?: { publicHost: string | undefined };
+  /** `network.publicUrl` and private tunnel hosts, once access knows them. */
+  access?: { publicHost: string | undefined; tunnelHost?: string | undefined };
 }
 
 /** Extra hostnames from `NERVE_ALLOWED_HOSTS` (comma separated), for DNS names. */
@@ -51,7 +51,8 @@ function interfaceAddresses(): string[] {
 /**
  * Host-header allowlist against DNS rebinding: loopback names, the bound
  * address, the interface addresses when bound to a wildcard, the mobile HTTPS
- * hosts, the `network.publicUrl` host and `NERVE_ALLOWED_HOSTS`. Ports are ignored: only the name can be
+ * hosts, the `network.publicUrl` host, the private tunnel host while it is on,
+ * and `NERVE_ALLOWED_HOSTS`. Ports are ignored: only the name can be
  * attacker-controlled, and dev proxies forward their own port.
  */
 export function createHostAllowlist(
@@ -71,9 +72,28 @@ export function createHostAllowlist(
     if (configured.includes(host)) return true;
     const publicHost = source.access?.publicHost;
     if (publicHost && normalizeHostname(publicHost) === host) return true;
+    const tunnelHost = source.access?.tunnelHost;
+    if (tunnelHost && normalizeHostname(tunnelHost) === host) return true;
     if (source.mobileHttps?.hosts.some((h) => normalizeHostname(h) === host))
       return true;
     if (isWildcardHost(source.host)) return addresses().includes(host);
     return normalizeHostname(source.host) === host;
   };
+}
+
+/**
+ * The one Host decision for inbound requests (HTTP and WebSocket upgrade).
+ * The tunnel listener answers only to the tunnel host, and to nothing while
+ * the tunnel is off or its host is unknown; other listeners use the allowlist.
+ */
+export function isRequestHostAllowed(
+  isAllowedHost: HostAllowlist,
+  client: { host: string; viaTunnel: boolean },
+  tunnelHost: string | undefined,
+): boolean {
+  if (!client.viaTunnel) return isAllowedHost(client.host);
+  return (
+    tunnelHost !== undefined &&
+    normalizeHostname(tunnelHost) === normalizeHostname(client.host)
+  );
 }

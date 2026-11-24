@@ -18,6 +18,7 @@ import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog
 import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { onMount } from "svelte";
+import { workspaceSelectors } from "$lib/application/workspace";
 import { SettingsSection } from "$lib/presentation/settings";
 import { DevicesPageController } from "../state/devices-page.svelte";
 import {
@@ -30,6 +31,7 @@ import {
 import PairDeviceDialog from "./PairDeviceDialog.svelte";
 import RenameDeviceDialog from "./RenameDeviceDialog.svelte";
 
+const tunnel = $derived(workspaceSelectors.status?.tunnel);
 const controller = new DevicesPageController();
 
 let pairOpen = $state(false);
@@ -73,7 +75,11 @@ const now = Date.now();
 <SettingsSection
   id="devices"
   title="Devices"
-  description="Browsers and apps that can open this Nerve. Each has its own revocable credential."
+  description={`Browsers and apps that can open this Nerve. Each has its own revocable credential.${
+    tunnel?.state === "ready"
+      ? ` Phones on your tailnet can pair at ${tunnel.url}.`
+      : ""
+  }`}
   surface={false}
 >
   {#snippet actions()}

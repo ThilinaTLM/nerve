@@ -419,6 +419,7 @@ Spec: `docs/architecture/permissions.md`.
 - [ ] **MOB-4** Approvals / ask_user answerable from phone.
 - [ ] **MOB-5** Revoked phone (AUTH-6) lands on a re-pair page, not a broken app. **(Wave 4)**
 - [ ] **MOB-6** `http://$LAN_IP:$PORT` plaintext: UI refuses device auth / redirects to HTTPS setup. **(Wave 4)**
+- [ ] **MOB-7** Phone settings shows only This device (Sign out), Devices, Notifications, theme and Discover; the project home has no Settings tile and Activity has no Logs row. Opening a desktop Logs or catalog settings tab while on the phone shows "Available on desktop". Sign out asks first, then lands on pairing and the device is gone from the list.
 
 ## 17. Desktop app (E1) and remote desktop (E4)
 

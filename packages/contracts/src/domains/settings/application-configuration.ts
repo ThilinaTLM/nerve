@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
+import { tunnelHttpsPortSchema } from "../access/tunnel.js";
 
 export const MIN_DAEMON_MAX_OLD_SPACE_MB = 512;
 export const MAX_CONCURRENT_MODEL_RUNS = 32;
@@ -67,6 +68,18 @@ export const DEFAULT_TRUST_PROXY_PEERS: readonly string[] = [
   "::1",
 ];
 
+/**
+ * Private Tailscale Serve tunnel. Applies without a restart. `listenerPort` is
+ * the loopback port Serve proxies to, written only by the daemon (it is not in
+ * the patch schema); it lets a later run recognize its own leftover Serve entry.
+ */
+export const tunnelSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  httpsPort: tunnelHttpsPortSchema.default(443),
+  listenerPort: z.number().int().min(1).max(65_535).optional(),
+});
+export type TunnelSettings = z.infer<typeof tunnelSettingsSchema>;
+
 /** `https://nerve.example.com`: the externally visible origin behind a reverse proxy. */
 export const publicUrlSchema = z.string().trim().url();
 
@@ -79,6 +92,7 @@ export const applicationSettingsSchema = z.object({
     httpsPort: z.number().int().min(1).max(65_535).default(3748),
     publicUrl: publicUrlSchema.optional(),
     trustProxy: trustProxySchema.optional(),
+    tunnel: tunnelSettingsSchema.optional(),
   }),
   diagnostics: z.object({
     loggingEnabled: z.boolean().default(false),
@@ -126,6 +140,12 @@ export const applicationSettingsPatchSchema = z.object({
       /** Empty string clears the saved value. */
       publicUrl: z.union([publicUrlSchema, z.literal("")]).optional(),
       trustProxy: trustProxySchema.optional(),
+      tunnel: z
+        .object({
+          enabled: z.boolean().optional(),
+          httpsPort: tunnelHttpsPortSchema.optional(),
+        })
+        .optional(),
     })
     .optional(),
   diagnostics: z
@@ -221,6 +241,8 @@ export const applicationConfigurationSnapshotSchema = z.object({
       /** Empty string when unset. */
       publicUrl: resolvedStringSettingSchema,
       trustProxyPeers: resolvedSettingSchema(z.array(z.string())),
+      tunnelEnabled: resolvedBooleanSettingSchema,
+      tunnelHttpsPort: resolvedSettingSchema(tunnelHttpsPortSchema),
     }),
     diagnostics: z.object({
       loggingEnabled: resolvedBooleanSettingSchema,
