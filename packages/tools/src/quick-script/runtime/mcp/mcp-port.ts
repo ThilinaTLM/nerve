@@ -12,8 +12,12 @@ export type McpServerState =
   | "connected"
   /** Configured and enabled; connects on first use. */
   | "idle"
-  /** `enabled: false` in mcp.json. */
+  /** Turned off by the user's settings or by `enabled: false` in mcp.json. Never started; calls fail with FORBIDDEN. */
   | "disabled"
+  /** Not reviewed yet: the user must approve the entry before it starts. Never started; calls fail with FORBIDDEN. */
+  | "needs_approval"
+  /** The user reviewed the entry and rejected it. Never started; calls fail with FORBIDDEN. */
+  | "rejected"
   /** The last connection attempt failed; `error` says why. The next call tries again. */
   | "failed";
 
@@ -21,6 +25,8 @@ export type McpServerSummary = {
   name: string;
   description?: string;
   transport: "stdio" | "http";
+  /** Where the entry is defined: the user's mcp.json or the project's. */
+  scope: "user" | "project";
   state: McpServerState;
   error?: string;
   /** The server's own name and version, once connected. */
@@ -94,7 +100,13 @@ export type McpRequestOptions = { signal?: AbortSignal };
 export interface McpAgentPort {
   /** Every configured server, connected or not; connects to none. */
   listServers(): Promise<McpServerSummary[]>;
-  /** Connects when needed. Fails with NOT_FOUND naming the configured servers for an unknown name. */
+  /**
+   * Connects when needed (a server with an index may answer without connecting). Fails with
+   * NOT_FOUND naming the configured servers for an unknown name, and with FORBIDDEN for a server
+   * that is disabled, needs approval or is rejected; the message names the state and where the
+   * user acts (User settings → Connections → MCP servers, or Project settings → Agent → MCP
+   * servers). The other methods fail the same way.
+   */
   listTools(server: string, options?: McpRequestOptions): Promise<McpTool[]>;
   callTool(
     server: string,

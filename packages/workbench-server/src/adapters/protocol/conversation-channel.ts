@@ -176,6 +176,16 @@ export function createConversationProtocolSession(
       void state.logger.warn("Configuration health retry failed", { error });
     });
   };
+  /** An approval of an MCP entry: connections of entries that lost it close, and open pages refresh. */
+  const mcpApprovalChanged = (projectId: string | null) => {
+    void platform.mcp
+      .approvalChanged(
+        projectId ? { scope: "project", projectId } : { scope: "user" },
+      )
+      .catch((error) => {
+        void state.logger.warn("MCP approval change failed", { error });
+      });
+  };
   const permissionMutation = async <T>(
     operation: () => Promise<T>,
   ): Promise<T> => {
@@ -230,11 +240,14 @@ export function createConversationProtocolSession(
         );
       const result = core.trust.decide(input);
       configurationPublished();
+      if (input.kind === "mcp_server") mcpApprovalChanged(input.projectId);
       return result;
     },
     "trust.delete": ({ trustedResourceId }) => {
+      const removed = state.coreStorage.trustedResources.get(trustedResourceId);
       core.trust.delete(trustedResourceId);
       configurationPublished();
+      if (removed?.kind === "mcp_server") mcpApprovalChanged(removed.projectId);
       return null;
     },
     "conversation.create": async (input) => {

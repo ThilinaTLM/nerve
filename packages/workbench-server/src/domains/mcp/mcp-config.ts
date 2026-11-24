@@ -1,6 +1,14 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import type {
+  McpGrantSnapshot,
+  McpReference,
+  McpScope,
+} from "@nervekit/contracts/mcp";
+import { toTrustedDigest } from "@nervekit/contracts/core";
+import { projectConfigurationRoot } from "../../infrastructure/configuration/scope-paths.js";
 import {
   validateMcpServerConfig,
   type McpHttpServerConfig,
@@ -8,16 +16,19 @@ import {
 } from "@earendil-works/pi-mcp";
 
 /**
- * The user's MCP servers: `<home>/config/mcp.json`, in the `mcpServers` shape other MCP clients
- * share, so an entry can be copied from them. The file is read on every use; there is nothing to
- * reload. Project files are not read: a project's servers would start programs from a repository,
- * which needs a trust decision of its own.
+ * MCP servers: the user's `<home>/config/mcp.json` and a project's `<project>/.nerve/config/mcp.json`,
+ * in the `mcpServers` shape other MCP clients share, so an entry can be copied from them. Files
+ * are read on every use; there is nothing to reload. An entry runs only after the user approved
+ * its exact content (see `mcp-catalog.ts`). Only Nerve's own files are read, never other clients'.
  */
 
 export const MCP_CONFIG_FILENAME = "mcp.json";
 
 export const mcpConfigPath = (home: string) =>
   join(home, "config", MCP_CONFIG_FILENAME);
+
+export const projectMcpConfigPath = (projectDirectory: string) =>
+  join(projectConfigurationRoot(projectDirectory), MCP_CONFIG_FILENAME);
 
 export type McpServerEntry =
   | { name: string; kind: "stdio"; config: McpStdioServerConfig }
@@ -102,39 +113,165 @@ export function parseMcpConfig(path: string, text: string): McpConfigFile {
   return { path, servers, problems };
 }
 
-/** Reads `<home>/config/mcp.json`; a missing file has no servers and no problems. */
-export async function readMcpConfig(home: string): Promise<McpConfigFile> {
-  const path = mcpConfigPath(home);
+/** Reads an `mcp.json`; a missing file has no servers and no problems. `exists` is false then. */
+export async function readMcpFile(
+  path: string,
+): Promise<McpConfigFile & { exists: boolean }> {
   let text: string;
   try {
     text = await readFile(path, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT")
-      return { path, servers: [], problems: [] };
+      return { path, servers: [], problems: [], exists: false };
     return {
       path,
       servers: [],
       problems: [`cannot be read (${(error as Error).message})`],
+      exists: true,
     };
   }
-  return parseMcpConfig(path, text);
+  return { ...parseMcpConfig(path, text), exists: true };
 }
+
+/** Reads `<home>/config/mcp.json`. */
+export const readMcpConfig = (home: string) => readMcpFile(mcpConfigPath(home));
 
 /** `${NAME}` and `${NAME:-default}` from the daemon's environment. */
 const VARIABLE = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g;
+/** `${secret:name}` from the credential vault. */
+const SECRET = /\$\{secret:([A-Za-z0-9_-]+)\}/g;
+
+/** The values a resolved entry draws on besides its own text. */
+export type McpExpansion = {
+  env: NodeJS.ProcessEnv;
+  /** Secret values by name, fetched from the scope's vault entries; absent: not set. */
+  secrets: Readonly<Record<string, string | undefined>>;
+};
+
+export type MissingReferences = { env: Set<string>; secrets: Set<string> };
 
 export function expandVariables(
   value: string,
-  env: NodeJS.ProcessEnv,
-  missing: Set<string>,
+  expansion: McpExpansion,
+  missing: MissingReferences,
 ): string {
-  return value.replace(VARIABLE, (_, name: string, fallback?: string) => {
-    const found = env[name];
-    if (found !== undefined && found !== "") return found;
-    if (fallback !== undefined) return fallback;
-    missing.add(name);
-    return "";
+  return value
+    .replace(SECRET, (_, name: string) => {
+      const found = expansion.secrets[name];
+      if (found !== undefined) return found;
+      missing.secrets.add(name);
+      return "";
+    })
+    .replace(VARIABLE, (_, name: string, fallback?: string) => {
+      const found = expansion.env[name];
+      if (found !== undefined && found !== "") return found;
+      if (fallback !== undefined) return fallback;
+      missing.env.add(name);
+      return "";
+    });
+}
+
+/** Every `${VAR}` and `${secret:name}` the entry references, with where the value goes. */
+export function mcpEntryReferences(
+  config: McpServerEntry["config"],
+): McpReference[] {
+  const found = new Map<string, McpReference>();
+  const scan = (value: string, field: McpReference["field"], key?: string) => {
+    for (const match of value.matchAll(SECRET))
+      found.set(`secret|${match[1]}|${field}|${key ?? ""}`, {
+        kind: "secret",
+        name: match[1],
+        field,
+        ...(key ? { key } : {}),
+      });
+    for (const match of value.matchAll(VARIABLE))
+      found.set(`env|${match[1]}|${field}|${key ?? ""}`, {
+        kind: "env",
+        name: match[1],
+        field,
+        ...(key ? { key } : {}),
+      });
+  };
+  if ("command" in config) {
+    scan(config.command, "command");
+    for (const arg of config.args ?? []) scan(arg, "args");
+    for (const [key, value] of Object.entries(config.env ?? {}))
+      scan(value, "env", key);
+    if (config.cwd) scan(config.cwd, "cwd");
+  } else {
+    scan(config.url, "url");
+    for (const [key, value] of Object.entries(config.headers ?? {}))
+      scan(value, "headers", key);
+  }
+  return [...found.values()];
+}
+
+/** The names of the secrets an entry references. */
+export const mcpEntrySecretNames = (config: McpServerEntry["config"]) => [
+  ...new Set(
+    mcpEntryReferences(config)
+      .filter((reference) => reference.kind === "secret")
+      .map((reference) => reference.name),
+  ),
+];
+
+/** What the user reviews and approves: the command line or URL, the working directory and where each reference goes. */
+export function mcpGrantSnapshot(entry: McpServerEntry): McpGrantSnapshot {
+  const references = mcpEntryReferences(entry.config);
+  return entry.kind === "stdio"
+    ? {
+        transport: "stdio",
+        command: entry.config.command,
+        ...(entry.config.args?.length ? { args: entry.config.args } : {}),
+        ...(entry.config.cwd ? { cwd: entry.config.cwd } : {}),
+        references,
+      }
+    : { transport: "http", url: entry.config.url, references };
+}
+
+/** "Sends `TOKEN` to `https://…` in header `Authorization`": what can leave the machine, never a value. */
+export function mcpSendsSentences(grants: McpGrantSnapshot): string[] {
+  const where = grants.url ?? grants.command ?? "";
+  return grants.references.map((reference) => {
+    const what = `${reference.kind === "secret" ? "secret" : "environment variable"} \`${reference.name}\``;
+    switch (reference.field) {
+      case "headers":
+        return `Sends ${what} to \`${where}\` in header \`${reference.key}\`.`;
+      case "url":
+        return `Puts ${what} in the URL \`${where}\`.`;
+      case "env":
+        return `Passes ${what} to \`${where}\` in environment variable \`${reference.key}\`.`;
+      case "args":
+        return `Passes ${what} to \`${where}\` as an argument.`;
+      case "cwd":
+        return `Uses ${what} in the working directory of \`${where}\`.`;
+      default:
+        return `Uses ${what} in the command \`${where}\`.`;
+    }
   });
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (typeof value === "object" && value !== null)
+    return `{${Object.entries(value)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, v]) => `${JSON.stringify(key)}:${canonicalJson(v)}`)
+      .join(",")}}`;
+  return JSON.stringify(value);
+}
+
+/**
+ * `sha256:<hex>` of the entry as written (canonical JSON; variables and secrets not expanded) and
+ * its scope. Changing a value of a variable or secret does not change it; changing the entry does.
+ */
+export function mcpEntryDigest(scope: McpScope, entry: McpServerEntry): string {
+  return toTrustedDigest(
+    createHash("sha256")
+      .update(canonicalJson({ scope, entry: entry.config }))
+      .digest("hex"),
+  );
 }
 
 const expandHome = (path: string) =>
@@ -158,10 +295,12 @@ export type ResolvedMcpServer =
 export function resolveMcpServer(
   entry: McpServerEntry,
   projectDirectory: string,
-  env: NodeJS.ProcessEnv = process.env,
+  expansion: McpExpansion,
+  /** Where the user sets a missing secret, for the error. */
+  secretsPage: string,
 ): ResolvedMcpServer {
-  const missing = new Set<string>();
-  const expand = (value: string) => expandVariables(value, env, missing);
+  const missing: MissingReferences = { env: new Set(), secrets: new Set() };
+  const expand = (value: string) => expandVariables(value, expansion, missing);
   const expandAll = (record: Record<string, string> | undefined) =>
     Object.fromEntries(
       Object.entries(record ?? {}).map(([key, value]) => [key, expand(value)]),
@@ -185,15 +324,15 @@ export function resolveMcpServer(
       headers: expandAll(entry.config.headers),
     };
   }
-  if (missing.size > 0)
-    throw new Error(
-      `environment variable${missing.size === 1 ? "" : "s"} ${[...missing].join(", ")} ${missing.size === 1 ? "is" : "are"} not set in Nerve's environment (referenced in mcp.json)`,
+  const problems: string[] = [];
+  if (missing.env.size > 0)
+    problems.push(
+      `environment variable${missing.env.size === 1 ? "" : "s"} ${[...missing.env].join(", ")} ${missing.env.size === 1 ? "is" : "are"} not set in Nerve's environment (referenced in mcp.json)`,
     );
+  if (missing.secrets.size > 0)
+    problems.push(
+      `secret${missing.secrets.size === 1 ? "" : "s"} ${[...missing.secrets].join(", ")} ${missing.secrets.size === 1 ? "is" : "are"} not set; the user adds ${missing.secrets.size === 1 ? "it" : "them"} in ${secretsPage}`,
+    );
+  if (problems.length > 0) throw new Error(problems.join("; "));
   return resolved;
-}
-
-/** Whether mcp.json has a valid, enabled server: then the `mcp` namespace is listed in the quick_script description. */
-export async function hasEnabledMcpServers(home: string): Promise<boolean> {
-  const file = await readMcpConfig(home);
-  return file.servers.some((server) => server.config.enabled !== false);
 }

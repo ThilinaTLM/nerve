@@ -2,6 +2,12 @@ import { codedError } from "../errors.js";
 import { freshArtifactName, writeArtifact } from "../files/artifacts.js";
 import { defineMethod } from "../sdk-args.js";
 import type { SdkEnvironment, SdkMethod } from "../sdk-types.js";
+import {
+  rankTools,
+  SEARCH_DEFAULT_LIMIT,
+  SEARCH_MAX_LIMIT,
+  toMatch,
+} from "./mcp-search.js";
 import type {
   McpCallResult,
   McpResourceContents,
@@ -46,10 +52,43 @@ const SERVER_REQUIRED =
 const serverTarget = (server: string) => `mcp:server/${server}`;
 const signal = (env: SdkEnvironment) => ({ signal: env.context.signal });
 
+const SEARCH_PARALLEL = 4;
+
+/** Servers a call without `server` leaves alone: not started until the user acts. */
+const SKIPPED_STATES = new Set(["disabled", "needs_approval", "rejected"]);
+
+/** `tasks` run with at most `parallel` in flight; results keep the order of `items`. */
+async function settleLimited<T, R>(
+  items: T[],
+  parallel: number,
+  task: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        results[index] = {
+          status: "fulfilled",
+          value: await task(items[index]),
+        };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(parallel, items.length) }, worker),
+  );
+  return results;
+}
+
 /**
- * Servers a call without `server` covers: every enabled one, each checked as the call would be
- * with that server named, so a rule on `mcp:server/<name>` applies. A server that is refused or
- * fails becomes a note, not an error.
+ * Servers a call without `server` covers: every one that is connected, idle or failed (at most
+ * four at a time), each checked as the call would be with that server named, so a rule on
+ * `mcp:server/<name>` applies. A server that is disabled, waiting for approval or rejected, that
+ * is refused, or that fails becomes a note, not an error.
  */
 async function eachServer<T>(
   env: SdkEnvironment,
@@ -58,11 +97,17 @@ async function eachServer<T>(
   read: (server: string) => Promise<T[]>,
 ): Promise<T[]> {
   if (server !== undefined) return await read(server);
-  const servers = (await port(env).listServers()).filter(
-    (entry) => entry.state !== "disabled",
-  );
-  const results = await Promise.allSettled(
-    servers.map(async (entry) => {
+  const all = await port(env).listServers();
+  const servers = all.filter((entry) => !SKIPPED_STATES.has(entry.state));
+  const skipped = all.filter((entry) => SKIPPED_STATES.has(entry.state));
+  if (skipped.length > 0)
+    env.report.notes.push(
+      `MCP servers not used: ${skipped.map((entry) => `${entry.name} (${entry.state})`).join(", ")}. Only the user can turn them on or approve them (settings, MCP servers).`,
+    );
+  const results = await settleLimited(
+    servers,
+    SEARCH_PARALLEL,
+    async (entry) => {
       if (!env.context.authorizeNested)
         throw new Error("nested authorization is unavailable");
       await env.context.authorizeNested({
@@ -71,7 +116,7 @@ async function eachServer<T>(
         risk: "external_read",
       });
       return await read(entry.name);
-    }),
+    },
   );
   return results.flatMap((result, index) => {
     if (result.status === "fulfilled") return result.value;
@@ -184,12 +229,6 @@ export async function toToolResult(
   };
 }
 
-const matches = (tool: McpTool, words: string[]) => {
-  const hay =
-    `${tool.server} ${tool.name} ${tool.title ?? ""} ${tool.description ?? ""}`.toLowerCase();
-  return words.every((word) => hay.includes(word));
-};
-
 /**
  * `mcp.*`: the tools and resources of the MCP servers in the user's `mcp.json`. A tool call is
  * one operation per server and tool (`mcp:tool/<server>/<tool>`), so operation rules can allow a
@@ -202,7 +241,7 @@ export const mcpMethods: SdkMethod[] = [
     risk: "read",
     options: [],
     signature:
-      "/** The servers configured in mcp.json, connected or not; connects to none. A failed server says why in `error`. */ list(): Promise<McpServer[]>",
+      "/** The configured servers (user and project), connected or not; connects to none. `state` says whether a server can be used; `error` says why one failed; `scope` says where it is defined. */ list(): Promise<McpServer[]>",
     parse: () => undefined,
     resource: () => "MCP servers",
     run: async (_, env) => await port(env).listServers(),
@@ -214,7 +253,7 @@ export const mcpMethods: SdkMethod[] = [
     bare: "server",
     options: ["server"],
     signature:
-      "/** Tools of one server, or of every enabled server (a server that fails is skipped with a note). Starts or connects to the servers it lists. */ list(server?: string | { server?: string }): Promise<McpTool[]>",
+      "/** Tools of one server, or of every connected, idle or failed server (a server that fails, is disabled or waits for approval is skipped with a note). Starts or connects to the servers it lists. */ list(server?: string | { server?: string }): Promise<McpTool[]>",
     parse: (options) => text(options, "server"),
     authorize: (server) => ({
       targets: server ? [serverTarget(server)] : [],
@@ -233,26 +272,43 @@ export const mcpMethods: SdkMethod[] = [
     path: "tools.search",
     risk: "external_read",
     bare: "query",
-    options: ["query", "server"],
+    options: ["query", "server", "limit"],
     signature:
-      "/** Tools whose server, name, title or description contain every word of `query` (case-insensitive), of one server or every enabled one. */ search(query: string | { query: string; server?: string }): Promise<McpTool[]>",
-    parse: (options) => ({
-      query: text(options, "query", 'query is required, e.g. "issue".'),
-      server: text(options, "server"),
-    }),
+      "/** Start here: the tools whose name, title or description contain every word of `query`, best first, as short matches (`summary`, `arguments` on one line; often enough to call the tool, else `tools.get` has the full schema). Covers every connected, idle or failed server, or only `server`; limit default 10, max 50. Reads each server's cached tool list when it has one, else connects. */ search(query: string | { query: string; server?: string; limit?: number }): Promise<McpToolMatch[]>",
+    parse: (options) => {
+      const limit = options.limit ?? SEARCH_DEFAULT_LIMIT;
+      if (
+        typeof limit !== "number" ||
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > SEARCH_MAX_LIMIT
+      )
+        throw new Error(
+          `limit must be an integer from 1 to ${SEARCH_MAX_LIMIT}.`,
+        );
+      return {
+        query: text(options, "query", 'query is required, e.g. "issue".'),
+        server: text(options, "server"),
+        limit,
+      };
+    },
     authorize: ({ query, server }) => ({
       targets: server ? [serverTarget(server)] : [],
       summary: `Search MCP tools: ${query}`,
     }),
-    run: async ({ query, server }, env) => {
-      const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    run: async ({ query, server, limit }, env) => {
       const tools = await eachServer(
         env,
         "mcp.tools.search",
         server,
         async (name) => await port(env).listTools(name, signal(env)),
       );
-      return tools.filter((tool) => matches(tool, words));
+      const ranked = rankTools(tools, query);
+      if (ranked.length > limit)
+        env.report.notes.push(
+          `Showing ${limit} of ${ranked.length} matches for ${JSON.stringify(query)} (limit ${limit}, max ${SEARCH_MAX_LIMIT}); narrow the query or pass server.`,
+        );
+      return ranked.slice(0, limit).map(toMatch);
     },
   }),
   defineMethod({
@@ -338,7 +394,7 @@ export const mcpMethods: SdkMethod[] = [
     bare: "server",
     options: ["server"],
     signature:
-      "/** Resources of one server, or of every enabled server (a server that fails or has none is skipped). */ list(server?: string | { server?: string }): Promise<McpResource[]>",
+      "/** Resources of one server, or of every connected, idle or failed server (a server that fails or has none is skipped). */ list(server?: string | { server?: string }): Promise<McpResource[]>",
     parse: (options) => text(options, "server"),
     authorize: (server) => ({
       targets: server ? [serverTarget(server)] : [],

@@ -3,6 +3,7 @@ import type {
   CoreStorage,
   ConversationCore,
 } from "@nervekit/conversation-core";
+import type { McpService } from "../domains/mcp/mcp-service.js";
 import type { ModelHosts } from "../core-host/model-hosts.js";
 import type { GitOperationService, GitService } from "@nervekit/tools/git";
 import type { UnreadableConversationActivity } from "../domains/activity/unreadable-conversation-activity.js";
@@ -108,6 +109,8 @@ export interface AdapterServices {
   configurationOperations: ReturnType<typeof agentConfigurationOperations>;
   admissionPolicy: ScopedPermissionPolicySource;
   configurationResources: ConfigurationResourceRegistry;
+  /** Settings → MCP servers. */
+  mcpService: McpService;
   coreStorage: CoreStorage;
   projectMigration: ProjectMigrationService;
   launches: LaunchService;
@@ -196,6 +199,7 @@ export function createServerAdapterContexts(
       prSync: services.prSync,
       accounts: services.accounts,
       integrationHealth: services.integrationHealth,
+      mcp: services.mcpService,
     },
     projects: {
       projectMigration: services.projectMigration,
