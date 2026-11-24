@@ -17,15 +17,24 @@ let {
   rows = $bindable(),
   noun,
   keyPlaceholder,
+  onChange,
 }: {
   rows: McpKeyValue[];
   /** "variable" or "header". */
   noun: string;
   keyPlaceholder: string;
+  /** A row was removed, switched to or from secret, or Enter was pressed: save now. */
+  onChange?: () => void;
 } = $props();
 
+const onEnter = (event: KeyboardEvent) => {
+  if (event.key === "Enter") onChange?.();
+};
 const add = () => (rows = [...rows, { key: "", value: "", secret: false }]);
-const remove = (index: number) => (rows = rows.filter((_, i) => i !== index));
+const remove = (index: number) => {
+  rows = rows.filter((_, i) => i !== index);
+  onChange?.();
+};
 </script>
 
 <div class="grid gap-2">
@@ -36,16 +45,20 @@ const remove = (index: number) => (rows = rows.filter((_, i) => i !== index));
         placeholder={keyPlaceholder}
         ariaLabel={`Name of ${noun} ${index + 1}`}
         bind:value={row.key}
+        onkeydown={onEnter}
       />
       <Input
         class="min-w-0 flex-1"
         type={row.secret ? "password" : "text"}
         autocomplete="off"
-        placeholder={row.secret && row.stored
-          ? "Stored; leave blank to keep"
+        placeholder={row.secret
+          ? row.stored
+            ? "Stored; leave blank to keep"
+            : "Not set"
           : "Value"}
         ariaLabel={`Value of ${noun} ${index + 1}`}
         bind:value={row.value}
+        onkeydown={onEnter}
       />
       <Label
         class="flex flex-none items-center gap-1.5 text-ui text-muted-foreground"
@@ -55,6 +68,7 @@ const remove = (index: number) => (rows = rows.filter((_, i) => i !== index));
           onCheckedChange={(checked) => {
             row.secret = checked === true;
             if (!row.secret) row.stored = false;
+            onChange?.();
           }}
         />
         Secret

@@ -1,19 +1,4 @@
-import type { McpServerRow, McpServerStateName } from "@nervekit/contracts/mcp";
-import type { BadgeVariant } from "@nervekit/ui-kit/components/ui/badge";
-
-const STATES: Record<
-  McpServerStateName,
-  { label: string; variant: BadgeVariant }
-> = {
-  connected: { label: "Connected", variant: "success" },
-  idle: { label: "Idle", variant: "neutral" },
-  failed: { label: "Failed", variant: "destructive" },
-  disabled: { label: "Disabled", variant: "neutral" },
-  needs_approval: { label: "Needs approval", variant: "warning" },
-  rejected: { label: "Rejected", variant: "destructive" },
-};
-
-export const mcpStateBadge = (state: McpServerStateName) => STATES[state];
+import type { McpServerRow } from "@nervekit/contracts/mcp";
 
 /** A server waiting for the user's decision on its exact entry. */
 export const mcpPending = (row: Pick<McpServerRow, "review">) =>
@@ -31,9 +16,9 @@ export function mcpProblem(row: McpServerRow): string | undefined {
     case "failed":
       return row.error ?? "Could not connect.";
     case "needs_approval":
-      return "Not used until you approve it.";
+      return "Needs approval";
     case "rejected":
-      return "You rejected this entry. It stays off until you approve it.";
+      return "Rejected";
     default:
       return undefined;
   }

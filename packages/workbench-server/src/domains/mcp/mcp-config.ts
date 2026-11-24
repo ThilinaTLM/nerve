@@ -399,7 +399,7 @@ export class McpUnsetError extends Error {
       );
     if (this.secrets.length > 0)
       parts.push(
-        `Secret${plural(this.secrets) ? "s" : ""} ${list(this.secrets)} ${plural(this.secrets) ? "are" : "is"} not set. Set ${plural(this.secrets) ? "them" : "it"} in Edit.`,
+        `Secret${plural(this.secrets) ? "s" : ""} ${list(this.secrets)} ${plural(this.secrets) ? "are" : "is"} not set. Enter ${plural(this.secrets) ? "them" : "it"} under Environment or Headers on the server's page.`,
       );
     return parts.join(" ");
   }

@@ -360,11 +360,15 @@ void test("rows, refusals and test failures speak to the user; the agent's wordi
   });
   const [row] = (await service.list(project)).servers;
   assert.equal(row.state, "failed");
-  assert.equal(row.error, "Secret `token` is not set. Set it in Edit.");
+  assert.equal(
+    row.error,
+    "Secret `token` is not set. Enter it under Environment or Headers on the server's page.",
+  );
   const tested = await service.test({ target: project, name: "team" });
   assert.deepEqual(tested, {
     status: "failed",
-    error: "Secret `token` is not set. Set it in Edit.",
+    error:
+      "Secret `token` is not set. Enter it under Environment or Headers on the server's page.",
   });
   await mkdir(join(env.home, "config"), { recursive: true });
   await writeFile(userFile, JSON.stringify({ mcpServers: { s: fake } }));

@@ -1,12 +1,12 @@
 <!--
-  Add or edit one MCP server. The form and the JSON are two views of the same
-  entry: JSON accepts an `mcpServers` snippet from a server's README (or one
-  entry) and fills the form. Saving goes through the daemon, which validates,
+  Add one MCP server (a server is edited on its own page). The form and the
+  JSON are two views of the same entry: JSON accepts an `mcpServers` snippet
+  from a server's README (or one entry) and fills the form. Saving goes through the daemon, which validates,
   stores secrets and records the approval; a file that is invalid on disk is
   replaced only when the user chooses to.
 -->
 <script lang="ts">
-import type { McpServerRow } from "@nervekit/contracts/mcp";
+import type { McpScope } from "@nervekit/contracts/mcp";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import FormDialog from "@nervekit/ui-kit/components/composites/form-dialog";
 import RadioGroupField from "@nervekit/ui-kit/components/composites/radio-group-field";
@@ -30,14 +30,12 @@ import { parseMcpPaste } from "./mcp-paste";
 
 type Props = {
   open?: boolean;
-  /** The server being edited; absent when adding. */
-  row?: McpServerRow;
-  /** The open project, offered as a level when adding. */
+  /** The open project, offered as a level. */
   project?: { id: string; name: string };
-  /** Called with the saved name (a rename changes it). */
-  onSaved: (name: string) => void;
+  /** Called with the new server's name and level. */
+  onSaved: (name: string, scope: McpScope) => void;
 };
-let { open = $bindable(false), row, project, onSaved }: Props = $props();
+let { open = $bindable(false), project, onSaved }: Props = $props();
 
 let form = $state<McpFormValues>(emptyMcpForm());
 let mode = $state<"form" | "json">("form");
@@ -53,24 +51,20 @@ let lastOpen = false;
 
 $effect(() => {
   if (open && !lastOpen) {
-    form = row
-      ? formFromEntry(row.name, row.entry, row.secrets)
-      : emptyMcpForm();
+    form = emptyMcpForm();
     mode = "form";
     jsonText = "";
-    level = row?.scope ?? "user";
+    level = "user";
     error = notice = fileProblems = undefined;
     typedSecrets = {};
   }
   lastOpen = open;
 });
 
-const jsonLabel = $derived(row ? "Edit JSON" : "Paste JSON");
-
 function showJson() {
   const submission = entryFromForm(form);
   typedSecrets = submission.secrets;
-  const hasContent = row || form.command.trim() || form.url.trim();
+  const hasContent = form.command.trim() || form.url.trim();
   jsonText = hasContent ? entryJson(submission.entry) : "";
   notice = undefined;
   mode = "json";
@@ -85,10 +79,7 @@ function applyJson(): boolean {
   }
   const [first, ...more] = parsed.servers;
   const name = first!.name ?? form.name;
-  form = withSecretValues(
-    formFromEntry(name, first!.entry, row?.secrets),
-    typedSecrets,
-  );
+  form = withSecretValues(formFromEntry(name, first!.entry), typedSecrets);
   const notes = [
     more.length
       ? `Found ${more.length + 1} servers; filled in ${name}. Add the others one by one.`
@@ -114,16 +105,14 @@ async function save(replaceInvalid = false) {
     return;
   }
   const submission = entryFromForm(form);
+  const scope: McpScope = level === "project" && project ? "project" : "user";
   busy = true;
   error = undefined;
   try {
     const result = await saveMcpServer({
-      target: mcpTarget(level === "project" ? "project" : "user", project?.id),
+      target: mcpTarget(scope, project?.id),
       name: submission.name,
       entry: submission.entry,
-      ...(row && row.name !== submission.name
-        ? { previousName: row.name }
-        : {}),
       ...(Object.keys(submission.secrets).length
         ? { secrets: submission.secrets }
         : {}),
@@ -131,7 +120,7 @@ async function save(replaceInvalid = false) {
     });
     if (result.status === "saved") {
       open = false;
-      onSaved(submission.name);
+      onSaved(submission.name, scope);
     } else if (result.status === "invalid") {
       fileProblems = undefined;
       error = result.problems.join(" ");
@@ -144,6 +133,9 @@ async function save(replaceInvalid = false) {
     busy = false;
   }
 }
+
+const JSON_PLACEHOLDER =
+  '{ "mcpServers": { "github": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] } } }';
 
 const levels = $derived([
   { value: "user", label: "User", detail: "Available in every project" },
@@ -162,14 +154,14 @@ const levels = $derived([
 <FormDialog
   bind:open
   size="md"
-  title={row ? `Edit ${row.name}` : "Add MCP server"}
+  title="Add MCP server"
   description="Secret values are stored on this computer, never in the file."
   submitLabel="Save"
   {busy}
   {error}
   onSubmit={() => save()}
 >
-  {#if project && !row}
+  {#if project}
     <RadioGroupField
       items={levels}
       bind:value={level}
@@ -192,7 +184,7 @@ const levels = $derived([
     }}
   >
     <ToggleGroup.Item value="form">Form</ToggleGroup.Item>
-    <ToggleGroup.Item value="json">{jsonLabel}</ToggleGroup.Item>
+    <ToggleGroup.Item value="json">Paste JSON</ToggleGroup.Item>
   </ToggleGroup.Root>
 
   {#if notice}<Callout tone="info" text={notice} />{/if}
@@ -204,9 +196,7 @@ const levels = $derived([
       rows={10}
       spellcheck={false}
       aria-label="Server JSON"
-      placeholder={row
-        ? ""
-        : '{ "mcpServers": { "github": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] } } }'}
+      placeholder={JSON_PLACEHOLDER}
       bind:value={jsonText}
     />
   {/if}

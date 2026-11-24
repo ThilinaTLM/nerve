@@ -306,6 +306,9 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {projectName}
       onBack={() => onCloseItem?.()}
       onOpenItem={(id) => onOpenItem?.(id)}
+      onOpenFile={project
+        ? (path) => void openFilePane({ projectId: project.id, path })
+        : undefined}
     />
   {:else if page.id === "mcp-servers"}
     <McpServersSettingsPage

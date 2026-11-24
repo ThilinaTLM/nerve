@@ -1,25 +1,24 @@
 <!--
-  Settings › MCP servers › name: one server. An entry waiting for review shows
-  what it runs and what it sends, with Approve and Reject; an approved one
-  also shows what the agent sees (tested on open while it is on).
+  Settings › MCP servers › name: one server, laid out like an extension's page.
+  The header has its Enabled switch (the User and project table with a project
+  open). An entry waiting for review shows what it runs and sends, with Approve
+  and Reject; an approved one shows its tools (tested on open while it is on)
+  and its entry, edited in place. Source has the file, the approval and Remove.
 -->
 <script lang="ts">
 import { untrack } from "svelte";
-import Ban from "@lucide/svelte/icons/ban";
-import Pencil from "@lucide/svelte/icons/pencil";
-import Trash2 from "@lucide/svelte/icons/trash-2";
-import Unplug from "@lucide/svelte/icons/unplug";
-import type { McpReview } from "@nervekit/contracts/mcp";
+import Plug from "@lucide/svelte/icons/plug";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import type { McpReview, McpServerRow } from "@nervekit/contracts/mcp";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import {
-  FieldRow,
   PageEmptyState,
   PageHeader,
 } from "@nervekit/ui-kit/components/composites/page";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import {
   decideMcpServer,
   disconnectMcpServer,
@@ -32,10 +31,12 @@ import {
 import { mcpItemId, parseMcpItemId } from "$lib/application/mcp/mcp-item";
 import { McpServersState } from "$lib/application/mcp/mcp-servers-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import { SettingsSection } from "$lib/presentation/settings";
+import { LayerEnabledTable } from "$lib/presentation/settings";
 import McpEntrySections from "./McpEntrySections.svelte";
-import McpOffersSection from "./McpOffersSection.svelte";
-import McpServerDialog from "./McpServerDialog.svelte";
+import McpServerEditor from "./McpServerEditor.svelte";
+import McpSourceSection from "./McpSourceSection.svelte";
+import McpToolsSection from "./McpToolsSection.svelte";
+import { McpEnablementState } from "./mcp-enablement-state.svelte";
 
 let {
   itemId,
@@ -43,6 +44,7 @@ let {
   projectName,
   onBack,
   onOpenItem,
+  onOpenFile,
 }: {
   /** `scope:name` (`mcpItemId`). */
   itemId: string;
@@ -53,17 +55,26 @@ let {
   onBack: () => void;
   /** Opens another server (after a rename). */
   onOpenItem?: (id: string) => void;
+  /** Opens a file of the open project by absolute path. */
+  onOpenFile?: (path: string) => void;
 } = $props();
 
 const wanted = $derived(parseMcpItemId(itemId));
 const list = new McpServersState();
+const enablement = new McpEnablementState(() => ({ projectId }));
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
   void list.load(
     projectId ? mcpTarget("project", projectId) : mcpTarget("user", undefined),
   );
 });
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive) return;
+  void projectId;
+  untrack(() => enablement.load());
+});
 $effect(() => list.observe());
+$effect(() => enablement.observe());
 
 const row = $derived(
   wanted
@@ -75,8 +86,10 @@ const row = $derived(
 );
 const target = $derived(row ? mcpTarget(row.scope, projectId) : undefined);
 const pending = $derived(!!row && row.review !== "approved");
+const layers = $derived(row ? enablement.layers(row) : undefined);
+const layered = $derived(enablement.layered && !!projectName);
 
-// The review of the entry as it is now: reloaded when the entry or its decision changes.
+// The review of the entry as it is now: what Approve, Reject and Revoke decide on.
 let review = $state<McpReview | null>();
 let reviewError = $state<string>();
 const reviewKey = $derived(
@@ -85,8 +98,7 @@ const reviewKey = $derived(
     : "",
 );
 $effect(() => {
-  const key = reviewKey;
-  if (!key || !row) return;
+  if (!reviewKey || !row) return;
   const { scope, name } = row;
   let current = true;
   untrack(() => {
@@ -104,13 +116,13 @@ $effect(() => {
   };
 });
 
-// What the agent sees: tested once on open (and after approval) while the server is on.
+// The tools: tested once on open, after approval and after each save, while the server is on.
 let testResult = $state<McpTestResult>();
 let testError = $state<string>();
 let testBusy = $state(false);
-let testedKey = "";
+let testedKey = $state("");
 $effect(() => {
-  if (!row || pending || !row.enabled) return;
+  if (!row || pending || !row.enabled || row.shadowed) return;
   const key = `${row.scope}:${row.name}`;
   if (key === testedKey) return;
   testedKey = key;
@@ -147,7 +159,7 @@ async function act(action: () => Promise<unknown>) {
   }
 }
 
-/** Approves or rejects exactly the entry shown; a changed entry is shown again. */
+/** Decides on exactly the entry shown; a changed entry is shown again. */
 function decide(status: "trusted" | "rejected") {
   const shown = review;
   if (!shown) return;
@@ -164,11 +176,25 @@ function decide(status: "trusted" | "rejected") {
   });
 }
 
-let editOpen = $state(false);
+function saved(next: McpServerRow) {
+  void list.reload();
+  if (row && next.name !== row.name)
+    onOpenItem?.(mcpItemId(next.scope, next.name));
+  else testedKey = "";
+}
+
 let removeOpen = $state(false);
 
-const project = $derived(
-  projectId && projectName ? { id: projectId, name: projectName } : undefined,
+/** The file of the target's own scope; a user entry listed for a project lives elsewhere. */
+const path = $derived(
+  row && (row.scope === "project") === !!projectId
+    ? list.file?.path
+    : undefined,
+);
+const openFile = $derived(
+  onOpenFile && row?.scope === "project" && path
+    ? () => onOpenFile(path)
+    : undefined,
 );
 const description = $derived(
   row?.description ??
@@ -178,17 +204,6 @@ const description = $derived(
         ? "Yours, available in every project."
         : undefined),
 );
-/** Why it is not in use here, when the sections below do not already say. */
-const notice = $derived.by(() => {
-  if (!row) return undefined;
-  if (row.review === "rejected")
-    return "You rejected this entry. It stays off until you approve it.";
-  if (row.shadowed)
-    return "The project's server with the same name replaces this one here.";
-  if (!pending && !row.enabled)
-    return "Off here. Turn it on in the MCP servers list.";
-  return undefined;
-});
 
 function errorText(cause: unknown) {
   return cause instanceof Error ? cause.message : String(cause);
@@ -199,14 +214,46 @@ function errorText(cause: unknown) {
   title={wanted?.name ?? itemId}
   {description}
   parent={{ label: "MCP servers", onBack }}
+  class="mb-1"
 >
+  {#snippet leading()}
+    <Plug
+      class={row?.enabled === false
+        ? "size-4.5 text-muted-foreground"
+        : "size-4.5 text-foreground"}
+      aria-hidden="true"
+    />
+  {/snippet}
   {#snippet actions()}
-    {#if row && pending}
-      <Button
-        size="sm"
-        disabled={busy || !review}
-        onclick={() => decide("trusted")}>Approve</Button
-      >
+    {#if row && layers && !layered && !pending}
+      <Switch
+        checked={layers.user}
+        disabled={busy}
+        aria-label={`Enable ${row.name}`}
+        onCheckedChange={(next) =>
+          void act(() => enablement.change(row, "user", next))}
+      />
+    {/if}
+  {/snippet}
+  {#snippet below()}
+    {#if row && layers && layered && !pending}
+      <div class="pt-2">
+        <LayerEnabledTable
+          name={row.name}
+          description={row.scope === "project"
+            ? "Off keeps the agent from using it here."
+            : "On for every project, or only here."}
+          {projectName}
+          user={layers.user}
+          project={layers.project}
+          projectSet={layers.value.project !== undefined}
+          projectOnly={row.scope === "project"}
+          locked={enablement.locked}
+          inapplicable={row.shadowed}
+          onChange={(layer, next) =>
+            void act(() => enablement.change(row, layer, next))}
+        />
+      </div>
     {/if}
   {/snippet}
 </PageHeader>
@@ -234,93 +281,78 @@ function errorText(cause: unknown) {
     {/snippet}
   </PageEmptyState>
 {:else}
-  <div class="flex flex-wrap items-center gap-2">
-    {#if !pending}
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={busy}
-        onclick={() => (editOpen = true)}
-        ><Pencil class="size-3.5" />Edit</Button
+  <div class="grid gap-5">
+    {#if actionError}<Callout tone="destructive" text={actionError} />{/if}
+    {#if reviewError}<Callout tone="destructive" text={reviewError} />{/if}
+
+    {#if pending}
+      <Callout
+        layout="block"
+        tone="warning"
+        icon={TriangleAlert}
+        title={row.review === "rejected"
+          ? "You rejected this entry"
+          : "Waiting for your review"}
+        text={row.review === "rejected"
+          ? "It stays off until you approve it."
+          : "It does not run until you approve it. Approval covers exactly this entry; any change asks again."}
       >
-    {/if}
-    {#if row.review === "needs_approval"}
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={busy || !review}
-        onclick={() => decide("rejected")}
-        ><Ban class="size-3.5" />Reject</Button
-      >
-    {/if}
-    {#if row.state === "connected"}
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={busy}
-        onclick={() =>
-          target && void act(() => disconnectMcpServer(target, row.name))}
-        ><Unplug class="size-3.5" />Disconnect</Button
-      >
-    {/if}
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={busy}
-      onclick={() => (removeOpen = true)}
-      ><Trash2 class="size-3.5" />Remove</Button
-    >
-  </div>
-
-  {#if actionError}<Callout tone="destructive" text={actionError} />{/if}
-  {#if notice}<Callout tone="neutral" text={notice} />{/if}
-  {#if reviewError}<Callout tone="destructive" text={reviewError} />{/if}
-
-  {#if !pending && !row.shadowed}
-    <McpOffersSection
-      result={testResult}
-      busy={testBusy}
-      error={testError}
-      onTest={() => void runTest()}
-    />
-  {/if}
-
-  {#if review}
-    <McpEntrySections {review} />
-  {:else if review === undefined && !reviewError}
-    <Skeleton class="h-24 w-full" />
-  {/if}
-
-  {#if row.secrets.length}
-    <SettingsSection
-      title="Secrets"
-      description="Stored on this computer, never in the file."
-      divided
-    >
-      {#each row.secrets as secret (secret.name)}
-        <FieldRow label={secret.name} mono>
-          {#snippet control()}
-            <Badge variant={secret.set ? "success" : "warning"}
-              >{secret.set ? "Set" : "Not set"}</Badge
+        {#snippet actions()}
+          {#if row.review === "needs_approval"}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy || !review}
+              onclick={() => decide("rejected")}>Reject</Button
             >
-          {/snippet}
-        </FieldRow>
-      {/each}
-    </SettingsSection>
-  {/if}
+          {/if}
+          <Button
+            size="sm"
+            disabled={busy || !review}
+            onclick={() => decide("trusted")}>Approve</Button
+          >
+        {/snippet}
+      </Callout>
+      {#if review}
+        <McpEntrySections {review} />
+      {:else if !reviewError}
+        <Skeleton class="h-24 w-full" />
+      {/if}
+    {:else}
+      {#if row.shadowed}
+        <Callout
+          tone="neutral"
+          text="The project's server with the same name replaces this one here."
+        />
+      {:else if row.enabled}
+        <McpToolsSection
+          result={testResult}
+          busy={testBusy}
+          error={testError}
+          onTest={() => void runTest()}
+          onDisconnect={row.state === "connected" && target
+            ? () => void act(() => disconnectMcpServer(target, row.name))
+            : undefined}
+        />
+      {/if}
+      {#if target}
+        {#key `${row.scope}:${row.name}`}
+          <McpServerEditor {row} {target} onSaved={saved} />
+        {/key}
+      {/if}
+    {/if}
+
+    <McpSourceSection
+      {row}
+      {path}
+      {busy}
+      onOpenFile={openFile}
+      onRevoke={review ? () => decide("rejected") : undefined}
+      onRemove={() => (removeOpen = true)}
+    />
+  </div>
 {/if}
 
-<McpServerDialog
-  bind:open={editOpen}
-  {row}
-  {project}
-  onSaved={(name) => {
-    // The saved entry is tested again once the list has it.
-    testedKey = "";
-    void list.reload();
-    if (row && name !== row.name) onOpenItem?.(mcpItemId(row.scope, name));
-  }}
-/>
 <ConfirmDialog
   bind:open={removeOpen}
   title={`Remove ${row?.name ?? "server"}?`}

@@ -1,6 +1,6 @@
 <!--
-  What an MCP server entry runs and what it sends out of the machine: what the
-  user approves. The decision binds to the exact entry shown.
+  What an MCP server entry waiting for review runs and what it sends out of the
+  machine: what the user approves. The decision binds to the exact entry shown.
 -->
 <script lang="ts">
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
@@ -14,12 +14,7 @@ let { review }: { review: McpReview } = $props();
 const grants = $derived(review.grants);
 </script>
 
-<SettingsSection
-  title={grants.transport === "http" ? "Connects to" : "Runs"}
-  description={review.status === "approved"
-    ? "You approved this entry. Any change to it asks again."
-    : "Not used until you approve it. Any change to it asks again."}
->
+<SettingsSection title={grants.transport === "http" ? "Connects to" : "Runs"}>
   <div class="grid gap-4">
     <section class="grid gap-1.5">
       <p
