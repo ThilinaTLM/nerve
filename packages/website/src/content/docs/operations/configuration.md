@@ -46,7 +46,7 @@ The page distinguishes active and saved values. Network, diagnostics enablement,
 | `<NERVE_HOME>/data/` (SQLite)             | Accounts (Atlassian, Tavily, and others): fields, state, and the credential encrypted with `secrets/master.key` |
 | `<NERVE_HOME>/secrets`                    | The master key and provider credentials                                                                         |
 
-Accounts are stored in the Nerve home's database, not in a configuration file, at user level or project level (never in the repository). Settings choose an account by ID, and each field resolves from the extension's default, then your settings, then the project's, then an applied [profile](/reference/agent-profiles/). Edits in **Settings → Extensions** are trusted automatically; a project file edited elsewhere needs **Trust file** again. Upgrading to 0.41 moves integration accounts and tool options out of `agent.json` into these files and rewrites permission rules that named the removed Jira, Confluence, diagram, and image-generation tools to Quick script operation rules.
+Accounts are stored in the Nerve home's database, not in a configuration file, at user level or project level (never in the repository). Settings choose an account by ID, and each field resolves from the extension's default, then your settings, then the project's, then an applied [profile](/reference/agent-profiles/). Edits in **Settings → Extensions** are trusted automatically; a project file edited elsewhere needs review again. Upgrading to 0.41 moves integration accounts and tool options out of `agent.json` into these files and rewrites permission rules that named the removed Jira, Confluence, diagram, and image-generation tools to Quick script operation rules.
 
 ## Edit configuration by chat
 
@@ -54,7 +54,7 @@ The built-in **configure-nerve** skill, turned on by the **Forge** profile, lets
 
 ## Project trust
 
-Project files that can widen what the agent does or runs apply only after you trust their exact content: `agent.json`, `permissions.json`, `extensions.json`, agent profiles, and prompt-suggestion scripts. Project **General**, **Tools**, and **Skills** settings show **Project agent settings are not trusted** with a **Trust file** button when `agent.json` hasn't been trusted; until then conversations use your user settings. Files Nerve writes are trusted for you, edits made elsewhere need a new review, and **Revoke trust** withdraws it. Trust state lives in `<NERVE_HOME>/data/nerve.sqlite`.
+Project files that can widen what the agent does or runs apply only after you trust their exact content: `agent.json`, `permissions.json`, `extensions.json`, agent profiles, skills, MCP server entries, and prompt-suggestion scripts. Each item is **Needs review**, **Trusted**, or **Declined**. You decide on the page where the item is used: the notice offers **Review and trust** and **Decline**, a trusted item offers **Revoke**, and a declined one stays declined, even if the file changes, until you choose **Review and trust**. Until the project's `agent.json` is trusted, conversations use your user settings. Files Nerve writes keep their trust, edits made elsewhere need a new review, and the agent can't decide for you. Trust state lives in `<NERVE_HOME>/data/nerve.sqlite`. See [Settings at a glance](/guides/settings/#project-files-you-review).
 
 ## Desktop flags
 

@@ -59,8 +59,49 @@ export function demoUsageResponse(request: DemoProtocolRequest | null) {
   };
 }
 
+/** The invented Tailscale address shown by the Remote connections scenes. */
+export const DEMO_TUNNEL_URL = "https://aurora-dev.tail4f2a9.ts.net";
+
+/**
+ * Presents Tailscale private access as on and ready. The demo daemon has no Tailscale, so
+ * the capture browser rewrites the two places the app reads it: the status's `tunnel` and
+ * the `tunnelEnabled` setting. Nothing is written back.
+ */
+export function demoTunnelHints(message: unknown): unknown {
+  if (Array.isArray(message)) return message.map(demoTunnelHints);
+  if (!message || typeof message !== "object") return message;
+  const result: Record<string, unknown> = Object.fromEntries(
+    Object.entries(message).map(([key, value]) => [
+      key,
+      demoTunnelHints(value),
+    ]),
+  );
+  const tunnel = result.tunnel;
+  if (
+    tunnel &&
+    typeof tunnel === "object" &&
+    typeof (tunnel as { state?: unknown }).state === "string"
+  )
+    result.tunnel = { state: "ready", url: DEMO_TUNNEL_URL };
+  const enabled = result.tunnelEnabled;
+  if (enabled && typeof enabled === "object" && "activeValue" in enabled)
+    result.tunnelEnabled = {
+      ...enabled,
+      activeValue: true,
+      savedValue: true,
+    };
+  return result;
+}
+
 /** Proxy all other protocol traffic unchanged to the isolated demo daemon. */
 export async function installDemoUsage(context: BrowserContext): Promise<void> {
+  /* The daemon status (with the tunnel) also arrives with the client config. */
+  await context.route("**/api/client-config", async (route) => {
+    const response = await route.fetch();
+    const body: unknown = await response.json().catch(() => undefined);
+    if (body === undefined) return route.fulfill({ response });
+    await route.fulfill({ response, json: demoTunnelHints(body) });
+  });
   await context.routeWebSocket(/\/ws\/workbench(?:\?|$)/, (socket) => {
     const server = socket.connectToServer();
     socket.onMessage((message) => {
@@ -80,7 +121,9 @@ export async function installDemoUsage(context: BrowserContext): Promise<void> {
       try {
         socket.send(
           JSON.stringify(
-            demoGithubRepositoryHints(JSON.parse(String(message))),
+            demoTunnelHints(
+              demoGithubRepositoryHints(JSON.parse(String(message))),
+            ),
           ),
         );
       } catch {

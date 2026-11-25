@@ -11,8 +11,8 @@ import {
 
 /** Where the user acts on a server of each scope; named in errors the agent reads. */
 export const MCP_SETTINGS_PAGE: Record<McpScope, string> = {
-  user: "User settings → Connections → MCP servers",
-  project: "Project settings → Agent → MCP servers",
+  user: "Settings → MCP servers, User column",
+  project: "Settings → MCP servers, project column",
 };
 
 /** The state of the consent rows (`mcp_server` in the trusted_resource table), by project (null: user) and server name. */

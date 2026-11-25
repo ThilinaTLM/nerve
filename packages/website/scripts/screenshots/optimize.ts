@@ -19,7 +19,9 @@ export const EXPECTED_DIMENSIONS: Record<
   mobile: { width: 1170, height: 2532 },
 };
 
-const QUALITY = 82;
+/* High enough that the site build, which re-encodes these, never compounds
+ * visible artifacts on small UI text. */
+const QUALITY = 90;
 
 export function pairErrors(kind: string, names: string[]) {
   const scenes = new Map<string, { light?: boolean; dark?: boolean }>();

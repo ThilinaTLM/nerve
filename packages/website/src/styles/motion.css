@@ -70,34 +70,125 @@
   }
 }
 
-/* The hero's scroll cue: an impulse dropping down a short axon. */
-@keyframes cue-drop {
+/* Hero composer: the text caret. */
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Hero workbench: a layer rising from the window plane to its own depth
+ * (`--z`, in container units; see HeroWorkbench.astro). */
+@keyframes wb-rise {
+  from {
+    opacity: 0;
+    transform: translateZ(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateZ(calc(var(--z) * 1cqw));
+  }
+}
+
+/* Hero workbench: a running tool call's status ring. */
+@keyframes wb-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* Hero workbench: the impulse from the Forge chip into the docked panel,
+ * fired once per Forge prompt. */
+@keyframes wb-impulse {
   0% {
     opacity: 0;
-    transform: translateY(-0.35rem);
+    stroke-dashoffset: 16;
   }
-  25%,
-  70% {
+  6% {
     opacity: 1;
+  }
+  60% {
+    opacity: 1;
+    stroke-dashoffset: -100;
+  }
+  66%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -100;
+  }
+}
+
+/* Task journey: the spark a lit station hands to the stage, travelling
+ * from the station (right) across the gap to the window (see
+ * TaskJourney.astro, `.tj-handoff`). */
+@keyframes tj-handoff {
+  0% {
+    opacity: 0;
+    transform: translateX(0) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(calc(-0.2 * var(--tj-gap, 4.5rem))) scale(1);
   }
   100% {
     opacity: 0;
-    transform: translateY(2.5rem);
+    transform: translateX(calc(-1 * var(--tj-gap, 4.5rem))) scale(0.8);
   }
 }
 
-/* A simulated run row arriving in a transcript feed. */
-@keyframes run-enter {
-  from {
+/* Closing: the signal crosses the platform line in the first ~71% of the
+ * cycle (3s of 4.2s, see ClosingCta.astro). The dash is 0.08 of a
+ * normalized path length, so it travels from 0.08 to -1. */
+@keyframes platform-run {
+  0% {
+    stroke-dashoffset: 0.08;
+  }
+  71%,
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+
+/* Closing: a platform mark flashing as the signal passes through it. */
+@keyframes platform-hit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  20% {
     opacity: 0;
-    transform: translateY(0.6rem) scale(0.99);
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
   }
 }
 
-/* A tool call that has not resolved yet. */
-@keyframes run-spin {
-  to {
-    transform: rotate(360deg);
+/* Orbit: an impulse travelling from the hub to a service and back. */
+@keyframes orbit-pulse {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -200;
+  }
+}
+
+/* Hotspot: a pin breathing to invite a hover. */
+@keyframes pin-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.9);
+    opacity: 0;
   }
 }
 
@@ -110,28 +201,6 @@
   to {
     opacity: 0;
     transform: translateX(300%);
-  }
-}
-
-/* The anatomy stage's impulse, held at a review gate that has not been
- * answered yet. */
-@keyframes gate-wait {
-  0%,
-  100% {
-    opacity: 1;
-    transform: translateY(-50%) scale(1);
-  }
-  50% {
-    opacity: 0.45;
-    transform: translateY(-50%) scale(1.55);
-  }
-}
-
-/* Authority dial cells swapping as the permission level changes. */
-@keyframes cell-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.2rem);
   }
 }
 
@@ -162,7 +231,6 @@ html[data-motion-ready] [data-reveal-child]:not(.is-revealed) {
 /* Elements a stage settles individually without a `[data-reveal]` wrapper.
  * They must share the pre-hidden state, or they would be readable on entry
  * and then yanked to opacity zero when their scroll trigger fires. */
-html[data-motion-ready] .closing-steps li:not(.is-revealed),
 html[data-motion-ready] .section-header .eyebrow:not(.is-revealed),
 html[data-motion-ready] .section-header .lede:not(.is-revealed) {
   opacity: 0;

@@ -168,8 +168,12 @@ export default defineConfig({
         {
           label: "Customize",
           items: [
-            { label: "Themes and appearance", slug: "guides/personalize" },
+            {
+              label: "Configure Nerve by chat",
+              slug: "guides/configure-by-chat",
+            },
             { label: "Build an extension", slug: "guides/build-extensions" },
+            { label: "Themes and appearance", slug: "guides/personalize" },
             { label: "Settings at a glance", slug: "guides/settings" },
             { label: "Keyboard shortcuts", slug: "reference/shortcuts" },
           ],

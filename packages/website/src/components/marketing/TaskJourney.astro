@@ -1,0 +1,1400 @@
+---
+/* "One task, start to finish": one run on one drawn workbench window.
+ *
+ * The stage is the window, drawn like the hero (crisp DOM, theme tokens) and
+ * tilted slightly in 3D. Beside it (below on narrow screens) runs the track:
+ * five stations on an axon. `task-journey.ts` sends an impulse down the
+ * axon; each station lights as it arrives and stays lit, hands off to the
+ * stage, and the window moves to that step:
+ *
+ *   1 You ask        the prompt is typed into the composer (Lead profile)
+ *   2 Lead splits it `subagent_prompt` starts explore, developer, explore
+ *   3 Agents work    the developer's conversation: read, edit, bash ticking
+ *   4 You approve    `bash git push` waits on an approval card; Approve
+ *   5 It ships       the pull request: checks pass, Merge, Merged
+ *
+ * Labels are the app's own (the Agents bar and Back to lead, Needs
+ * approval with Approve and Deny, the PR pane's Checks, Merge and Merged).
+ * The markup is the finished run (every station lit, the pull request
+ * merged), so the section reads the same without script or with reduced
+ * motion. Illustrative.
+ */
+import BrandIcon from "./BrandIcon.astro";
+import Reveal from "./Reveal.astro";
+import { profileIcons } from "./hero-profiles";
+
+const task = "Add rate limiting to the booking API";
+
+const stations = [
+  { short: "Ask", title: "You ask", sub: "One prompt to the Lead" },
+  { short: "Split", title: "The lead splits it", sub: "Three sub-agents start" },
+  { short: "Work", title: "Agents work in the open", sub: "Open any agent and watch" },
+  { short: "Approve", title: "You approve the push", sub: "Risky steps wait for you" },
+  { short: "Ship", title: "It ships", sub: "Checks pass, PR #42 merged" },
+] as const;
+
+const agents = [
+  { name: "map-routes", profile: "explore" },
+  { name: "limiter", profile: "developer" },
+  { name: "review", profile: "explore" },
+] as const;
+
+const work = [
+  { id: "read", tool: "read", detail: "src/api/rate-limit.ts" },
+  { id: "edit", tool: "edit", detail: "src/api/rate-limit.ts", add: "+12", del: "−3" },
+  { id: "test", tool: "bash", detail: "pnpm test", note: "48 passed" },
+] as const;
+
+const checks = ["lint", "test", "build"] as const;
+
+/* The empty conversation's launchpad (workbench-app
+ * `conversation-starters.ts`); the tagline under it is Lead's. */
+const starters = [
+  { id: "coding", label: "Coding" },
+  { id: "planning", label: "Planning" },
+  { id: "lead", label: "Lead" },
+  { id: "forge", label: "Forge" },
+] as const;
+
+/* Lucide glyphs for the drawn chrome. */
+const glyph = {
+  bell: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0",
+  branch:
+    "M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9",
+  pr: "M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 9v12M13 6h3a2 2 0 0 1 2 2v7",
+  merge:
+    "M18 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 21V9a9 9 0 0 0 9 9",
+  agents:
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+  back: "m12 19-7-7 7-7M19 12H5",
+  check: "M20 6 9 17l-5-5",
+  x: "M18 6 6 18M6 6l12 12",
+};
+---
+
+<Reveal
+  class="tj"
+  data-task-journey
+  data-step="5"
+  data-view="pr"
+  style="--p:1"
+>
+  <figure
+    class="tj-stage"
+    data-tilt
+    data-tilt-max="3"
+    aria-label={`An illustration of one task in Nerve: you ask the Lead profile to ${task.toLowerCase()}, the lead starts explore, developer and explore sub-agents, the developer reads, edits and tests src/api/rate-limit.ts, you approve git push, and pull request #42 passes its checks and is merged.`}
+  >
+    <div class="tj-tilt" aria-hidden="true">
+      <div class="tj-window">
+        <div class="tj-titlebar">
+          <img class="tj-logo" src="/favicon.svg" alt="" />
+          <span class="tj-tab is-active">aurora</span>
+          <span class="tj-tab">northstar</span>
+          <svg class="tj-glyph tj-bell" viewBox="0 0 24 24"><path d={glyph.bell} /></svg>
+        </div>
+
+        <div class="tj-body">
+          <!-- The conversation: header, transcript layers, Agents bar, composer. -->
+          <div class="tj-chat">
+            <div class="tj-head">
+              <span class="tj-head-label" data-for="new">
+                <span class="tj-dot"></span>New conversation
+              </span>
+              <span class="tj-head-label" data-for="lead">
+                <span class="tj-dot is-primary"></span>{task}
+              </span>
+              <span class="tj-head-label" data-for="child">
+                <span class="tj-dot is-primary"></span>limiter
+                <span class="tj-badge">developer</span>
+              </span>
+            </div>
+
+            <div class="tj-transcript">
+              <!-- An empty conversation: the launchpad's profiles, Lead picked. -->
+              <div class="tj-layer tj-launchpad" data-layer="start">
+                <span class="tj-starters">
+                  {
+                    starters.map((starter) => (
+                      <span
+                        class:list={["tj-starter", starter.id === "lead" && "is-picked"]}
+                        data-tj={starter.id === "lead" ? "starter" : undefined}
+                      >
+                        <svg class="tj-glyph" viewBox="0 0 24 24">
+                          <path d={profileIcons[starter.id]} />
+                        </svg>
+                        {starter.label}
+                      </span>
+                    ))
+                  }
+                </span>
+                <span class="tj-tagline">For large efforts a team of agents can split and verify.</span>
+              </div>
+
+              <!-- The lead's conversation. -->
+              <div class="tj-layer" data-layer="lead">
+                <div class="tj-bubble" data-tj="bubble">{task}</div>
+                <div class="tj-step" data-tj="spawn" data-state="done">
+                  <span class="tj-status"></span>
+                  <code>subagent_prompt</code>
+                  <span class="tj-detail">3 assignments</span>
+                </div>
+                <p class="tj-reply" data-tj="reply">All three are done and the tests pass. Pushing the branch.</p>
+                <div class="tj-approval" data-tj="approval" data-state="done">
+                  <div class="tj-approval-head">
+                    <span class="tj-status"></span>
+                    <code>bash</code>
+                    <span class="tj-detail">git push -u origin rate-limit</span>
+                  </div>
+                  <div class="tj-approval-foot">
+                    <span class="tj-needs"><span class="tj-dot is-warning"></span>Needs approval</span>
+                    <span class="tj-btn is-primary" data-tj="approve">
+                      <svg class="tj-glyph" viewBox="0 0 24 24"><path d={glyph.check} /></svg>Approve
+                    </span>
+                    <span class="tj-btn">
+                      <svg class="tj-glyph" viewBox="0 0 24 24"><path d={glyph.x} /></svg>Deny
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- The developer sub-agent's conversation, opened from the Agents bar. -->
+              <div class="tj-layer" data-layer="child">
+                <div class="tj-bubble is-lead">Add a per-client limit to the booking routes</div>
+                {
+                  work.map((row) => (
+                    <div class="tj-step" data-tj={row.id} data-state="done">
+                      <span class="tj-status" />
+                      <code>{row.tool}</code>
+                      <span class="tj-detail">{row.detail}</span>
+                      {"add" in row && (
+                        <span class="tj-diff">
+                          <b class="is-add">{row.add}</b>
+                          <b class="is-del">{row.del}</b>
+                        </span>
+                      )}
+                      {"note" in row && <span class="tj-note">{row.note}</span>}
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+
+            <div class="tj-tray" data-tj="tray">
+              <div class="tj-agents">
+                {
+                  agents.map((agent, index) => (
+                    <span class="tj-agent" data-tj={`agent-${index}`} data-state="done">
+                      <span class="tj-status" />
+                      <span class="tj-agent-name">{agent.name}</span>
+                      <span class="tj-badge">{agent.profile}</span>
+                    </span>
+                  ))
+                }
+              </div>
+              <div class="tj-tray-bar">
+                <span class="tj-back">
+                  <svg class="tj-glyph" viewBox="0 0 24 24"><path d={glyph.back} /></svg>Back to lead
+                </span>
+                <span class="tj-tray-count">
+                  <svg class="tj-glyph" viewBox="0 0 24 24"><path d={glyph.agents} /></svg>Agents <b>3</b>
+                </span>
+              </div>
+            </div>
+
+            <div class="tj-composer" data-tj="composer">
+              <p class="tj-input">
+                <span data-tj="input"></span><span class="tj-caret"></span><span
+                  class="tj-placeholder">Ask the local Nerve agent</span
+                >
+              </p>
+              <div class="tj-composer-bar">
+                <span class="tj-chip">
+                  <svg class="tj-glyph" viewBox="0 0 24 24"><path d={profileIcons.lead} /></svg>Lead
+                </span>
+                <span class="tj-send"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- The pull request pane, sliding over the chat when the run ships. -->
+          <div class="tj-pr" data-tj="pr" data-state="merged">
+            <div class="tj-pr-top">
+              <BrandIcon name="github" size={15} />
+              <span>Pull request</span>
+              <b class="tj-pr-number">#42</b>
+            </div>
+            <div class="tj-pr-title">
+              <span class="tj-pr-state">
+                <span class="tj-pr-open">
+                  <svg class="tj-glyph" viewBox="0 0 24 24"><path d={glyph.pr} /></svg>Open
+                </span>
+                <span class="tj-pr-merged">
+                  <svg class="tj-glyph" viewBox="0 0 24 24"><path d={glyph.merge} /></svg>Merged
+                </span>
+              </span>
+              <b>{task}</b>
+            </div>
+            <span class="tj-pr-branch">
+              <svg class="tj-glyph" viewBox="0 0 24 24"><path d={glyph.branch} /></svg>
+              <code>rate-limit</code> → <code>main</code>
+            </span>
+            <span class="tj-pr-heading">Checks</span>
+            <div class="tj-checks">
+              {
+                checks.map((name, index) => (
+                  <span class="tj-check-row" data-tj={`check-${index}`} data-state="done">
+                    <span class="tj-status" />
+                    <code>{name}</code>
+                  </span>
+                ))
+              }
+            </div>
+            <span class="tj-merge" data-tj="merge">
+              <svg class="tj-glyph" viewBox="0 0 24 24"><path d={glyph.merge} /></svg>Merge
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </figure>
+
+  <div class="tj-rail">
+    <div class="tj-axon" aria-hidden="true">
+      <span class="tj-axon-fill"></span>
+      <span class="tj-axon-head"><span></span></span>
+    </div>
+    <span class="tj-indicator" aria-hidden="true">
+      <span class="tj-handoff"><span></span></span>
+    </span>
+    <ol class="tj-track">
+      {
+        stations.map((station, index) => (
+          <li
+            class="tj-station"
+            data-tj-station={index + 1}
+            data-lit
+            data-active={index === stations.length - 1 ? "" : undefined}
+          >
+            <span class="tj-node" aria-hidden="true">{index + 1}</span>
+            <span class="tj-station-text">
+              <span class="tj-station-short" aria-hidden="true">{station.short}</span>
+              <span class="tj-station-title">{station.title}</span>
+              <span class="tj-station-sub">{station.sub}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</Reveal>
+
+<script>
+  import "../../scripts/marketing/task-journey";
+</script>
+
+<style>
+  /* Layout: the stage with the track beside it; the track drops below the
+   * stage on narrow screens. */
+  .tj {
+    --tj-gap: 4.5rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 17.5rem;
+    align-items: center;
+    gap: var(--tj-gap);
+    max-width: 66rem;
+    margin-inline: auto;
+    text-align: left;
+  }
+
+  code {
+    font-family: var(--font-mono);
+  }
+
+  /* Stage -------------------------------------------------------------------- */
+
+  .tj-stage {
+    margin: 0;
+    perspective: 1800px;
+  }
+
+  .tj-tilt {
+    transform-style: preserve-3d;
+    transform: rotateX(calc(4deg + var(--tilt-x, 0deg)))
+      rotateY(calc(-7deg + var(--tilt-y, 0deg)));
+    transform-origin: 60% 50%;
+  }
+
+  .tj-window {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-panel);
+    background: color-mix(in oklab, var(--card) 92%, var(--background));
+    box-shadow:
+      0 2.5rem 5rem -2rem color-mix(in oklab, black 45%, transparent),
+      0 0 0 1px color-mix(in oklab, var(--primary) 8%, transparent);
+    font-size: 0.875rem;
+    line-height: 1.35;
+  }
+
+  /* The ring that flashes as a station hands off to the stage. */
+  .tj-window::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in oklab, var(--primary) 70%, transparent),
+      inset 0 0 2.5rem color-mix(in oklab, var(--primary) 14%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 700ms ease;
+  }
+
+  .tj.is-handing .tj-window::after {
+    opacity: 1;
+    transition-duration: 160ms;
+  }
+
+  .tj-glyph {
+    flex: none;
+    width: 1em;
+    height: 1em;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .tj-dot {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: color-mix(in oklab, var(--foreground) 25%, transparent);
+  }
+
+  .tj-dot.is-primary {
+    background: var(--primary);
+  }
+
+  .tj-dot.is-warning {
+    background: var(--warning);
+  }
+
+  .tj-badge {
+    flex: none;
+    padding: 0.05rem 0.45rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
+    font-weight: 500;
+  }
+
+  .tj-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    height: 2.5rem;
+    padding-inline: 0.9rem;
+    border-bottom: 1px solid var(--hairline);
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+  }
+
+  .tj-logo {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+
+  .tj-tab.is-active {
+    padding: 0.1rem 0.5rem;
+    border-radius: 0.35rem;
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    color: var(--foreground);
+  }
+
+  .tj-bell {
+    margin-left: auto;
+  }
+
+  .tj-body {
+    position: relative;
+    transition: opacity 420ms ease;
+  }
+
+  /* The loop rewinds behind a short fade instead of unwinding in view. */
+  .tj.is-rewinding .tj-body {
+    opacity: 0;
+  }
+
+  .tj-chat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.9rem;
+  }
+
+  /* Conversation header: one label per view, crossfading. */
+  .tj-head {
+    display: grid;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--hairline);
+    color: var(--foreground);
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .tj-head-label {
+    grid-area: 1 / 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(-0.35rem);
+    transition:
+      opacity 160ms ease,
+      transform 300ms ease;
+  }
+
+  /* The outgoing label leaves quickly; the incoming one follows. */
+  .tj[data-step="1"] .tj-head-label[data-for="new"],
+  .tj:not([data-step="1"])[data-view="lead"] .tj-head-label[data-for="lead"],
+  .tj[data-view="pr"] .tj-head-label[data-for="lead"],
+  .tj[data-view="child"] .tj-head-label[data-for="child"] {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity 320ms ease 140ms,
+      transform 460ms var(--ease-out-expo) 140ms;
+  }
+
+  /* Transcript: the lead's and the sub-agent's conversations share one slot
+   * and slide past each other, like opening a sub-agent from the Agents bar. */
+  .tj-transcript {
+    display: grid;
+    min-height: 13.25rem;
+    overflow: hidden;
+  }
+
+  .tj-layer {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    transition:
+      opacity 360ms ease 150ms,
+      transform 620ms var(--ease-out-expo) 150ms;
+  }
+
+  /* Leaving layers fade out fast so two transcripts never read on top of
+   * each other. */
+  .tj[data-view="child"] .tj-layer[data-layer="lead"],
+  .tj:not([data-view="child"]) .tj-layer[data-layer="child"] {
+    opacity: 0;
+    transition:
+      opacity 180ms ease,
+      transform 420ms ease;
+  }
+
+  .tj[data-view="child"] .tj-layer[data-layer="lead"] {
+    transform: translateX(-2.5rem);
+  }
+
+  .tj:not([data-view="child"]) .tj-layer[data-layer="child"] {
+    transform: translateX(2.5rem);
+  }
+
+  /* The launchpad shows only before the prompt is sent. */
+  .tj:not([data-step="1"]) .tj-launchpad {
+    opacity: 0;
+    transform: scale(0.96);
+    transition:
+      opacity 180ms ease,
+      transform 300ms ease;
+  }
+
+  .tj-launchpad {
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    text-align: center;
+  }
+
+  .tj-starters {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem;
+  }
+
+  .tj-starter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem 0.35rem 0.55rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.55rem;
+    background: var(--card);
+    color: var(--foreground);
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  .tj-starter .tj-glyph {
+    color: var(--primary);
+  }
+
+  .tj-starter.is-picked {
+    border-color: color-mix(in oklab, var(--primary) 65%, transparent);
+    background: color-mix(in oklab, var(--primary) 10%, var(--card));
+  }
+
+  .tj-starter.is-pressing {
+    transform: scale(0.92);
+  }
+
+  .tj-tagline {
+    max-width: 22rem;
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+  }
+
+  /* Anything the run has not reached yet keeps its place, invisible, so
+   * nothing jumps as rows arrive. */
+  [data-tj] {
+    transition:
+      opacity 360ms ease,
+      transform 460ms var(--ease-out-expo);
+  }
+
+  [data-tj][data-state="hidden"] {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+
+  .tj-bubble {
+    align-self: flex-end;
+    max-width: 88%;
+    overflow: hidden;
+    padding: 0.5rem 0.8rem;
+    border-radius: 0.7rem;
+    background: color-mix(in oklab, var(--foreground) 9%, transparent);
+    color: var(--foreground);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tj-bubble.is-lead {
+    font-weight: 500;
+  }
+
+  .tj-step {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  .tj-step code,
+  .tj-approval-head code {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  .tj-detail {
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    text-overflow: ellipsis;
+  }
+
+  .tj-diff {
+    display: flex;
+    gap: 0.35rem;
+    margin-left: auto;
+    font-family: var(--font-mono);
+  }
+
+  .tj-diff .is-add {
+    color: var(--success);
+  }
+
+  .tj-diff .is-del {
+    color: var(--destructive);
+  }
+
+  .tj-note {
+    margin-left: auto;
+    color: var(--success);
+    font-family: var(--font-mono);
+  }
+
+  /* Status: a spinning ring while running, a check once done. */
+  .tj-status {
+    position: relative;
+    flex: none;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 50%;
+  }
+
+  [data-state="running"] > .tj-status,
+  [data-state="running"] > * > .tj-status {
+    border: 2px solid color-mix(in oklab, var(--foreground) 18%, transparent);
+    border-top-color: var(--primary);
+    animation: wb-spin 0.8s linear infinite;
+  }
+
+  [data-state="done"] > .tj-status,
+  [data-state="done"] > * > .tj-status {
+    background: color-mix(in oklab, var(--success) 22%, transparent);
+  }
+
+  [data-state="done"] > .tj-status::after,
+  [data-state="done"] > * > .tj-status::after {
+    content: "";
+    position: absolute;
+    top: 22%;
+    left: 36%;
+    width: 25%;
+    height: 45%;
+    border: solid var(--success);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .tj-reply {
+    margin: 0.15rem 0 0;
+    color: var(--foreground);
+  }
+
+  /* Approval card: pending, then approved and running, then done. */
+  .tj-approval {
+    display: grid;
+    gap: 0.6rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.6rem;
+    background: var(--card);
+  }
+
+  .tj-approval[data-state="pending"] {
+    border-color: color-mix(in oklab, var(--warning) 55%, transparent);
+    background: color-mix(in oklab, var(--warning) 8%, var(--card));
+  }
+
+  .tj-approval-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  .tj-approval[data-state="pending"] .tj-approval-head .tj-status {
+    display: none;
+  }
+
+  .tj-approval-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    transition: opacity 300ms ease;
+  }
+
+  .tj-approval:not([data-state="pending"], [data-state="hidden"]) .tj-approval-foot {
+    opacity: 0.35;
+  }
+
+  .tj-approval[data-state="done"] .tj-btn:not(.is-primary),
+  .tj-approval[data-state="running"] .tj-btn:not(.is-primary) {
+    opacity: 0.5;
+  }
+
+  .tj-needs {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-right: auto;
+    color: var(--muted-foreground);
+    font-size: 0.78rem;
+  }
+
+  .tj-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.28rem 0.65rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.4rem;
+    color: var(--foreground);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .tj-btn.is-primary {
+    border-color: transparent;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    transition: transform 180ms ease;
+  }
+
+  .tj-btn.is-pressing,
+  .tj-merge.is-pressing {
+    transform: scale(0.9);
+  }
+
+  /* Agents bar: the composer's activity island with the run's sub-agents. */
+  .tj-tray {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.6rem;
+  }
+
+  .tj-agents {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .tj-agent {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    color: var(--foreground);
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .tj-agent-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tj-agent .tj-badge {
+    font-size: 0.68rem;
+  }
+
+  .tj-tray-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid var(--hairline);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+  }
+
+  .tj-tray-bar span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .tj-tray-count {
+    margin-left: auto;
+  }
+
+  .tj-tray-count b {
+    color: var(--foreground);
+  }
+
+  .tj-back {
+    opacity: 0;
+    transform: translateX(0.4rem);
+    transition:
+      opacity 300ms ease,
+      transform 400ms var(--ease-out-expo);
+  }
+
+  .tj[data-view="child"] .tj-back {
+    opacity: 1;
+    transform: none;
+    color: var(--primary);
+  }
+
+  /* Composer ------------------------------------------------------------------ */
+
+  .tj-composer {
+    display: grid;
+    gap: 0.55rem;
+    padding: 0.6rem 0.6rem 0.6rem 0.75rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.65rem;
+    transition:
+      opacity 300ms ease,
+      border-color 300ms ease;
+  }
+
+  .tj-composer.is-typing {
+    border-color: color-mix(in oklab, var(--primary) 60%, transparent);
+  }
+
+  /* The composer stays disabled while an approval waits. */
+  .tj-composer.is-disabled {
+    opacity: 0.5;
+  }
+
+  .tj-input {
+    min-height: 1.35em;
+    margin: 0;
+    overflow: hidden;
+    color: var(--foreground);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .tj-placeholder {
+    color: var(--muted-foreground);
+  }
+
+  [data-tj="input"]:not(:empty) ~ .tj-placeholder {
+    display: none;
+  }
+
+  .tj-caret {
+    display: none;
+    width: 2px;
+    height: 1.1em;
+    margin-left: 1px;
+    vertical-align: -0.2em;
+    background: var(--primary);
+    animation: caret-blink 1.1s steps(1) infinite;
+  }
+
+  .tj-composer.is-typing .tj-caret {
+    display: inline-block;
+  }
+
+  .tj-composer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .tj-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.55rem;
+    color: var(--muted-foreground);
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition:
+      color 300ms ease,
+      border-color 300ms ease;
+  }
+
+  .tj-composer.is-typing .tj-chip {
+    border-color: color-mix(in oklab, var(--primary) 50%, transparent);
+    color: var(--primary);
+  }
+
+  .tj-send {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 0.4rem;
+    background: var(--primary);
+    transition: transform 180ms ease;
+  }
+
+  .tj-composer.is-sent .tj-send {
+    transform: scale(0.8);
+  }
+
+  /* Pull request pane --------------------------------------------------------- */
+
+  .tj-pr {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1.1rem 1.2rem;
+    border-left: 1px solid var(--hairline);
+    background: var(--card);
+    box-shadow: -1.5rem 0 3rem -1.5rem color-mix(in oklab, black 40%, transparent);
+    transition:
+      opacity 420ms ease,
+      transform 640ms var(--ease-out-expo);
+  }
+
+  .tj:not([data-view="pr"]) .tj-pr {
+    opacity: 0;
+    transform: translateX(40%);
+    pointer-events: none;
+  }
+
+  .tj-pr-top {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--hairline);
+    color: var(--muted-foreground);
+    font-size: 0.82rem;
+  }
+
+  .tj-pr-number {
+    margin-left: auto;
+    color: var(--foreground);
+    font-family: var(--font-mono);
+  }
+
+  .tj-pr-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.7rem;
+    color: var(--foreground);
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+  }
+
+  .tj-pr-state {
+    display: grid;
+  }
+
+  .tj-pr-open,
+  .tj-pr-merged {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.12rem 0.55rem;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-sans);
+    font-size: 0.76rem;
+    font-weight: 600;
+    transition:
+      opacity 300ms ease,
+      transform 420ms var(--ease-spring);
+  }
+
+  .tj-pr-open {
+    background: color-mix(in oklab, var(--success) 16%, transparent);
+    color: var(--success);
+  }
+
+  .tj-pr-merged {
+    background: color-mix(in oklab, var(--info) 18%, transparent);
+    color: var(--info);
+  }
+
+  .tj-pr[data-state="merged"] .tj-pr-open,
+  .tj-pr:not([data-state="merged"]) .tj-pr-merged {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+
+  .tj-pr-branch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+  }
+
+  .tj-pr-heading {
+    margin-top: 0.2rem;
+    color: var(--muted-foreground);
+    font-size: 0.76rem;
+    font-weight: 600;
+  }
+
+  .tj-checks {
+    display: grid;
+    gap: 0.4rem;
+  }
+
+  .tj-check-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.5rem;
+    color: var(--foreground);
+    font-size: 0.82rem;
+  }
+
+  .tj-merge {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: auto;
+    padding: 0.32rem 0.8rem;
+    border-radius: 0.45rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  /* A merged pull request has nothing left to merge. */
+  .tj-pr[data-state="merged"] .tj-merge {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  /* Track ----------------------------------------------------------------------- */
+
+  /* Five equal rows; the axon joins the first node's centre to the last
+   * one's (10% to 90% of the rail), and --p (0..1, from the script) is how
+   * far the impulse has travelled. */
+  .tj-rail {
+    position: relative;
+    --node: 2.4rem;
+  }
+
+  .tj-track {
+    display: grid;
+    grid-template-rows: repeat(5, 5.6rem);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tj-axon {
+    position: absolute;
+    top: 10%;
+    bottom: 10%;
+    left: calc(var(--node) / 2 + 0.75rem - 1px);
+    width: 2px;
+    background: color-mix(in oklab, var(--foreground) 12%, transparent);
+  }
+
+  .tj-axon-fill {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(var(--primary), var(--brand-3));
+    transform: scaleY(var(--p));
+    transform-origin: top;
+    transition: transform 700ms cubic-bezier(0.55, 0, 0.3, 1);
+  }
+
+  .tj-axon-head {
+    position: absolute;
+    inset: 0;
+    transform: translateY(calc(var(--p) * 100%));
+    transition: transform 700ms cubic-bezier(0.55, 0, 0.3, 1);
+  }
+
+  .tj-axon-head span {
+    position: absolute;
+    top: -0.3rem;
+    left: -0.2rem;
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: var(--primary-foreground);
+    box-shadow:
+      0 0 0 2px var(--primary),
+      0 0 0.9rem 0.2rem var(--primary);
+  }
+
+  /* No travel while the loop rewinds. */
+  .tj.is-rewinding .tj-axon-fill,
+  .tj.is-rewinding .tj-axon-head,
+  .tj.is-rewinding .tj-indicator {
+    opacity: 0;
+    transition: none;
+  }
+
+  /* The active station's highlight slides from row to row. */
+  .tj-indicator {
+    --at: 4;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 20%;
+    border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--hairline));
+    border-radius: var(--radius-card);
+    background: color-mix(in oklab, var(--primary) 7%, var(--card));
+    box-shadow: var(--depth-1);
+    transform: translateY(calc(var(--at) * 100%));
+    transition:
+      opacity 300ms ease,
+      transform 700ms cubic-bezier(0.55, 0, 0.3, 1);
+  }
+
+  .tj[data-step="1"] .tj-indicator {
+    --at: 0;
+  }
+
+  .tj[data-step="2"] .tj-indicator {
+    --at: 1;
+  }
+
+  .tj[data-step="3"] .tj-indicator {
+    --at: 2;
+  }
+
+  .tj[data-step="4"] .tj-indicator {
+    --at: 3;
+  }
+
+  /* Handoff: a spark leaves the lit station for the stage. */
+  .tj-handoff {
+    position: absolute;
+    top: 50%;
+    right: 100%;
+    width: var(--tj-gap);
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--primary) 40%, transparent)
+    );
+  }
+
+  .tj-handoff span {
+    position: absolute;
+    top: -0.2rem;
+    right: 0;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 50%;
+    background: var(--primary);
+    box-shadow: 0 0 0.6rem var(--primary);
+    opacity: 0;
+  }
+
+  .tj.is-handing .tj-handoff span {
+    animation: tj-handoff 520ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  .tj-station {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding-inline: 0.75rem;
+  }
+
+  .tj-node {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: var(--node);
+    height: var(--node);
+    border: 1px solid var(--hairline);
+    border-radius: 50%;
+    background: var(--background);
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition:
+      color 300ms ease,
+      background-color 300ms ease,
+      border-color 300ms ease,
+      transform 420ms var(--ease-spring);
+  }
+
+  .tj-station[data-lit] .tj-node {
+    border-color: transparent;
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .tj-station[data-active] .tj-node {
+    transform: scale(1.1);
+  }
+
+  .tj-station-text {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .tj-station-short {
+    display: none;
+  }
+
+  .tj-station-title {
+    color: var(--muted-foreground);
+    font-family: var(--font-display);
+    font-size: 1.02rem;
+    font-weight: 600;
+    line-height: 1.25;
+    transition: color 300ms ease;
+  }
+
+  .tj-station[data-lit] .tj-station-title {
+    color: var(--foreground);
+  }
+
+  .tj-station-sub {
+    color: var(--muted-foreground);
+    font-size: 0.84rem;
+    line-height: 1.35;
+  }
+
+  /* Narrow: stage on top, the track as a compact row underneath. ---------------- */
+
+  @media (max-width: 1023px) {
+    .tj {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2.25rem;
+      max-width: 42rem;
+    }
+
+    .tj-tilt {
+      transform: rotateX(calc(3deg + var(--tilt-x, 0deg)))
+        rotateY(var(--tilt-y, 0deg));
+      transform-origin: 50% 100%;
+    }
+
+    .tj-rail {
+      --node: 2.1rem;
+    }
+
+    .tj-track {
+      grid-template-rows: none;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .tj-axon {
+      top: calc(var(--node) / 2 - 1px);
+      bottom: auto;
+      left: 10%;
+      right: 10%;
+      width: auto;
+      height: 2px;
+    }
+
+    .tj-axon-fill {
+      background: linear-gradient(90deg, var(--primary), var(--brand-3));
+      transform: scaleX(var(--p));
+      transform-origin: left;
+    }
+
+    .tj-axon-head {
+      transform: translateX(calc(var(--p) * 100%));
+    }
+
+    .tj-axon-head span {
+      top: -0.2rem;
+      left: -0.3rem;
+    }
+
+    .tj-indicator {
+      display: none;
+    }
+
+    .tj-station {
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0;
+      text-align: center;
+    }
+
+    .tj-station-short {
+      display: block;
+      color: var(--muted-foreground);
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: color 300ms ease;
+    }
+
+    .tj-station[data-lit] .tj-station-short {
+      color: var(--foreground);
+    }
+
+    /* The active station's full title and line, as a caption under the
+     * row: every caption sits in the same place and only the active one
+     * shows. */
+    .tj-track {
+      position: relative;
+    }
+
+    .tj-station {
+      position: static;
+    }
+
+    .tj-station-title,
+    .tj-station-sub {
+      position: absolute;
+      left: 0;
+      right: 0;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(0.35rem);
+      transition:
+        opacity 320ms ease,
+        transform 420ms var(--ease-out-expo);
+    }
+
+    .tj-station-title {
+      top: calc(100% + 1rem);
+    }
+
+    .tj-station-sub {
+      top: calc(100% + 2.4rem);
+    }
+
+    .tj-station[data-active] .tj-station-title,
+    .tj-station[data-active] .tj-station-sub {
+      opacity: 1;
+      transform: none;
+    }
+
+    .tj-rail {
+      padding-bottom: 4rem;
+    }
+  }
+
+  @media (max-width: 30rem) {
+    .tj-window {
+      font-size: 0.8rem;
+    }
+
+    .tj-chat {
+      padding: 0.7rem;
+    }
+
+    .tj-tab:not(.is-active) {
+      display: none;
+    }
+
+    .tj-agents {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.3rem;
+    }
+
+    .tj-transcript {
+      min-height: 15.5rem;
+    }
+
+    .tj-diff,
+    .tj-note {
+      display: none;
+    }
+  }
+</style>

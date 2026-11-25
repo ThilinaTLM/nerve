@@ -7,6 +7,128 @@ import type { DiscoverNewsEntry } from "./entries.js";
  */
 export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
+    id: "forge-self-configuration",
+    version: 1,
+    releasedIn: "next",
+    featured: true,
+    artwork: "forge",
+    title: "Tell Nerve what your project needs, and it builds it",
+    summary:
+      "Pick the Forge profile and describe what you want. It builds the extension, skill, or launch for you.",
+    details: [
+      "Forge writes and updates skills, extensions, launches, agent profiles, prompt suggestions, and permission rules, in your project or for you only.",
+      "Extensions can add side panels, page tabs, file previews, themes, and quick script namespaces. For example, a panel that shows whether your QA and production environments are up.",
+      "Extensions run sandboxed. Before one runs, Nerve shows what it asks for and waits for your consent. Sign-in and credentials stay with you.",
+      "Nerve checks each change before applying it. If an edit is invalid, the previous version stays active, and the bell lists what needs your attention.",
+    ],
+    action: {
+      kind: "settings",
+      pageId: "extensions",
+      sectionId: "builtin",
+      label: "Open Extensions",
+    },
+  },
+  {
+    id: "mcp-servers",
+    version: 1,
+    releasedIn: "next",
+    title: "Connect MCP servers",
+    summary:
+      "Add a server in Settings and agents reach its tools through quick script, so the prompt stays lean.",
+    action: {
+      kind: "settings",
+      pageId: "mcp-servers",
+      sectionId: "servers",
+      label: "Add an MCP server",
+    },
+  },
+  {
+    id: "extension-accounts",
+    version: 1,
+    releasedIn: "next",
+    title: "Accounts for your extensions",
+    summary:
+      "Sign in with OAuth or add an API key. Nerve encrypts credentials and refreshes them before they expire.",
+    action: {
+      kind: "settings",
+      pageId: "accounts",
+      sectionId: "accounts",
+      label: "Open Accounts",
+    },
+  },
+  {
+    id: "tailscale-private-access",
+    version: 1,
+    releasedIn: "next",
+    title: "Reach Nerve from anywhere through Tailscale",
+    summary:
+      "Turn on private access to serve Nerve on your tailnet only, with no certificate setup.",
+    action: {
+      kind: "settings",
+      pageId: "remote",
+      sectionId: "tailscale",
+      label: "Set up private access",
+    },
+  },
+  {
+    id: "phone-push",
+    version: 1,
+    releasedIn: "next",
+    artwork: "mobile",
+    title: "A focused phone app with push notifications",
+    summary:
+      "Your phone gets a push when an agent needs input, fails, or finishes while you're away.",
+  },
+  {
+    id: "unified-settings",
+    version: 1,
+    releasedIn: "next",
+    title: "One Settings tab for you and your project",
+    summary:
+      "With a project open, pages show your settings and the project's side by side.",
+  },
+  {
+    id: "trust-decisions",
+    version: 1,
+    releasedIn: "next",
+    title: "Trust or decline project files",
+    summary:
+      "Decide on each item's page. A decline sticks, and the bell lists only what still needs review.",
+  },
+  {
+    id: "profile-starters",
+    version: 1,
+    releasedIn: "next",
+    artwork: "profiles",
+    title: "Start a conversation from a profile",
+    summary:
+      "A new conversation offers Coding, Planning, Lead, and Forge. Pick the one that fits the task.",
+  },
+  {
+    id: "launches-by-label",
+    version: 1,
+    releasedIn: "next",
+    title: "Agents run your launches by name",
+    summary:
+      "Agents start, restart, and stop launches, and read their logs, using the labels in the Launches panel.",
+  },
+  {
+    id: "todo-chip-removed",
+    version: 1,
+    releasedIn: "next",
+    title: "The agent todo list is gone",
+    summary:
+      "Agents no longer keep a todo list, and the composer todo chip is removed.",
+  },
+  {
+    id: "wake-recovery",
+    version: 1,
+    releasedIn: "next",
+    title: "Recovers after your computer wakes",
+    summary:
+      "A desktop window that stalls after sleep now recovers by itself. Paths on Windows and macOS are steadier.",
+  },
+  {
     id: "quick-script-extensions",
     version: 1,
     releasedIn: "0.41.0",

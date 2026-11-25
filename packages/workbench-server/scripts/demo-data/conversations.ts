@@ -15,6 +15,7 @@ import {
   runningBackfill,
   shortConversations,
 } from "./aurora-conversations.js";
+import { envStatusForge, releaseAudit } from "./forge-conversations.js";
 import { northstarConversations } from "./northstar-conversations.js";
 import { relayboardConversations } from "./relayboard-conversations.js";
 
@@ -22,6 +23,8 @@ export const DEMO_PROJECT_CONVERSATIONS: Readonly<
   Record<string, readonly DemoConversation[]>
 > = {
   aurora: [
+    envStatusForge,
+    releaseAudit,
     rateLimiting,
     {
       title: "Choose the booking limiter rollout",

@@ -1,0 +1,29 @@
+---
+import { brandIcons, type BrandIconName } from "./brand-icons";
+
+interface Props {
+  name: BrandIconName;
+  /* Rendered size in CSS pixels. */
+  size?: number;
+  /* Draw the mark in its surrounding text colour instead of hiding it from
+   * assistive technology: pass a label when the mark stands alone. */
+  label?: string;
+  class?: string;
+}
+
+const { name, size = 20, label, class: className = "" } = Astro.props;
+const icon = brandIcons[name];
+---
+
+<svg
+  class:list={["brand-icon", className]}
+  width={size}
+  height={size}
+  viewBox="0 0 24 24"
+  fill="currentColor"
+  role={label ? "img" : undefined}
+  aria-label={label}
+  aria-hidden={label ? undefined : "true"}
+>
+  <path d={icon.path}></path>
+</svg>

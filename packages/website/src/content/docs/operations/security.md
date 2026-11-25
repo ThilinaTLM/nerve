@@ -35,7 +35,7 @@ Network-capable paths include model calls, OAuth, Git remotes, web tools, Jira/C
 
 ## Remote access
 
-Non-loopback binding requires explicit opt-in. Each phone, browser, or remote desktop gets its own revocable device credential, obtained with a short-lived, single-use pairing code that travels in the URL fragment; the daemon token never appears in a URL or QR code. Devices expire after 180 days or 30 idle days, and you can revoke them in **Settings → Devices**. Behind a reverse proxy with `publicUrl` set, the owner signs in with a passkey. A `Host` allowlist protects against DNS rebinding, and pairing is refused over plain HTTP from other machines. Access events are logged to `logs/access-audit.jsonl`. Self-signed mobile HTTPS protects transport on a trusted LAN but is not an Internet-exposure solution. See [LAN and mobile HTTPS](/operations/lan-mobile/) and [Hosted server](/operations/hosted-server/).
+Non-loopback binding requires explicit opt-in. Each phone, browser, or remote desktop gets its own revocable device credential, obtained with a short-lived, single-use pairing code that travels in the URL fragment; the daemon token never appears in a URL or QR code. Devices expire after 180 days or 30 idle days, and you can revoke them in **Settings → Devices**. **Private access with Tailscale** serves Nerve to your tailnet through a loopback-only listener: Nerve itself isn't bound to the network, requests on it are treated as remote clients that must still pair, and Funnel requests are refused (see [Private access](/operations/lan-mobile/#private-access-with-tailscale)). Behind a reverse proxy with `publicUrl` set, the owner signs in with a passkey. A `Host` allowlist protects against DNS rebinding, and pairing is refused over plain HTTP from other machines. Access events are logged to `logs/access-audit.jsonl`. Self-signed mobile HTTPS protects transport on a trusted LAN but is not an Internet-exposure solution. See [LAN and mobile HTTPS](/operations/lan-mobile/) and [Hosted server](/operations/hosted-server/).
 
 ## Quick script sandbox
 
@@ -43,9 +43,11 @@ Non-loopback binding requires explicit opt-in. Each phone, browser, or remote de
 
 ## Project trust
 
-`AGENTS.md`, `SYSTEM.md`, skills, prompt-suggestion JavaScript, and other repository content can influence behavior. Review unfamiliar projects before enabling executable predicates or broad permissions.
+`AGENTS.md`, `.nerve/APPEND_SYSTEM.md`, skills, prompt-suggestion JavaScript, and other repository content can influence behavior. Review unfamiliar projects before enabling executable predicates or broad permissions.
 
-Project configuration that changes agent behavior (`agent.json`, `permissions.json`, `extensions.json`, profiles) is ignored until you trust its exact content. Untrusted project agent settings show a warning with a **Trust file** button, and configuration Nerve writes for you is trusted automatically. See [Configuration](/operations/configuration/#project-trust).
+Project configuration that changes agent behavior (`agent.json`, `permissions.json`, `extensions.json`, profiles, skills, MCP server entries) is ignored until you trust its exact content. Each item is **Needs review**, **Trusted**, or **Declined**, and you decide it in Settings; agent tools, Quick script, and extensions can't reach those decisions. Configuration Nerve writes for you through Settings stays trusted. See [Configuration](/operations/configuration/#project-trust).
+
+[MCP servers](/integrations/mcp/) can start programs and send data to URLs. Each entry needs your trust, and a started stdio server isn't checked as a Bash command; calling one of its tools counts as destructive in a Quick script. Installed [extensions](/reference/extensions/) run sandboxed and load only after you review and allow them.
 
 :::danger[Beta]
 Use recoverable Git workspaces, least authority, and trusted networks. Report vulnerabilities privately through the repository [security policy](https://github.com/ThilinaTLM/nerve/blob/main/SECURITY.md).

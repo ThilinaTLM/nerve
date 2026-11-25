@@ -343,12 +343,12 @@ export const flakyDeploy: DemoConversation = {
           risk: "command",
           repo: "aurora-infra",
           args: {
-            code: 'const run = await launches.start("staging smoke");\nreturn run;',
+            code: 'const run = await launches.start("qa smoke");\nreturn run;',
             timeout: 120,
           },
           result: {
             content:
-              "The synthetic staging smoke launch completed successfully. 18 checks passed across 3 deploys.",
+              "The qa smoke launch completed successfully. 18 checks passed across 3 deploys.",
             details: {
               status: "completed",
               durationMs: 2_140,
@@ -622,18 +622,18 @@ export const shortConversations: readonly DemoConversation[] = [
     ],
   },
   {
-    title: "Add a staging smoke launch",
+    title: "Add a QA smoke launch",
     agentProfile: "coding",
     permissionRuleSetId: "supervised",
     ageHours: 120,
     steps: [
       {
         type: "user",
-        text: "Set up a smoke check I can run after each staging deploy.",
+        text: "Set up a smoke check I can run after each QA deploy.",
       },
       {
         type: "assistant",
-        text: "Added as a background task so its output is retained between runs instead of scrolling away.",
+        text: "Added as the `qa smoke` launch so its output is retained between runs instead of scrolling away.",
       },
     ],
   },

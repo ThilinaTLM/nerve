@@ -8,10 +8,6 @@
 
 import { closingStage } from "./closing";
 import { heroStage } from "./hero";
-import { ledgerStage } from "./ledger";
-import { liveRunStage } from "./live-run";
-import { teamStage } from "./team";
-import { workbenchStage } from "./workbench";
 import { revealLines, settleIn } from "./primitives";
 import {
   fontsReady,
@@ -77,10 +73,6 @@ export function initStage(): void {
   void fontsReady().then(() => {
     heroStage();
     revealPass();
-    ledgerStage();
-    liveRunStage();
-    workbenchStage();
-    teamStage();
     closingStage();
     axonRail();
 

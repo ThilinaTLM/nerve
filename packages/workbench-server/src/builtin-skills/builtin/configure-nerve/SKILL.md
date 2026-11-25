@@ -54,7 +54,7 @@ Model providers, accounts and credentials, extension settings, conversation defa
 
 - Same name: project wins over user, user over built-in. A project profile or skill replaces the lower one whole; nothing is merged.
 - Agent preferences: built-in, then user, then project, then the conversation's own choices; a later layer overrides single fields. A profile's requirements win over all of them.
-- Project files that can run code or widen what agents may do are used only after the user approves their exact content: `agent.json` in Project settings → General, permission overlays in Project settings → Permission rules, agent profiles in Project settings → Agents or Sub-Agents; skills in Project settings → Skills; a suggestion's `enable-js` in Settings → Suggestions; extensions in Settings → Extensions.
+- Project files that can run code or widen what agents may do are used only after the user approves their exact content: `agent.json` in Settings → General, project column, permission overlays in Settings → Permission rules, agent profiles in Settings → Agents or Sub-Agents; skills in Settings → Skills, project column; a suggestion's `enable-js` in Settings → Suggestions; extensions in Settings → Extensions.
 - Any edit to an approved file, including yours, asks again. You cannot approve, consent or add credentials.
 
 ## The loop

@@ -1,46 +1,68 @@
 ---
-/* The finale, kept calm. One short heartbeat accent sits above the headline,
- * the copyable install command is the hero, and a compact three-step row and
- * a single line of trust chips quietly close the page.
+/* The finale: where Nerve runs, then how to get it.
  *
- * The authored markup is the finished state. `closingStage` only replays the
- * flatline-to-beat entrance of the accent and settles the steps in. */
+ * Three platform marks sit on one nerve line, and a signal travels it on a
+ * loop, lighting each mark as it passes (CSS only; the timing is derived
+ * below). Under the line: the install command and two actions. Under reduced
+ * motion the line and marks rest in their lit state.
+ */
+import BrandIcon from "./BrandIcon.astro";
+import type { BrandIconName } from "./brand-icons";
 import InstallCommand from "./InstallCommand.astro";
 import Reveal from "./Reveal.astro";
 
-const steps = ["Install", "Connect a provider", "Open a project or drop in a folder"];
+/* The pulse is a dash of DASH (of a normalized path length 1) that crosses in
+ * TRAVEL_S of a CYCLE_S loop. Its head reaches position p at
+ * p / (1 + DASH) × TRAVEL_S, which is each mark's animation delay. */
+const CYCLE_S = 4.2;
+const TRAVEL_S = 3;
+const DASH = 0.08;
 
-const trust = [
-  "Local loopback daemon",
-  "State in ~/.nerve",
-  "No account or analytics",
-  "Apache-2.0",
-  "Linux · macOS · Windows 11",
+const platforms: { icon: BrandIconName; label: string; detail: string; at: number }[] = [
+  { icon: "linux", label: "Linux", detail: "x64 · arm64", at: 0.2 },
+  { icon: "apple", label: "macOS", detail: "Apple silicon · Intel", at: 0.5 },
+  { icon: "windows", label: "Windows 11", detail: "x64 · arm64", at: 0.8 },
 ];
-
-/* Flat, then a single beat, then flat again. */
-const trace = "M 0 50 L 170 50 L 190 50 L 204 8 L 220 92 L 234 50 L 400 50";
 ---
 
-<section class="closing-section" aria-labelledby="closing-title">
+<section
+  class="closing-section"
+  aria-labelledby="closing-title"
+  data-install-fab-hide
+>
   <div class="container-page">
-    <Reveal class="closing">
-      <div class="closing-pulse" aria-hidden="true">
-        <svg viewBox="0 0 400 100" preserveAspectRatio="none">
-          <path class="pulse-base" d={trace} pathLength="1"></path>
-          <path class="pulse-live" d={trace} pathLength="1"></path>
-          <path class="pulse-run" d={trace} pathLength="1"></path>
-        </svg>
+    <Reveal class="closing" style={`--cycle:${CYCLE_S}s`}>
+      <div class="closing-lead">
+        <h2 id="closing-title" class="closing-title">Runs on your machine.</h2>
+        <p class="closing-lede">One command. No account. Your keys stay local.</p>
       </div>
 
-      <div class="closing-lead">
-        <h2 id="closing-title" class="closing-title">
-          Run it on your own machine.
-        </h2>
-        <p class="closing-lede">
-          One command starts a local daemon. Connect a provider and open a
-          project.
-        </p>
+      <div class="platforms">
+        <svg class="platforms-line" viewBox="0 0 1000 10" preserveAspectRatio="none" aria-hidden="true">
+          <path class="line-base" d="M0 5 H1000" pathLength="1"></path>
+          <path
+            class="line-run"
+            d="M0 5 H1000"
+            pathLength="1"
+            style={`stroke-dasharray:${DASH} 2;--dash:${DASH}`}
+          ></path>
+        </svg>
+        <ul class="platforms-list" aria-label="Supported platforms">
+          {
+            platforms.map((platform) => (
+              <li
+                class="platform"
+                style={`left:${platform.at * 100}%;--hit:${((platform.at / (1 + DASH)) * TRAVEL_S).toFixed(2)}s`}
+              >
+                <span class="platform-mark">
+                  <BrandIcon name={platform.icon} size={34} />
+                </span>
+                <span class="platform-label">{platform.label}</span>
+                <span class="platform-detail">{platform.detail}</span>
+              </li>
+            ))
+          }
+        </ul>
       </div>
 
       <div class="closing-cta">
@@ -49,110 +71,38 @@ const trace = "M 0 50 L 170 50 L 190 50 L 204 8 L 220 92 L 234 50 L 400 50";
           <a class="btn btn-primary" href="/start/install/">
             Install Nerve <span aria-hidden="true">→</span>
           </a>
-          <a class="btn btn-ghost" href="/start/">Read the docs</a>
+          <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
+            Star on GitHub
+          </a>
         </div>
-        <a class="closing-github" href="https://github.com/ThilinaTLM/nerve">
-          Star on GitHub
-        </a>
       </div>
-
-      <ol class="closing-steps" aria-label="Getting started">
-        {
-          steps.map((label, index) => (
-            <li>
-              <span class="step-index" aria-hidden="true">
-                {index + 1}
-              </span>
-              {label}
-            </li>
-          ))
-        }
-      </ol>
-
-      <ul class="closing-trust" aria-label="Trust facts">
-        {trust.map((fact) => <li>{fact}</li>)}
-      </ul>
     </Reveal>
   </div>
 </section>
 
 <style>
   .closing-section {
-    padding-block: clamp(3rem, 6vw, 6rem) clamp(2.5rem, 4vw, 4rem);
+    padding-block: clamp(4rem, 8vw, 7rem) clamp(3rem, 5vw, 5rem);
   }
 
   .closing {
     display: grid;
     min-width: 0;
-    gap: clamp(1.75rem, 3vw, 2.5rem);
+    gap: clamp(2.5rem, 5vw, 3.5rem);
     justify-items: center;
     text-align: center;
   }
 
-  /* One quiet heartbeat accent ---------------------------------------------- */
-
-  .closing-pulse {
-    width: min(18rem, 70%);
-    height: 2.5rem;
-    mask-image: linear-gradient(90deg, transparent, black 25%, black 75%, transparent);
-    -webkit-mask-image: linear-gradient(
-      90deg,
-      transparent,
-      black 25%,
-      black 75%,
-      transparent
-    );
-  }
-
-  .closing-pulse svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: visible;
-  }
-
-  .pulse-base,
-  .pulse-live,
-  .pulse-run {
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    vector-effect: non-scaling-stroke;
-  }
-
-  .pulse-base {
-    stroke: var(--myelin-dim);
-    stroke-width: 1.5;
-  }
-
-  .pulse-live {
-    stroke: var(--primary);
-    stroke-width: 1.5;
-    filter: drop-shadow(
-      0 0 0.4rem color-mix(in oklab, var(--primary) 40%, transparent)
-    );
-  }
-
-  /* Only the stage turns the travelling pulse on. */
-  .pulse-run {
-    stroke: var(--signal);
-    stroke-width: 2;
-    opacity: 0;
-    filter: drop-shadow(0 0 0.4rem var(--signal-soft));
-  }
-
-  /* Headline ---------------------------------------------------------------- */
-
   .closing-lead {
     display: grid;
-    gap: 1rem;
+    gap: 0.9rem;
     justify-items: center;
   }
 
   .closing-title {
     margin: 0;
     font-family: var(--font-display);
-    font-size: clamp(2.25rem, 1.2rem + 3.4vw, 3.75rem);
+    font-size: clamp(1.9rem, 1.1rem + 3.6vw, 4rem);
     font-weight: 600;
     line-height: 1.02;
     letter-spacing: -0.04em;
@@ -160,12 +110,144 @@ const trace = "M 0 50 L 170 50 L 190 50 L 204 8 L 220 92 L 234 50 L 400 50";
   }
 
   .closing-lede {
-    max-width: 32rem;
     margin: 0;
     color: var(--muted-foreground);
     font-size: var(--text-lede);
-    line-height: 1.5;
-    text-wrap: balance;
+  }
+
+  /* Platforms on one line ---------------------------------------------------- */
+
+  .platforms {
+    position: relative;
+    width: min(46rem, 100%);
+    height: 10.5rem;
+  }
+
+  .platforms-line {
+    position: absolute;
+    top: 3rem;
+    left: 0;
+    width: 100%;
+    height: 10px;
+    overflow: visible;
+    transform: translateY(-50%);
+    mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent,
+      black 10%,
+      black 90%,
+      transparent
+    );
+  }
+
+  .line-base,
+  .line-run {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .line-base {
+    stroke: color-mix(in oklab, var(--primary) 40%, transparent);
+    stroke-width: 1.5;
+  }
+
+  .line-run {
+    stroke: var(--primary);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dashoffset: var(--dash);
+    filter: drop-shadow(0 0 6px var(--primary));
+    animation: platform-run var(--cycle) linear infinite;
+  }
+
+  .platforms-list {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .platform {
+    position: absolute;
+    top: 0;
+    display: grid;
+    justify-items: center;
+    gap: 0.35rem;
+    width: 10rem;
+    transform: translateX(-50%);
+  }
+
+  .platform-mark {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 6rem;
+    height: 6rem;
+    margin-bottom: 0.6rem;
+    border: 1px solid var(--myelin);
+    border-radius: 1.6rem;
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: var(--depth-2);
+  }
+
+  /* A ring that flashes as the signal passes through the mark. */
+  .platform-mark::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border: 2px solid var(--primary);
+    border-radius: inherit;
+    opacity: 0;
+    animation: platform-hit var(--cycle) ease-out infinite;
+    animation-delay: var(--hit);
+  }
+
+  .platform-label {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .platform-detail {
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+
+  @media (max-width: 560px) {
+    .platforms {
+      height: 8.5rem;
+    }
+
+    .platforms-line {
+      top: 2.25rem;
+    }
+
+    .platform {
+      width: 6.5rem;
+    }
+
+    .platform-mark {
+      width: 4.5rem;
+      height: 4.5rem;
+      border-radius: 1.2rem;
+    }
+
+    .platform-mark :global(.brand-icon) {
+      width: 26px;
+      height: 26px;
+    }
+
+    .platform-label {
+      font-size: 0.95rem;
+    }
+
+    .platform-detail {
+      display: none;
+    }
   }
 
   /* Install + actions -------------------------------------------------------- */
@@ -190,79 +272,21 @@ const trace = "M 0 50 L 170 50 L 190 50 L 204 8 L 220 92 L 234 50 L 400 50";
     gap: 0.75rem;
   }
 
-  .closing-github {
-    color: var(--muted-foreground);
-    font-size: var(--text-meta);
-    text-decoration: underline;
-    text-decoration-color: var(--hairline);
-    text-underline-offset: 0.3em;
-    transition: color 0.2s;
-  }
-
-  .closing-github:hover,
-  .closing-github:focus-visible {
-    color: var(--foreground);
-    text-decoration-color: currentColor;
-  }
-
   @media (max-width: 479px) {
-    .closing-actions,
+    .closing-lede {
+      font-size: 1rem;
+      text-wrap: balance;
+    }
+
     .closing-actions .btn {
-      width: 100%;
+      padding-inline: 1.1rem;
+      font-size: 0.92rem;
     }
   }
 
-  /* Steps: a compact numbered row ------------------------------------------- */
-
-  .closing-steps {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.5rem 1.5rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    color: var(--muted-foreground);
-    font-size: var(--text-meta);
-  }
-
-  .closing-steps li {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .step-index {
-    display: inline-grid;
-    place-items: center;
-    width: 1.25rem;
-    height: 1.25rem;
-    border: 1px solid var(--myelin);
-    border-radius: var(--radius-pill);
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    color: var(--foreground);
-  }
-
-  /* Trust chips --------------------------------------------------------------- */
-
-  .closing-trust {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.4rem;
-    max-width: 40rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .closing-trust li {
-    padding: 0.2rem 0.65rem;
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-pill);
-    color: var(--muted-foreground);
-    font-size: 0.72rem;
-    white-space: nowrap;
+  @media (prefers-reduced-motion: reduce) {
+    .line-run {
+      display: none;
+    }
   }
 </style>

@@ -27,7 +27,9 @@ Repository development defaults to disposable `data/storage-1`, daemon HTTP `439
 
 ## Mobile and responsive use
 
-The UI switches to drawer-based compact navigation below 1024px and phone density below 640px. To access it from another device, the daemon must bind beyond loopback with explicit permission, and the device must be paired. Follow [LAN and mobile HTTPS](/operations/lan-mobile/) rather than exposing a development server casually.
+The UI switches to drawer-based compact navigation below 1024px and a phone layout below 640px. The phone layout focuses on work: conversations, Git changes, pull requests, launches, files, and notes, in three tabs (Inbox, Projects, Activity). Providers, agents, tools, extensions, and project settings stay on the desktop; links into them open an "Available on desktop" screen. The phone's own **Settings** screen offers sign out (which revokes that device), Devices, Notifications, theme, and the read-only status of private access.
+
+An installed PWA can receive [Web Push notifications](/operations/lan-mobile/#notifications-on-your-phone) from the daemon when a conversation needs you, fails, is interrupted, or finishes. The service worker handles the push and opens the conversation when you tap it. To access it from another device, pair it through [Tailscale private access](/operations/lan-mobile/#private-access-with-tailscale), which needs no LAN binding, or let the daemon bind beyond loopback with explicit permission. Follow [LAN and mobile HTTPS](/operations/lan-mobile/) rather than exposing a development server casually.
 
 ## Next steps
 

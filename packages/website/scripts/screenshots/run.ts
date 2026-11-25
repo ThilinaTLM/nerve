@@ -27,6 +27,9 @@ const { values } = parseArgs({
 
 const home = join(tmpdir(), "nerve-demo-home");
 const workspace = join(tmpdir(), "nerve-demo-workspace");
+/** The seed and daemon run with this as their user home, so skills, Git settings and agent
+ * folders of the real account never reach a frame. */
+const userHome = join(tmpdir(), "nerve-demo-user");
 const baseUrl = `http://127.0.0.1:${values.port}`;
 
 function run(command: string, args: string[], options: SpawnOptions = {}) {
@@ -59,6 +62,8 @@ async function waitForHealth(timeoutMs = 60_000) {
   throw new Error(`Daemon did not become healthy at ${baseUrl}/health`);
 }
 
+await mkdir(userHome, { recursive: true });
+
 if (!values["skip-seed"]) {
   await run(
     "pnpm",
@@ -75,6 +80,8 @@ if (!values["skip-seed"]) {
         NERVE_HOME: home,
         NERVE_DEMO_WORKSPACE: workspace,
         NERVE_DEMO_GITHUB: "0",
+        HOME: userHome,
+        USERPROFILE: userHome,
       },
     },
   );
@@ -90,6 +97,8 @@ const daemon = spawn("node", ["packages/workbench-server/dist/main.js"], {
   env: {
     ...process.env,
     NERVE_HOME: home,
+    HOME: userHome,
+    USERPROFILE: userHome,
     NERVE_HOST: "127.0.0.1",
     NERVE_PORT: values.port,
     NERVE_MOBILE_HTTPS: "0",

@@ -50,7 +50,7 @@ Conversation preferences, the applied snapshot and conversation-only `context` l
 
 Catalog files are complete definitions: a same-name project definition replaces the entire user/built-in definition. Editing an inherited profile creates a complete local copy. Deleting that copy exposes the lower definition for future applications only.
 
-**Settings → Agent profiles** edits user/project definitions using Use settings/Recommend/Require. For example, a complete user profile can recommend thinking while requiring read-only permissions:
+**Settings → Agents** edits user/project definitions using Use settings/Recommend/Require. For example, a complete user profile can recommend thinking while requiring read-only permissions:
 
 ```json
 {
@@ -66,7 +66,7 @@ Catalog files are complete definitions: a same-name project definition replaces 
 
 ## Children and activation
 
-Child agents resolve their own defaults and profile; they do not copy the lead's effective model, permissions, tools or skills. **Capabilities → Sub-agents** controls availability and optional launch model/thinking overrides. These beat recommendations, never requirements. A child captures its complete underlying preferences and applied profile once; later default/profile/launch edits do not affect follow-ups. Existing child profile switching/reapplication is unsupported. Children cannot delegate, ask the user or present plans; live authorization still applies.
+Child agents resolve their own defaults and profile; they do not copy the lead's effective model, permissions, tools or skills. **Settings → Sub-Agents** controls availability and optional launch model/thinking overrides. These beat recommendations, never requirements. A child captures its complete underlying preferences and applied profile once; later default/profile/launch edits do not affect follow-ups. Existing child profile switching/reapplication is unsupported. Children cannot delegate, ask the user or present plans; live authorization still applies.
 
 UI saves update validated configuration directly. **There are no file watchers:** manual edits need a restart for guaranteed activation, or an explicit Reload/Retry re-read. New requests capture current settings; tool execution checks current permissions even after approval waits.
 

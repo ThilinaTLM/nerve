@@ -18,9 +18,9 @@ import {
 } from "../resource-registry.js";
 
 /** Where the user decides each project file; the decision is made on the page of the resource. */
-export const AGENT_TRUST_PAGE = "Project settings → General";
-export const PERMISSIONS_TRUST_PAGE = "Project settings → Permission rules";
-export const PROFILE_TRUST_PAGE = "Project settings → Agents or Sub-Agents";
+export const AGENT_TRUST_PAGE = "Settings → General, project column";
+export const PERMISSIONS_TRUST_PAGE = "Settings → Permission rules";
+export const PROFILE_TRUST_PAGE = "Settings → Agents or Sub-Agents";
 const trustAt = (where: string) => ({ kind: "trust", where }) as const;
 
 /** What a diagnostic code means and what to do next; the parser's detail is appended. */

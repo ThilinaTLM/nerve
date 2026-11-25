@@ -11,7 +11,8 @@ pnpm --filter @nervekit/website screenshots
 That runs, in order:
 
 1. **Seed** — `packages/workbench-server/scripts/seed-demo-home.ts` builds a
-   throwaway home at `$TMPDIR/nerve-demo-home` and three synthetic projects
+   throwaway home at `$TMPDIR/nerve-demo-home` (the seed and daemon run with
+   `HOME=$TMPDIR/nerve-demo-user`, so real skills and settings never show) and three synthetic projects
    under `$TMPDIR/nerve-demo-workspace`, with realistic repositories, a linked
    worktree, conversations, file edits, branches,
    retained sub-agents, and asynchronous Bash output.
@@ -76,8 +77,9 @@ Desktop scenes: `ask-user`, `notifications` (popover with a question, a failure,
 stopped agent plus Mute 1 h), `folder-browser` (Open project dialog on the demo
 workspace), `quote` (selection toolbar over a rich reply), `quick-script` (a retained `quick_script` card with its Jira, Confluence, and web SDK calls), `extensions` (Settings → Extensions overview with Atlassian enabled), `discover`, `themes`
 (Settings → Workbench → Appearance), `projects`, `conversation`, `async-bash`,
-`git`, `editor`, `files`, `history`, `launches`, `pull-request`. Mobile scenes:
-`conversation`, `composer-sheet`, `right-sheet`. Re-run one with
+`git`, `editor`, `files`, `history`, `launches`, `pull-request`.
+Homepage scenes: `forge-build` (the Forge conversation that builds the Environments extension, with its panel docked), `extension-panel` (a coding conversation with the same panel), `extension-consent` (the Allow dialog of an unreviewed project extension), `mcp-servers`, `integrations-script` (one `quick_script` using `jira`, `mcp` and `confluence`), `accounts`, `launchpad` (Coding, Planning, Lead and Forge starter cards), `settings-layers` (Skills with team skills Needs review, Trusted and Declined, plus the User and Project switches), `remote-tailscale`. Mobile scenes:
+`conversation`, `composer-sheet`, `right-sheet`, `mobile-settings`. Re-run one with
 e.g. `tsx scripts/screenshots/run.ts --scenes=discover --kind=desktop`
 (single scenes need both themes, so omit `--theme`).
 
@@ -103,6 +105,32 @@ sections. The Changes section starts collapsed and is expanded by the scene.
 
 The unused historical `tasks` assets have been removed; `launches` captures the
 current launch workflow.
+
+## The Aurora team demo
+
+The seed tells one story around Aurora: Jira key `AUR` and Confluence space `REL` on
+`aurora.example`, the repositories `aurora-api`, `aurora-web`, `aurora-infra` and `aurora-mobile`,
+PR #42 and launches `web: dev`, `api: dev`, `api: tests`, `api: migration check`,
+`api: seed venues` and `qa smoke`. Beyond conversations it seeds, through the same services
+Settings uses:
+
+- **Project extensions** in `aurora/.nerve/extensions/`. `env-status` (sources in
+  `demo-data/env-status-extension.ts`) is scaffolded with `nerve-ext init`, built with
+  `nerve-ext build` through a link to the workspace SDK (build `packages/extension-sdk` first),
+  and allowed with `extensionCatalog.grantConsent`. Its Environments panel shows fixed data.
+  `status-page` is built and left unreviewed for the `extension-consent` scene.
+- **MCP servers** `github` and `docs` saved with `mcpService.save` (approved, secrets in the vault).
+  Their commands never start: the seed writes their tool lists into the tool index
+  (`demo-data/mcp-servers.ts`), so the page shows tool counts and no error.
+- **Skills**: one user skill and three Aurora skills decided through the trust service.
+- **Conversations**: a Forge transcript (`demo-data/forge-conversations.ts`) that writes, checks
+  and reloads `env-status`, and a `quick_script` that combines Jira, GitHub through MCP and Confluence.
+- The Atlassian account and the credential refresh job (Settings → Background jobs) need no extra
+  seeding.
+
+The capture browser presents the daemon's Tailscale tunnel as ready (`demoTunnelHints` in
+`demo-usage.ts`, applied to protocol messages and `/api/client-config`) and, for `mobile-settings`,
+the browser as a paired phone with notifications on. Both are browser-side only.
 
 ## Sizes
 

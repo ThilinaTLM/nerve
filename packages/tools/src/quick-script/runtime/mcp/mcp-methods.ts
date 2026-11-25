@@ -109,8 +109,8 @@ async function eachServer<T>(
       ...new Set(
         skipped.map((entry) =>
           entry.scope === "project"
-            ? "Project settings → Agent → MCP servers"
-            : "User settings → Connections → MCP servers",
+            ? "Settings → MCP servers, project column"
+            : "Settings → MCP servers, User column",
         ),
       ),
     ];

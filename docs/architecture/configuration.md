@@ -109,7 +109,7 @@ Files: the user's `<home>/config/mcp.json` and a project's `<project>/.nerve/con
 
 **Tool index.** The hub keeps each server's `tools/list` result, keyed by the entry's digest (and the project directory for a stdio server), in memory and in `<home>/cache/mcp/`. A connection fills it, `notifications/tools/list_changed` refreshes it, and `mcp.tools.search` and `tools.list` read it without starting the server ([code mode](code-mode.md)).
 
-**Settings.** User settings → Connections → MCP servers and Project settings → Agent → MCP servers are one page that takes the scope: list with state, the layered on/off switches, add and edit (including secret values and paste-JSON), test, review, disconnect and remove, through the `mcp.servers.*` operations (never reachable from the agent). `mcp.changed` refreshes open pages. Messages the page shows are worded for the user; the agent gets its own wording of the same facts.
+**Settings.** Settings → MCP servers is one layered page (User column, plus a project column when a project is open): list with state, the layered on/off switches, add and edit (including secret values and paste-JSON), test, review, disconnect and remove, through the `mcp.servers.*` operations (never reachable from the agent). `mcp.changed` refreshes open pages. Messages the page shows are worded for the user; the agent gets its own wording of the same facts.
 
 ## Resource registry
 

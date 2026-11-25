@@ -1,13 +1,10 @@
 /* §1 Hero.
  *
- * Two movements. On load the copy arrives line by line and the live-run panel
- * settles out of depth; on scroll the exploded run layers collapse flat into
- * the device (`--lift-k`, scrubbed) and the composition lifts away. The transcript
- * inside the panel is driven by `scripts/run-sim.ts`, not by the stage: the
- * stage choreographs the frame, the sim owns the content.
+ * Two movements. On load the title settles in and the workbench art rises
+ * into place; on scroll the composition lifts away. The film inside the
+ * art is `scripts/marketing/hero-workbench.ts`.
  */
 
-import { revealLines } from "./primitives";
 import { allowEntrance, gsap, q, qa } from "./runtime";
 
 export function heroStage(): void {
@@ -23,59 +20,20 @@ export function heroStage(): void {
   const wrappers = qa("[data-reveal]", hero);
   for (const wrapper of wrappers) wrapper.classList.add("is-revealed");
 
-  const title = q(".display-title", hero);
-  const lede = q(".hero-lede", hero);
-  const badge = q(".badge", hero);
-  const actions = q(".hero-actions", hero);
-  const install = q(".hero-install", hero);
-  const charge = q(".hero-charge", hero);
+  const title = q(".hero-title", hero);
 
   if (allowEntrance) {
     const intro = gsap.timeline({ defaults: { ease: "settle" } });
 
-    if (badge) {
-      intro.from(badge, { opacity: 0, scale: 0.9, y: 8, duration: 0.5 }, 0);
-    }
+    if (title) intro.from(title, { opacity: 0, y: -10, duration: 0.7 }, 0.1);
 
-    /* The deck starts furthest back and takes the longest to arrive, so the
-     * copy is readable well before the composition finishes settling. */
+    /* The deck starts furthest back and takes the longest to arrive. */
     if (deck) {
       intro.fromTo(
         deck,
-        {
-          "--deck-enter-y": "34px",
-          "--deck-enter-rotate": "9deg",
-          "--deck-scale": 0.955,
-          opacity: 0,
-        },
-        {
-          "--deck-enter-y": "0px",
-          "--deck-enter-rotate": "0deg",
-          "--deck-scale": 1,
-          opacity: 1,
-          duration: 1.2,
-        },
+        { "--deck-enter-y": "40px", opacity: 0 },
+        { "--deck-enter-y": "0px", opacity: 1, duration: 1.2 },
         0.25,
-      );
-    }
-
-    /* The headline's underline charges like an axon once the line it belongs
-     * to has arrived. */
-    if (charge) {
-      intro.fromTo(
-        charge,
-        { "--charge": 0 },
-        { "--charge": 1, duration: 0.9, ease: "signal" },
-        0.5,
-      );
-    }
-
-    for (const [index, target] of [actions, install].entries()) {
-      if (!target) continue;
-      intro.from(
-        target,
-        { opacity: 0, y: 14, duration: 0.6 },
-        0.55 + index * 0.08,
       );
     }
 
@@ -86,12 +44,7 @@ export function heroStage(): void {
       undefined,
       0.95,
     );
-  } else if (charge) {
-    gsap.set(charge, { "--charge": 1 });
   }
-
-  revealLines(title, { stagger: 0.09, delay: 0.05 });
-  revealLines(lede, { stagger: 0.05, delay: 0.4 });
 
   /* Scroll-out. Everything is written to custom properties because the deck
    * composes its transform from tilt and depth variables it already owns. */
@@ -106,28 +59,7 @@ export function heroStage(): void {
   });
 
   if (deck) {
-    out.fromTo(
-      deck,
-      {
-        "--deck-rotate-x": "2deg",
-        "--deck-lift": "0px",
-        "--deck-scale": 1,
-      },
-      {
-        "--deck-rotate-x": "0deg",
-        "--deck-lift": "-28px",
-        "--deck-scale": 0.97,
-      },
-      0,
-    );
-    /* The exploded layers collapse flat into the device, finishing before the
-     * hero has fully left so the hand-off to the next section is calm. */
-    out.fromTo(
-      deck,
-      { "--lift-k": 1 },
-      { "--lift-k": 0, ease: "power2.in", duration: 0.35 },
-      0,
-    );
+    out.fromTo(deck, { "--deck-lift": "0px" }, { "--deck-lift": "-28px" }, 0);
   }
   if (copy) {
     out.fromTo(

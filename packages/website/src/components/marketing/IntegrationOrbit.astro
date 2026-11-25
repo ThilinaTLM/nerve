@@ -1,0 +1,519 @@
+---
+/* "Plugged into your stack": Nerve at the hub, what ships built in on the inner
+ * ring (solid wires carrying impulses), and services a team connects by asking
+ * Forge on the outer ring (dashed). The two the Forge setup above added
+ * (`forge-setup.ts`: Linear as an MCP server, Sentry as an extension) join
+ * when the section scrolls into view: their wire draws in from the hub, the
+ * node lights and an "Added by Forge" tag appears. The markup shows them
+ * joined, so the art reads the same without script or motion.
+ */
+import BrandIcon from "./BrandIcon.astro";
+import type { BrandIconName } from "./brand-icons";
+import { forgeSetupItems } from "../../scripts/marketing/forge-setup";
+
+interface Node {
+  label: string;
+  brand?: BrandIconName;
+  glyph?: string;
+}
+
+/* The outer services the Forge setup connected, by brand, with how. */
+const added = new Map(
+  forgeSetupItems.flatMap((item) =>
+    item.brand && (item.kind === "mcp" || item.kind === "extension")
+      ? [[item.brand, item.kindLabel] as const]
+      : [],
+  ),
+);
+
+const inner: Node[] = [
+  { label: "Jira", brand: "jira" },
+  { label: "Confluence", brand: "confluence" },
+  { label: "GitHub", brand: "github" },
+  { label: "MCP servers", brand: "modelcontextprotocol" },
+  {
+    label: "Web",
+    glyph:
+      "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z",
+  },
+  { label: "Office docs", glyph: "M14 3H6v18h12V7zM14 3v4h4M9 13h6M9 17h4" },
+  { label: "Tailscale", brand: "tailscale" },
+];
+
+const outer: Node[] = [
+  { label: "AWS", brand: "amazonwebservices" },
+  { label: "Sentry", brand: "sentry" },
+  { label: "Grafana", brand: "grafana" },
+  { label: "Linear", brand: "linear" },
+  { label: "Slack", brand: "slack" },
+  { label: "Your API", glyph: "m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14" },
+];
+
+/* Positions in percent of the square stage; rings are offset so no outer node
+ * sits directly behind an inner one. */
+const place = (count: number, radius: number, offset: number) =>
+  Array.from({ length: count }, (_, index) => {
+    const angle = ((index / count) * 360 + offset - 90) * (Math.PI / 180);
+    return {
+      x: 50 + radius * Math.cos(angle),
+      y: 50 + radius * Math.sin(angle),
+    };
+  });
+
+const innerAt = place(inner.length, 27, 0);
+const outerAt = place(outer.length, 44, 30);
+const round = (value: number) => Math.round(value * 100) / 100;
+const isAdded = (node: Node) => node.brand !== undefined && added.has(node.brand);
+const addedLabels = outer
+  .filter(isAdded)
+  .map((node) => `${node.label} (${added.get(node.brand!)})`)
+  .join(" and ");
+---
+
+<div class="orbit-wrap" data-orbit>
+  <figure
+    class="orbit"
+    aria-label={`Nerve connects to Jira, Confluence, GitHub, MCP servers, the web, office documents and Tailscale out of the box. Services such as AWS, Sentry, Grafana, Linear, Slack or your own API connect through an MCP server entry or an extension you ask Forge for. The setup above added ${addedLabels}.`}
+  >
+    <svg class="orbit-wires" viewBox="0 0 100 100" aria-hidden="true">
+      <circle class="orbit-ring" cx="50" cy="50" r="27"></circle>
+      <circle class="orbit-ring orbit-ring-outer" cx="50" cy="50" r="44"></circle>
+      {
+        outerAt.map((point, index) =>
+          isAdded(outer[index]!) ? (
+            <g class="orbit-join" style={`--join-delay:${index * 120}ms`}>
+              <line
+                class="orbit-wire orbit-wire-joined"
+                x1="50"
+                y1="50"
+                x2={round(point.x)}
+                y2={round(point.y)}
+                pathLength="1"
+              />
+              <line
+                class="orbit-impulse orbit-impulse-joined"
+                x1="50"
+                y1="50"
+                x2={round(point.x)}
+                y2={round(point.y)}
+                pathLength="200"
+                style={`animation-delay:${(index * -0.7).toFixed(2)}s`}
+              />
+            </g>
+          ) : (
+            <line
+              class="orbit-wire orbit-wire-outer"
+              x1="50"
+              y1="50"
+              x2={round(point.x)}
+              y2={round(point.y)}
+            />
+          ),
+        )
+      }
+      {
+        innerAt.map((point, index) => (
+          <g>
+            <line
+              class="orbit-wire"
+              x1="50"
+              y1="50"
+              x2={round(point.x)}
+              y2={round(point.y)}
+            />
+            <line
+              class="orbit-impulse"
+              x1="50"
+              y1="50"
+              x2={round(point.x)}
+              y2={round(point.y)}
+              pathLength="200"
+              style={`animation-delay:${(index * -0.55).toFixed(2)}s`}
+            />
+          </g>
+        ))
+      }
+    </svg>
+
+    <div class="orbit-hub" aria-hidden="true">
+      <img src="/favicon.svg" alt="" width="40" height="40" />
+      <span>Nerve</span>
+    </div>
+
+    {
+      inner.map((node, index) => (
+        <div
+          class="orbit-node"
+          style={`left:${round(innerAt[index]!.x)}%;top:${round(innerAt[index]!.y)}%`}
+          aria-hidden="true"
+        >
+          <span class="orbit-mark">
+            {node.brand ? (
+              <BrandIcon name={node.brand} size={22} />
+            ) : (
+              <svg class="orbit-glyph" viewBox="0 0 24 24">
+                <path d={node.glyph} />
+              </svg>
+            )}
+          </span>
+          <span class="orbit-label">{node.label}</span>
+        </div>
+      ))
+    }
+
+    {
+      outer.map((node, index) => (
+        <div
+          class:list={["orbit-node orbit-node-outer", { "orbit-node-added": isAdded(node) }]}
+          style={`left:${round(outerAt[index]!.x)}%;top:${round(outerAt[index]!.y)}%;--join-delay:${index * 120}ms`}
+          aria-hidden="true"
+        >
+          <span class="orbit-mark">
+            {node.brand ? (
+              <BrandIcon name={node.brand} size={18} />
+            ) : (
+              <svg class="orbit-glyph" viewBox="0 0 24 24">
+                <path d={node.glyph} />
+              </svg>
+            )}
+          </span>
+          <span class="orbit-label">{node.label}</span>
+          {isAdded(node) && <span class="orbit-tag">Added by Forge</span>}
+        </div>
+      ))
+    }
+  </figure>
+
+  <ul class="orbit-legend" aria-hidden="true">
+    <li><span class="orbit-key"></span>Built in</li>
+    <li><span class="orbit-key orbit-key-added"></span>Added by Forge</li>
+    <li><span class="orbit-key orbit-key-outer"></span>Ask Forge to connect</li>
+  </ul>
+</div>
+
+<script>
+  /* Arm the join before the orbit is seen, then play it once on view. */
+  const wrap = document.querySelector<HTMLElement>("[data-orbit]");
+  if (wrap && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    wrap.dataset.join = "armed";
+    new IntersectionObserver(
+      ([entry], observer) => {
+        if (!entry?.isIntersecting) return;
+        observer.disconnect();
+        wrap.dataset.join = "joined";
+      },
+      { threshold: 0.45 },
+    ).observe(wrap);
+  }
+</script>
+
+<style>
+  .orbit-wrap {
+    display: grid;
+    justify-items: center;
+    gap: 1.5rem;
+  }
+
+  .orbit {
+    position: relative;
+    width: min(44rem, 100%);
+    aspect-ratio: 1;
+    margin: 0;
+  }
+
+  .orbit-wires {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .orbit-ring {
+    fill: none;
+    stroke: var(--hairline);
+    stroke-width: 0.25;
+  }
+
+  .orbit-ring-outer {
+    stroke-dasharray: 0.8 1.2;
+  }
+
+  .orbit-wire {
+    stroke: color-mix(in oklab, var(--primary) 35%, transparent);
+    stroke-width: 0.3;
+  }
+
+  .orbit-wire-outer {
+    stroke: var(--hairline);
+    stroke-dasharray: 0.8 1;
+  }
+
+  /* A short bright dash travelling the wire; pathLength normalizes every wire
+   * to 200 units so all impulses move at the same pace. */
+  .orbit-impulse {
+    stroke: var(--primary);
+    stroke-width: 0.9;
+    stroke-linecap: round;
+    stroke-dasharray: 10 190;
+    animation: orbit-pulse 3.2s linear infinite;
+    filter: drop-shadow(0 0 1.2px var(--primary));
+  }
+
+  /* Joined by the Forge setup: a signal-coloured wire with its own impulse. */
+  .orbit-wire-joined {
+    stroke: color-mix(in oklab, var(--signal) 60%, transparent);
+    stroke-width: 0.3;
+    stroke-dasharray: 1 1;
+    stroke-dashoffset: 0;
+  }
+
+  .orbit-impulse-joined {
+    stroke: var(--signal);
+    filter: drop-shadow(0 0 1.2px var(--signal));
+  }
+
+  /* Armed: drawn as not yet joined until the orbit scrolls into view. */
+  .orbit-wrap[data-join="armed"] .orbit-wire-joined {
+    stroke-dashoffset: 1;
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-impulse-joined {
+    opacity: 0;
+  }
+
+  .orbit-hub {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: grid;
+    justify-items: center;
+    gap: 0.35rem;
+    width: 7.5rem;
+    padding: 1rem 0.5rem 0.85rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 50%, transparent);
+    border-radius: 1.6rem;
+    background: var(--card);
+    box-shadow:
+      0 0 0 10px color-mix(in oklab, var(--primary) 6%, transparent),
+      0 0 60px -10px var(--primary);
+    font-family: var(--font-display);
+    font-weight: 600;
+    transform: translate(-50%, -50%);
+  }
+
+  .orbit-node {
+    position: absolute;
+    display: grid;
+    justify-items: center;
+    gap: 0.4rem;
+    transform: translate(-50%, -50%);
+  }
+
+  .orbit-mark {
+    display: grid;
+    place-items: center;
+    width: 3.25rem;
+    height: 3.25rem;
+    border: 1px solid var(--hairline);
+    border-radius: 1rem;
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: var(--depth-1);
+    transition:
+      transform 200ms var(--ease-out-expo),
+      border-color 200ms ease;
+  }
+
+  .orbit-node:hover .orbit-mark {
+    border-color: var(--primary);
+    transform: scale(1.08);
+  }
+
+  .orbit-node-outer .orbit-mark {
+    width: 2.6rem;
+    height: 2.6rem;
+    border-style: dashed;
+    border-color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+    background: var(--surface-sunken);
+    color: var(--muted-foreground);
+    box-shadow: none;
+  }
+
+  /* An added service: lit in the signal colour, a solid ring over the dashed
+   * one, and a tag naming who added it. */
+  .orbit-node-added .orbit-mark {
+    position: relative;
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: 0 0 1.4rem -0.2rem color-mix(in oklab, var(--signal) 55%, transparent);
+  }
+
+  .orbit-node-added .orbit-mark::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border: 1px solid var(--signal);
+    border-radius: inherit;
+  }
+
+  .orbit-node.orbit-node-added .orbit-label {
+    color: var(--foreground);
+  }
+
+  .orbit-tag {
+    padding: 0.05rem 0.45rem;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--signal) 16%, transparent);
+    color: var(--signal);
+    font-size: 0.66rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-node-added .orbit-mark {
+    background: var(--surface-sunken);
+    color: var(--muted-foreground);
+    box-shadow: none;
+    scale: 0.92;
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-node-added .orbit-mark::after {
+    opacity: 0;
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-node.orbit-node-added .orbit-label {
+    color: var(--muted-foreground);
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-tag {
+    opacity: 0;
+    translate: 0 -0.3rem;
+  }
+
+  /* Joining: the wire draws from the hub, then the node lights and the tag
+   * drops in. Only this state transitions, so arming is instant. */
+  .orbit-wrap[data-join="joined"] .orbit-wire-joined {
+    transition: stroke-dashoffset 900ms cubic-bezier(0.5, 0, 0.3, 1)
+      calc(300ms + var(--join-delay, 0ms));
+  }
+
+  .orbit-wrap[data-join="joined"] .orbit-impulse-joined {
+    transition: opacity 400ms ease calc(1100ms + var(--join-delay, 0ms));
+  }
+
+  .orbit-wrap[data-join="joined"] .orbit-node-added .orbit-mark {
+    transition:
+      transform 200ms var(--ease-out-expo),
+      scale 500ms cubic-bezier(0.2, 0.8, 0.2, 1) calc(1000ms + var(--join-delay, 0ms)),
+      color 400ms ease calc(1000ms + var(--join-delay, 0ms)),
+      background-color 400ms ease calc(1000ms + var(--join-delay, 0ms)),
+      box-shadow 500ms ease calc(1000ms + var(--join-delay, 0ms));
+  }
+
+  .orbit-wrap[data-join="joined"] .orbit-node-added .orbit-mark::after,
+  .orbit-wrap[data-join="joined"] .orbit-node.orbit-node-added .orbit-label {
+    transition:
+      opacity 400ms ease calc(1000ms + var(--join-delay, 0ms)),
+      color 400ms ease calc(1000ms + var(--join-delay, 0ms));
+  }
+
+  .orbit-wrap[data-join="joined"] .orbit-tag {
+    transition:
+      opacity 400ms ease calc(1200ms + var(--join-delay, 0ms)),
+      translate 500ms cubic-bezier(0.2, 0.8, 0.2, 1) calc(1200ms + var(--join-delay, 0ms));
+  }
+
+  .orbit-glyph {
+    width: 1.3rem;
+    height: 1.3rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .orbit-label {
+    font-size: 0.82rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .orbit-node-outer .orbit-label {
+    color: var(--muted-foreground);
+    font-size: 0.74rem;
+  }
+
+  .orbit-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.75rem;
+    margin: 0;
+    padding: 0;
+    color: var(--muted-foreground);
+    font-size: 0.88rem;
+    list-style: none;
+  }
+
+  .orbit-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .orbit-key {
+    width: 0.9rem;
+    height: 0.9rem;
+    border: 1px solid var(--primary);
+    border-radius: 0.3rem;
+    background: color-mix(in oklab, var(--primary) 18%, transparent);
+  }
+
+  .orbit-key-added {
+    border-color: var(--signal);
+    background: color-mix(in oklab, var(--signal) 18%, transparent);
+  }
+
+  .orbit-key-outer {
+    border-style: dashed;
+    border-color: var(--muted-foreground);
+    background: transparent;
+  }
+
+  /* Small screens: the rings tighten, so marks and labels shrink with them. */
+  @media (max-width: 560px) {
+    .orbit-hub {
+      width: 5rem;
+      padding: 0.65rem 0.4rem 0.55rem;
+      border-radius: 1.1rem;
+      font-size: 0.8rem;
+    }
+
+    .orbit-hub img {
+      width: 26px;
+      height: 26px;
+    }
+
+    .orbit-mark {
+      width: 2.3rem;
+      height: 2.3rem;
+      border-radius: 0.7rem;
+    }
+
+    .orbit-node-outer .orbit-mark {
+      width: 1.9rem;
+      height: 1.9rem;
+    }
+
+    .orbit-label {
+      font-size: 0.66rem;
+    }
+
+    .orbit-node-outer .orbit-label,
+    .orbit-tag {
+      display: none;
+    }
+  }
+</style>

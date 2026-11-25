@@ -40,9 +40,6 @@ ScrollTrigger.config({ ignoreMobileResize: true });
  * linked stages still attach either way. */
 export const allowEntrance: boolean = performance.now() < 1200;
 
-export const DESKTOP = "(min-width: 1024px)";
-export const COMPACT = "(max-width: 1023px)";
-
 export { gsap, ScrollTrigger, SplitText };
 
 export const q = <T extends Element = HTMLElement>(
@@ -74,38 +71,4 @@ export function refreshOnAssets(): void {
   if (document.readyState === "complete") requestAnimationFrame(refresh);
   else window.addEventListener("load", () => requestAnimationFrame(refresh));
   if ("fonts" in document) void document.fonts.ready.then(refresh);
-}
-
-/* A continuous tween is only paid for while its subject is on screen and the
- * tab is in the foreground. */
-export function playWhileVisible(
-  trigger: Element,
-  animation: gsap.core.Animation,
-): void {
-  let onScreen = false;
-
-  const sync = (): void => {
-    if (onScreen && document.visibilityState === "visible") animation.play();
-    else animation.pause();
-  };
-
-  ScrollTrigger.create({
-    trigger,
-    start: "top bottom",
-    end: "bottom top",
-    onToggle: (self) => {
-      onScreen = self.isActive;
-      sync();
-    },
-  });
-
-  document.addEventListener("visibilitychange", sync);
-  sync();
-}
-
-/* Deterministic per-index jitter. Idle loops that share a duration read as a
- * single mechanism; desyncing them is what makes a composition feel alive. */
-export function jitter(index: number, spread = 1): number {
-  const value = Math.sin((index + 1) * 12.9898) * 43758.5453;
-  return (value - Math.floor(value)) * spread;
 }

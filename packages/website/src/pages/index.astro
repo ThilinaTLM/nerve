@@ -1,21 +1,25 @@
 ---
 import socialPreview from "../assets/social-preview.png";
 import MarketingLayout from "../layouts/MarketingLayout.astro";
-import BeyondRepo from "../components/marketing/BeyondRepo.astro";
+import AnywhereSection from "../components/marketing/AnywhereSection.astro";
 import ClosingCta from "../components/marketing/ClosingCta.astro";
 import Hero from "../components/marketing/Hero.astro";
-import LiveRun from "../components/marketing/LiveRun.astro";
-import ParallelTeam from "../components/marketing/ParallelTeam.astro";
+import ForgeDemo from "../components/marketing/ForgeDemo.astro";
+import IntegrationOrbit from "../components/marketing/IntegrationOrbit.astro";
+import IntegrationStrip from "../components/marketing/IntegrationStrip.astro";
+import PromiseRow from "../components/marketing/PromiseRow.astro";
 import Section from "../components/marketing/Section.astro";
-import TokenLedger from "../components/marketing/TokenLedger.astro";
-import WorkbenchMap from "../components/marketing/WorkbenchMap.astro";
+import TaskJourney from "../components/marketing/TaskJourney.astro";
+import WorkbenchHotspots from "../components/marketing/WorkbenchHotspots.astro";
 
-/* Seven beats, one argument: a lean harness (hero, ledger), a transcript you can
- * see through and steer (live run), the workbench around it, agents that reach beyond the repo, parallel
- * work, and the install. Everything else lives in the docs. */
-const title = "Nerve — more work per token, more control per run";
+/* Glance first, read second. Each section is one picture and one headline,
+ * and every section uses a different shape (bento, a live demo, orbit,
+ * annotated capture, floating phone) so the page never repeats itself. The
+ * detail lives in the docs. */
+const title =
+  "Nerve — the AI coding workbench that builds itself around your project";
 const description =
-  "Free, open-source coding workbench for AI agents. A lean harness, sandboxed scripts that reach Jira, Confluence and the web under your permission rules, parallel teammates, Git and PR review, and visible background work — on your subscription or API key.";
+  "Free, open-source workbench for AI coding agents. Ask the Forge profile for a panel, a launch or a Jira workflow and it builds the extension. Jira, Confluence, MCP and GitHub built in; parallel agents; Git and PR review; your phone through Tailscale. On your subscription or API key.";
 const ogImage = new URL(socialPreview.src, Astro.site).href;
 ---
 
@@ -27,85 +31,56 @@ const ogImage = new URL(socialPreview.src, Astro.site).href;
   structuredData
 >
   <Hero />
+  <IntegrationStrip />
 
   <Section
-    id="lean"
-    tone="sunken"
-    eyebrow="Lean by design"
-    title="Your tokens go to your problem."
-    lede="A concise base prompt, tools selected for the run, and bounded output keep context focused. Project guidance and skills add what the work needs; full tool output stays available for inspection."
+    id="capabilities"
+    align="center"
+    eyebrow="How it works"
+    title="One task, start to finish."
   >
-    <TokenLedger />
+    <TaskJourney />
   </Section>
 
   <Section
-    id="run"
-    eyebrow="Transparent by default"
-    title="Watch every step. Steer without stopping."
-    lede="Follow streaming text and tool cards that fill in place, from draft arguments to approval and results. Queue a follow-up, change the next request's settings, or branch from an earlier entry."
+    id="forge"
+    tone="sunken"
+    align="center"
+    eyebrow="Make it yours"
+    title="Just ask."
+    lede="No config files to learn. No restarts. One Forge conversation fits Nerve to your project."
   >
-    <LiveRun />
+    <ForgeDemo />
+  </Section>
+
+  <Section
+    id="connect"
+    align="center"
+    eyebrow="Connect"
+    title="Plugged into your stack."
+  >
+    <IntegrationOrbit />
   </Section>
 
   <Section
     id="workbench"
     tone="sunken"
-    eyebrow="The whole loop, one window"
-    title="From prompt to pull request without leaving."
-    lede="Review staged and unstaged changes, see the current branch's PR, and check review status without losing the conversation. The PR pane keeps checks and linked conversations current as you work."
+    align="center"
+    eyebrow="The workbench"
+    title="Everything around the chat."
   >
-    <WorkbenchMap />
-    <div class="grid gap-8 md:grid-cols-3">
-      <article class="grid content-start gap-3">
-        <h3 class="card-title">Less friction between thought and prompt.</h3>
-        <p class="body-text">
-          Reference files, paste images, quote exactly what you need from a reply,
-          and find commands in grouped suggestions. Model and permission controls share one toolbar. Agent
-          questions get individual answer fields with completion, dictation, and
-          saved drafts.{" "}
-          <a class="text-primary" href="/guides/composer/">Explore the composer →</a>
-        </p>
-      </article>
-      <article class="grid content-start gap-3">
-        <h3 class="card-title">Background work, foreground feedback.</h3>
-        <p class="body-text">
-          The header’s Notifications popover puts requests that need you first,
-          followed by running work and finished results. Nerve notices when
-          you’re away, flags results you haven’t seen, and lets you mute for an
-          hour.{" "}
-          <a class="text-primary" href="/guides/workbench/">Find your way around →</a>
-        </p>
-      </article>
-      <article class="grid content-start gap-3">
-        <h3 class="card-title">Less waiting around the work.</h3>
-        <p class="body-text">
-          Rust-backed search matches and ranks completion suggestions, including
-          project paths. Single-pass storage accounting and leaner startup
-          recovery reduce housekeeping around your next session.{" "}
-          <a class="text-primary" href="/developers/architecture/">See the architecture →</a>
-        </p>
-      </article>
-    </div>
+    <WorkbenchHotspots />
   </Section>
 
   <Section
-    id="beyond"
-    eyebrow="Beyond the repo"
-    title="Agents that reach Jira, Confluence and the web."
-    lede="quick_script lets the agent do multi-step integration and document work in one sandboxed TypeScript call: Jira, Confluence, web, files, office documents and diagrams. Each SDK call is permission-checked and streams into the tool card as it runs."
+    id="anywhere"
+    align="center"
+    eyebrow="Anywhere"
+    title="Step away. Stay in the loop."
   >
-    <BeyondRepo />
+    <AnywhereSection />
   </Section>
 
-  <Section
-    id="parallel"
-    tone="sunken"
-    eyebrow="Parallel by nature"
-    title="Many projects. A team of agents. All at once."
-    lede="Every conversation is its own tab in its own project. Inside one, a lead agent running your chosen profile hands work to sub-agents you shape — and they report back with receipts."
-  >
-    <ParallelTeam />
-  </Section>
-
+  <PromiseRow />
   <ClosingCta />
 </MarketingLayout>

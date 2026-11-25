@@ -99,12 +99,14 @@ async function settle(page: Page) {
 /** Tabs from earlier scenes are restored on reload; start each scene clean so
  * frames do not accumulate unrelated tabs and tab-strip scroll arrows. */
 const WORKSPACE_TABS_KEY = "nerve.workspaceTabs.v3";
+/** Dock sizes and the selected dock tabs; a scene that hides a dock must not leak that. */
+const LAYOUT_KEY = "nerve.layout.v2";
 
 async function openWorkbench(page: Page) {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.evaluate(
-    (key) => localStorage.removeItem(key),
-    WORKSPACE_TABS_KEY,
+    (keys) => keys.forEach((key) => localStorage.removeItem(key)),
+    [WORKSPACE_TABS_KEY, LAYOUT_KEY],
   );
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await settle(page);
@@ -160,6 +162,13 @@ async function captureGroup({
         );
       }
       await settle(page);
+      /* Toasts such as "items waiting for your review" are real but transient;
+       * a frame must not depend on whether one is still on screen. */
+      for (const close of await page
+        .locator("[data-sonner-toast] [data-close-button]")
+        .all())
+        await close.click().catch(() => {});
+      await page.waitForTimeout(500);
       // Desktop always has a quota chip; mobile detail screens may hide it.
       if (kind === "desktop") {
         await page

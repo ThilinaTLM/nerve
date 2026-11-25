@@ -120,7 +120,7 @@ export function createMcpService(options: {
   });
 }
 
-/** The user layer alone: what Settings → Connections shows. */
+/** The user layer alone: what the User column of Settings → MCP servers shows. */
 async function resolveUser(
   agentConfiguration: AgentConfigurationService,
   catalog: McpCatalog,

@@ -15,17 +15,20 @@ import quickScriptLight from "../../../assets/screenshots/desktop/quick-script-l
 
 The script runs in an isolated sandbox. It has no filesystem, network, Node APIs or `import`; it can only call the SDK that Nerve provides, and every call is checked against your permissions.
 
-| Available                                    | What it gives the script                                                                                     | Set up in                                                                |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `files`, `image`, `web.fetch`, `sdk`         | Read and write project files and conversation files, resize or convert images, fetch a URL, discover the SDK | Always present while Quick script is on                                  |
-| `XLSX`, `Papa`, `docx`, `mammoth`            | Read and write Excel, CSV, and Word documents                                                                | Always present                                                           |
-| `PptxGenJS`, `JSZip`, `pptxText`             | Build PowerPoint files, work with ZIP archives, extract slide text                                           | Always present                                                           |
-| `jira`, `confluence`, `atlassian`, `storage` | Issues, boards, sprints, pages, comments, attachments, and Confluence page builders                          | [Atlassian extension](/integrations/extensions/#atlassian)               |
-| `search`                                     | Web search                                                                                                   | [Web Search extension](/integrations/extensions/#web-search)             |
-| `diagram`                                    | Render Mermaid, PlantUML, Graphviz and other diagrams to PNG                                                 | [Diagrams extension](/integrations/extensions/#diagrams)                 |
-| `imagegen`                                   | Generate an image from a prompt                                                                              | [Image generation extension](/integrations/extensions/#image-generation) |
+| Available                                    | What it gives the script                                                                                                                                | Set up in                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `files`, `image`, `web.fetch`, `sdk`         | Read and write project files and conversation files, resize or convert images, fetch a URL, discover the SDK                                            | Always present while Quick script is on                                            |
+| `launches`                                   | List, start, restart, stop, and read logs of the project's launches by their Launches-panel label; create and edit definitions                          | Always present while Quick script is on; see [Launches](/guides/background-tasks/) |
+| `configuration`, `extensions`                | Read what is configured and in effect, check and reload configuration files, reload extensions. Used by the [Forge profile](/guides/configure-by-chat/) | Always present                                                                     |
+| `mcp`                                        | Tools and resources of your [MCP servers](/integrations/mcp/)                                                                                           | Listed only while a server is on                                                   |
+| `XLSX`, `Papa`, `docx`, `mammoth`            | Read and write Excel, CSV, and Word documents                                                                                                           | Always present                                                                     |
+| `PptxGenJS`, `JSZip`, `pptxText`             | Build PowerPoint files, work with ZIP archives, extract slide text                                                                                      | Always present                                                                     |
+| `jira`, `confluence`, `atlassian`, `storage` | Issues, boards, sprints, pages, comments, attachments, and Confluence page builders                                                                     | [Atlassian extension](/integrations/extensions/#atlassian)                         |
+| `search`                                     | Web search                                                                                                                                              | [Web Search extension](/integrations/extensions/#web-search)                       |
+| `diagram`                                    | Render Mermaid, PlantUML, Graphviz and other diagrams to PNG                                                                                            | [Diagrams extension](/integrations/extensions/#diagrams)                           |
+| `imagegen`                                   | Generate an image from a prompt                                                                                                                         | [Image generation extension](/integrations/extensions/#image-generation)           |
 
-The agent sees only the namespaces that are switched on and usable, and discovers methods itself with `sdk.list()`, `sdk.describe()`, `sdk.search()` and `sdk.docs()`. You never write the scripts; you describe the outcome.
+[Installed extensions](/guides/build-extensions/) can add namespaces of their own. The agent sees only the namespaces that are switched on and usable, and discovers methods itself with `sdk.list()`, `sdk.describe()`, `sdk.search()` and `sdk.docs()`. You never write the scripts; you describe the outcome.
 
 ## Turn it on
 
@@ -68,6 +71,8 @@ What this means for each permission level:
 - **Supervised** asks before a script that reads or changes anything outside your project, such as Jira, the web, or an image provider. Scripts that only read project files and documents run without asking.
 - **Autonomous** runs scripts without asking unless a rule blocks a call.
 
+A script that starts or restarts a launch is rated as a Bash command. A script that calls an MCP tool is rated destructive, because Nerve can't know what the tool does; see [MCP servers](/integrations/mcp/#permissions).
+
 Choose **Always allow** on an approval only when Nerve offers it; it is offered when Nerve can read every call in the script. You can also write rules for operations such as `jira.issues.*` in **Settings → Permission rules**; see [Tools and approval policy](/developers/tools-policy/).
 
 :::caution
@@ -78,6 +83,7 @@ Scripts can send data to Atlassian, a search provider, a Kroki server, or an ima
 
 - Choose Quick script for integrations and document work, [Python execution](/integrations/python/) for general data scripting, and Bash for builds, Git and processes. Quick script isn't a way to run local commands.
 - Quick script isn't replayed after a restart. A script that was running when Nerve stopped is marked as indeterminate instead of running again, because its calls may have partly completed.
+- The direct `launch` tool is gone; launches are `launches.*` calls. Permission rules that named it were removed on upgrade, and a rule that also covered other tools but had matchers written for `launch` was disabled.
 - The former direct Jira, Confluence, diagram, and image-generation tools are gone. Permission rules that named them were converted to Quick script operation rules on upgrade; a rule that couldn't be converted is disabled and reported.
 
 ## Next steps

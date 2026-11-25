@@ -17,11 +17,12 @@ Nerve keeps your conversations, settings, and credentials on your computer, in `
 
 - **Project:** a folder you opened in Nerve. Each project keeps its own conversations, launches, Git state, and notes.
 - **Conversation:** one thread of work with an agent. You can go back to an earlier point and branch from it.
-- **Agent profile:** the role the agent plays. **Coding** makes changes; **Planning** researches and proposes a plan for you to review. You can add your own profiles.
+- **Agent profile:** the role the agent plays. **Coding** makes changes; **Planning** researches and proposes a plan for you to review; **Lead** coordinates a team of sub-agents; **Forge** [configures Nerve itself](/guides/configure-by-chat/). You can add your own profiles.
 - **Sub-agent:** a teammate the agent can hand work to, such as Explore (read-only research) or Developer.
 - **Launch:** a saved command for a server or watcher, with its own status and logs.
 - **Background command:** a shell command the agent starts and keeps running while you continue.
-- **Extension:** an optional capability you switch on, such as Jira and Confluence, web search, diagrams, or image generation. The agent uses most of them through [Quick script](/guides/quick-script/).
+- **Extension:** an optional capability you switch on, such as Jira and Confluence, web search, diagrams, or image generation, or one you [build by chat](/guides/build-extensions/) with panels, tabs, previews, or themes. Extensions run sandboxed and load only after you allow them. The agent uses most through [Quick script](/guides/quick-script/), which also reaches your [MCP servers](/integrations/mcp/).
+- **Anywhere:** a focused phone layout, private access through Tailscale, and push notifications. See [Phone and remote access](/operations/lan-mobile/).
 
 ## You decide how much the agent can do
 

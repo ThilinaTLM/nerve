@@ -8,7 +8,7 @@ A skill is a folder with a `SKILL.md`: a name and description in frontmatter, th
 2. Choose the scope: `<home>/agent/skills/<name>/` for a personal skill (works from the next agent run), `<project>/.nerve/skills/<name>/` for a team skill (the user approves it first).
 3. `configuration.list({ kind: "skill" })`: if the name exists, read that skill and confirm before replacing it.
 4. Write `SKILL.md` and any linked files. Read the description as the agent would: does it alone tell when to load the skill?
-5. `configuration.check(scope)`; fix what it reports. Hand over with the approval a project skill needs (Project settings → Skills).
+5. `configuration.check(scope)`; fix what it reports. Hand over with the approval a project skill needs (Settings → Skills, project column).
 
 ## Locations
 
@@ -40,7 +40,7 @@ A skill with an invalid frontmatter is skipped. `configuration.check(scope)` rep
 
 ## Approval of project skills
 
-A project skill is not used until the user approves the exact content of its folder in Project settings → Skills; any change to any file in the folder asks again. You cannot approve it. So:
+A project skill is not used until the user approves the exact content of its folder in Settings → Skills, project column; any change to any file in the folder asks again. You cannot approve it. So:
 
 - A skill you write at project scope does not work until the user approves it. Say so when you hand over, and name the page.
 - A skill you write at user scope (`<home>/agent/skills/`) works from the next agent run. Prefer user scope for a skill that is personal rather than part of the repository.
