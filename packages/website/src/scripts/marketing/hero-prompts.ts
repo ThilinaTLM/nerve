@@ -1,5 +1,6 @@
-/* The hero's example runs: a prompt typed into the composer, the lead profile
- * that takes it, and the run the workbench art plays once it is sent.
+/* The hero's example runs: a prompt typed into the art's composer, the lead
+ * profile that takes it, the run the art plays once it is sent, and the
+ * chapter caption naming what the run shows.
  *
  * Tool names, SDK calls and notification titles are the app's own (`bash`,
  * `edit`, `quick_script` with `jira.issues.search`, `extensions.reload`,
@@ -15,8 +16,8 @@ export type HeroStep =
   | { tool: string; detail: string }
   | { agents: readonly string[] };
 
-/* The card in the art that reacts when the run ends. */
-export type HeroEffect = "dock" | "pr" | "jira" | "push";
+/* The part of the art the camera visits when the run ends. */
+export type HeroEffect = "dock" | "pr" | "jira" | "phone";
 
 export type HeroPrompt = {
   profile: HeroProfile;
@@ -29,6 +30,10 @@ export type HeroPrompt = {
   effect: HeroEffect;
   /* Push notification title when the run ends. */
   push: string;
+  /* The chapter caption under the art while this run plays: what it shows,
+   * in a few words. */
+  chapter: string;
+  caption: string;
 };
 
 export const heroPrompts: readonly HeroPrompt[] = [
@@ -46,6 +51,8 @@ export const heroPrompts: readonly HeroPrompt[] = [
     reply: "Environments panel is docked. QA is degraded.",
     effect: "dock",
     push: "Agent finished",
+    chapter: "Forge",
+    caption: "Forge builds the tools your work needs",
   },
   {
     profile: "coding",
@@ -62,6 +69,8 @@ export const heroPrompts: readonly HeroPrompt[] = [
     reply: "A shared clock raced between tests. Fixed, PR is open.",
     effect: "pr",
     push: "Agent finished",
+    chapter: "Coding",
+    caption: "Agents test, fix and open the pull request",
   },
   {
     profile: "lead",
@@ -77,6 +86,8 @@ export const heroPrompts: readonly HeroPrompt[] = [
     reply: "All 42 routes run on Fastify. Contract tests pass.",
     effect: "pr",
     push: "Agent finished",
+    chapter: "Lead",
+    caption: "Big jobs split across sub-agents",
   },
   {
     profile: "coding",
@@ -93,6 +104,8 @@ export const heroPrompts: readonly HeroPrompt[] = [
     reply: "Search uses the city index now. Commented on the issue.",
     effect: "jira",
     push: "Agent finished",
+    chapter: "Jira",
+    caption: "Jira, GitHub and MCP, built in",
   },
   {
     profile: "planning",
@@ -106,22 +119,9 @@ export const heroPrompts: readonly HeroPrompt[] = [
       { tool: "plan_present", detail: "3 phases, behind a flag" },
     ],
     reply: "The plan is ready. Review it before anything changes.",
-    effect: "push",
+    effect: "phone",
     push: "Plan ready for review",
+    chapter: "Remote",
+    caption: "Plans reach your phone over Tailscale",
   },
 ];
-
-/* Run pacing, shared by the composer (which waits for the run) and the art
- * (which plays it). */
-export const STEP_MS = 620;
-export const AGENTS_MS = 1500;
-export const REPLY_MS = 1800;
-
-export function runDuration(prompt: HeroPrompt): number {
-  return (
-    prompt.steps.reduce(
-      (total, step) => total + ("agents" in step ? AGENTS_MS : STEP_MS),
-      0,
-    ) + REPLY_MS
-  );
-}

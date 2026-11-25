@@ -35,7 +35,6 @@ const links = [
         class="btn btn-ghost btn-sm hidden sm:inline-flex"
         href="https://github.com/ThilinaTLM/nerve"
         aria-label="Nerve on GitHub"
-        data-github-star-link
       >
         <svg
           width="16"
@@ -49,8 +48,6 @@ const links = [
           ></path>
         </svg>
         GitHub
-        <span class="star-separator" aria-hidden="true"></span>
-        <span class="star-count" data-github-star-count aria-hidden="true">00</span>
       </a>
       {/* Below `sm` the row cannot hold brand, theme switch, call to action,
           and menu without overflowing, so the call to action moves into the
@@ -100,26 +97,7 @@ const links = [
 </header>
 
 
-<script>
-  import "../../scripts/marketing/github-stars";
-</script>
-
 <style>
-  .star-separator {
-    width: 1px;
-    height: 0.9rem;
-    background-color: var(--hairline);
-  }
-
-  .star-count {
-    min-width: 1.6em;
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-  }
-
   .site-header {
     position: sticky;
     top: 0;

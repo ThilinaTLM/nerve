@@ -101,17 +101,6 @@
   }
 }
 
-/* Hero workbench: the whole tilted scene swaying slowly. */
-@keyframes wb-sway {
-  0%,
-  100% {
-    transform: rotateX(38deg) rotateZ(-20deg);
-  }
-  50% {
-    transform: rotateX(34deg) rotateZ(-14deg);
-  }
-}
-
 /* Hero workbench: the impulse from the Forge chip into the docked panel,
  * fired once per Forge prompt. */
 @keyframes wb-impulse {

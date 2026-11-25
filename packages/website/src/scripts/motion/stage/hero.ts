@@ -1,8 +1,8 @@
 /* §1 Hero.
  *
  * Two movements. On load the copy arrives line by line and the workbench art
- * rises into place; on scroll the composition lifts away. The layers and the
- * impulse inside the art are CSS animations owned by `HeroWorkbench.astro`.
+ * rises into place; on scroll the composition lifts away. The film inside the
+ * art is `scripts/marketing/hero-workbench.ts`.
  */
 
 import { revealLines } from "./primitives";
@@ -22,9 +22,8 @@ export function heroStage(): void {
   for (const wrapper of wrappers) wrapper.classList.add("is-revealed");
 
   const title = q(".display-title", hero);
-  const composer = q("[data-hero-composer]", hero);
-  const meta = q(".hero-meta", hero);
-  const charge = q(".hero-charge", hero);
+  const lede = q(".hero-lede", hero);
+  const install = q(".hero-install", hero);
 
   if (allowEntrance) {
     const intro = gsap.timeline({ defaults: { ease: "settle" } });
@@ -40,18 +39,7 @@ export function heroStage(): void {
       );
     }
 
-    /* The headline's underline charges like an axon once the line it belongs
-     * to has arrived. */
-    if (charge) {
-      intro.fromTo(
-        charge,
-        { "--charge": 0 },
-        { "--charge": 1, duration: 0.9, ease: "signal" },
-        0.5,
-      );
-    }
-
-    for (const [index, target] of [composer, meta].entries()) {
+    for (const [index, target] of [lede, install].entries()) {
       if (!target) continue;
       intro.from(
         target,
@@ -67,8 +55,6 @@ export function heroStage(): void {
       undefined,
       0.95,
     );
-  } else if (charge) {
-    gsap.set(charge, { "--charge": 1 });
   }
 
   revealLines(title, { stagger: 0.09, delay: 0.05 });

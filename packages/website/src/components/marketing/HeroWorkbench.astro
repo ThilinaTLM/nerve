@@ -3,17 +3,21 @@
  *
  * A stylised drawing of the Nerve window tilted in 3D, its parts lifted
  * apart in layers: conversations, the chat, the dock with the panel Forge
- * built, launches, and above them what runs produce (a pull request, a Jira
- * issue, a push notification). It is an illustration, not a capture: chrome
- * is reduced to skeleton lines, and the words come from the demo workspace
- * and the app's own tool names and notification titles.
+ * built, launches, and around them what runs produce (a pull request, a
+ * Jira issue, and a phone beside the laptop that gets the push). It is an
+ * illustration, not a capture: chrome is reduced to skeleton lines, and the
+ * words come from the demo workspace and the app's own tool names and
+ * notification titles.
  *
- * Each prompt the hero composer sends plays as a run in the chat
- * (`hero-workbench.ts`); the markup shows the first run finished, so the art
- * reads the same without script. Sizes are in container units so the scene
- * scales with its column. Layers rise into place on load (`wb-rise`), the
- * scene sways (`wb-sway`) and follows the pointer (`data-tilt`), and a
- * hovered layer lifts toward the viewer.
+ * `hero-workbench.ts` plays it as a short film: a camera (`data-wb-camera`)
+ * moves through the scene while each example run types, works and lands,
+ * and the chapter bar under the art names the run and jumps between them.
+ * The markup shows the first run finished in the overview, so the art reads
+ * the same without script. Sizes are in container units so the scene scales
+ * with its column. Layers rise into place on load (`wb-rise`), the scene
+ * follows the pointer (`data-tilt`), and a hovered layer lifts toward the
+ * viewer. Nothing loops in CSS on the scene itself, so its text re-rasters
+ * crisply at every camera zoom.
  */
 import BrandIcon from "./BrandIcon.astro";
 import { profileIcons } from "./hero-profiles";
@@ -23,7 +27,6 @@ const first = heroPrompts[0]!;
 
 const glyph = {
   pr: "M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 9v12M13 6h3a2 2 0 0 1 2 2v7",
-  bell: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0",
   play: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM10 8.5v7l6-3.5z",
 };
 ---
@@ -34,9 +37,12 @@ const glyph = {
   data-profile={first.profile}
   data-tilt
   data-tilt-max="5"
-  aria-label="An illustration of the Nerve workbench running: an agent working through tool calls in a chat, a panel Forge built docked beside it, running launches, and what runs produce: a pull request, a Jira update and a notification on your phone."
+  aria-label="An illustration of the Nerve workbench running example tasks: Forge building a dock panel, a coding agent fixing a flaky test and opening a pull request, a lead splitting a migration across sub-agents, an agent working a Jira issue, and a plan reaching your phone over Tailscale."
 >
-  <div class="wb-tilt" aria-hidden="true">
+  <div class="wb-frame" aria-hidden="true">
+  <div class="wb-camera" data-wb-camera>
+  <div class="wb-view">
+  <div class="wb-tilt">
     <div class="wb-scene">
       <!-- Base: the window frame. -->
       <div class="wb-layer wb-window" style="--z:0;--d:0ms">
@@ -82,8 +88,12 @@ const glyph = {
           }
           <p class="wb-reply">{first.reply}</p>
         </div>
-        <div class="wb-composer">
-          <span class="wb-placeholder">Ask the local Nerve agent</span>
+        <div class="wb-composer" data-wb-composer>
+          <p class="wb-input">
+            <span data-wb-input></span><span class="wb-caret"></span><span
+              class="wb-placeholder">Ask the local Nerve agent</span
+            >
+          </p>
           <div class="wb-composer-bar">
             <span class="wb-chip">
               {
@@ -143,7 +153,7 @@ const glyph = {
       </div>
 
       <div class="wb-layer wb-float wb-jira" style="--z:9;--d:700ms">
-        <div class="wb-card" data-wb-card="jira" style="--bob:-2.6s">
+        <div class="wb-card" data-wb-card="jira">
           <span class="wb-brand"><BrandIcon name="jira" size={14} /></span>
           <span class="wb-lines">
             <span class="wb-bar" style="width:5em"></span>
@@ -152,15 +162,42 @@ const glyph = {
         </div>
       </div>
 
-      <div class="wb-layer wb-float wb-push" style="--z:14;--d:780ms">
-        <div class="wb-card" data-wb-card="push" style="--bob:-1.3s">
-          <svg class="wb-glyph is-warning" viewBox="0 0 24 24"><path d={glyph.bell} /></svg>
-          <span class="wb-push-text">
-            <b data-wb-push-title>{first.push}</b>
-            <span data-wb-push-body>aurora · {first.title}</span>
-          </span>
+      <!-- A phone beside the laptop, reached over Tailscale. -->
+      <div class="wb-layer wb-float wb-phone" style="--z:10;--d:780ms">
+        <div class="wb-phone-body" data-wb-card="phone">
+          <div class="wb-phone-status">
+            <span>9:41</span>
+            <span class="wb-phone-tailnet"><BrandIcon name="tailscale" size={9} /></span>
+          </div>
+          <div class="wb-notif">
+            <span class="wb-notif-app"><img src="/favicon.svg" alt="" />Nerve</span>
+            <b data-wb-phone-title>{first.push}</b>
+            <span data-wb-phone-body>aurora · {first.title}</span>
+          </div>
+          <span class="wb-phone-host">aurora-dev.tail4f2a9.ts.net</span>
         </div>
       </div>
+    </div>
+  </div>
+  </div>
+  </div>
+  </div>
+
+  <div class="wb-chapters">
+    <p class="wb-caption" data-wb-caption aria-live="polite">{first.caption}</p>
+    <div class="wb-chapter-row" role="group" aria-label="Example runs">
+      {
+        heroPrompts.map((prompt, index) => (
+          <button
+            type="button"
+            class="wb-chapter"
+            aria-pressed={index === 0 ? "true" : "false"}
+            data-wb-chapter
+          >
+            {prompt.chapter}
+          </button>
+        ))
+      }
     </div>
   </div>
 </figure>
@@ -170,14 +207,48 @@ const glyph = {
 </script>
 
 <style>
-  /* Stage: one container unit is 1% of the column width. */
   .wb {
-    container-type: inline-size;
     position: relative;
+    display: grid;
+    gap: 0.9rem;
     width: 100%;
     margin: 0;
+  }
+
+  /* The window the film is seen through: fixed while the camera moves, its
+   * edges fading so a zoomed scene does not end on a hard line. */
+  .wb-frame {
+    position: relative;
     aspect-ratio: 1.3;
-    perspective: 2400px;
+    overflow: clip;
+    mask-image:
+      linear-gradient(to right, transparent, black 5%, black 95%, transparent),
+      linear-gradient(to bottom, transparent, black 5%, black 92%, transparent);
+    -webkit-mask-image:
+      linear-gradient(to right, transparent, black 5%, black 95%, transparent),
+      linear-gradient(to bottom, transparent, black 5%, black 92%, transparent);
+    mask-composite: intersect;
+    -webkit-mask-composite: source-in;
+  }
+
+  /* The camera zooms by resizing this container, not by scaling it: every
+   * size in the scene is in container units, so a zoomed scene is laid out
+   * and rasterised at its real size and its text stays sharp.
+   * `hero-workbench.ts` writes the width, height and translate. One
+   * container unit is 1% of the camera's width. */
+  .wb-camera {
+    container-type: inline-size;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .wb-view {
+    position: absolute;
+    inset: 0;
+    perspective: 300cqw;
     perspective-origin: 50% 40%;
   }
 
@@ -193,12 +264,11 @@ const glyph = {
   .wb-scene {
     position: absolute;
     top: 14cqw;
-    left: 9cqw;
+    left: 5cqw;
     width: 82cqw;
     height: 52cqw;
     transform-style: preserve-3d;
     transform: rotateX(38deg) rotateZ(-20deg);
-    animation: wb-sway 14s ease-in-out infinite;
     font-size: 1.6cqw;
     line-height: 1.25;
   }
@@ -209,6 +279,13 @@ const glyph = {
     transition: translate 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
     animation: wb-rise 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
     animation-delay: var(--d);
+  }
+
+  /* Once risen, the layers drop the animation: Chrome keeps a layer under a
+   * running or filled transform animation at the raster scale it started
+   * with, which would leave the text soft when the camera zooms in. */
+  .wb.is-risen .wb-layer {
+    animation: none;
   }
 
   /* A hovered layer lifts toward the viewer. `translate` composes with the
@@ -534,9 +611,55 @@ const glyph = {
     border-radius: 1cqw;
   }
 
+  .wb-input {
+    min-height: 2.6em;
+    margin: 0;
+    color: var(--foreground);
+    font-size: 1.45cqw;
+    font-weight: 500;
+    line-height: 1.35;
+  }
+
   .wb-placeholder {
     color: var(--muted-foreground);
-    font-size: 1.3cqw;
+  }
+
+  [data-wb-input]:not(:empty) ~ .wb-placeholder {
+    display: none;
+  }
+
+  .wb-caret {
+    display: none;
+    width: 0.12cqw;
+    min-width: 1.5px;
+    height: 1.1em;
+    margin-left: 0.1cqw;
+    vertical-align: -0.18em;
+    background: var(--primary);
+    animation: caret-blink 1.1s steps(1) infinite;
+  }
+
+  .wb-composer.is-typing .wb-caret {
+    display: inline-block;
+  }
+
+  .wb-composer.is-typing {
+    border-color: color-mix(in oklab, var(--primary) 55%, transparent);
+    box-shadow: 0 0 0 0.25cqw color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+
+  .wb-composer {
+    transition:
+      border-color 300ms ease,
+      box-shadow 300ms ease;
+  }
+
+  .wb-send {
+    transition: scale 200ms ease;
+  }
+
+  .wb-composer.is-sent .wb-send {
+    scale: 0.8;
   }
 
   .wb-composer-bar {
@@ -637,8 +760,6 @@ const glyph = {
     color: var(--foreground);
     white-space: nowrap;
     box-shadow: 0 3cqw 4cqw -2cqw color-mix(in oklab, black 50%, transparent);
-    animation: float-soft 7s ease-in-out infinite;
-    animation-delay: var(--bob, 0s);
   }
 
   /* A card lighting up as a run produces it. */
@@ -683,24 +804,150 @@ const glyph = {
     left: 30%;
   }
 
+  /* Phone ------------------------------------------------------------------ */
+
+  .wb-phone {
+    top: 64%;
+    left: 86%;
+  }
+
+  .wb-phone-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1cqw;
+    width: 14cqw;
+    aspect-ratio: 9 / 18;
+    padding: 1cqw 0.9cqw;
+    border: 0.35cqw solid color-mix(in oklab, var(--foreground) 22%, var(--card));
+    border-radius: 2.2cqw;
+    background:
+      radial-gradient(circle at 30% 0%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 70%),
+      var(--background);
+    box-shadow: 0 3cqw 4cqw -2cqw color-mix(in oklab, black 55%, transparent);
+    transition:
+      translate 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      border-color 400ms ease,
+      box-shadow 400ms ease,
+      scale 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  :global(.wb-phone-body.is-lit) {
+    border-color: var(--primary);
+    box-shadow:
+      0 0 3cqw color-mix(in oklab, var(--primary) 45%, transparent),
+      0 3cqw 4cqw -2cqw color-mix(in oklab, black 50%, transparent);
+    scale: 1.06;
+  }
+
+  .wb-phone-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: 0.4cqw;
+    color: var(--foreground);
+    font-size: 0.95cqw;
+    font-weight: 600;
+  }
+
+  .wb-phone-tailnet {
+    display: grid;
+    color: var(--muted-foreground);
+  }
+
+  .wb-notif {
+    display: grid;
+    gap: 0.25cqw;
+    padding: 0.8cqw 0.9cqw;
+    border-radius: 1cqw;
+    background: color-mix(in oklab, var(--card) 85%, transparent);
+    color: var(--foreground);
+    font-size: 1cqw;
+    line-height: 1.3;
+  }
+
+  .wb-notif b {
+    font-size: 1.1cqw;
+  }
+
+  .wb-notif > span:last-child {
+    color: var(--muted-foreground);
+  }
+
+  .wb-notif-app {
+    display: flex;
+    align-items: center;
+    gap: 0.4cqw;
+    color: var(--muted-foreground);
+    font-size: 0.85cqw;
+  }
+
+  .wb-notif-app img {
+    width: 1.1cqw;
+    height: 1.1cqw;
+  }
+
+  .wb-phone-host {
+    margin-top: auto;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.7cqw;
+    text-align: center;
+  }
+
+  /* Chapters ---------------------------------------------------------------- */
+
+  .wb-chapters {
+    display: grid;
+    justify-items: center;
+    gap: 0.6rem;
+    text-align: center;
+  }
+
+  .wb-caption {
+    margin: 0;
+    color: var(--foreground);
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .wb-chapter-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--card) 70%, transparent);
+  }
+
+  .wb-chapter {
+    padding: 0.3rem 0.8rem;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--muted-foreground);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background-color 200ms ease,
+      color 200ms ease;
+  }
+
+  .wb-chapter:hover {
+    color: var(--foreground);
+  }
+
+  .wb-chapter[aria-pressed="true"] {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
   .wb-jira {
     top: 44%;
-    left: -12%;
-  }
-
-  .wb-push {
-    top: 93%;
-    left: 50%;
-  }
-
-  .wb-push-text {
-    display: grid;
-    gap: 0.2cqw;
-  }
-
-  .wb-push-text span {
-    color: var(--muted-foreground);
-    font-size: 1.3cqw;
+    left: -5%;
   }
 
   @media (prefers-reduced-motion: reduce) {
