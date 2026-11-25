@@ -41,17 +41,8 @@ export function heroStage(): void {
     if (deck) {
       intro.fromTo(
         deck,
-        {
-          "--deck-enter-y": "40px",
-          "--deck-scale": 0.97,
-          opacity: 0,
-        },
-        {
-          "--deck-enter-y": "0px",
-          "--deck-scale": 1,
-          opacity: 1,
-          duration: 1.2,
-        },
+        { "--deck-enter-y": "40px", opacity: 0 },
+        { "--deck-enter-y": "0px", opacity: 1, duration: 1.2 },
         0.25,
       );
     }
@@ -103,12 +94,7 @@ export function heroStage(): void {
   });
 
   if (deck) {
-    out.fromTo(
-      deck,
-      { "--deck-lift": "0px", "--deck-scale": 1 },
-      { "--deck-lift": "-28px", "--deck-scale": 0.98 },
-      0,
-    );
+    out.fromTo(deck, { "--deck-lift": "0px" }, { "--deck-lift": "-28px" }, 0);
   }
   if (copy) {
     out.fromTo(

@@ -70,59 +70,19 @@
   }
 }
 
-/* A tool call that has not resolved yet. */
-@keyframes run-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Hero Forge stage: an empty slot breathing while Forge builds into it. */
-@keyframes slot-breathe {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
-}
-
-/* Bento: current flowing along a dashed wire. */
-@keyframes wire-flow {
-  to {
-    stroke-dashoffset: -18;
-  }
-}
-
-/* Bento: a progress bar filling, then holding before the loop restarts. */
-@keyframes bar-fill {
+/* Hero capture: an impulse crossing from the conversation into the panel
+ * Forge built (path length normalized to 1, dash 0.18). */
+@keyframes capture-impulse {
   0% {
-    transform: scaleX(0);
+    stroke-dashoffset: 0.18;
   }
-  55%,
+  70%,
   100% {
-    transform: scaleX(1);
+    stroke-dashoffset: -1;
   }
 }
 
-/* Bento: a transcript row lighting up in turn. */
-@keyframes step-in {
-  0% {
-    opacity: 0.35;
-    transform: translateY(4px);
-  }
-  12%,
-  88% {
-    opacity: 1;
-    transform: none;
-  }
-  100% {
-    opacity: 0.35;
-  }
-}
-
-/* Bento: a button asking to be pressed. */
+/* A button asking to be pressed (task journey approval). */
 @keyframes nudge {
   0%,
   100% {
@@ -130,30 +90,6 @@
   }
   50% {
     transform: scale(1.06);
-  }
-}
-
-/* Bento: a check passing. */
-@keyframes check-pass {
-  0% {
-    opacity: 0.3;
-    transform: scale(0.4);
-  }
-  20%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* A path drawing itself, holding, then redrawing. */
-@keyframes draw-loop {
-  0% {
-    stroke-dashoffset: 120;
-  }
-  50%,
-  100% {
-    stroke-dashoffset: 0;
   }
 }
 

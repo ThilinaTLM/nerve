@@ -10,27 +10,27 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { toTrustedDigest } from "@nervekit/contracts/core";
-import type { composeServerRuntime } from "../src/app/runtime/server-runtime.js";
-import { createProjectSkillTrust } from "../src/core-host/resources/project-skill-trust.js";
-import { hashExtensionContent } from "../src/core-host/extensions/extension-catalog/content-hash.js";
-import { McpCatalog } from "../src/domains/mcp/mcp-catalog.js";
-import { resolveMcpServer } from "../src/domains/mcp/mcp-config.js";
-import { indexKeyOf } from "../src/domains/mcp/mcp-hub-support.js";
-import { McpToolIndex } from "../src/domains/mcp/mcp-tool-index.js";
+import type { composeServerRuntime } from "../../src/app/runtime/server-runtime.js";
+import { createProjectSkillTrust } from "../../src/core-host/resources/project-skill-trust.js";
+import { hashExtensionContent } from "../../src/core-host/extensions/extension-catalog/content-hash.js";
+import { McpCatalog } from "../../src/domains/mcp/mcp-catalog.js";
+import { resolveMcpServer } from "../../src/domains/mcp/mcp-config.js";
+import { indexKeyOf } from "../../src/domains/mcp/mcp-hub-support.js";
+import { McpToolIndex } from "../../src/domains/mcp/mcp-tool-index.js";
 import {
   ENV_STATUS_DATA,
   ENV_STATUS_EXTENSION,
   ENV_STATUS_PANEL,
   ENV_STATUS_TEST,
   STATUS_PAGE_EXTENSION,
-} from "./demo-data/env-status-extension.js";
-import { DEMO_MCP_SERVERS, DEMO_MCP_TOOLS } from "./demo-data/mcp-servers.js";
-import { DEMO_PROJECT_SKILLS, DEMO_USER_SKILLS } from "./demo-data/skills.js";
+} from "./env-status-extension.js";
+import { DEMO_MCP_SERVERS, DEMO_MCP_TOOLS } from "./mcp-servers.js";
+import { DEMO_PROJECT_SKILLS, DEMO_USER_SKILLS } from "./skills.js";
 
 type Services = ReturnType<typeof composeServerRuntime>["services"];
 
 const run = promisify(execFile);
-const REPO_ROOT = resolve(import.meta.dirname, "../../..");
+const REPO_ROOT = resolve(import.meta.dirname, "../../../..");
 const EXTENSION_SDK = join(REPO_ROOT, "packages/extension-sdk");
 
 /**

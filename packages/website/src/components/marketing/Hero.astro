@@ -1,14 +1,14 @@
 ---
 /* The hero.
  *
- * Centered copy over one wide picture: a workbench assembling itself from four
- * plain requests (`ForgeStage`, replayed by `scripts/marketing/forge-stage.ts`).
- * The stage is flat on purpose: a 3D tilt rasterizes small UI text.
- * `stage/hero.ts` owns the entrance and the scroll-out.
+ * Centered copy about the whole product over one real capture: a Forge
+ * conversation and the panel it built, spotlit (`HeroCapture`). The capture
+ * renders at native size and is never rotated or scaled at rest, so its UI
+ * text stays crisp. `stage/hero.ts` owns the entrance and the scroll-out.
  */
 
 import DendriteField from "./DendriteField.astro";
-import ForgeStage from "./ForgeStage.astro";
+import HeroCapture from "./HeroCapture.astro";
 import Reveal from "./Reveal.astro";
 ---
 
@@ -22,22 +22,22 @@ import Reveal from "./Reveal.astro";
       <Reveal>
         <span class="badge">
           <span class="badge-dot animate-pulse-ring" aria-hidden="true"></span>
-          New: the Forge profile
+          New · Ask Forge to build what you need
         </span>
       </Reveal>
 
       <Reveal delay={80}>
         <h1 class="display-title">
-          The coding workbench that <span class="gradient-text hero-charge"
-            >builds itself</span
+          Your AI coding workbench, <span class="gradient-text hero-charge"
+            >shaped to your project</span
           >.
         </h1>
       </Reveal>
 
       <Reveal delay={160}>
         <p class="lede hero-lede">
-          AI agents that write, test and ship your code. Need a panel, a
-          workflow or a tool? Ask, and Forge builds it.
+          Agents that plan, code and open pull requests, with Jira, MCP and
+          your phone built in. Missing something? Ask Forge to build it.
         </p>
       </Reveal>
 
@@ -82,7 +82,7 @@ import Reveal from "./Reveal.astro";
 
     <Reveal variant="scale" delay={140} class="hero-stage">
       <div class="hero-deck" data-hero-deck>
-        <ForgeStage />
+        <HeroCapture />
       </div>
     </Reveal>
   </div>
@@ -150,7 +150,6 @@ import Reveal from "./Reveal.astro";
     max-width: 52rem;
     text-align: center;
     transform: translateY(var(--copy-shift, 0px));
-    will-change: transform;
   }
 
   .hero-copy .display-title {
@@ -227,18 +226,19 @@ import Reveal from "./Reveal.astro";
 
   /* Stage ---------------------------------------------------------------- */
 
+  /* Native size: the capture is 1440 CSS px wide. */
   .hero-stage {
     position: relative;
-    width: min(64rem, 100%);
+    justify-self: stretch;
+    width: min(90rem, calc(100vw - 2rem));
+    margin-inline: calc(50% - min(45rem, 50vw - 1rem));
   }
 
-  /* The scroll stage writes --deck-lift, --deck-scale and the entrance writes
-   * --deck-enter-y. Translate and scale only: no rotation, so text stays
-   * sharp. Nothing animates `transform` directly. */
+  /* The entrance writes --deck-enter-y and the scroll-out --deck-lift.
+   * Translate only: a scale or rotation would resample the capture. */
   .hero-deck {
     position: relative;
-    transform: translateY(calc(var(--deck-lift, 0px) + var(--deck-enter-y, 0px)))
-      scale(var(--deck-scale, 1));
+    transform: translateY(calc(var(--deck-lift, 0px) + var(--deck-enter-y, 0px)));
   }
 
   @media (max-width: 1199px) {
