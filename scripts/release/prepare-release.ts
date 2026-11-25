@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Prepare a release in the working tree: bump every workspace version, stamp
-// pending Discover news, mark draft migration steps released and check the
-// migration lock. Commits, tags and pushes nothing; the Release: Cut workflow
-// commits the result, tests it and tags it.
+// pending Discover news and mark draft migration steps released. Commits, tags
+// and pushes nothing; the Release: Cut workflow commits the result, tests it
+// (including the migration lock check, which needs built packages and the
+// native addon) and tags it.
 //
 //   pnpm release:prepare X.Y.Z [--dry-run]
 import { spawnSync } from "node:child_process";
@@ -129,8 +130,6 @@ await defineCli(import.meta.url, async (argv) => {
       `Released migration ${release.id}${release.staleLabel ? ` (stale draft label kept as previous checksum)` : ""}.`,
     );
 
-  // The released checksums must match the step folders exactly.
-  run("pnpm", ["exec", "tsx", "scripts/storage-migrations/check.ts"]);
   console.log(
     `Prepared ${tag}. The working tree holds the release changes; nothing was committed.`,
   );
