@@ -16,7 +16,7 @@ import {
 
 const APPROVAL = {
   kind: "trust",
-  where: "Project settings → Skills",
+  where: "Settings → Skills, project column",
 } as const;
 
 const shadowed = (by: string): Diagnostic => ({

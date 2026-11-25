@@ -110,8 +110,7 @@ export interface McpAgentPort {
    * Connects when needed (a server with an index may answer without connecting). Fails with
    * NOT_FOUND naming the configured servers for an unknown name, and with FORBIDDEN for a server
    * that is disabled, needs review or is declined; the message names the state and where the
-   * user acts (User settings → Connections → MCP servers, or Project settings → Agent → MCP
-   * servers). The other methods fail the same way.
+   * user acts (Settings → MCP servers, in the User or project column). The other methods fail the same way.
    */
   listTools(server: string, options?: McpRequestOptions): Promise<McpTool[]>;
   callTool(

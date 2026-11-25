@@ -235,7 +235,7 @@ void test("a pending project row with the name of a working user server is not r
   );
   assert.match(result.content, /not used: other \(declined\)\. Only the user/);
   assert.doesNotMatch(result.content, /github \(needs_review\)/);
-  assert.match(result.content, /in Project settings → Agent → MCP servers\./);
+  assert.match(result.content, /in Settings → MCP servers, project column\./);
 });
 
 void test("tools.search cuts at limit with a note naming the total", async () => {

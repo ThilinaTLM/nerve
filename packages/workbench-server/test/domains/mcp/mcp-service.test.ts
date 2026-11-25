@@ -380,5 +380,5 @@ void test("rows, refusals and test failures speak to the user; the agent's wordi
   const refused = await service.test({ target: user, name: "s" });
   assert.equal(refused.status, "refused");
   for (const text of [row.error, pending.error, JSON.stringify(refused)])
-    assert.doesNotMatch(text ?? "", /the user|Project settings|User settings/i);
+    assert.doesNotMatch(text ?? "", /the user|Settings → /i);
 });

@@ -14,7 +14,7 @@ Use one when the service publishes an MCP server and there is no CLI that alread
 
 ## Approval
 
-An entry does not start, connect or show its tools until the user approved that exact entry, in both files. You cannot approve it. After you write or change an entry, tell the user it waits for review in **User settings → Connections → MCP servers** (user file) or **Project settings → Agent → MCP servers** (project file), then stop: `mcp.servers.list()` shows `needs_review`, and calls fail with `FORBIDDEN` until the user acts. Retrying does not help. Any change to an entry asks again; entries the user saves in Settings are approved already.
+An entry does not start, connect or show its tools until the user approved that exact entry, in both files. You cannot approve it. After you write or change an entry, tell the user it waits for review in **Settings → MCP servers, User column** (user file) or **Settings → MCP servers, project column** (project file), then stop: `mcp.servers.list()` shows `needs_review`, and calls fail with `FORBIDDEN` until the user acts. Retrying does not help. Any change to an entry asks again; entries the user saves in Settings are approved already.
 
 ## Files and precedence
 
@@ -60,7 +60,7 @@ Only these files are read, not `.mcp.json` or `.vscode/mcp.json`; copy an entry 
 
 `${NAME}` and `${NAME:-default}` are expanded in `command`, `args`, `env`, `cwd`, `url` and `headers` from Nerve's environment; an unset variable without a default makes that server fail with the variable's name. The review lists every variable and secret an entry references and where its value goes, so name only what the server needs.
 
-`${secret:<name>}` reads a value the user stored in Nerve's credential vault: user secrets for the user file, the project's own secrets for the project file (a project entry cannot read the user's). You cannot read, write or list secrets. Ask the user to add the secret in the same settings page as the server (User settings → Connections → MCP servers, or Project settings → Agent → MCP servers); a server whose secret is unset fails and names it.
+`${secret:<name>}` reads a value the user stored in Nerve's credential vault: user secrets for the user file, the project's own secrets for the project file (a project entry cannot read the user's). You cannot read, write or list secrets. Ask the user to add the secret in the same settings page as the server (Settings → MCP servers, User or project column); a server whose secret is unset fails and names it.
 
 OAuth sign-in (`oauth`) is not supported yet: use a token in `headers`.
 

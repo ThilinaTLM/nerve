@@ -43,7 +43,7 @@ void test("mcp.json is reported per scope: servers waiting for approval, rejecte
     assert.equal(waiting.state, "needs_review");
     assert.deepEqual(waiting.approval, {
       kind: "consent",
-      where: "User settings → Connections → MCP servers",
+      where: "Settings → MCP servers, User column",
     });
     const [entry] = (await catalog.load()).active;
     rows.set("null:ok", { status: "trusted", contentDigest: entry.digest });
@@ -93,7 +93,7 @@ void test("mcp.json is reported per scope: servers waiting for approval, rejecte
     assert.equal(pending.state, "needs_review");
     assert.equal(
       pending.approval?.where,
-      "Project settings → Agent → MCP servers",
+      "Settings → MCP servers, project column",
     );
   } finally {
     await rm(home, { recursive: true, force: true });

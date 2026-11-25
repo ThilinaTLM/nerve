@@ -141,7 +141,7 @@ void test("a missing variable or secret shows as failed and names where to set i
   assert.match(server.error ?? "", /NERVE_TEST_UNSET_VARIABLE is not set/);
   assert.match(
     server.error ?? "",
-    /secret token is not set; the user adds it in User settings → Connections → MCP servers/,
+    /secret token is not set; the user adds it in Settings → MCP servers, User column/,
   );
   await writeFile(join(env.home, "config", "mcp.json"), "{ nope");
   await assert.rejects(port.listTools("needs"), {
@@ -174,7 +174,7 @@ void test("an entry that is not approved is never started, indexed or listed wit
     await assert.rejects(call(), {
       code: "FORBIDDEN",
       message:
-        /Waiting for the user's approval.*User settings → Connections → MCP servers/,
+        /Waiting for the user's approval.*Settings → MCP servers, User column/,
     });
   assert.equal(started, 0);
   await access(join(env.home, "cache", "mcp")).then(
@@ -316,7 +316,7 @@ void test("secrets are scoped: a project entry reads its project's secrets, neve
   await assert.rejects(port.callTool("theirs", "whereami", {}), {
     code: "SERVER_ERROR",
     message:
-      /secret token is not set; the user adds it in Project settings → Agent → MCP servers/,
+      /secret token is not set; the user adds it in Settings → MCP servers, project column/,
   });
   env.vault.values.set("mcp:project:proj_1:token", "project-token");
   assert.equal(JSON.parse(await text("theirs")).token, "project-token");
