@@ -36,6 +36,11 @@ import {
   type DemoStep,
 } from "./demo-data/conversations.js";
 import {
+  seedMcpServers,
+  seedProjectExtensions,
+  seedSkills,
+} from "./demo-data/seed-integrations.js";
+import {
   addPublicPullRequestRepo,
   createDemoWorkspace,
   DEMO_PROJECTS,
@@ -513,26 +518,32 @@ async function writeLaunchDefinitions(workspace: string): Promise<void> {
   const now = new Date(SEED_NOW).toISOString();
   const definitions = [
     {
-      label: "aurora-web dev",
+      label: "web: dev",
       command:
         "node -e \"console.log('aurora-web dev server ready on http://localhost:5173'); setInterval(() => console.log('hmr update /src/venue-card.css'), 20000)\"",
       cwd: "aurora-web",
     },
-    { label: "aurora-api tests", command: "pnpm test", cwd: "aurora-api" },
     {
-      label: "migration check",
+      label: "api: dev",
+      command:
+        "node -e \"console.log('aurora-api listening on http://localhost:8080'); setInterval(() => console.log('GET /venues 200 12ms'), 20000)\"",
+      cwd: "aurora-api",
+    },
+    { label: "api: tests", command: "pnpm test", cwd: "aurora-api" },
+    {
+      label: "api: migration check",
       command:
         "node -e \"console.log('Checking pending migrations...'); console.error('Error: migration 0042_add_venue_slug is missing a down step'); process.exit(1)\"",
       cwd: "aurora-api",
     },
     {
-      label: "venue seed data",
+      label: "api: seed venues",
       command: "node -e \"console.log('Seeding 12 demo venues')\"",
       cwd: "aurora-api",
     },
     {
-      label: "staging smoke",
-      command: "pnpm smoke --env staging",
+      label: "qa smoke",
+      command: "pnpm smoke --env qa",
       cwd: "aurora-infra",
     },
   ].map((definition) => ({
@@ -689,6 +700,7 @@ async function main(): Promise<void> {
 
     await writeCustomProfile(home);
     await seedAtlassianExtension(fixture.services);
+    await seedMcpServers(fixture.services, home, [...workspaces.values()]);
 
     /* Create Aurora last so narrow layouts, which intentionally hide the
      * title-bar project switcher, open on the project used by mobile scenes. */
@@ -720,6 +732,8 @@ async function main(): Promise<void> {
       }
 
       if (demoProject.id === "aurora") {
+        await seedProjectExtensions(fixture.services, workspace);
+        await seedSkills(fixture.services, home, project.id, workspace);
         await writeLaunchDefinitions(workspace);
         const noteAt = (minutesAgo: number) =>
           new Date(SEED_NOW - minutesAgo * 60_000).toISOString();

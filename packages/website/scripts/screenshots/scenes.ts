@@ -10,6 +10,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "playwright";
+import { DEMO_TUNNEL_URL } from "./demo-usage.ts";
 
 /** Desktop sources are 1440x900 at DPR 2 -> 2880x1800. */
 export const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
@@ -20,9 +21,12 @@ export const MOBILE_VIEWPORT = { width: 390, height: 844 };
 export const MOBILE_SCALE = 3;
 
 const DEMO_PROJECT = "Aurora";
+const DEMO_TUNNEL_HOST = new URL(DEMO_TUNNEL_URL).host;
 const RATE_LIMIT_CONVERSATION = "Add rate limiting to the booking API";
 const DEPLOY_CONVERSATION = "Investigate flaky staging deploys";
 const QUICK_SCRIPT_CONVERSATION = "Draft the Aurora 2.4 release notes";
+const FORGE_CONVERSATION = "Add an Environments panel for QA and production";
+const INTEGRATION_CONVERSATION = "Check that every 2.4 issue has a merged PR";
 const RICH_CONVERSATION = "Compare limiter strategies for POST /bookings";
 /** The seed's workspace parent, so the folder browser shows demo folders only. */
 const DEMO_WORKSPACE_ROOT = join(tmpdir(), "nerve-demo-workspace");
@@ -53,6 +57,45 @@ async function openRightPanel(page: Page, name: string) {
   await page.waitForTimeout(400);
 }
 
+/** Opens a conversation without the Git panel `openConversation` leaves on the right. */
+async function openConversationOnly(page: Page, title: string) {
+  await selectProject(page);
+  await page.getByRole("tab", { name: "Conversations" }).first().click();
+  await page.getByText(title, { exact: false }).first().click();
+  await page.waitForTimeout(800);
+}
+
+async function scrollTranscriptToEnd(page: Page) {
+  const transcript = page.getByRole("region", {
+    name: "Conversation transcript",
+    exact: true,
+  });
+  /* Virtual rows measure as they appear; scroll in passes until stable. */
+  for (let pass = 0; pass < 4; pass += 1) {
+    await transcript.evaluate((viewport: HTMLElement) => {
+      viewport.scrollTop = viewport.scrollHeight;
+    });
+    await page.waitForTimeout(500);
+  }
+}
+
+async function openSettingsPage(page: Page, name: string | RegExp) {
+  await selectProject(page);
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await page.getByRole("button", { name }).first().click();
+  await page.waitForTimeout(1200);
+}
+
+/** Settings pages read better at full width; the docks return with the next scene. */
+async function hideDocks(page: Page) {
+  for (const name of ["Toggle left panel", "Toggle right panel"]) {
+    const toggle = page.getByRole("button", { name, exact: true });
+    if ((await toggle.getAttribute("aria-pressed")) === "true")
+      await toggle.click();
+  }
+  await page.waitForTimeout(600);
+}
+
 export const DESKTOP_SCENES = [
   {
     id: "ask-user",
@@ -66,6 +109,100 @@ export const DESKTOP_SCENES = [
         .waitFor();
       /* The pending question is a real card with selectable options. */
       await page.getByRole("button", { name: /Staging first/ }).waitFor();
+    },
+  },
+  {
+    id: "forge-build",
+    alt: "A Forge conversation in which the agent builds, checks and reloads a project extension, with the extension's Environments panel docked beside it showing QA degraded and Production healthy",
+    async drive(page: Page) {
+      await openConversationOnly(page, FORGE_CONVERSATION);
+      await openRightPanel(page, "Environments");
+      /* The panel is an extension frame: give it time to start and render. */
+      await page.waitForTimeout(3000);
+      await scrollTranscriptToEnd(page);
+    },
+  },
+  {
+    id: "extension-panel",
+    alt: "A coding conversation with the project extension's Environments side panel open, listing QA and Production with status, version and last deploy",
+    async drive(page: Page) {
+      await openConversationOnly(page, RATE_LIMIT_CONVERSATION);
+      await openRightPanel(page, "Environments");
+      /* The panel is an extension frame: give it time to start and render. */
+      await page.waitForTimeout(3000);
+      await page
+        .getByText("All profile-based reviews are complete.", { exact: false })
+        .scrollIntoViewIfNeeded();
+      await scrollTranscriptToEnd(page);
+    },
+  },
+  {
+    id: "extension-consent",
+    alt: "Settings, Extensions with the review dialog of a project extension: it lists the network origin, tool and script namespace it asks for, with Allow, Decline and Not now",
+    async drive(page: Page) {
+      await openSettingsPage(page, /^Extensions/);
+      await page
+        .getByRole("button", { name: /Status page/ })
+        .first()
+        .click();
+      await page.getByRole("dialog", { name: /Allow Status page/ }).waitFor();
+      await page.waitForTimeout(500);
+    },
+  },
+  {
+    id: "mcp-servers",
+    alt: "Settings, MCP servers listing the github and docs servers with their tool counts and User and Project switches",
+    async drive(page: Page) {
+      await openSettingsPage(page, "MCP servers");
+      await hideDocks(page);
+      await page.getByText("3 tools", { exact: false }).first().waitFor();
+    },
+  },
+  {
+    id: "integrations-script",
+    alt: "A quick_script tool card that searched Jira, called a GitHub tool through the MCP namespace, and updated a Confluence page in one script",
+    async drive(page: Page) {
+      await openConversation(page, INTEGRATION_CONVERSATION);
+      await scrollTranscriptToEnd(page);
+    },
+  },
+  {
+    id: "accounts",
+    alt: "Settings, Accounts listing the Atlassian account for the aurora.example site",
+    async drive(page: Page) {
+      await openSettingsPage(page, "Accounts");
+      await hideDocks(page);
+      await page.getByText("Aurora Atlassian", { exact: true }).waitFor();
+    },
+  },
+  {
+    id: "launchpad",
+    alt: "The empty conversation launchpad for the Aurora project with Coding, Planning, Lead and Forge starter cards",
+    async drive(page: Page) {
+      await selectProject(page);
+      await page.getByRole("button", { name: "Forge", exact: true }).waitFor();
+    },
+  },
+  {
+    id: "settings-layers",
+    alt: "Settings, Skills for an open project: team skills in the Needs review, Trusted and Declined states above the user's skills, with User and Project switches",
+    async drive(page: Page) {
+      await openSettingsPage(page, "Skills");
+      await hideDocks(page);
+      await page.getByText("rollout-checklist", { exact: true }).waitFor();
+    },
+  },
+  {
+    id: "remote-tailscale",
+    /* The demo daemon has no Tailscale: the browser presents it as ready. */
+    alt: "Settings, Remote connections with private access through Tailscale turned on and the phone address ready",
+    async drive(page: Page) {
+      await openSettingsPage(page, "Remote connections");
+      await hideDocks(page);
+      await page
+        .getByText(DEMO_TUNNEL_HOST, { exact: false })
+        .first()
+        .waitFor();
     },
   },
   {
@@ -136,9 +273,7 @@ export const DESKTOP_SCENES = [
     async drive(page: Page) {
       await selectProject(page);
       await page.getByRole("button", { name: "Open settings" }).click();
-      await page
-        .getByRole("button", { name: "Extensions", exact: true })
-        .click();
+      await page.getByRole("button", { name: /^Extensions/ }).click();
       await page.waitForTimeout(800);
     },
   },
@@ -310,10 +445,8 @@ export const DESKTOP_SCENES = [
         .first()
         .click();
       await page.waitForTimeout(600);
-      const row = page
-        .getByRole("treeitem")
-        .filter({ hasText: "aurora-api tests" });
-      const output = row.getByRole("button", { name: /aurora-api tests/ });
+      const row = page.getByRole("treeitem").filter({ hasText: "api: tests" });
+      const output = row.getByRole("button", { name: /api: tests/ });
       // Start once in the throwaway workspace; reuse that exact run in dark mode.
       if (
         await row
@@ -446,6 +579,55 @@ export const MOBILE_SCENES = [
       await page.getByRole("button", { name: /^Aurora / }).click();
       await page.getByRole("button", { name: /^\d+ Changed/ }).click();
       await page.waitForTimeout(800);
+    },
+  },
+  {
+    id: "mobile-settings",
+    alt: "The phone settings screen with Notifications on this phone turned on, private access through Tailscale, and the theme picker",
+    /* The capture browser is a local client; present it as a paired phone. */
+    async drive(page: Page) {
+      /* Headless Chromium reports notifications as denied; this phone allowed them. */
+      await page.addInitScript(() =>
+        Object.defineProperty(Notification, "permission", {
+          get: () => "granted",
+        }),
+      );
+      await page.route("**/api/access/session", async (route) => {
+        const response = await route.fetch();
+        const session: Record<string, unknown> = await response.json();
+        const now = Date.now();
+        await route.fulfill({
+          response,
+          json: {
+            ...session,
+            principal: "device",
+            device: {
+              id: "dev_0123456789abcdef",
+              name: "Demo phone",
+              kind: "mobile",
+              createdAt: now - 12 * 86_400_000,
+              lastSeenAt: now,
+              method: "pairing",
+              expiresAt: now + 168 * 86_400_000,
+            },
+          },
+        });
+      });
+      await page.route("**/api/access/push", (route) =>
+        route.fulfill({
+          json: { publicKey: "BDemoScreenshotKeyNotUsed", subscribed: true },
+        }),
+      );
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(1500);
+      await openMobileRoot(page);
+      await page
+        .getByRole("button", { name: /^Settings/ })
+        .first()
+        .click();
+      await page.getByText("Notifications on this phone").waitFor();
+      await page.getByText("Private access on", { exact: false }).waitFor();
+      await page.waitForTimeout(600);
     },
   },
 ];
