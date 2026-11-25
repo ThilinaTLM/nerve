@@ -438,7 +438,8 @@ export type FakeCredentialContextOptions = {
 
 /**
  * A `ctx` for the operations of a credential provider, for tests: `crypto` is real (Node's), `http`
- * and `ui` are scripted, and `apply` gets a request whose body digests are computed.
+ * and `ui` are scripted, and `apply` gets a request whose body digests are computed. It has no
+ * loopback listener (`ui.loopback` throws): test the steps around the redirect as functions.
  */
 export function createFakeCredentialContext(
   options: FakeCredentialContextOptions = {},

@@ -50,9 +50,10 @@ A project skill is not used until the user approves the exact content of its fol
 
 ## Writing the body
 
-- Keep `SKILL.md` short and procedural: steps, decision points, safety constraints and how to verify the result. Leave out background the agent does not need to act.
-- Put long material (templates, references, examples, scripts) in files beside `SKILL.md` and link them with relative paths; they resolve from the skill directory. Say when each file should be read so the agent loads only what it needs.
-- Use few examples; agents copy them literally.
+Follow `reference/writing-for-agents.md`. For a skill in particular:
+
+- Keep `SKILL.md` short and procedural: steps, decision points (what to ask the user, what to choose alone), safety constraints and how to verify the result. Leave out background the agent does not need to act.
+- Put long material (templates, references, examples, scripts) in files beside `SKILL.md` and link them with relative paths; they resolve from the skill directory. List them in `SKILL.md` with when to read each, so the agent loads only what it needs.
 - Before writing, read applicable `AGENTS.md` files and nearby skills so the new skill fits and does not duplicate them.
 
 ## Changing an existing skill

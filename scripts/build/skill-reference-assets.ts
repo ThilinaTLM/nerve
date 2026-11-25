@@ -169,6 +169,232 @@ function declarationsOf(
   return files;
 }
 
+const maxLiteralValues = 7;
+
+type CatalogComponent = {
+  name: string;
+  description: string;
+  props: string[];
+  /** Declaration file relative to `components/`. */
+  file: string;
+};
+
+/** Where a component's declaration lives, relative to `components/`: the UI kit's folders name the groups. */
+function catalogGroup(file: string): string {
+  const match = /^ui-kit\/components\/(ui|composites\/[^/]+)\//.exec(file);
+  if (!match) return "sdk";
+  return match[1]!.startsWith("ui") ? "ui" : match[1]!;
+}
+
+/** First sentence of a doc comment, whole when short. */
+function firstSentence(text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= 200) return flat;
+  const end = flat.search(/[.!?](?:\s|$)/);
+  return end > 0 && end < 300
+    ? flat.slice(0, end + 1)
+    : `${flat.slice(0, 197)}…`;
+}
+
+/**
+ * A compact markdown catalog of what `components/components.d.ts` exports, read from the emitted
+ * declarations with the compiler (`resolveRoot`: a directory whose `node_modules` resolve the
+ * declarations' packages, such as `svelte`). Components are listed with the doc comment, the props
+ * the SDK or UI kit declare (`*` required; short string unions inline) and the declaration file;
+ * props inherited from the element or `bits-ui` are not listed.
+ */
+export function generateComponentCatalog(
+  sdk: ReadonlyMap<string, string>,
+  resolveRoot: string,
+): string {
+  const root = join(resolveRoot, "catalog-declarations");
+  const virtual = new Map<string, string>();
+  for (const [file, text] of sdk)
+    if (file.startsWith("components/"))
+      virtual.set(posixPath(join(root, file)), text);
+  const options: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    strict: true,
+    skipLibCheck: true,
+    noEmit: true,
+    types: [],
+  };
+  const host = ts.createCompilerHost(options);
+  const { fileExists, readFile, getSourceFile, directoryExists } = host;
+  const directories = new Set<string>();
+  for (const path of virtual.keys())
+    for (let dir = dirname(path); !directories.has(dir); dir = dirname(dir))
+      directories.add(dir);
+  host.directoryExists = (path) =>
+    directories.has(path) || (directoryExists?.(path) ?? false);
+  host.fileExists = (path) => virtual.has(path) || fileExists(path);
+  host.readFile = (path) => virtual.get(path) ?? readFile(path);
+  host.getSourceFile = (path, languageVersion, ...rest) => {
+    const text = virtual.get(path);
+    return text === undefined
+      ? getSourceFile(path, languageVersion, ...rest)
+      : ts.createSourceFile(path, text, languageVersion, true);
+  };
+  const entry = posixPath(join(root, "components/components.d.ts"));
+  const program = ts.createProgram([entry], options, host);
+  const checker = program.getTypeChecker();
+  const indexFile = program.getSourceFile(entry);
+  const indexSymbol = indexFile && checker.getSymbolAtLocation(indexFile);
+  if (!indexSymbol) throw new Error("components.d.ts has no exports.");
+
+  const relativeFile = (symbol: ts.Symbol) => {
+    const source = symbol.declarations?.[0]?.getSourceFile().fileName ?? "";
+    return posixPath(relative(root, source));
+  };
+  const resolve = (symbol: ts.Symbol) =>
+    symbol.flags & ts.SymbolFlags.Alias
+      ? checker.getAliasedSymbol(symbol)
+      : symbol;
+  /** `export default X` resolves to the `declare const X` that carries the doc comment and type. */
+  const definition = (symbol: ts.Symbol): ts.Symbol => {
+    const declaration = symbol.declarations?.[0];
+    if (declaration && ts.isExportAssignment(declaration)) {
+      const target = checker.getSymbolAtLocation(declaration.expression);
+      if (target) return resolve(target);
+    }
+    return symbol;
+  };
+  const component = (
+    name: string,
+    exported: ts.Symbol,
+  ): CatalogComponent | undefined => {
+    const symbol = definition(exported);
+    const file = relativeFile(exported);
+    if (!file.endsWith(".svelte.d.ts") || !symbol.declarations?.[0])
+      return undefined;
+    const type = checker.getTypeOfSymbolAtLocation(
+      symbol,
+      symbol.declarations[0],
+    );
+    const propsParameter = type
+      .getCallSignatures()
+      .map((signature) => signature.parameters[1])
+      .find(Boolean);
+    if (!propsParameter) return undefined;
+    const props: string[] = [];
+    {
+      const propsType = checker.getTypeOfSymbolAtLocation(
+        propsParameter,
+        propsParameter.declarations![0]!,
+      );
+      for (const prop of checker.getPropertiesOfType(propsType)) {
+        // Declared by the SDK or UI kit, not inherited from the element type or a library.
+        const origin = prop.declarations?.[0]?.getSourceFile().fileName ?? "";
+        if (!virtual.has(origin) || ["class", "children"].includes(prop.name))
+          continue;
+        const required = !(prop.flags & ts.SymbolFlags.Optional);
+        const propType = checker.getTypeOfSymbolAtLocation(
+          prop,
+          prop.declarations![0]!,
+        );
+        const members = propType.isUnion()
+          ? propType.types.filter(
+              (member) => !(member.flags & ts.TypeFlags.Undefined),
+            )
+          : [propType];
+        const literals =
+          members.length > 1 &&
+          members.length <= maxLiteralValues &&
+          members.every((member) => member.isStringLiteral())
+            ? `: ${members.map((member) => (member as ts.StringLiteralType).value).join("|")}`
+            : "";
+        props.push(`${prop.name}${required ? "*" : ""}${literals}`);
+      }
+    }
+    return {
+      name,
+      description: firstSentence(
+        ts.displayPartsToString(symbol.getDocumentationComment(checker)),
+      ),
+      props,
+      file: relativeFile(exported).replace(/^components\//, ""),
+    };
+  };
+
+  const members = (namespace: ts.Symbol, prefix: string) => {
+    const seen = new Set<ts.Symbol>();
+    const described: CatalogComponent[] = [];
+    for (const member of checker.getExportsOfModule(namespace)) {
+      const target = resolve(member);
+      if (seen.has(target)) continue;
+      seen.add(target);
+      const item = component(`${prefix}.${member.name}`, target);
+      if (item) described.push(item);
+    }
+    return described;
+  };
+
+  type Entry = {
+    name: string;
+    item?: CatalogComponent;
+    members: CatalogComponent[];
+  };
+  const grouped = new Map<string, Entry[]>();
+  const helpers: string[] = [];
+  for (const exported of checker.getExportsOfModule(indexSymbol)) {
+    const target = resolve(exported);
+    const single = component(exported.name, target);
+    const parts = single
+      ? []
+      : target.flags & ts.SymbolFlags.ValueModule
+        ? members(target, exported.name)
+        : undefined;
+    const first = single ?? parts?.[0];
+    if (!first) {
+      helpers.push(
+        `\`${exported.name}\` (\`${relativeFile(target).replace(/^components\//, "")}\`)`,
+      );
+      continue;
+    }
+    const group = catalogGroup(first.file);
+    const entry: Entry = {
+      name: exported.name,
+      item: single,
+      members: parts ?? [],
+    };
+    grouped.set(group, [...(grouped.get(group) ?? []), entry]);
+  }
+  // A composite family of one component joins `composites`.
+  const sections = new Map<string, Entry[]>();
+  for (const [group, entries] of grouped) {
+    const key =
+      group.startsWith("composites/") && entries.length === 1
+        ? "composites"
+        : group;
+    sections.set(key, [...(sections.get(key) ?? []), ...entries]);
+  }
+
+  const describe = (item: CatalogComponent) =>
+    `${item.description ? ` — ${item.description}` : ""}${
+      item.props.length ? ` Props: ${item.props.join(", ")}.` : ""
+    } \`${item.file}\``;
+  const lines = [
+    "# UI components",
+    "",
+    "Generated from this Nerve version's SDK. Import every component from `@nervekit/extension-sdk/ui`. Exact prop types and per-prop docs are in the linked `.d.ts`; paths are relative to `reference/extensions/api/extension-sdk/components/`. `*` marks a required prop; props are the ones the component declares. Every component also accepts `class`, `children` where it has a body, and its element's native attributes.",
+  ];
+  for (const [group, entries] of sections) {
+    lines.push("", `## ${group}`);
+    for (const entry of entries) {
+      if (entry.item) lines.push(`- **${entry.name}**${describe(entry.item)}`);
+      else {
+        lines.push(`- **${entry.name}** (namespace)`);
+        for (const member of entry.members)
+          lines.push(`  - \`${member.name}\`${describe(member)}`);
+      }
+    }
+  }
+  lines.push("", "## Helpers and types", helpers.join(", "));
+  return `${lines.join("\n")}\n`;
+}
+
 /**
  * Writes `reference/schemas/*.schema.json` and the public `.d.ts` files of the extension API and SDK
  * into `<skill>/reference`. The extension API is a dependency of the workbench server, so its `dist/` is
@@ -211,4 +437,8 @@ export async function writeSkillReferenceAssets(
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, text);
   }
+  await writeFile(
+    join(reference, "extensions", "components.md"),
+    generateComponentCatalog(sdk, join(repoRoot, "packages", "extension-sdk")),
+  );
 }

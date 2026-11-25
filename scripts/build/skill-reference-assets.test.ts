@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { test } from "node:test";
 import { permissionRuleSchema } from "../../packages/contracts/src/domains/permissions/permission-rule-sets.ts";
 import {
@@ -72,6 +72,20 @@ test("writes schemas and public declarations into the skill folder", async () =>
     ])
       assert.ok(sdk.includes(file), file);
     assert.ok(!sdk.some((file) => file.endsWith(".map")));
+
+    // The component catalog, derived from the emitted declarations.
+    const catalog = await readFile(
+      join(reference, "extensions/components.md"),
+      "utf8",
+    );
+    assert.match(catalog, /\*\*PanelRow\*\* — The row of every panel list/);
+    assert.match(catalog, /PanelRow[^\n]*Props: label\*/);
+    assert.match(catalog, /\*\*Badge\*\*[^\n]*variant: [\w|]*success[\w|]*/);
+    assert.match(catalog, /\*\*Tabs\*\* \(namespace\)\n {2}- `Tabs\.Root`/);
+    assert.match(catalog, /`cn` \(/);
+    // Every pointer in the catalog names a generated file.
+    for (const [, path] of catalog.matchAll(/`(ui-kit\/[\w./-]+\.d\.ts)`/g))
+      assert.ok(sdk.includes(`components/${path}`.split("/").join(sep)), path);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

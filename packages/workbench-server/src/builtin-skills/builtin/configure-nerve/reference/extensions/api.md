@@ -1,6 +1,6 @@
 # Extension API declarations
 
-The exact extension API is in the TypeScript declarations under `reference/extensions/api/`. Every type, member, option, default, limit and error is documented in their doc comments. They are the same files a scaffolded project has in `node_modules/@nervekit/extension-api/dist/` and `node_modules/@nervekit/extension-sdk/dist/`, at this Nerve's version. Look up signatures there instead of inferring them from examples; the prose in this folder explains concepts and decisions and does not repeat them.
+The exact extension API is in the TypeScript declarations under `reference/extensions/api/`. Every type, member, option, default, limit and error is documented in their doc comments. They are the same files a scaffolded project has in `node_modules/@nervekit/extension-api/dist/` and `node_modules/@nervekit/extension-sdk/dist/`, at this Nerve's version. Look up signatures there instead of inferring them from examples; the prose in this folder explains concepts and decisions and does not repeat them. Which part needs which file: `reference/extensions/overview.md`.
 
 ## Backend (`reference/extensions/api/extension-api/`)
 
@@ -37,5 +37,5 @@ Import from `@nervekit/extension-sdk/ui`: `host`, the components and every Lucid
 ## Reading tips
 
 - Use `grep` for a symbol name in the folder to find its declaration; follow imported types the same way.
-- Components: find the name in `components/components.d.ts`, follow its `from` path to the folder's `index.d.ts`, then the `*.svelte.d.ts` file (`grep -rl "PanelRow" components/` also finds it). Every component accepts `class`, a `children` snippet where it has a body, and the native attributes of its element; the file lists the rest.
+- Components: `reference/extensions/components.md` lists every component with its props and the path of its `*.svelte.d.ts`, which has a doc comment on each prop.
 - Declarations import `svelte`, `bits-ui` and `tailwind-variants` types, which do not resolve inside this skill; read past them.

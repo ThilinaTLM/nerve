@@ -6,7 +6,7 @@
 
 1. Read the existing `AGENTS.md` files on the path from the project root to where the convention applies.
 2. Decide the folder: the project root for a rule of the whole repository, a subfolder for a rule of that part only.
-3. Add the rule where a reader would look for it; keep the file short. State what to do and, when it is not obvious, why.
+3. Add the rule where a reader would look for it; keep the file short. State what to do and, when it is not obvious, why (`reference/writing-for-agents.md`).
 4. Tell the user what you added. It applies from the next agent run; no check or reload is needed.
 
 ## What is read
