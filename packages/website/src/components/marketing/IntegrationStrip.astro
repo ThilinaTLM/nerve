@@ -1,6 +1,6 @@
 ---
-/* "Works with" strip under the hero: what Nerve connects to out of the box,
- * then the model providers. Marks are monochrome and take the text colour, so
+/* The section after the hero: what Nerve connects to out of the box, then
+ * the model providers. Marks are monochrome and take the text colour, so
  * they sit quietly in both themes. */
 import BrandIcon from "./BrandIcon.astro";
 import type { BrandIconName } from "./brand-icons";
@@ -26,15 +26,18 @@ const models: Mark[] = [
 ];
 ---
 
-<section class="strip" aria-label="Integrations and model providers">
+<section class="strip" aria-labelledby="strip-title">
   <div class="container-page strip-inner">
+    <h2 id="strip-title" class="strip-title">
+      Your stack, <span class="gradient-text">your models.</span>
+    </h2>
     <div class="strip-group">
       <p class="strip-label">Built in</p>
       <ul class="strip-marks">
         {
           integrations.map((mark) => (
             <li class="strip-mark">
-              <BrandIcon name={mark.icon} size={18} />
+              <BrandIcon name={mark.icon} size={24} />
               <span>{mark.label}</span>
             </li>
           ))
@@ -47,7 +50,7 @@ const models: Mark[] = [
         {
           models.map((mark) => (
             <li class="strip-mark">
-              <BrandIcon name={mark.icon} size={18} />
+              <BrandIcon name={mark.icon} size={24} />
               <span>{mark.label}</span>
             </li>
           ))
@@ -60,23 +63,32 @@ const models: Mark[] = [
 
 <style>
   .strip {
+    position: relative;
+    padding-block: clamp(4rem, 9vw, 7rem);
     border-block: 1px solid var(--hairline);
     background: var(--surface-sunken);
   }
 
   .strip-inner {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 1rem 3.5rem;
-    padding-block: 1.4rem;
+    display: grid;
+    justify-items: center;
+    gap: clamp(1.75rem, 3vw, 2.5rem);
+    text-align: center;
+  }
+
+  .strip-title {
+    margin: 0 0 0.5rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.9rem, 1.3rem + 2vw, 3rem);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1.05;
   }
 
   .strip-group {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75rem 1.5rem;
+    display: grid;
+    justify-items: center;
+    gap: 1rem;
   }
 
   .strip-label {
@@ -91,7 +103,8 @@ const models: Mark[] = [
   .strip-marks {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.6rem 1.4rem;
+    justify-content: center;
+    gap: 0.75rem 2.25rem;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -100,10 +113,10 @@ const models: Mark[] = [
   .strip-mark {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.6rem;
     color: var(--muted-foreground);
-    font-size: 0.92rem;
-    font-weight: 500;
+    font-size: clamp(1rem, 0.95rem + 0.3vw, 1.2rem);
+    font-weight: 600;
     transition: color 160ms ease;
   }
 
@@ -112,8 +125,7 @@ const models: Mark[] = [
   }
 
   .strip-more {
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 400;
   }
-
 </style>

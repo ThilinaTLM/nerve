@@ -25,7 +25,11 @@ const platforms: { icon: BrandIconName; label: string; detail: string; at: numbe
 ];
 ---
 
-<section class="closing-section" aria-labelledby="closing-title">
+<section
+  class="closing-section"
+  aria-labelledby="closing-title"
+  data-install-fab-hide
+>
   <div class="container-page">
     <Reveal class="closing" style={`--cycle:${CYCLE_S}s`}>
       <div class="closing-lead">

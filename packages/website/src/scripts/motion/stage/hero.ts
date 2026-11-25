@@ -1,11 +1,10 @@
 /* §1 Hero.
  *
- * Two movements. On load the copy arrives line by line and the workbench art
- * rises into place; on scroll the composition lifts away. The film inside the
+ * Two movements. On load the title settles in and the workbench art rises
+ * into place; on scroll the composition lifts away. The film inside the
  * art is `scripts/marketing/hero-workbench.ts`.
  */
 
-import { revealLines } from "./primitives";
 import { allowEntrance, gsap, q, qa } from "./runtime";
 
 export function heroStage(): void {
@@ -21,30 +20,20 @@ export function heroStage(): void {
   const wrappers = qa("[data-reveal]", hero);
   for (const wrapper of wrappers) wrapper.classList.add("is-revealed");
 
-  const title = q(".display-title", hero);
-  const lede = q(".hero-lede", hero);
-  const install = q(".hero-install", hero);
+  const title = q(".hero-title", hero);
 
   if (allowEntrance) {
     const intro = gsap.timeline({ defaults: { ease: "settle" } });
 
-    /* The deck starts furthest back and takes the longest to arrive, so the
-     * copy is readable well before the composition finishes settling. */
+    if (title) intro.from(title, { opacity: 0, y: -10, duration: 0.7 }, 0.1);
+
+    /* The deck starts furthest back and takes the longest to arrive. */
     if (deck) {
       intro.fromTo(
         deck,
         { "--deck-enter-y": "40px", opacity: 0 },
         { "--deck-enter-y": "0px", opacity: 1, duration: 1.2 },
         0.25,
-      );
-    }
-
-    for (const [index, target] of [lede, install].entries()) {
-      if (!target) continue;
-      intro.from(
-        target,
-        { opacity: 0, y: 14, duration: 0.6 },
-        0.55 + index * 0.08,
       );
     }
 
@@ -56,8 +45,6 @@ export function heroStage(): void {
       0.95,
     );
   }
-
-  revealLines(title, { stagger: 0.09, delay: 0.05 });
 
   /* Scroll-out. Everything is written to custom properties because the deck
    * composes its transform from tilt and depth variables it already owns. */

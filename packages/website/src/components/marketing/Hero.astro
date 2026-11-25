@@ -1,19 +1,18 @@
 ---
-/* The hero.
+/* The hero: the workbench film, full bleed.
  *
- * Calm copy on one side: what Nerve is, the install command and a GitHub
- * star. The story is told on the other side, by the workbench art
- * (`HeroWorkbench`), which plays example runs as a short film with chapter
- * captions, so the page has one moving message, not two. Side by side on
- * wide screens so both fit one viewport; stacked on narrow ones.
+ * The whole first screen is the 3D workbench (`HeroWorkbench`) playing
+ * example runs, with its chapter caption as the message. It runs up under
+ * the transparent site header so the two read as one surface. A small title
+ * line says what Nerve is, and a floating install control (`InstallFab`)
+ * carries the call to action.
  *
  * `stage/hero.ts` owns the entrance and the scroll-out.
  */
 
 import DendriteField from "./DendriteField.astro";
 import HeroWorkbench from "./HeroWorkbench.astro";
-import InstallCommand from "./InstallCommand.astro";
-import Reveal from "./Reveal.astro";
+import InstallFab from "./InstallFab.astro";
 ---
 
 <section class="hero" data-hero>
@@ -21,78 +20,38 @@ import Reveal from "./Reveal.astro";
   <span class="hero-glow" aria-hidden="true"></span>
   <div class="grain" aria-hidden="true"></div>
 
-  <div class="container-page hero-shell">
-    <div class="hero-copy" data-hero-copy>
-      <Reveal delay={60}>
-        <p class="hero-eyebrow">Open source · No account · No analytics</p>
-        <h1 class="display-title">
-          The AI coding workbench, <span class="gradient-text"
-            >shaped to your project.</span
-          >
-        </h1>
-      </Reveal>
+  <div class="hero-deck" data-hero-deck>
+    <HeroWorkbench />
+  </div>
 
-      <Reveal delay={140}>
-        <p class="lede hero-lede">
-          Agents plan, code and open pull requests. Forge builds the tools they
-          are missing.
-        </p>
-      </Reveal>
-
-      <Reveal delay={220} class="hero-install">
-        <div class="hero-actions">
-          <InstallCommand hint="" class="hero-command" />
-          <a
-            class="btn btn-ghost hero-star"
-            href="https://github.com/ThilinaTLM/nerve"
-            aria-label="Star Nerve on GitHub"
-            data-github-star-link
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path
-                d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.35-1.3-1.7-1.3-1.7-1.05-.72.08-.71.08-.71 1.16.08 1.78 1.2 1.78 1.2 1.03 1.78 2.7 1.27 3.36.97.1-.75.4-1.27.73-1.56-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.5 3.17-1.18 3.17-1.18.63 1.59.24 2.76.12 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.2.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"
-              ></path>
-            </svg>
-            Star
-            <span class="hero-star-separator" aria-hidden="true"></span>
-            <span class="hero-star-count" data-github-star-count aria-hidden="true"
-              >00</span
-            >
-          </a>
-        </div>
-        <p class="meta-text hero-meta">Linux · macOS · Windows</p>
-      </Reveal>
-    </div>
-
-    <Reveal variant="scale" delay={140} class="hero-stage">
-      <div class="hero-deck" data-hero-deck>
-        <HeroWorkbench />
-      </div>
-    </Reveal>
+  <div class="hero-title-wrap" data-hero-copy>
+    <h1 class="hero-title">
+      <span class="sr-only">Nerve: </span>The open-source AI coding workbench
+    </h1>
   </div>
 </section>
 
-<script>
-  import "../../scripts/marketing/github-stars";
-</script>
+<InstallFab />
 
 <style>
+  /* Pulled up under the sticky header, which is transparent at the top of
+   * the page, so the scene starts at the very top of the window. */
   .hero {
     position: relative;
     isolation: isolate;
     overflow: clip;
-    min-height: calc(100svh - var(--nav-height));
-    padding-block: clamp(1.5rem, 3.5vw, 4rem) clamp(2.25rem, 5vw, 5rem);
-    display: grid;
-    align-content: center;
+    height: 100svh;
+    min-height: 34rem;
+    max-height: 70rem;
+    margin-top: calc(-1 * var(--nav-height) - 1px);
   }
 
   .hero-dendrites {
     z-index: 0;
     transform: translateZ(var(--z-back));
-    mask-image: radial-gradient(ellipse 38% 45% at 30% 45%, transparent 40%, black 100%);
+    mask-image: radial-gradient(ellipse 45% 50% at 50% 50%, transparent 40%, black 100%);
     -webkit-mask-image: radial-gradient(
-      ellipse 38% 45% at 30% 45%,
+      ellipse 45% 50% at 50% 50%,
       transparent 40%,
       black 100%
     );
@@ -101,142 +60,44 @@ import Reveal from "./Reveal.astro";
   .hero-glow {
     position: absolute;
     z-index: 0;
-    inset: 20% 0 10% 40%;
+    inset: 20% 15% 15%;
     background: radial-gradient(circle, var(--primary), transparent 62%);
-    opacity: 0.18;
+    opacity: 0.16;
     filter: blur(90px);
     pointer-events: none;
   }
 
   :global(:root[data-theme="light"]) .hero-glow {
-    opacity: 0.12;
-  }
-
-  .hero-shell {
-    position: relative;
-    z-index: 2;
-    display: grid;
-    justify-items: center;
-    gap: clamp(1.5rem, 4vw, 3rem);
-  }
-
-  .hero-copy {
-    display: grid;
-    justify-items: center;
-    gap: clamp(1.25rem, 2.6vh, 2rem);
-    width: min(100%, 34rem);
-    text-align: center;
-    transform: translateY(var(--copy-shift, 0px));
-  }
-
-  .hero-copy .display-title {
-    margin: 0;
-    font-size: clamp(2.2rem, 1.3rem + 1.9vw, 3.3rem);
-    text-wrap: balance;
-  }
-
-  .hero-lede {
-    max-width: 30rem;
-    margin: 0;
-    text-wrap: pretty;
-  }
-
-  .hero-copy :global(.hero-install) {
-    display: grid;
-    justify-items: inherit;
-    gap: 0.9rem;
-  }
-
-  .hero-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-  }
-
-  .hero-actions :global(.hero-command) {
-    width: auto;
-  }
-
-  .hero-eyebrow {
-    margin: 0 0 0.9rem;
-    font-weight: 500;
-    line-height: 1.4;
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .hero-star svg {
-    width: 1rem;
-    height: 1rem;
-  }
-
-  .hero-star-separator {
-    width: 1px;
-    height: 1rem;
-    background-color: var(--hairline);
-  }
-
-  .hero-star-count {
-    min-width: 1.6em;
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-  }
-
-  .hero-meta {
-    margin: 0;
-  }
-
-  /* Stage ------------------------------------------------------------------ */
-
-  .hero-stage {
-    position: relative;
-    justify-self: stretch;
-    width: min(100%, 40rem);
-    margin-inline: auto;
+    opacity: 0.1;
   }
 
   /* The entrance writes --deck-enter-y and the scroll-out --deck-lift. */
   .hero-deck {
-    position: relative;
+    position: absolute;
+    inset: var(--nav-height) 0 0;
+    z-index: 1;
     transform: translateY(calc(var(--deck-lift, 0px) + var(--deck-enter-y, 0px)));
   }
 
-  /* Side by side: copy left-aligned, the art taking the wider column and
-   * bleeding a little past the page edge. */
-  @media (min-width: 1024px) {
-    .hero-shell {
-      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-      gap: clamp(1rem, 3vw, 3rem);
-      align-items: center;
-      justify-items: start;
-    }
-
-    .hero-copy {
-      justify-items: start;
-      text-align: left;
-    }
-
-    .hero-actions {
-      justify-content: flex-start;
-    }
-
-    .hero-stage {
-      width: calc(100% + clamp(0rem, 50vw - 42rem, 8rem));
-      margin-inline: 0;
-    }
+  .hero-title-wrap {
+    position: absolute;
+    top: calc(var(--nav-height) + clamp(0.75rem, 3vh, 2rem));
+    left: 50%;
+    z-index: 2;
+    width: min(calc(100% - 2rem), 40rem);
+    text-align: center;
+    transform: translate(-50%, var(--copy-shift, 0px));
+    pointer-events: none;
   }
 
-  @media (max-width: 1199px) {
-    .hero {
-      min-height: 0;
-    }
+  /* The nav already names Nerve; the title says what it is, quietly. */
+  .hero-title {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: clamp(0.72rem, 0.66rem + 0.25vw, 0.85rem);
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 </style>

@@ -157,6 +157,13 @@ const softwareApplication = {
     </script>
 
     <style>
+      /* Full-bleed sections break out with 100vw, which includes a classic
+       * scrollbar; clip so that never becomes a horizontal scroll. `clip`
+       * keeps sticky positioning working, unlike `hidden`. */
+      #main {
+        overflow-x: clip;
+      }
+
       .skip-link {
         position: absolute;
         left: 50%;
