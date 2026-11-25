@@ -1,6 +1,6 @@
 ---
 title: Resource and skill precedence
-description: Exact locations and precedence for AGENTS, SYSTEM, skills, and toggles.
+description: Exact locations and precedence for AGENTS.md, APPEND_SYSTEM.md, skills, and toggles.
 sidebar:
   order: 4
 ---
@@ -9,9 +9,9 @@ See the [skills guide](/guides/skills-and-resources/) for how to add and enable 
 
 ## Context resources
 
-Nerve loads global agent context and project/ancestor `AGENTS.md` files root-to-project. More local instructions augment or override through ordering as defined by the loader.
+Nerve loads `<project>/AGENTS.md`, then the `AGENTS.md` of each folder from the project root down to the conversation's working directory. Files above the project and in sibling folders are not read, and there is no user-level `AGENTS.md`: for guidance in every project, use a user skill or a user lead profile.
 
-Nerve-specific project resources live under `.nerve/`. Global Nerve agent resources live under `<NERVE_HOME>/agent/` (normally `~/.nerve/agent/`). A project `SYSTEM.md` overrides the global system resource; append prompts from applicable scopes are concatenated.
+Nerve-specific project resources live under `.nerve/`: `.nerve/APPEND_SYSTEM.md` adds text to the system prompt for that project only. User-level Nerve resources such as skills and agent profiles live under `<NERVE_HOME>/agent/` (normally `~/.nerve/agent/`). `SYSTEM.md` files are not read.
 
 ## Skills
 
@@ -70,5 +70,5 @@ Agent Browser skills are prompt guidance from an external CLI, not a native brow
 Legacy `.pi` directories are not loaded. Move Nerve-specific files into `.nerve/` and portable skills into `.agents/skills/`.
 
 :::caution
-Resources are model instructions. Review repository-controlled AGENTS, SYSTEM, and skills before granting command, network, or autonomous authority. A project skill is not used until you approve it in Project settings → Skills, where you see every file in its folder with scripts marked; any later change to the folder asks again.
+Resources are model instructions. Review repository-controlled `AGENTS.md`, `APPEND_SYSTEM.md`, and skills before granting command, network, or autonomous authority. A project skill is not used until you approve it in Settings → Skills (the project column), where you see every file in its folder with scripts marked; any later change to the folder asks again.
 :::

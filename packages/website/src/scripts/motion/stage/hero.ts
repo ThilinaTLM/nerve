@@ -1,10 +1,9 @@
 /* §1 Hero.
  *
- * Two movements. On load the copy arrives line by line and the live-run panel
- * settles out of depth; on scroll the exploded run layers collapse flat into
- * the device (`--lift-k`, scrubbed) and the composition lifts away. The transcript
- * inside the panel is driven by `scripts/run-sim.ts`, not by the stage: the
- * stage choreographs the frame, the sim owns the content.
+ * Two movements. On load the copy arrives line by line and the Forge stage
+ * rises into place; on scroll the composition lifts away. The build inside
+ * the stage is replayed by `scripts/marketing/forge-stage.ts`, not by the
+ * stage: the stage choreographs the frame, the replay owns the content.
  */
 
 import { revealLines } from "./primitives";
@@ -43,14 +42,12 @@ export function heroStage(): void {
       intro.fromTo(
         deck,
         {
-          "--deck-enter-y": "34px",
-          "--deck-enter-rotate": "9deg",
-          "--deck-scale": 0.955,
+          "--deck-enter-y": "40px",
+          "--deck-scale": 0.97,
           opacity: 0,
         },
         {
           "--deck-enter-y": "0px",
-          "--deck-enter-rotate": "0deg",
           "--deck-scale": 1,
           opacity: 1,
           duration: 1.2,
@@ -108,24 +105,8 @@ export function heroStage(): void {
   if (deck) {
     out.fromTo(
       deck,
-      {
-        "--deck-rotate-x": "2deg",
-        "--deck-lift": "0px",
-        "--deck-scale": 1,
-      },
-      {
-        "--deck-rotate-x": "0deg",
-        "--deck-lift": "-28px",
-        "--deck-scale": 0.97,
-      },
-      0,
-    );
-    /* The exploded layers collapse flat into the device, finishing before the
-     * hero has fully left so the hand-off to the next section is calm. */
-    out.fromTo(
-      deck,
-      { "--lift-k": 1 },
-      { "--lift-k": 0, ease: "power2.in", duration: 0.35 },
+      { "--deck-lift": "0px", "--deck-scale": 1 },
+      { "--deck-lift": "-28px", "--deck-scale": 0.98 },
       0,
     );
   }

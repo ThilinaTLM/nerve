@@ -1,0 +1,511 @@
+---
+/* "One task, start to finish": the product as a single sentence read left to
+ * right. One axon runs across the section; an impulse travels it on a loop and
+ * each station lights up as the signal arrives. Every station has a tiny live
+ * vignette (alternating above and below the line) and a two-to-four word
+ * label. On narrow screens the axon turns vertical. Illustrative.
+ *
+ * Timing: the impulse crosses in IMPULSE_S of a CYCLE_S loop; a station at
+ * position p (0..1 along the line) is hit at p × IMPULSE_S, which is its delay.
+ */
+import BrandIcon from "./BrandIcon.astro";
+import Reveal from "./Reveal.astro";
+
+const CYCLE_S = 9;
+const IMPULSE_S = 6.5;
+
+const stations = [
+  { id: "ask", label: "You ask" },
+  { id: "split", label: "A lead splits the work" },
+  { id: "work", label: "Agents work in the open" },
+  { id: "approve", label: "You approve what matters" },
+  { id: "ship", label: "It ships" },
+] as const;
+
+const at = (index: number) => 0.1 + (index * 0.8) / (stations.length - 1);
+---
+
+<Reveal
+  class="journey"
+  style={`--cycle:${CYCLE_S}s;--impulse:${IMPULSE_S}s`}
+>
+  <div class="journey-axon" aria-hidden="true">
+    <span class="journey-impulse"></span>
+  </div>
+
+  <ol class="journey-stations">
+    {
+      stations.map((station, index) => (
+        <li
+          class="station"
+          data-station={station.id}
+          data-side={index % 2 === 0 ? "top" : "bottom"}
+          style={`--at:${at(index)};--hit:${(at(index) * IMPULSE_S).toFixed(2)}s`}
+        >
+          <span class="station-node" aria-hidden="true">
+            <span class="station-n">{index + 1}</span>
+          </span>
+          <span class="station-label">{station.label}</span>
+
+          <div class="vignette" aria-hidden="true">
+            {station.id === "ask" && (
+              <div class="v-ask">
+                <span class="v-ask-who">You</span>
+                <span>Add rate limiting to the booking API</span>
+              </div>
+            )}
+
+            {station.id === "split" && (
+              <div class="v-split">
+                <span class="v-lead">Lead</span>
+                <span class="v-fan">
+                  <code data-tone="info">explore</code>
+                  <code data-tone="primary">developer</code>
+                  <code data-tone="signal">reviewer</code>
+                </span>
+              </div>
+            )}
+
+            {station.id === "work" && (
+              <div class="v-work">
+                {[
+                  ["read", "rate-limit.ts"],
+                  ["edit", "+12 −3"],
+                  ["bash", "pnpm test ✓"],
+                ].map(([tool, arg], row) => (
+                  <span class="v-row" style={`--row:${row}`}>
+                    <i />
+                    <code>{tool}</code>
+                    <span>{arg}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {station.id === "approve" && (
+              <div class="v-approve">
+                <span class="v-gate">
+                  <i />
+                  <code>git push</code>
+                </span>
+                <span class="v-btn">Approve</span>
+              </div>
+            )}
+
+            {station.id === "ship" && (
+              <div class="v-ship">
+                <span class="v-pr">
+                  <BrandIcon name="github" size={13} />
+                  #42
+                </span>
+                <span class="v-checks">
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <span class="v-merged">Merged</span>
+              </div>
+            )}
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+</Reveal>
+
+<style>
+  .journey {
+    position: relative;
+    --axon-y: 50%;
+    min-height: 23rem;
+  }
+
+  /* The axon ---------------------------------------------------------------- */
+
+  .journey-axon {
+    position: absolute;
+    top: var(--axon-y);
+    left: 0;
+    right: 0;
+    height: 2px;
+    overflow: hidden;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--primary) 45%, transparent) 8%,
+      color-mix(in oklab, var(--brand-3) 45%, transparent) 92%,
+      transparent
+    );
+    transform: translateY(-50%);
+  }
+
+  /* A track as wide as the axon whose bright head sits at its right edge;
+   * translating the track by its own width carries the head across. */
+  .journey-impulse {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent calc(100% - 9rem),
+      var(--primary) calc(100% - 1.5rem),
+      white 100%
+    );
+    filter: drop-shadow(0 0 6px var(--primary));
+    transform: translateX(-100%);
+    animation: journey-travel var(--cycle) linear infinite;
+  }
+
+  /* Stations ---------------------------------------------------------------- */
+
+  .journey-stations {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .station {
+    position: absolute;
+    top: var(--axon-y);
+    left: calc(var(--at) * 100%);
+    width: 0;
+  }
+
+  .station-node {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 50%, var(--hairline));
+    border-radius: var(--radius-pill);
+    background: var(--background);
+    transform: translate(-50%, -50%);
+  }
+
+  .station-node::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: var(--primary);
+    opacity: 0;
+    animation: station-hit var(--cycle) ease-out infinite;
+    animation-delay: var(--hit);
+  }
+
+  .station-n {
+    position: relative;
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .station-label {
+    position: absolute;
+    left: 0;
+    width: 11rem;
+    font-family: var(--font-display);
+    font-size: 1.02rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    text-wrap: balance;
+    transform: translateX(-50%);
+  }
+
+  .vignette {
+    position: absolute;
+    left: 0;
+    width: 15rem;
+    padding: 0.8rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background: var(--card);
+    box-shadow: var(--depth-2);
+    font-size: 0.8rem;
+    transform: translateX(-50%);
+  }
+
+  /* A stem joins each vignette to its node. */
+  .vignette::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    width: 1px;
+    height: 2.1rem;
+    background: linear-gradient(var(--hairline), var(--hairline));
+  }
+
+  .station[data-side="top"] .vignette {
+    bottom: 3.6rem;
+  }
+
+  .station[data-side="top"] .vignette::after {
+    top: 100%;
+  }
+
+  .station[data-side="top"] .station-label {
+    top: 2rem;
+  }
+
+  .station[data-side="bottom"] .vignette {
+    top: 3.6rem;
+  }
+
+  .station[data-side="bottom"] .vignette::after {
+    bottom: 100%;
+  }
+
+  .station[data-side="bottom"] .station-label {
+    bottom: 2rem;
+  }
+
+  /* The vignette lifts when the impulse arrives. */
+  .station .vignette {
+    animation: station-lift var(--cycle) var(--ease-out-expo) infinite;
+    animation-delay: var(--hit);
+  }
+
+  code {
+    font-family: var(--font-mono);
+  }
+
+  /* Vignettes --------------------------------------------------------------- */
+
+  .v-ask {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 35%, var(--hairline));
+    border-radius: 0.55rem;
+    background: color-mix(in oklab, var(--primary) 8%, var(--card));
+    line-height: 1.4;
+  }
+
+  .v-ask-who {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+  }
+
+  .v-split {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .v-lead {
+    padding: 0.35rem 0.55rem;
+    border: 1px solid color-mix(in oklab, var(--brand-3) 60%, transparent);
+    border-radius: 0.5rem;
+    background: color-mix(in oklab, var(--brand-3) 12%, var(--card));
+    font-weight: 600;
+  }
+
+  .v-fan {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .v-fan code {
+    width: fit-content;
+    padding: 0.05rem 0.45rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.64rem;
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+
+  .v-fan code[data-tone="info"] {
+    color: var(--info);
+  }
+
+  .v-fan code[data-tone="primary"] {
+    color: var(--primary);
+  }
+
+  .v-fan code[data-tone="signal"] {
+    color: var(--signal);
+  }
+
+  .v-work {
+    display: grid;
+    gap: 0.3rem;
+  }
+
+  .v-row {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.28rem 0.45rem;
+    border-radius: 0.4rem;
+    background: var(--surface-sunken);
+  }
+
+  .v-row i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--success);
+  }
+
+  .v-row code {
+    font-weight: 600;
+  }
+
+  .v-row span {
+    overflow: hidden;
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .v-approve {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .v-gate {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid color-mix(in oklab, var(--warning) 55%, transparent);
+    border-radius: 0.5rem;
+    background: color-mix(in oklab, var(--warning) 9%, var(--card));
+  }
+
+  .v-gate i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--warning);
+  }
+
+  .v-btn {
+    padding: 0.35rem 0.7rem;
+    border-radius: 0.5rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-weight: 600;
+    animation: nudge 2.4s ease-in-out infinite;
+  }
+
+  .v-ship {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .v-pr {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 600;
+  }
+
+  .v-checks {
+    display: inline-flex;
+    gap: 0.25rem;
+  }
+
+  .v-checks i {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: var(--radius-pill);
+    background: var(--success);
+  }
+
+  .v-merged {
+    padding: 0.25rem 0.6rem;
+    border-radius: 0.5rem;
+    background: color-mix(in oklab, var(--brand-3) 20%, transparent);
+    color: var(--brand-3);
+    font-weight: 600;
+  }
+
+  /* Vertical axon on narrow screens ------------------------------------------ */
+
+  @media (max-width: 1023px) {
+    .journey {
+      min-height: 0;
+    }
+
+    .journey-axon {
+      top: 1.3rem;
+      bottom: 1.3rem;
+      left: 1.3rem;
+      right: auto;
+      width: 2px;
+      height: auto;
+      background: linear-gradient(
+        color-mix(in oklab, var(--primary) 45%, transparent),
+        color-mix(in oklab, var(--brand-3) 45%, transparent)
+      );
+      transform: none;
+    }
+
+    .journey-impulse {
+      background: linear-gradient(
+        transparent calc(100% - 7rem),
+        var(--primary) calc(100% - 1rem),
+        white 100%
+      );
+      transform: translateY(-100%);
+      animation-name: journey-travel-down;
+    }
+
+    .journey-stations {
+      position: relative;
+      display: grid;
+      gap: 2rem;
+    }
+
+    .station {
+      position: relative;
+      top: auto;
+      left: auto;
+      display: grid;
+      gap: 0.6rem;
+      width: auto;
+      padding-left: 3.6rem;
+    }
+
+    .station-node {
+      top: 0;
+      left: 1.3rem;
+      transform: translate(-50%, 0);
+    }
+
+    .station-label,
+    .station[data-side] .station-label {
+      position: static;
+      width: auto;
+      padding-top: 0.55rem;
+      text-align: left;
+      transform: none;
+    }
+
+    .vignette,
+    .station[data-side] .vignette {
+      position: static;
+      width: min(100%, 20rem);
+      transform: none;
+    }
+
+    .vignette::after {
+      display: none;
+    }
+  }
+</style>

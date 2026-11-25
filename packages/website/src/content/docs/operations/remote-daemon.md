@@ -13,6 +13,8 @@ npx @nervekit/desktop@latest -- \
   --pair-code ABCD-EFGH
 ```
 
+To reach a daemon from a phone or another browser instead of a desktop shell, see [Private access with Tailscale](/operations/lan-mobile/#private-access-with-tailscale) and [LAN and mobile HTTPS](/operations/lan-mobile/). Use `@next` in place of `@latest` to run the [staging channel](/start/install/#release-channels); a daemon and its clients should run the same version.
+
 Create the one-time code on the daemon's side: **Settings → Devices → Pair a device** in a signed-in client, or `nerve pair --purpose desktop` on the host. The desktop redeems it once and stores a device credential for that origin, encrypted with the operating system's keychain (Electron `safeStorage`). Later launches only need `--connect <url>`. If the device is revoked or expires, the desktop asks for a new code.
 
 `--connect` accepts an HTTP(S) origin; WebSocket URLs are rejected and paths are normalized to the origin. The older `--token <token>` flag and `NERVE_DAEMON_TOKEN` still work, but are deprecated: the desktop exchanges the token for a device credential when it can. Use `--pair-code` instead.

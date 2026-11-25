@@ -37,9 +37,9 @@ Nerve stores settings, credentials, conversations, and logs in `~/.nerve`. Your 
 If Nerve finds a supported older Nerve home, it asks before migrating it. Read [Back up, move, and upgrade data](/operations/storage-migration/) first if you need your old conversations.
 :::
 
-## Staging channel
+## Release channels
 
-New versions are published to the staging channel first and reach `@latest` once they have had time to show bugs. To try them early, launch `@next`:
+Every release is published to the **staging** channel (npm `next`) first and is later promoted to the **stable** channel (npm `latest`), once it has had time to show bugs. The commands above install stable. To try new versions early, launch `@next`. The same tags apply to the other packages, such as the `@nervekit/extension-sdk` that [extensions](/guides/build-extensions/) build on. To try them early, launch `@next`:
 
 ```sh wrap
 npx @nervekit/desktop@next

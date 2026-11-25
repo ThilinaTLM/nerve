@@ -9,7 +9,7 @@ Connect at least one model provider so the agent has a model to use.
 
 ## Connect a provider
 
-1. Open **Settings → Connections**, or start the **Connect a model provider** guide from Discover.
+1. Open **Settings → Providers**, or start the **Connect a model provider** guide from Discover.
 2. Under **Subscriptions**, choose **Connect subscription** and sign in. Or, under **API keys**, choose **Add API key** and paste your key.
 3. Choose a default model and thinking level in the composer or in Settings.
 

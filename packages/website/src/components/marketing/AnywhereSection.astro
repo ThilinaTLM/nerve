@@ -1,0 +1,202 @@
+---
+/* "Anywhere": one phone, three floating facts around it. The phone is a real
+ * capture; the notification, the tailnet address and the area list are
+ * illustrative overlays. No paragraphs: each fact is a few words.
+ */
+import BrandIcon from "./BrandIcon.astro";
+import PhoneFrame from "./PhoneFrame.astro";
+import Reveal from "./Reveal.astro";
+import ThemeScreenshot from "./ThemeScreenshot.astro";
+import { screens } from "./screens";
+
+const areas = ["Chat", "Git", "Pull requests", "Launches", "Files"];
+---
+
+<div class="anywhere">
+  <Reveal variant="scale" class="anywhere-stage">
+    <div class="anywhere-phone">
+      <PhoneFrame>
+        <ThemeScreenshot
+          light={screens.mobile.light}
+          dark={screens.mobile.dark}
+          alt={screens.mobile.alt}
+          widths={[390, 780, 1170]}
+          sizes="(max-width: 460px) 64vw, 296px"
+        />
+      </PhoneFrame>
+    </div>
+
+    <div class="float float-push" aria-hidden="true">
+      <span class="float-push-icon">
+        <img src="/favicon.svg" alt="" width="20" height="20" />
+      </span>
+      <span class="float-push-text">
+        <strong>Needs your input</strong>
+        <span>Which limit for partner keys?</span>
+      </span>
+    </div>
+
+    <div class="float float-tunnel" aria-hidden="true">
+      <BrandIcon name="tailscale" size={16} />
+      <code>devbox.tail-net.ts.net</code>
+      <span class="float-ok">private</span>
+    </div>
+
+    <ul class="float float-areas" aria-hidden="true">
+      {areas.map((area) => <li>{area}</li>)}
+    </ul>
+  </Reveal>
+
+  <ul class="anywhere-facts">
+    <li><strong>Push</strong> when an agent needs you</li>
+    <li><strong>Private</strong> through your tailnet</li>
+    <li><strong>Focused</strong> on the work, not settings</li>
+  </ul>
+  <a class="link-arrow anywhere-link" href="/operations/lan-mobile/">
+    Set up your phone <span aria-hidden="true">→</span>
+  </a>
+</div>
+
+<style>
+  .anywhere {
+    display: grid;
+    justify-items: center;
+    gap: 2rem;
+  }
+
+  .anywhere-stage {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    width: min(46rem, 100%);
+    padding-block: 1rem;
+  }
+
+  .anywhere-phone {
+    width: min(18.5rem, 64vw);
+  }
+
+  .float {
+    position: absolute;
+    margin: 0;
+    border: 1px solid var(--myelin);
+    background: color-mix(in oklab, var(--card) 90%, transparent);
+    box-shadow: var(--depth-3);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    animation: float-soft 7s ease-in-out infinite;
+  }
+
+  .float-push {
+    top: 14%;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.75rem 1rem 0.75rem 0.8rem;
+    border-radius: 1.1rem;
+  }
+
+  .float-push-icon {
+    display: grid;
+    place-items: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 0.65rem;
+    background: var(--surface-sunken);
+  }
+
+  .float-push-text {
+    display: grid;
+    gap: 0.1rem;
+    font-size: 0.82rem;
+  }
+
+  .float-push-text span {
+    color: var(--muted-foreground);
+  }
+
+  .float-tunnel {
+    top: 52%;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-pill);
+    animation-delay: -2.5s;
+  }
+
+  .float-tunnel code {
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+  }
+
+  .float-ok {
+    padding: 0.05rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--success) 18%, transparent);
+    color: var(--success);
+    font-size: 0.7rem;
+  }
+
+  .float-areas {
+    bottom: 10%;
+    left: 4%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    max-width: 15rem;
+    padding: 0.6rem;
+    border-radius: 1rem;
+    list-style: none;
+    animation-delay: -4.5s;
+  }
+
+  .float-areas li {
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    font-size: 0.78rem;
+  }
+
+  .anywhere-facts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem 2.25rem;
+    margin: 0;
+    padding: 0;
+    color: var(--muted-foreground);
+    font-size: 1.02rem;
+    list-style: none;
+  }
+
+  .anywhere-facts strong {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  /* Narrow screens: the floats tuck in around the phone. */
+  @media (max-width: 700px) {
+    .float-push {
+      top: 4%;
+      left: 50%;
+      transform: translateX(-50%);
+      animation: none;
+    }
+
+    .float-tunnel {
+      top: auto;
+      bottom: 4%;
+      right: 50%;
+      transform: translateX(50%);
+      animation: none;
+    }
+
+    .float-areas {
+      display: none;
+    }
+  }
+</style>

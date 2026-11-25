@@ -18,7 +18,7 @@ A **launch** is a saved definition: a name, a command, an optional working direc
 - **Single run** (default): starting a launch that is already running focuses the current run.
 - **Concurrent runs**: starting again creates another run.
 
-Agents can start, stop, restart, read logs for, create, and edit launches through the `launches` namespace of `quick_script`.
+Agents can start, stop, restart, read logs for, create, and edit launches through the `launches` namespace of `quick_script`. They name a launch by the label shown in the Launches panel (the command when it has no label), so keep labels unique; when two entries share one, the call fails and lists their ids. There is no separate launch tool. Starting or restarting a launch is checked as the Bash command it runs, so your command rules apply.
 
 ## Create a launch
 

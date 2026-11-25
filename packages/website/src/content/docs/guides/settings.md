@@ -7,19 +7,25 @@ sidebar:
 
 Open **Settings** from the title bar to find every preference in one place. This page is a map; files, environment variables, and flags are in [Configuration](/operations/configuration/).
 
-## User and project scope
+## One surface, two layers
 
-Settings has two scopes. **User** settings apply everywhere. **Project** settings apply to the current project and override your user settings; they can be shared with everyone who opens the repository. Anything left unset in a project follows your user settings.
+Settings is one page, opened from the title bar. When a project is open, the pages that can differ per project (**General**, **Tools**, **Skills**, **Extensions**, **MCP servers**) show a **User** column and a column named after the project. The User switch applies in every project; the project switch applies there only and can be shared through the repository. Setting a project switch back to the User value clears the override, and anything left unset follows your user settings. Lists are grouped Project, then User, then other sources such as Agent Browser and extensions, then Built-in. Built-in items can be switched at both levels; items a project defines have only the project switch.
 
-## User pages
+Without an open project the page shows only the User column. Phones show a small subset; see [Phone and remote access](/operations/lan-mobile/#what-the-phone-shows).
 
-| Group           | Pages                                                     | Use them to                                                                                                                                                                                                                     |
-| --------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Connections** | Providers, Extensions, Accounts                           | Sign in to model providers, set up extensions, and manage the accounts they use, such as Tavily and Atlassian. See [Providers](/models/providers-and-auth/), [Extensions](/integrations/extensions/) and [Accounts](#accounts). |
-| **Agent**       | General, Tools, Skills                                    | Set defaults for new conversations, turn tools on or off, and enable skills.                                                                                                                                                    |
-| **Catalog**     | Agents, Sub-Agents, Permission rules, Models, Suggestions | Edit agent profiles, choose teammate profiles, define permission rules, limit the models in pickers, and manage prompt chips.                                                                                                   |
-| **App**         | Workbench, Notifications, Shortcuts, Voice, Titles        | Pick a theme, set desktop options, tune notifications and sounds, review shortcuts, set up voice input, and enable AI titles.                                                                                                   |
-| **System**      | Storage, Background jobs, Devices, System                 | See what Nerve stores, clean up space, check the work Nerve does in the background, manage devices, and change network, diagnostics, and daemon options.                                                                        |
+<!-- screenshot: settings-layers -->
+
+## Pages
+
+| Group                   | Pages                                                         | Use them to                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agent**               | General, Tools, Skills, Extensions, MCP servers               | Set defaults for new conversations, turn tools and skills on or off, set up [extensions](/integrations/extensions/) and [MCP servers](/integrations/mcp/).                                |
+| **Profiles and rules**  | Agents, Sub-Agents, Permission rules, Suggestions             | Edit agent profiles, choose teammate profiles, define permission rules, and manage prompt chips.                                                                                          |
+| **Models and accounts** | Providers, Models, Accounts                                   | Sign in to model providers, limit the models in pickers, and manage the accounts extensions use. See [Providers](/models/providers-and-auth/) and [Accounts](#accounts).                  |
+| **App**                 | Workbench, Notifications, Shortcuts, Voice, Titles            | Pick a theme, set desktop options, tune notifications and sounds, review shortcuts, set up voice input, and enable AI titles.                                                             |
+| **System**              | Storage, Background jobs, Remote connections, Devices, System | See what Nerve stores, check background work, set up [private access and same-network access](/operations/lan-mobile/), manage paired devices, and change diagnostics and daemon options. |
+
+There are no separate Trust, Launch, or Instructions files pages. Review decisions are made on the page where an item is used (see [Project files you review](#project-files-you-review)), launches are managed in the Launches panel, and project instructions are the repository's `AGENTS.md` files.
 
 ### Workbench
 
@@ -31,7 +37,8 @@ Settings has two scopes. **User** settings apply everywhere. **Project** setting
 - **General** holds defaults for new conversations: profile, permission level, model, thinking level, and compaction. Projects and conversations can override them.
 - **Tools** lists the core tools: Bash (background-command behavior), Python, [Quick script](/guides/quick-script/), Web fetch, Sub-agents, and Plan review. Quick script is on by default and lists the namespaces that are usable. Web search, Jira, Confluence, diagrams, and image generation are set up in their extensions.
 - **Skills** lists your, project, built-in, and Agent Browser skills. See [Skills and project resources](/guides/skills-and-resources/).
-- **Extensions** lists the five built-in extensions (Web Search, Atlassian, Diagrams, Image generation, Image explanation). Each row shows how it is set up and has its own switch; open one to see a problem and its fix, manage its accounts, change its settings, and see its **Features**, the namespaces and tools it adds. Projects can override an extension; a project's extension file is ignored until you trust it. See [Extensions](/integrations/extensions/).
+- **Extensions** lists the five built-in extensions (Web Search, Atlassian, Diagrams, Image generation, Image explanation) and the extensions you installed. Each row has User and project switches; open one to see a problem and its fix, add accounts, change its settings, see its **Features**, and review or revoke consent. The page re-reads extension folders when you open it, and **Reload** does so again. A project's extension file is ignored until you trust it. See [Extensions](/integrations/extensions/).
+- **MCP servers** lists the servers in your `mcp.json` and the project's. **Add MCP server** offers a form or pasted JSON, and each server shows its tools after a connection test. See [MCP servers](/integrations/mcp/).
 
 ### Accounts
 
@@ -43,11 +50,12 @@ Settings has two scopes. **User** settings apply everywhere. **Project** setting
 
 Extension pages keep only the choice of which account to use, and link here.
 
-### Catalog
+### Profiles and rules
 
 - **Agents** edits lead profiles such as Coding and Planning, and your own. See [Choose a profile](/guides/agent-controls/).
 - **Sub-Agents** edits the teammate profiles the lead can delegate to. See [Sub-agents](/guides/agents-and-delegation/).
-- **Models** limits which models the composer offers. An empty list keeps every signed-in model available.
+- **Permission rules** manage rule sets and overlays; a project's rules apply once you trust them.
+- **Models** (under Models and accounts) limits which models the composer offers. An empty list keeps every signed-in model available.
 - **Suggestions** manages [prompt suggestions](/guides/prompt-suggestions/).
 
 ### Notifications, voice, and titles
@@ -60,7 +68,9 @@ Extension pages keep only the choice of which account to use, and link here.
 
 - **Storage** shows what Nerve keeps on disk and runs cancellable cleanup. See [Back up, move, and upgrade data](/operations/storage-migration/).
 - **Background jobs** lists work Nerve does on its own while it runs. Today that is **Account credential refresh**, which renews sign-ins that are about to expire so they keep working in the background; it skips accounts you haven't used for 30 days. Each job shows its last run and next run, and **Run now** starts it at once. A job that keeps failing, or an account that needs sign-in, appears in the notification bell. Jobs run only while Nerve runs.
-- **System** covers network access, diagnostics, resource limits, the daemon, desktop rendering, and version details. A control that a command-line flag or environment variable owns shows as locked. Some changes need a restart.
+- **Remote connections** turns on private access with Tailscale (**Anywhere, with Tailscale**) or access from the same network, and pairs devices. See [Phone and remote access](/operations/lan-mobile/).
+- **Devices** lists paired phones and browsers, passkeys, and recent activity.
+- **System** covers network listener settings, diagnostics, resource limits, the daemon, desktop rendering, and version details. A control that a command-line flag or environment variable owns shows as locked. Some changes need a restart.
 
 ## Project files you review
 
@@ -70,7 +80,7 @@ Some project files change how agents behave, so Nerve uses them only after you t
 - **Trusted**: Nerve uses it. **Revoke** turns it off again.
 - **Declined**: Nerve doesn't use it and stops asking, even if the file changes. Choose **Review and trust** when you change your mind.
 
-Items that need review show a count next to their page in the settings navigation, appear in the notification bell, and are mentioned in one line on the project's start screen.
+Items that need review show a count next to their page in the settings navigation, appear in the notification bell under **Waiting for your review**, and are mentioned in one line on the project's start screen. Items that fail to load appear under **Not working**, with an **Ask the agent to fix** button; see [Configure Nerve by chat](/guides/configure-by-chat/#the-attention-bell). Nerve never lets the agent approve an item for you.
 
 When the project's `agent.json` needs review, General, Tools, Skills, and MCP servers show a notice with **Review and trust** and **Decline**. Until you trust it, conversations ignore the file and use your user settings. Settings you change through Nerve stay trusted; a file edited elsewhere needs reviewing again.
 
@@ -84,7 +94,9 @@ When the project's `agent.json` needs review, General, Tools, Skills, and MCP se
 ## Related pages
 
 - [Themes and appearance](/guides/personalize/)
+- [Configure Nerve by chat](/guides/configure-by-chat/)
 - [Extensions](/integrations/extensions/)
+- [MCP servers](/integrations/mcp/)
 - [Configuration](/operations/configuration/)
 - [Diagnostics](/operations/diagnostics/)
 - [Select models](/models/selecting-models/)

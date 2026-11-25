@@ -1,0 +1,555 @@
+---
+/* The hero composition: a workbench assembling itself from requests.
+ *
+ * A flat (untilted, so it stays crisp) workbench window with four empty slots
+ * drawn as dashed outlines: a side-dock panel, a bottom launch row, a page
+ * tab, and a rule chip. `scripts/marketing/forge-stage.ts` types each request
+ * into the conversation, marks its slot as building, then fills it, and loops.
+ *
+ * The authored markup is the finished state (every slot filled, the last
+ * exchange shown): that is what no-JS and reduced-motion visitors see.
+ * Illustrative, not a capture.
+ */
+import BrandIcon from "./BrandIcon.astro";
+
+interface Build {
+  slot: "dock" | "launch" | "tab" | "rule";
+  ask: string;
+  done: string;
+}
+
+/* Order is the playback order. */
+const builds: Build[] = [
+  {
+    slot: "dock",
+    ask: "Add a panel that shows whether QA and production are up.",
+    done: "Environments panel added to your dock.",
+  },
+  {
+    slot: "launch",
+    ask: "One launch that starts the API and the web app together.",
+    done: "Launch “dev: api + web” added.",
+  },
+  {
+    slot: "tab",
+    ask: "Give me a tab with my open Linear issues.",
+    done: "“My issues” tab added.",
+  },
+  {
+    slot: "rule",
+    ask: "Never let agents run terraform apply in this project.",
+    done: "Rule added: terraform apply is blocked.",
+  },
+];
+
+const last = builds[builds.length - 1]!;
+---
+
+<div
+  class="forge-stage"
+  data-forge-stage
+  data-builds={JSON.stringify(builds)}
+  role="img"
+  aria-label="Illustration: a Nerve workbench assembling itself. Four requests are typed to the Forge profile one after another, and each adds something to the window: an Environments panel in the side dock showing Production and QA status, a launch that starts the API and web app, a tab listing open Linear issues, and a rule that blocks terraform apply."
+>
+  <div class="ws" aria-hidden="true">
+    <!-- Title bar -->
+    <div class="ws-bar">
+      <span class="ws-brand"><img src="/favicon.svg" alt="" width="14" height="14" />aurora</span>
+      <span class="ws-tabs">
+        <span class="ws-tab ws-tab-active"><i></i>Forge</span>
+        <span class="ws-tab">Rate limiting</span>
+        <span class="slot slot-tab" data-slot="tab">
+          <span class="ws-tab ws-tab-new">
+            <BrandIcon name="linear" size={11} />My issues
+          </span>
+        </span>
+      </span>
+      <span class="slot slot-rule" data-slot="rule">
+        <span class="ws-rule">
+          <svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"></path></svg>
+          terraform apply · blocked
+        </span>
+      </span>
+    </div>
+
+    <div class="ws-body">
+      <!-- Rail -->
+      <div class="ws-rail">
+        <i></i><i></i><i></i><i></i>
+      </div>
+
+      <!-- Conversation -->
+      <div class="ws-chat">
+        <div class="ws-feed">
+          <p class="ws-ask" data-forge-ask>{last.ask}</p>
+          <p class="ws-status" data-forge-status>
+            <span class="ws-status-icon"></span>
+            <span data-forge-status-text>{last.done}</span>
+          </p>
+        </div>
+        <div class="ws-composer">
+          <svg viewBox="0 0 24 24" class="ws-hammer"
+            ><path
+              d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9m6 6 4-4m-4.5-6.5L21 8m-3-5-6 6 6 6 6-6Z"
+            ></path></svg
+          >
+          <span>Ask Forge for anything your project needs…</span>
+          <span class="ws-send"></span>
+        </div>
+      </div>
+
+      <!-- Side dock -->
+      <div class="slot slot-dock" data-slot="dock">
+        <div class="ws-dock">
+          <div class="ws-dock-head">
+            <strong>Environments</strong>
+            <span>extension</span>
+          </div>
+          <div class="ws-env" data-state="ok">
+            <i></i><strong>Production</strong><code>v2.3.4</code>
+          </div>
+          <div class="ws-env" data-state="warn">
+            <i></i><strong>QA</strong><code>v2.4.0-rc.3</code>
+          </div>
+          <svg class="ws-spark" viewBox="0 0 160 30" preserveAspectRatio="none">
+            <path d="M0 22 L16 20 L32 21 L48 16 L64 18 L80 12 L96 15 L112 9 L128 12 L144 6 L160 8"></path>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Bottom launch row -->
+      <div class="slot slot-launch" data-slot="launch">
+        <div class="ws-launch">
+          <span class="ws-play"></span>
+          <code>dev: api + web</code>
+          <span class="ws-run">running · :5173</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import { startForgeStage } from "../../scripts/marketing/forge-stage";
+
+  for (const root of document.querySelectorAll<HTMLElement>(
+    "[data-forge-stage]",
+  )) {
+    startForgeStage(root);
+  }
+</script>
+
+<style>
+  .forge-stage {
+    position: relative;
+  }
+
+  .ws {
+    overflow: hidden;
+    border: 1px solid var(--myelin);
+    border-radius: var(--radius-device);
+    background: var(--background);
+    box-shadow:
+      var(--depth-3),
+      0 40px 120px -40px color-mix(in oklab, var(--primary) 35%, transparent);
+    font-size: 0.8rem;
+    text-align: left;
+  }
+
+  code {
+    font-family: var(--font-mono);
+  }
+
+  /* Title bar ------------------------------------------------------------- */
+
+  .ws-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem 0;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--surface-sunken);
+  }
+
+  .ws-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-bottom: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.74rem;
+  }
+
+  .ws-tabs {
+    display: flex;
+    flex: 1;
+    align-items: flex-end;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .ws-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem 0.5rem 0 0;
+    color: var(--muted-foreground);
+    font-size: 0.74rem;
+    white-space: nowrap;
+  }
+
+  .ws-tab-active {
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .ws-tab-active i {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: var(--radius-pill);
+    background: var(--primary);
+  }
+
+  .ws-tab-new {
+    background: color-mix(in oklab, var(--primary) 10%, transparent);
+    color: var(--foreground);
+  }
+
+  .ws-rule {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.45rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid color-mix(in oklab, var(--warning) 50%, transparent);
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--warning) 10%, transparent);
+    color: var(--warning);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    white-space: nowrap;
+  }
+
+  .ws-rule svg {
+    width: 0.8rem;
+    height: 0.8rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+
+  /* Body ------------------------------------------------------------------- */
+
+  .ws-body {
+    display: grid;
+    grid-template-columns: 2.8rem minmax(0, 1fr) minmax(0, 16rem);
+    grid-template-rows: minmax(15rem, 1fr) auto;
+    grid-template-areas:
+      "rail chat dock"
+      "rail launch dock";
+  }
+
+  .ws-rail {
+    grid-area: rail;
+    display: grid;
+    align-content: start;
+    justify-items: center;
+    gap: 0.9rem;
+    padding-top: 0.9rem;
+    border-right: 1px solid var(--hairline);
+    background: var(--surface-sunken);
+  }
+
+  .ws-rail i {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 0.3rem;
+    background: var(--hairline);
+  }
+
+  .ws-rail i:first-child {
+    background: color-mix(in oklab, var(--primary) 55%, transparent);
+  }
+
+  .ws-chat {
+    grid-area: chat;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 0.9rem;
+    padding: 1.1rem 1.2rem 1rem;
+  }
+
+  .ws-feed {
+    display: grid;
+    align-content: end;
+    gap: 0.6rem;
+  }
+
+  .ws-ask {
+    justify-self: end;
+    max-width: 85%;
+    min-height: 2.6em;
+    margin: 0;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 30%, var(--hairline));
+    border-radius: 0.9rem 0.9rem 0.25rem 0.9rem;
+    background: color-mix(in oklab, var(--primary) 9%, var(--card));
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+
+  .ws-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    color: var(--muted-foreground);
+  }
+
+  .ws-status-icon {
+    display: grid;
+    place-items: center;
+    width: 1rem;
+    height: 1rem;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--success) 22%, transparent);
+  }
+
+  .ws-status-icon::after {
+    content: "";
+    width: 0.4rem;
+    height: 0.22rem;
+    border-left: 2px solid var(--success);
+    border-bottom: 2px solid var(--success);
+    transform: translateY(-1px) rotate(-45deg);
+  }
+
+  .ws-status[data-state="building"] .ws-status-icon {
+    background: none;
+    border: 2px solid var(--primary);
+    border-top-color: transparent;
+    animation: run-spin 700ms linear infinite;
+  }
+
+  .ws-status[data-state="building"] .ws-status-icon::after {
+    display: none;
+  }
+
+  .ws-status[data-state="typing"] {
+    visibility: hidden;
+  }
+
+  .ws-composer {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.6rem 0.6rem 0.6rem 0.8rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background: var(--card);
+    color: var(--muted-foreground);
+  }
+
+  .ws-composer span:not(.ws-send) {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ws-hammer {
+    width: 0.95rem;
+    height: 0.95rem;
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .ws-send {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 0.45rem;
+    background: var(--primary);
+  }
+
+  /* Slots: empty outline → building → filled -------------------------------- */
+
+  .slot {
+    position: relative;
+  }
+
+  .slot-dock {
+    grid-area: dock;
+    border-left: 1px solid var(--hairline);
+    background: var(--surface-sunken);
+  }
+
+  .slot-launch {
+    grid-area: launch;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .slot > * {
+    transition:
+      opacity 420ms var(--ease-out-expo),
+      transform 520ms var(--ease-out-expo),
+      filter 520ms var(--ease-out-expo);
+  }
+
+  /* While playing, an unfilled slot shows only its dashed outline. */
+  .forge-stage[data-playing] .slot::before {
+    content: "";
+    position: absolute;
+    inset: 0.45rem;
+    border: 1.5px dashed color-mix(in oklab, var(--muted-foreground) 45%, transparent);
+    border-radius: 0.6rem;
+    opacity: 1;
+    transition: opacity 300ms ease;
+  }
+
+  .forge-stage[data-playing] .slot-tab::before,
+  .forge-stage[data-playing] .slot-rule::before {
+    inset: 0 0 0.35rem;
+    border-radius: 0.5rem;
+  }
+
+  .forge-stage[data-playing] .slot[data-filled]::before {
+    opacity: 0;
+  }
+
+  .forge-stage[data-playing] .slot[data-building]::before {
+    border-color: var(--primary);
+    animation: slot-breathe 1s ease-in-out infinite;
+  }
+
+  .forge-stage[data-playing] .slot:not([data-filled]) > * {
+    opacity: 0;
+    transform: scale(0.97);
+    filter: blur(3px);
+  }
+
+  /* Dock panel */
+
+  .ws-dock {
+    display: grid;
+    align-content: start;
+    gap: 0.55rem;
+    height: 100%;
+    padding: 0.9rem;
+  }
+
+  .ws-dock-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .ws-dock-head span {
+    padding: 0.05rem 0.45rem;
+    border: 1px solid color-mix(in oklab, var(--signal) 40%, transparent);
+    border-radius: var(--radius-pill);
+    color: var(--signal);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+  }
+
+  .ws-env {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.55rem;
+    background: var(--card);
+  }
+
+  .ws-env i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--success);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--success) 22%, transparent);
+  }
+
+  .ws-env[data-state="warn"] i {
+    background: var(--warning);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--warning) 22%, transparent);
+  }
+
+  .ws-env code {
+    color: var(--muted-foreground);
+    font-size: 0.66rem;
+  }
+
+  .ws-spark {
+    width: 100%;
+    height: 2rem;
+    margin-top: 0.2rem;
+  }
+
+  .ws-spark path {
+    fill: none;
+    stroke: var(--signal);
+    stroke-width: 1.6;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* Launch row */
+
+  .ws-launch {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.6rem 1.2rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--hairline);
+    border-radius: 0.55rem;
+    background: var(--card);
+  }
+
+  .ws-play {
+    width: 0;
+    height: 0;
+    border-block: 0.3rem solid transparent;
+    border-left: 0.5rem solid var(--success);
+  }
+
+  .ws-run {
+    margin-left: auto;
+    color: var(--success);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+  }
+
+  /* Narrow screens: the dock moves under the chat, the rail goes. */
+  @media (max-width: 700px) {
+    .ws-body {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto auto;
+      grid-template-areas:
+        "chat"
+        "launch"
+        "dock";
+    }
+
+    .ws-rail,
+    .ws-tab:not(.ws-tab-active):not(.ws-tab-new),
+    .ws-brand {
+      display: none;
+    }
+
+    .slot-dock {
+      border-top: 1px solid var(--hairline);
+      border-left: 0;
+    }
+
+    .slot-rule {
+      display: none;
+    }
+  }
+</style>

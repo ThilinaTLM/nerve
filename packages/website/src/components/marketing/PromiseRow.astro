@@ -1,0 +1,117 @@
+---
+/* Four promises in one line each, right before the install call to action:
+ * the reasons a person or a team can adopt Nerve without a meeting. */
+import Reveal from "./Reveal.astro";
+
+const promises = [
+  {
+    title: "Free and open source",
+    detail: "Apache-2.0",
+    glyph: "M12 3 4 7v6c0 4.5 3.4 7.5 8 8 4.6-.5 8-3.5 8-8V7zM9 12l2 2 4-4",
+  },
+  {
+    title: "No account, no analytics",
+    detail: "Your data stays on your machine",
+    glyph: "M3 5h18v11H3zM8 20h8M12 16v4",
+  },
+  {
+    title: "You approve what runs",
+    detail: "Rules for every call",
+    glyph: "M5 12.5 10 17l9-10",
+  },
+  {
+    title: "Config lives in your repo",
+    detail: "Share it with your team",
+    glyph: "M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9",
+  },
+];
+---
+
+<section class="promises" aria-label="Why teams pick Nerve">
+  <Reveal as="ul" class="container-page promises-list" stagger={70}>
+    {
+      promises.map((promise) => (
+        <li class="promise" data-reveal-child>
+          <span class="promise-glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d={promise.glyph} />
+            </svg>
+          </span>
+          <span class="promise-text">
+            <strong>{promise.title}</strong>
+            <span>{promise.detail}</span>
+          </span>
+        </li>
+      ))
+    }
+  </Reveal>
+</section>
+
+<style>
+  .promises {
+    border-block: 1px solid var(--hairline);
+    background: var(--surface-sunken);
+  }
+
+  .promises-list {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.5rem;
+    margin-block: 0;
+    padding-block: 2rem;
+    list-style: none;
+  }
+
+  @media (max-width: 900px) {
+    .promises-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 480px) {
+    .promises-list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .promise {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .promise-glyph {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 0.8rem;
+    background: color-mix(in oklab, var(--primary) 14%, transparent);
+    color: var(--primary);
+  }
+
+  .promise-glyph svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .promise-text {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .promise-text strong {
+    font-weight: 600;
+  }
+
+  .promise-text span {
+    color: var(--muted-foreground);
+    font-size: 0.86rem;
+  }
+</style>

@@ -1,6 +1,6 @@
 ---
 title: Skills and project resources
-description: Give agents reusable instructions with AGENTS.md, SYSTEM.md, and skills, and turn skills on or off.
+description: Give agents reusable instructions with AGENTS.md and skills, and turn skills on or off.
 sidebar:
   order: 12
 ---
@@ -9,7 +9,7 @@ Add instructions that agents follow in every run: project guidance in `AGENTS.md
 
 ## Add project guidance
 
-Put an `AGENTS.md` file in your project, or in a parent folder, to describe conventions, commands, and constraints. Nerve also reads a global `AGENTS.md` from your Nerve home. To add text to the system prompt for one project, use `.nerve/APPEND_SYSTEM.md`.
+Put an `AGENTS.md` file in your project root, and optionally in subfolders, to describe conventions, commands, and constraints. Nerve reads the root file and the files of each folder down to the conversation's working directory. It doesn't read files above the project, and there is no user-level `AGENTS.md`; for guidance in every project, write a user skill. To add text to the system prompt for one project, use `.nerve/APPEND_SYSTEM.md`.
 
 You can open and edit these files from the **Files** panel. Changes apply from the next run; a request already sent isn't rewritten.
 

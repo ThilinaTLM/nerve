@@ -1,9 +1,10 @@
 /* The motion primitives every stage is built from.
  *
- * One idea runs through all of them: a signal propagating through a nervous
- * system. Things either *arrive* (P1 masked lines, P2 depth settle) or they
- * *conduct* (P3 a path drawing itself before an impulse travels it). Keeping
- * the vocabulary this small is what makes the sections read as one page rather
+ * One idea runs through the page: a signal propagating through a nervous
+ * system. Here things *arrive* (P1 masked lines, P2 depth settle). Things that
+ * *conduct* (an impulse travelling a real line and lighting what it reaches)
+ * are CSS loops in their components, so they need no script. Keeping the
+ * vocabulary this small is what makes the sections read as one page rather
  * than separate demos.
  */
 
@@ -135,32 +136,4 @@ export function settleIn(
       onEnter: (batch) => enter(batch),
     });
   }
-}
-
-/* P3 — conduction ----------------------------------------------------------
- *
- * Draws a path by animating stroke-dashoffset. The authored state is fully
- * drawn, so this only ever runs as an enhancement. */
-export function drawPath(path: SVGPathElement, index = 0): void {
-  if (!allowEntrance && !path.isConnected) return;
-
-  const length = path.getTotalLength();
-  if (!Number.isFinite(length) || length === 0) return;
-
-  gsap.fromTo(
-    path,
-    { strokeDasharray: length, strokeDashoffset: length },
-    {
-      strokeDashoffset: 0,
-      duration: 0.9,
-      delay: index * 0.07,
-      ease: "signal",
-      clearProps: "strokeDasharray,strokeDashoffset",
-      scrollTrigger: {
-        trigger: path.ownerSVGElement ?? path,
-        start: "top 85%",
-        once: true,
-      },
-    },
-  );
 }

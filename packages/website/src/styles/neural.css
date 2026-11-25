@@ -39,33 +39,6 @@
   will-change: transform;
 }
 
-/* A node of Ranvier: a hollow ring sitting on an axon. */
-.synapse-node {
-  display: grid;
-  place-items: center;
-  width: 0.7rem;
-  height: 0.7rem;
-  border: 1px solid var(--myelin);
-  border-radius: var(--radius-pill);
-  background-color: var(--background);
-}
-
-.synapse-node::after {
-  content: "";
-  width: 0.25rem;
-  height: 0.25rem;
-  border-radius: var(--radius-pill);
-  background-color: var(--myelin);
-  transition:
-    background-color 320ms var(--ease-out-expo),
-    box-shadow 320ms var(--ease-out-expo);
-}
-
-.synapse-node[data-charged="true"]::after {
-  background-color: var(--signal);
-  box-shadow: var(--glow-signal);
-}
-
 /* A short bright segment travelling along an axon. */
 .impulse {
   position: absolute;
@@ -168,50 +141,6 @@
   font-size: 0.7rem;
   letter-spacing: 0.01em;
   white-space: nowrap;
-}
-
-.state-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.15rem 0.5rem;
-  border: 1px solid currentcolor;
-  border-radius: var(--radius-chip);
-  background-color: color-mix(in oklab, currentcolor 12%, transparent);
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  line-height: 1.5;
-  white-space: nowrap;
-}
-
-.state-pill::before {
-  content: "";
-  width: 0.3rem;
-  height: 0.3rem;
-  border-radius: var(--radius-pill);
-  background-color: currentcolor;
-}
-
-.state-allow {
-  color: var(--success);
-}
-
-.state-approval {
-  color: var(--warning);
-}
-
-.state-block {
-  color: var(--destructive);
-}
-
-/* Panels ------------------------------------------------------------------- */
-
-.glass-panel {
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-card);
-  background-color: var(--glass);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
 
 /* Section tones ------------------------------------------------------------ */

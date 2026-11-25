@@ -1,7 +1,7 @@
 /* Marketing page behaviour.
  *
  * This module is the critical path: theme, sticky header state, copy buttons,
- * the hero run simulation, and pointer tilt. It is small, has no dependencies
+ * and pointer tilt. It is small, has no dependencies
  * beyond this package, and everything it does works on markup that is already
  * complete.
  *
@@ -16,7 +16,6 @@
  * never be stranded hidden by a failed or slow module.
  */
 
-import { startRunSim } from "../marketing/run-simulation";
 import { initTheme } from "../theme";
 import { initTilt } from "../marketing/tilt";
 
@@ -72,19 +71,11 @@ function initStage(): void {
     });
 }
 
-/* The hero replays one canonical run on a loop. It is DOM + CSS only, so it
- * belongs on the critical path beside the theme, not behind the GSAP stage. */
-function initRunSims(): void {
-  const hero = document.querySelector<HTMLElement>('[data-run-sim="hero"]');
-  if (hero) startRunSim(hero, { loop: true });
-}
-
 function init(): void {
   initTheme();
   initHeader();
   initCopyButtons();
   initTilt();
-  initRunSims();
   initStage();
 }
 

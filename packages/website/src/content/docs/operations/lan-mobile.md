@@ -1,9 +1,19 @@
 ---
-title: LAN and mobile HTTPS
-description: Opt into trusted-LAN access, install the local CA, and pair devices.
+title: Phone and remote access
+description: Use Nerve from your phone with private Tailscale access or on your local network, pair devices, and get Web Push notifications.
 sidebar:
   order: 2
 ---
+
+Two ways to reach Nerve from a phone or another computer: [private access with Tailscale](#private-access-with-tailscale), which works from anywhere and needs no network binding, and [the same network](#on-the-same-network), where Nerve listens on your LAN. Either way each device pairs once and can be revoked.
+
+## What the phone shows
+
+The phone layout is for keeping work moving, not configuring Nerve. It has three tabs (Inbox, Projects, Activity) and, inside a project, conversations, Git changes, pull requests, launches, files, and notes. Providers, agents, tools, extensions, and project settings are desktop-only; a link into them shows "Available on desktop". The phone's **Settings** screen has sign out (which revokes this device), **Devices**, **Notifications**, theme, and the status of private access.
+
+<!-- screenshot: mobile-settings -->
+
+## On the same network
 
 Nerve refuses a non-loopback bind unless remote access is explicitly allowed.
 
@@ -43,6 +53,8 @@ Use firewall rules and a trusted network. Stop remote binding when it is no long
 
 ## Private access with Tailscale
 
+<!-- screenshot: remote-tailscale -->
+
 To use Nerve from your phone away from home, turn on **Settings → Remote connections → Private access**. Nerve serves itself through [Tailscale Serve](https://tailscale.com/kb/1312/serve) at `https://<machine>.<tailnet>.ts.net`, reachable only from devices on your tailnet. The certificate is a normal trusted one, so the phone needs no CA install, and Nerve itself keeps listening only on this computer: `--allow-remote` and mobile HTTPS are not needed.
 
 You need Tailscale installed and signed in on the computer and the phone, with MagicDNS on. The first time, Nerve may ask you to:
@@ -56,7 +68,7 @@ Port 443 gives an address without a port number. If another service already uses
 
 ## Notifications on your phone
 
-On a paired phone, open **Settings → Notifications on this phone** and turn it on. Nerve then notifies the phone when a conversation needs you, fails, is interrupted or finishes, the same events the desktop notifies about. It stays quiet while you are using Nerve on any device, or while notifications are muted. Notifications contain the conversation and project name only, never transcript content.
+On a paired phone, open the phone's **Settings**, find **Notifications on this phone** and turn it on. Nerve then notifies the phone when a conversation needs you, fails, is interrupted or finishes, the same events the desktop notifies about. It stays quiet while you are using Nerve on any device, or while notifications are muted. Notifications contain the conversation and project name only, never transcript content.
 
 On iPhone, add Nerve to the Home Screen first and open it from there; Safari only delivers notifications to installed web apps. Use **Send test notification** to check delivery. Revoking the phone in **Settings → Devices** stops its notifications.
 

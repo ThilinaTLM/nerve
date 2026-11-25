@@ -8,10 +8,19 @@ const links = {
   getStarted: { label: "Get started", href: "/start/" },
   overview: { label: "Overview", href: "/start/overview/" },
   install: { label: "Install", href: "/start/install/" },
-  firstProject: { label: "First project", href: "/start/first-project/" },
   firstTask: { label: "First task", href: "/start/first-task/" },
   workbench: { label: "Workbench", href: "/guides/workbench/" },
-  conversations: { label: "Conversations", href: "/guides/conversations/" },
+  configureByChat: {
+    label: "Configure by chat",
+    href: "/guides/configure-by-chat/",
+  },
+  buildExtensions: {
+    label: "Build extensions",
+    href: "/guides/build-extensions/",
+  },
+  jira: { label: "Jira", href: "/integrations/jira/" },
+  mcp: { label: "MCP servers", href: "/integrations/mcp/" },
+  phone: { label: "Phone and remote", href: "/operations/lan-mobile/" },
   providers: {
     label: "Models & providers",
     href: "/models/providers-and-auth/",
@@ -24,7 +33,6 @@ const links = {
   },
   architecture: { label: "Architecture", href: "/developers/architecture/" },
   protocol: { label: "Protocol v1", href: "/developers/protocol/v1/" },
-  extensions: { label: "Extensions", href: "/developers/extensions/" },
   contributing: { label: "Contributing", href: "/developers/contributing/" },
   github: { label: "GitHub", href: "https://github.com/ThilinaTLM/nerve" },
   license: {
@@ -43,25 +51,20 @@ export const marketingFooterColumns: LinkColumn[] = [
     links: [
       links.getStarted,
       links.install,
-      links.firstProject,
-      links.firstTask,
+      links.configureByChat,
+      links.phone,
     ],
   },
   {
     title: "Documentation",
-    links: [
-      links.workbench,
-      links.conversations,
-      links.providers,
-      links.troubleshooting,
-    ],
+    links: [links.workbench, links.jira, links.mcp, links.providers],
   },
   {
     title: "Developers",
     links: [
+      links.buildExtensions,
       links.architecture,
       links.protocol,
-      links.extensions,
       links.contributing,
     ],
   },

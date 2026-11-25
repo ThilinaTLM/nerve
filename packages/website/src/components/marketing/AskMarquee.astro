@@ -1,0 +1,189 @@
+---
+/* "Just ask": self-configuration as a feeling rather than a feature list.
+ * Two rows of real-sounding requests drifting in opposite directions, each tagged
+ * with what Forge produces. The rows duplicate their content for a seamless
+ * loop; the copy is hidden from assistive technology and the first copy is a
+ * plain list. Under reduced motion the rows stop and wrap.
+ */
+import BrandIcon from "./BrandIcon.astro";
+import type { BrandIconName } from "./brand-icons";
+import Reveal from "./Reveal.astro";
+
+interface Ask {
+  text: string;
+  result: string;
+  brand?: BrandIconName;
+}
+
+const rowA: Ask[] = [
+  { text: "Show QA and prod health in a side panel", result: "Panel" },
+  { text: "Put new Sentry errors next to the chat", result: "Panel", brand: "sentry" },
+  { text: "One launch for the API and the web app", result: "Launch" },
+  { text: "Never let agents run terraform apply", result: "Rule" },
+  { text: "A tab with my open Linear issues", result: "Tab", brand: "linear" },
+  { text: "Make our release checklist a skill", result: "Skill" },
+];
+
+const rowB: Ask[] = [
+  { text: "Let scripts read our Grafana dashboards", result: "Script API", brand: "grafana" },
+  { text: "Sign in to AWS once for every extension", result: "Account", brand: "amazonwebservices" },
+  { text: "Preview .proto files as a service map", result: "Preview" },
+  { text: "A reviewer profile that never edits files", result: "Profile" },
+  { text: "A one-click “Write release notes” prompt", result: "Suggestion" },
+  { text: "Post the standup summary to Slack", result: "Script API", brand: "slack" },
+];
+
+---
+
+<div class="ask">
+
+  <div class="ask-rows">
+    {
+      [rowA, rowB].map((row, rowIndex) => (
+        <div class="ask-row" data-direction={rowIndex === 0 ? "left" : "right"}>
+          <div class="ask-track">
+            {[0, 1].map((copy) => (
+              <ul class="ask-list" aria-hidden={copy === 1 ? "true" : undefined}>
+                {row.map((ask) => (
+                  <li class="ask-chip">
+                    <span class="ask-quote">“{ask.text}”</span>
+                    <span class="ask-result">
+                      {ask.brand && <BrandIcon name={ask.brand} size={12} />}
+                      {ask.result}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ))}
+          </div>
+        </div>
+      ))
+    }
+  </div>
+
+  <Reveal class="ask-cta">
+    <a class="btn btn-ghost" href="/guides/configure-by-chat/">
+      How Forge works <span aria-hidden="true">→</span>
+    </a>
+    <span class="meta-text">Sandboxed · runs only with your consent</span>
+  </Reveal>
+</div>
+
+<style>
+  .ask {
+    display: grid;
+    gap: clamp(2rem, 4vw, 3rem);
+  }
+
+  .ask-rows {
+    display: grid;
+    gap: 0.85rem;
+    /* Full-bleed: the rows run edge to edge and fade at both sides. */
+    width: 100vw;
+    margin-inline: calc(50% - 50vw);
+    mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent,
+      black 12%,
+      black 88%,
+      transparent
+    );
+  }
+
+  .ask-row {
+    overflow: hidden;
+  }
+
+  .ask-track {
+    display: flex;
+    width: max-content;
+    animation: marquee 60s linear infinite;
+  }
+
+  .ask-row[data-direction="right"] .ask-track {
+    animation-direction: reverse;
+    animation-duration: 70s;
+  }
+
+  .ask-row:hover .ask-track {
+    animation-play-state: paused;
+  }
+
+  .ask-list {
+    display: flex;
+    gap: 0.85rem;
+    margin: 0;
+    padding: 0 0.85rem 0 0;
+    list-style: none;
+  }
+
+  .ask-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.75rem 0.7rem 1.1rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    background: var(--card);
+    white-space: nowrap;
+    transition: border-color 160ms ease;
+  }
+
+  .ask-chip:hover {
+    border-color: color-mix(in oklab, var(--primary) 50%, var(--hairline));
+  }
+
+  .ask-quote {
+    font-size: 0.98rem;
+  }
+
+  .ask-result {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--primary) 13%, transparent);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+  }
+
+  .ask-cta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem 1.25rem;
+  }
+
+  /* Still rows: show the first copy, wrapped, inside the page width. */
+  @media (prefers-reduced-motion: reduce) {
+    .ask-rows {
+      width: auto;
+      margin-inline: 0;
+      mask-image: none;
+      -webkit-mask-image: none;
+    }
+
+    .ask-track {
+      width: auto;
+      animation: none;
+    }
+
+    .ask-list {
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .ask-list[aria-hidden] {
+      display: none;
+    }
+
+    .ask-chip {
+      white-space: normal;
+    }
+  }
+</style>

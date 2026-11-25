@@ -22,7 +22,7 @@ Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, u
 
 `web_fetch` is a core tool with its own switch. `web_search` comes from the Web Search extension: it needs a search account (Tavily today) and is off until you enable the extension. Python has a switch too. Both web tools are external reads. See [Web search and fetch](/integrations/web/).
 
-`quick_script` runs a sandboxed TypeScript script that calls the SDK namespaces of the enabled [extensions](/integrations/extensions/): `jira`, `confluence`, `atlassian` and `storage` (Atlassian), `search` (Web Search), `diagram` and `imagegen`. It also always has `files`, `image`, `web.fetch`, `extensions` and `configuration` (used by the built-in **configure-nerve** skill to reload extensions and configuration files after the agent edits them), document libraries (XLSX, Papa, docx, mammoth, PptxGenJS, JSZip) and the `sdk` discovery helpers. The tool description lists only the namespaces that are on; the agent discovers methods inside the script with `sdk.describe`, `sdk.docs`, `sdk.search` and `sdk.list`. A call takes `code` and an optional `timeout` in seconds (default 120, at most 600). Each SDK call is an operation (`jira.issues.create`, `diagram.render`, `imagegen.generate`) checked against your permission policy. The Jira, Confluence, diagram-export and image-generation tools that existed before 0.41 are gone. See [Batch work with Quick script](/guides/quick-script/).
+`quick_script` runs a sandboxed TypeScript script that calls the SDK namespaces of the enabled [extensions](/integrations/extensions/): `jira`, `confluence`, `atlassian` and `storage` (Atlassian), `search` (Web Search), `diagram` and `imagegen`. It also always has `files`, `image`, `web.fetch`, `launches` (see Background processes), `extensions` and `configuration` (used by the built-in **configure-nerve** skill: `describe`, `list`, `tools.list`, `explain`, `check` and `reload` read and activate configuration the agent edited, and `extensions.reload` loads an extension folder; none of them grants trust), `mcp` (only while an [MCP server](/integrations/mcp/) is on), document libraries (XLSX, Papa, docx, mammoth, PptxGenJS, JSZip) and the `sdk` discovery helpers. The tool description lists only the namespaces that are on; the agent discovers methods inside the script with `sdk.describe`, `sdk.docs`, `sdk.search` and `sdk.list`. A call takes `code` and an optional `timeout` in seconds (default 120, at most 600). Each SDK call is an operation (`jira.issues.create`, `diagram.render`, `imagegen.generate`) checked against your permission policy. The Jira, Confluence, diagram-export and image-generation tools that existed before 0.41 are gone, as is the direct `launch` tool; extensions can add namespaces too. See [Batch work with Quick script](/guides/quick-script/).
 
 ## Images
 
@@ -71,7 +71,7 @@ await launches.update({ name: "Docs", port: 4322 });
 
 ## MCP servers
 
-Nerve connects to the MCP (Model Context Protocol) servers in `~/.nerve/config/mcp.json` (the Nerve home's `config/mcp.json`) and in a project's `.nerve/config/mcp.json`, in the `mcpServers` shape other MCP clients use: stdio servers (`command`, `args`, `env`, `cwd`) and Streamable HTTP servers (`url`, `headers`), plus `description`, `enabled` and `timeout`. `${VAR}` references are expanded from Nerve's environment, and `${secret:name}` from secrets you store in Settings. You approve each entry once (entries you save in Settings are approved already), and a project entry replaces a user entry of the same name; manage them under Settings → Connections → MCP servers (user) or a project's Settings → Agent → MCP servers. Their tools are not separate tools: agents reach them through the `mcp` namespace of `quick_script`, which is listed in its description while a conversation has a server turned on.
+Nerve connects to the MCP (Model Context Protocol) servers in `<NERVE_HOME>/config/mcp.json` (default `~/.nerve`) and in a project's `.nerve/config/mcp.json`, in the `mcpServers` shape other MCP clients use: stdio servers (`command`, `args`, `env`, `cwd`) and Streamable HTTP servers (`url`, `headers`), plus `description`, `enabled` and `timeout`. `${VAR}` references are expanded from Nerve's environment, and `${secret:name}` from secrets you store in Settings. You approve each entry once (entries you save in Settings are approved already), and a project entry replaces a user entry of the same name; manage them under **Settings → MCP servers**. Their tools are not separate tools: agents reach them through the `mcp` namespace of `quick_script`, which is listed in its description only while a server is on. See [MCP servers](/integrations/mcp/).
 
 ```ts
 await mcp.servers.list(); // state, instructions
@@ -88,7 +88,11 @@ await mcp.resources.get({ server: "docs", uri: "docs://readme" });
 - A server starts (or connects) on first use and is shared by later scripts; a stdio server runs once per project directory and stops after ten minutes unused.
 - Each `tools.call` is checked as operation `mcp.tools.call` on target `mcp:tool/<server>/<tool>`, so an "always allow" covers one tool. Nerve cannot know what a tool does, so a script that calls one counts as destructive. Listing tools and reading resources are external reads.
 - A tool's text blocks are returned as `text`, its structured result as `structured`, and images or binary content as artifacts in `files`. A tool that reports an error throws `SERVER_ERROR`.
-- Project-level `mcp.json` files and OAuth sign-in are not supported yet.
+- OAuth sign-in for MCP servers isn't supported; pass a token in `headers`.
+
+## Removed tools
+
+`todos_set` and `todos_get` no longer exist, and neither does the composer's todo chip. Older conversations show past todo calls as generic tool cards.
 
 ## Delegation and planning
 

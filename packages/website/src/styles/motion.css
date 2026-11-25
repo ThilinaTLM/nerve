@@ -70,34 +70,212 @@
   }
 }
 
-/* The hero's scroll cue: an impulse dropping down a short axon. */
-@keyframes cue-drop {
-  0% {
-    opacity: 0;
-    transform: translateY(-0.35rem);
-  }
-  25%,
-  70% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(2.5rem);
-  }
-}
-
-/* A simulated run row arriving in a transcript feed. */
-@keyframes run-enter {
-  from {
-    opacity: 0;
-    transform: translateY(0.6rem) scale(0.99);
-  }
-}
-
 /* A tool call that has not resolved yet. */
 @keyframes run-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Hero Forge stage: an empty slot breathing while Forge builds into it. */
+@keyframes slot-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Bento: current flowing along a dashed wire. */
+@keyframes wire-flow {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+/* Bento: a progress bar filling, then holding before the loop restarts. */
+@keyframes bar-fill {
+  0% {
+    transform: scaleX(0);
+  }
+  55%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+/* Bento: a transcript row lighting up in turn. */
+@keyframes step-in {
+  0% {
+    opacity: 0.35;
+    transform: translateY(4px);
+  }
+  12%,
+  88% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0.35;
+  }
+}
+
+/* Bento: a button asking to be pressed. */
+@keyframes nudge {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+/* Bento: a check passing. */
+@keyframes check-pass {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.4);
+  }
+  20%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* A path drawing itself, holding, then redrawing. */
+@keyframes draw-loop {
+  0% {
+    stroke-dashoffset: 120;
+  }
+  50%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Task journey: the impulse crosses the axon in the first 72% of the cycle
+ * (6.5s of 9s, see TaskJourney.astro), then fades and waits. */
+@keyframes journey-travel {
+  0% {
+    opacity: 1;
+    transform: translateX(-100%);
+  }
+  72% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  80%,
+  100% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+}
+
+@keyframes journey-travel-down {
+  0% {
+    opacity: 1;
+    transform: translateY(-100%);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  80%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+/* Task journey: a station flashing as the impulse reaches it. */
+@keyframes station-hit {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  12% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+/* Task journey: the station's vignette glowing briefly on arrival. */
+@keyframes station-lift {
+  0% {
+    filter: drop-shadow(
+      0 0 14px color-mix(in oklab, var(--primary) 45%, transparent)
+    );
+  }
+  18%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+}
+
+/* Closing: the signal crosses the platform line in the first ~71% of the
+ * cycle (3s of 4.2s, see ClosingCta.astro). The dash is 0.08 of a
+ * normalized path length, so it travels from 0.08 to -1. */
+@keyframes platform-run {
+  0% {
+    stroke-dashoffset: 0.08;
+  }
+  71%,
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+
+/* Closing: a platform mark flashing as the signal passes through it. */
+@keyframes platform-hit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  20% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+}
+
+/* Marquee: one full copy of the track scrolls past. */
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Orbit: an impulse travelling from the hub to a service and back. */
+@keyframes orbit-pulse {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -200;
+  }
+}
+
+/* Hotspot: a pin breathing to invite a hover. */
+@keyframes pin-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.9);
+    opacity: 0;
   }
 }
 
@@ -110,28 +288,6 @@
   to {
     opacity: 0;
     transform: translateX(300%);
-  }
-}
-
-/* The anatomy stage's impulse, held at a review gate that has not been
- * answered yet. */
-@keyframes gate-wait {
-  0%,
-  100% {
-    opacity: 1;
-    transform: translateY(-50%) scale(1);
-  }
-  50% {
-    opacity: 0.45;
-    transform: translateY(-50%) scale(1.55);
-  }
-}
-
-/* Authority dial cells swapping as the permission level changes. */
-@keyframes cell-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.2rem);
   }
 }
 
@@ -162,7 +318,6 @@ html[data-motion-ready] [data-reveal-child]:not(.is-revealed) {
 /* Elements a stage settles individually without a `[data-reveal]` wrapper.
  * They must share the pre-hidden state, or they would be readable on entry
  * and then yanked to opacity zero when their scroll trigger fires. */
-html[data-motion-ready] .closing-steps li:not(.is-revealed),
 html[data-motion-ready] .section-header .eyebrow:not(.is-revealed),
 html[data-motion-ready] .section-header .lede:not(.is-revealed) {
   opacity: 0;

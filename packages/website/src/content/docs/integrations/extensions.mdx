@@ -46,11 +46,51 @@ An extension's page shows a problem at the top when it can't be used, with a lin
 
 ## Scope and trust
 
-- **User** settings apply to every project. **Project** settings override them for one project and can be shared through the repository. Anything unset in a project follows your user settings. An [agent profile](/reference/agent-profiles/) can also recommend or require extension settings.
+- **User** and **project** switches sit side by side on each extension row. The project switch overrides the user one for that project and can be shared through the repository. Anything unset in a project follows your user settings. An [agent profile](/reference/agent-profiles/) can also recommend or require extension settings.
 - **Accounts are user-level or project-level.** A user account is available in every project, a project account in one. Their credentials are stored encrypted on your computer and are never copied into project files; a project selects an account by an ID that exists only on your computer, so a teammate must choose their own. Settings at user scope can choose user accounts only. Manage accounts under **Settings → Accounts**; see [Settings at a glance](/guides/settings/#accounts).
-- A project's `.nerve/config/extensions.json` is ignored until you trust its exact content. The project's Extensions page says the file needs your review, with **Review and trust** and **Decline**; a trusted file can be revoked there. Changes you make through Nerve's settings pages are trusted automatically; an edit made in another editor needs trusting again.
+- A project's `.nerve/config/extensions.json` is ignored until you trust its exact content. The Extensions page says the file needs your review, with **Review and trust** and **Decline**; a trusted file can be revoked there. Changes you make through Nerve's settings pages stay trusted; an edit made in another editor needs review again.
 
 See [Configuration](/operations/configuration/#extension-settings-and-accounts) for the files.
+
+## Installed extensions
+
+Beyond the built-ins, you or the agent can install extensions as folders: in `<NERVE_HOME>/agent/extensions/<id>/` for every project, or in `<project>/.nerve/extensions/<id>/` for one project and its teammates. The easiest way to make one is to ask a [Forge conversation](/guides/configure-by-chat/) to build it; [Build an extension](/guides/build-extensions/) covers the workflow, and [Extension locations and trust](/reference/extensions/) the rules.
+
+A new extension shows as **Pending consent** in **Settings → Extensions** with a plain-language list of what it asks for. Nothing runs until you choose **Allow**, and the agent can't do that for you. A project extension asks again after any change; a user extension asks again only when it gains a permission or contribution. **Revoke** in the Source section withdraws consent.
+
+{/* screenshot: extension-consent */}
+
+Installed extensions run in a sandbox and can contribute:
+
+| Contribution                         | Where it appears                                                                              |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| **Dock panel**                       | A panel beside the conversation, like Git or Files                                            |
+| **Page tab**                         | A tab in the center area, opened from the new-tab menu (the chevron next to +)                |
+| **File preview**                     | A viewer for chosen file types, in place of the source view; it can offer editing             |
+| **Theme**                            | A color theme you pick in **Settings → Workbench**; only user extensions can add themes       |
+| **Quick script namespace and tools** | Methods the agent calls in [Quick script](/guides/quick-script/), and optionally direct tools |
+
+Panels, pages, and previews are drawn in isolated frames with no network access of their own. They use Nerve's components, including floating toolbars for previews and canvas-like pages, and reach data only through the extension's backend and the host.
+
+{/* screenshot: extension-panel */}
+
+## Accounts
+
+Extensions that talk to a service use **accounts** instead of keys in settings. An account's credentials are encrypted on your computer and the extension's code never sees them; Nerve adds them to requests, only for the account's own websites.
+
+{/* screenshot: accounts */}
+
+- **Levels.** A **user** account is available in every project and a **project** account in one. An account kind defined by a project extension is always project-level. Settings at user scope can choose user accounts only. You can move an account between levels, duplicate it, or clear its credentials.
+- **Static keys.** A token, password, or API key you type in. An account can hold several secrets, and Nerve can send one as a bearer token, basic auth, a header, or a query parameter.
+- **OAuth 2.0.** Authorization code with PKCE, or device code, with OIDC discovery. Sign-in runs in a browser page or with a device code, inside the account dialog. Nerve ships no OAuth apps, so the extension's account asks for the client ID of one you register with the service.
+- **Credential providers.** For request signing (such as AWS SigV4), token exchanges, and other sign-in flows, an extension can bring its own credential code. It runs in a separate sandbox with no free network access, and the review shows it as broad access. Changing it asks you to allow the extension again.
+- **Platforms.** An extension can use every account of a platform (for example GitHub) whichever extension defined it. It can narrow the account's websites but never widen them, and consent is per platform.
+
+Add an account from the extension's page (**Add account**), or manage them all on **Settings → Accounts**. A project selects an account by an ID that exists only on your computer, so teammates choose their own. See [Settings at a glance](/guides/settings/#accounts).
+
+### Refreshed in the background
+
+OAuth tokens are refreshed when used, and once more after a 401 response. A background job, **Account credential refresh**, also renews sign-ins that expire within ten minutes every five minutes, for accounts you used in the last 30 days. It appears under **Settings → Background jobs** with its last and next run and **Run now**. An account that needs you to sign in again, or a job that keeps failing, shows in the notification bell. Jobs run only while Nerve runs.
 
 ## Atlassian
 

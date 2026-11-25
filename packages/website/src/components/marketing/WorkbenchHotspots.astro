@@ -1,0 +1,167 @@
+---
+/* "Everything around the chat": one large real capture with numbered pins on
+ * the areas that matter, each with a two-to-four word label. On narrow screens
+ * the labels move into a numbered list under the picture. Pin positions are
+ * percentages of the capture (`screens.workbench`); move them with the image.
+ */
+import DeviceFrame from "./DeviceFrame.astro";
+import Reveal from "./Reveal.astro";
+import ThemeScreenshot from "./ThemeScreenshot.astro";
+import { screens } from "./screens";
+
+interface Pin {
+  label: string;
+  x: number;
+  y: number;
+  side: "left" | "right";
+}
+
+const pins: Pin[] = [
+  { label: "Every project, one window", x: 14, y: 3.2, side: "right" },
+  { label: "Files and project search", x: 9, y: 27, side: "right" },
+  { label: "Built-in editor", x: 42, y: 22, side: "right" },
+  { label: "Every repo and worktree", x: 86, y: 22, side: "left" },
+  { label: "Live pull request", x: 86, y: 51, side: "left" },
+];
+---
+
+<Reveal variant="scale" class="spots">
+  <div class="spots-stage">
+    <DeviceFrame label="nerve · aurora" depth={2}>
+      <ThemeScreenshot
+        light={screens.workbench.light}
+        dark={screens.workbench.dark}
+        alt={screens.workbench.alt}
+        widths={[960, 1440, 1920, 2400, 2880]}
+        sizes="(min-width: 1520px) 1440px, calc(100vw - 2rem)"
+      />
+    </DeviceFrame>
+    <ol class="spots-pins" aria-hidden="true">
+      {
+        pins.map((pin, index) => (
+          <li
+            class="spot"
+            data-side={pin.side}
+            style={`left:${pin.x}%;top:calc(${pin.y}% + 2rem)`}
+          >
+            <span class="spot-pin">{index + 1}</span>
+            <span class="spot-label">{pin.label}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+  <ol class="spots-list">
+    {pins.map((pin) => <li>{pin.label}</li>)}
+  </ol>
+</Reveal>
+
+<style>
+  /* The capture is a 1440px-wide desktop at 2x. Breaking out of the text
+   * column lets it render at its native scale on common laptop widths, so
+   * small UI text stays crisp instead of being shrunk. */
+  .spots {
+    display: grid;
+    gap: 1.25rem;
+    width: min(90rem, calc(100vw - 2rem));
+    margin-inline: calc(50% - min(45rem, 50vw - 1rem));
+  }
+
+  .spots-stage {
+    position: relative;
+  }
+
+  .spots-pins {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    pointer-events: none;
+  }
+
+  .spot {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transform: translate(-1rem, -50%);
+  }
+
+  .spot[data-side="left"] {
+    flex-direction: row-reverse;
+    transform: translate(calc(-100% + 1rem), -50%);
+  }
+
+  .spot-pin {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: var(--radius-pill);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 25%, transparent);
+  }
+
+  .spot-pin::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--primary);
+    animation: pin-breathe 2.6s ease-out infinite;
+    z-index: -1;
+  }
+
+  .spot-label {
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--myelin);
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--card) 90%, transparent);
+    box-shadow: var(--depth-2);
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .spots-list {
+    display: none;
+    margin: 0;
+    padding-left: 1.5rem;
+    color: var(--muted-foreground);
+  }
+
+  .spots-list li::marker {
+    color: var(--primary);
+    font-family: var(--font-mono);
+  }
+
+  @media (max-width: 860px) {
+    .spot-label {
+      display: none;
+    }
+
+    .spot,
+    .spot[data-side="left"] {
+      transform: translate(-50%, -50%);
+    }
+
+    .spot-pin {
+      width: 1.5rem;
+      height: 1.5rem;
+      font-size: 0.7rem;
+    }
+
+    .spots-list {
+      display: grid;
+      gap: 0.35rem;
+    }
+  }
+</style>

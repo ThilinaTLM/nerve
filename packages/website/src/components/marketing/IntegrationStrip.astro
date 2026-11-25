@@ -1,0 +1,119 @@
+---
+/* "Works with" strip under the hero: what Nerve connects to out of the box,
+ * then the model providers. Marks are monochrome and take the text colour, so
+ * they sit quietly in both themes. */
+import BrandIcon from "./BrandIcon.astro";
+import type { BrandIconName } from "./brand-icons";
+
+interface Mark {
+  icon: BrandIconName;
+  label: string;
+}
+
+const integrations: Mark[] = [
+  { icon: "github", label: "GitHub" },
+  { icon: "jira", label: "Jira" },
+  { icon: "confluence", label: "Confluence" },
+  { icon: "modelcontextprotocol", label: "MCP servers" },
+  { icon: "tailscale", label: "Tailscale" },
+];
+
+const models: Mark[] = [
+  { icon: "anthropic", label: "Anthropic" },
+  { icon: "openai", label: "OpenAI" },
+  { icon: "githubcopilot", label: "GitHub Copilot" },
+  { icon: "openrouter", label: "OpenRouter" },
+];
+---
+
+<section class="strip" aria-label="Integrations and model providers">
+  <div class="container-page strip-inner">
+    <div class="strip-group">
+      <p class="strip-label">Built in</p>
+      <ul class="strip-marks">
+        {
+          integrations.map((mark) => (
+            <li class="strip-mark">
+              <BrandIcon name={mark.icon} size={18} />
+              <span>{mark.label}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <div class="strip-group">
+      <p class="strip-label">Your models</p>
+      <ul class="strip-marks">
+        {
+          models.map((mark) => (
+            <li class="strip-mark">
+              <BrandIcon name={mark.icon} size={18} />
+              <span>{mark.label}</span>
+            </li>
+          ))
+        }
+        <li class="strip-mark strip-more">+ any OpenAI-compatible API</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<style>
+  .strip {
+    border-block: 1px solid var(--hairline);
+    background: var(--surface-sunken);
+  }
+
+  .strip-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem 3.5rem;
+    padding-block: 1.4rem;
+  }
+
+  .strip-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.5rem;
+  }
+
+  .strip-label {
+    margin: 0;
+    color: var(--primary);
+    font-size: var(--text-eyebrow);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .strip-marks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .strip-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.92rem;
+    font-weight: 500;
+    transition: color 160ms ease;
+  }
+
+  .strip-mark:hover {
+    color: var(--foreground);
+  }
+
+  .strip-more {
+    font-size: 0.82rem;
+    font-weight: 400;
+  }
+
+</style>
