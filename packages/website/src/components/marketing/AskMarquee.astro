@@ -1,11 +1,13 @@
 ---
-/* "Just ask": self-configuration as a feeling rather than a feature list.
- * Two rows of real-sounding requests drifting in opposite directions, each tagged
+/* "Just ask": self-configuration shown, then felt. First a short demo of
+ * Forge building an extension from one request (`ForgeDemo`), then two rows
+ * of real-sounding requests drifting in opposite directions, each tagged
  * with what Forge produces. The rows duplicate their content for a seamless
  * loop; the copy is hidden from assistive technology and the first copy is a
  * plain list. Under reduced motion the rows stop and wrap.
  */
 import BrandIcon from "./BrandIcon.astro";
+import ForgeDemo from "./ForgeDemo.astro";
 import type { BrandIconName } from "./brand-icons";
 import Reveal from "./Reveal.astro";
 
@@ -36,6 +38,7 @@ const rowB: Ask[] = [
 ---
 
 <div class="ask">
+  <ForgeDemo />
 
   <div class="ask-rows">
     {
