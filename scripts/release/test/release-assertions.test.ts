@@ -104,12 +104,22 @@ test("tarball contents must be the bundle layout without maps or declarations", 
     ...bundleOutputFiles.map((file) => `package/${file}`),
     "package/dist/web/assets/app.js",
     "package/dist/chunk-ABC.js",
+    "package/dist/builtin/configure-nerve/reference/extensions/api/extension-api/errors.d.ts",
     "package/dist/chunk-ABC.js.LEGAL.txt",
   ];
   verifyContents(entries, "x.tgz");
   const rejected: [string, RegExp][] = [
     ["package/dist/main.js.map", /forbidden/],
     ["package/dist/main.d.ts", /forbidden/],
+    [
+      "package/dist/builtin/configure-nerve/reference/extensions/api/x.d.ts.map",
+      /forbidden/,
+    ],
+    [
+      "package/dist/builtin/configure-nerve/reference/extensions/api/node_modules/x.d.ts",
+      /forbidden/,
+    ],
+    ["package/dist/builtin/other-skill/reference/x.d.ts", /forbidden/],
     ["package/dist/x.tsbuildinfo", /forbidden/],
     ["package/node_modules/@nervekit/contracts/dist/index.js", /unexpected/],
     ["package/src/main.ts", /unexpected/],
