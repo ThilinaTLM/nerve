@@ -176,6 +176,18 @@ const rootFiles = new Set([
 export const forbiddenTarballPath =
   /(?:^|\/)(?:src|test|tests|\.nerve|\.git|release|coverage|cache|node_modules)(?:\/|$)|\.(?:log|sqlite|db|node|map|tsbuildinfo)$|\.d\.[cm]?ts$/i;
 
+/** The configure-nerve skill ships the extension API declarations as reference for the agent. */
+const skillDeclarationReference =
+  /^package\/dist\/builtin\/configure-nerve\/reference\/extensions\/api\/[^]*\.d\.ts$/;
+
+function forbiddenEntry(entry: string): boolean {
+  if (!forbiddenTarballPath.test(entry)) return false;
+  return !(
+    skillDeclarationReference.test(entry) &&
+    !forbiddenTarballPath.test(entry.replace(/\.d\.ts$/, ".ts"))
+  );
+}
+
 export function verifyContents(entries: string[], filename: string) {
   for (const entry of bundleOutputFiles.map((file) => `package/${file}`))
     requireEntry(entries, entry, filename);
@@ -188,7 +200,7 @@ export function verifyContents(entries: string[], filename: string) {
       entry === "package/build" ||
       entry.startsWith("package/build/")
     ) {
-      if (forbiddenTarballPath.test(entry))
+      if (forbiddenEntry(entry))
         throw new Error(`${filename}: forbidden packed path ${entry}.`);
       continue;
     }
