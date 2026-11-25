@@ -35,6 +35,10 @@ await context.addInitScript(
 );
 const page = await context.newPage();
 await page.goto(values["base-url"], { waitUntil: "networkidle" });
+/* The floating install pill duplicates the header CTA and crowds the card. */
+await page.addStyleTag({
+  content: "[data-install-fab] { display: none !important; }",
+});
 await page.waitForTimeout(1500);
 await page.mouse.move(-50, -50);
 const buffer = await page.screenshot();
