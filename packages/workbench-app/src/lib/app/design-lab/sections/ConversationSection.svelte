@@ -638,7 +638,7 @@ const contextTimeline: TimelineItem[] = [
   >
     <GallerySpecimen
       title="ConversationWelcome"
-      description="Center area with no tab open: the real launchpad with a card per built-in lead profile. Without a project the cards are disabled."
+      description="Center area with no tab open: the real launchpad with the project as hero and a button per built-in lead profile. Without a project the buttons are disabled."
       source="features/conversations/views/ConversationWelcome"
       usage="1 file · conversation"
       layout="bare"
@@ -651,6 +651,7 @@ const contextTimeline: TimelineItem[] = [
             projectLabel={welcomeLabel}
             projectPath={welcomeProject.dir}
             defaultProfile="coding"
+            review={{ text: "2 project files need your review", onOpen: noop }}
             onNewChat={noop}
           />
         </div>
@@ -662,7 +663,7 @@ const contextTimeline: TimelineItem[] = [
 
     <GallerySpecimen
       title="New conversation"
-      description="A fresh conversation tab (the + button): the real TranscriptList with an empty timeline."
+      description="A fresh conversation tab (the + button): the real TranscriptList with an empty timeline and a pending project review."
       source="presentation/transcript/TranscriptList"
       usage="1 file · conversation"
       layout="bare"
@@ -680,6 +681,10 @@ const contextTimeline: TimelineItem[] = [
           queuedPrompts={[]}
           activeProject={welcomeProject}
           activeProjectLabel={welcomeLabel}
+          projectReview={{
+            text: "1 project file needs your review",
+            onOpen: noop,
+          }}
           {transcriptMenu}
         />
       </div>

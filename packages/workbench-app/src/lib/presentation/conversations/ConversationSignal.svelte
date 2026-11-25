@@ -1,11 +1,12 @@
 <script lang="ts">
+import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
 import FolderIcon from "@lucide/svelte/icons/folder";
+import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
 import StarIcon from "@lucide/svelte/icons/star";
-import type { Snippet } from "svelte";
 import NerveBadge from "../brand/NerveBadge.svelte";
 import ProjectIcon from "../brand/ProjectIcon.svelte";
-import ProfileStarterArt from "./ProfileStarterArt.svelte";
 import type { ConversationStarter } from "./conversation-starters";
+import type { ProjectReviewReminder } from "./conversation-view-contracts.js";
 
 let {
   title,
@@ -18,24 +19,34 @@ let {
   defaultStarter,
   startersDisabled = false,
   onSelectStarter,
-  footer,
+  review,
 }: {
   title: string;
   message: string;
   variant?: "launchpad" | "conversation";
+  /** Makes the project the hero; without it the Nerve badge is. */
   projectLabel?: string;
+  /** Shown as a tooltip on the project name. */
   projectPath?: string;
-  /** Shows the project icon instead of a folder glyph beside the label. */
+  /** Shows the project icon instead of a folder glyph. */
   projectId?: string;
   starters?: readonly ConversationStarter[];
   /** Profile of the starter marked as the default. */
   defaultStarter?: string;
   startersDisabled?: boolean;
   onSelectStarter?: (starter: ConversationStarter) => void;
-  footer?: Snippet;
+  review?: ProjectReviewReminder;
 } = $props();
 
+const id = $props.id();
 const launchpad = $derived(variant === "launchpad");
+let pointed = $state<ConversationStarter | undefined>();
+// The tagline under the starters follows hover and focus, resting on the
+// default starter's.
+const tagline = $derived(
+  (pointed ?? starters.find((starter) => starter.profile === defaultStarter))
+    ?.tagline,
+);
 </script>
 
 <div
@@ -45,97 +56,129 @@ const launchpad = $derived(variant === "launchpad");
   <!-- my-auto centres the content and collapses to 0 when it overflows, so
        nothing is clipped above the scroll origin. -->
   <div class="relative my-auto flex w-full max-w-2xl flex-col items-center">
-    <div
-      class={`relative flex items-center justify-center ${launchpad ? "size-20" : "size-14"}`}
-    >
-      <div
-        class={`absolute rotate-6 rounded-lg border bg-muted ${launchpad ? "size-16" : "size-12"}`}
-        aria-hidden="true"
-      ></div>
-      <div
-        class={`absolute -rotate-6 rounded-lg border border-border-subtle bg-background ${launchpad ? "size-14" : "size-10"}`}
-        aria-hidden="true"
-      ></div>
-      <NerveBadge
-        class={launchpad ? "relative z-10 size-12" : "relative z-10 size-9"}
-      />
-    </div>
-
-    <h2 class="mt-4 text-title text-foreground">
-      {title}
-    </h2>
-    <p class="mt-2 max-w-sm text-ui leading-relaxed text-muted-foreground">
-      {message}
-    </p>
-    {#if starters.length > 0}
-      <div
-        class="mt-6 grid grid-cols-2 gap-2.5 @min-[37rem]:grid-cols-4"
-        role="group"
-        aria-label="Start a conversation"
-      >
-        {#each starters as starter (starter.profile)}
-          <!-- At rest the art sits above the name, centred at the bottom;
-               hover and focus swap the name for the tagline and fade the art
-               into a backdrop. Touch has no hover, so coarse pointers keep
-               the rest state. -->
-          <button
-            type="button"
-            class="group relative size-28 cursor-pointer overflow-hidden rounded-lg border bg-card bg-linear-to-b from-well to-card shadow-sm transition-colors duration-300 outline-none hover:border-primary-strong focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
-            disabled={startersDisabled}
-            onclick={() => onSelectStarter?.(starter)}
-          >
-            <span
-              class="starter-art absolute inset-0 flex items-center justify-center px-4 pt-1.5 pb-6"
-            >
-              <ProfileStarterArt
-                profile={starter.profile}
-                class="relative w-full transition duration-300 ease-out group-hover:scale-110 group-hover:opacity-20 group-hover:blur-xs group-focus-visible:scale-110 group-focus-visible:opacity-20 group-focus-visible:blur-xs motion-reduce:transition-none"
-              />
-            </span>
-            <span
-              class="absolute inset-x-2 bottom-2 text-ui font-medium text-foreground transition-opacity duration-200 ease-out group-hover:opacity-0 group-focus-visible:opacity-0 motion-reduce:transition-none pointer-coarse:opacity-100"
-              >{starter.label}</span
-            >
-            <span
-              class="absolute inset-0 flex scale-95 items-center justify-center px-2.5 text-caption leading-snug text-muted-foreground opacity-0 transition duration-300 ease-out group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-0"
-              >{starter.tagline}</span
-            >
-            {#if starter.profile === defaultStarter}
-              <span class="absolute top-2 right-2" title="Default">
-                <StarIcon
-                  class="size-3.5 fill-current text-primary"
-                  aria-hidden="true"
-                />
-                <span class="sr-only">Default</span>
-              </span>
-            {/if}
-          </button>
-        {/each}
-      </div>
-    {/if}
-
     {#if projectLabel}
-      <p
-        class={`${starters.length > 0 ? "mt-4" : "mt-5"} flex max-w-full shrink-0 items-center gap-1.5 text-caption text-muted-foreground`}
-        title={projectPath}
-      >
+      <div class="relative" aria-hidden="true">
         {#if projectId}
           <ProjectIcon
             {projectId}
             name={projectLabel}
-            class="size-4 rounded-sm"
+            class={`rounded-xl shadow-sm ${launchpad ? "size-16" : "size-14"}`}
           />
         {:else}
-          <FolderIcon class="size-3.5 shrink-0" aria-hidden="true" />
+          <span
+            class={`grid place-items-center rounded-xl border border-border-subtle bg-muted text-muted-foreground shadow-sm ${launchpad ? "size-16" : "size-14"}`}
+          >
+            <FolderIcon class="size-1/2" />
+          </span>
         {/if}
+        <NerveBadge
+          class="absolute -right-1.5 -bottom-1.5 size-6 rounded-md ring-2 ring-background"
+        />
+      </div>
+      <h2
+        class="mt-4 max-w-full truncate text-title font-semibold text-foreground"
+        title={projectPath}
+      >
         <span class="sr-only">Current project</span>
-        <span class="truncate">{projectLabel}</span>
+        {projectLabel}
+      </h2>
+      <p class="mt-5 text-body text-foreground">{title}</p>
+      <p class="mt-1 max-w-sm text-ui leading-relaxed text-muted-foreground">
+        {message}
+      </p>
+    {:else}
+      <div
+        class={`relative flex items-center justify-center ${launchpad ? "size-20" : "size-14"}`}
+      >
+        <div
+          class={`absolute rotate-6 rounded-lg border bg-muted ${launchpad ? "size-16" : "size-12"}`}
+          aria-hidden="true"
+        ></div>
+        <div
+          class={`absolute -rotate-6 rounded-lg border border-border-subtle bg-background ${launchpad ? "size-14" : "size-10"}`}
+          aria-hidden="true"
+        ></div>
+        <NerveBadge
+          class={launchpad ? "relative z-10 size-12" : "relative z-10 size-9"}
+        />
+      </div>
+      <h2 class="mt-4 text-title text-foreground">{title}</h2>
+      <p class="mt-2 max-w-sm text-ui leading-relaxed text-muted-foreground">
+        {message}
       </p>
     {/if}
 
-    {#if footer}
-      <div class={`${launchpad ? "mt-6" : "mt-5"} flex flex-col items-center`}>
-        {@render footer()}
+    {#if starters.length > 0}
+      <div
+        class="mt-5 grid grid-cols-2 gap-2 @min-[32rem]:grid-cols-4"
+        role="group"
+        aria-label="Start a conversation"
+      >
+        {#each starters as starter (starter.profile)}
+          {@const Icon = starter.icon}
+          <button
+            type="button"
+            class="flex h-9 cursor-pointer items-center gap-2 rounded-lg border bg-card pr-3 pl-1.5 text-ui font-medium text-foreground shadow-sm transition-colors outline-none hover:border-primary-strong hover:bg-hover focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-focus disabled:pointer-events-none disabled:opacity-50"
+            disabled={startersDisabled}
+            aria-describedby={`${id}-${starter.profile}`}
+            onclick={() => onSelectStarter?.(starter)}
+            onpointerenter={() => (pointed = starter)}
+            onpointerleave={() => (pointed = undefined)}
+            onfocus={() => (pointed = starter)}
+            onblur={() => (pointed = undefined)}
+          >
+            <span
+              class="grid size-6 place-items-center rounded-md bg-well"
+              aria-hidden="true"
+            >
+              <Icon class="size-3.5 text-primary" />
+            </span>
+            {starter.label}
+            <!-- Every button reserves the star, so the default arriving after
+                 settings load does not widen the grid. -->
+            <StarIcon
+              class={`size-3 fill-current text-primary ${starter.profile === defaultStarter ? "" : "invisible"}`}
+              aria-hidden="true"
+            />
+            {#if starter.profile === defaultStarter}
+              <span class="sr-only">(default)</span>
+            {/if}
+          </button>
+        {/each}
+      </div>
+      <!-- Outside the buttons so taglines describe them without joining their names. -->
+      <div class="sr-only">
+        {#each starters as starter (starter.profile)}
+          <span id={`${id}-${starter.profile}`}>{starter.tagline}</span>
+        {/each}
+      </div>
+      <p class="mt-3 text-caption text-muted-foreground" aria-hidden="true">
+        <!-- A non-breaking space keeps one line's height before the default loads. -->
+        {tagline ?? "\u00a0"}
+      </p>
+    {/if}
+
+    {#if review}
+      <!-- Hangs below the centred block, outside its flow: the reminder loads
+           after startup and must not shift the content when it arrives. -->
+      <div
+        class="absolute inset-x-0 top-full flex justify-center pt-6 pb-6 animate-in fade-in-0 duration-300 motion-reduce:animate-none"
+      >
+        <button
+          type="button"
+          class="group flex h-7 cursor-pointer items-center gap-1.5 rounded-full border border-warning-strong bg-warning-subtle pr-2 pl-2.5 text-caption text-foreground transition-colors outline-none hover:bg-hover focus-visible:ring-3 focus-visible:ring-focus"
+          onclick={review.onOpen}
+        >
+          <ShieldCheckIcon class="size-3.5 text-warning" aria-hidden="true" />
+          {review.text}
+          <span class="ml-1 flex items-center text-primary">
+            Review
+            <ChevronRightIcon
+              class="size-3.5 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
+              aria-hidden="true"
+            />
+          </span>
+        </button>
       </div>
     {/if}
   </div>
@@ -149,17 +192,5 @@ const launchpad = $derived(variant === "launchpad");
   background-position: center;
   background-size: 1.375rem 1.375rem;
   mask-image: radial-gradient(circle at center, black, transparent 60%);
-}
-/* Fine dot grid behind each starter card's art, fading toward the edges. */
-.starter-art::before {
-  position: absolute;
-  inset: 0;
-  content: "";
-  background-image: radial-gradient(
-    var(--border-subtle) 1px,
-    transparent 1.5px
-  );
-  background-size: 0.75rem 0.75rem;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
 }
 </style>

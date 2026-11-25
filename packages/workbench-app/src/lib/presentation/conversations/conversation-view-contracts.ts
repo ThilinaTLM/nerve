@@ -206,6 +206,8 @@ export type ConversationPaneModel = {
   outcomeUnknownToolCallIds?: ReadonlySet<string>;
   activeProject?: ProjectRecord;
   activeProjectLabel?: string;
+  /** Undecided project files, shown on the empty conversation. */
+  projectReview?: ProjectReviewReminder;
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
   planReviewThinkingLevel?: ThinkingLevel;
@@ -359,3 +361,6 @@ export type ConversationMenuBuilders = {
   ) => ContextMenuItem[];
   selectionActions?: TranscriptSelectionActions;
 };
+
+/** The project's undecided items as one line; `onOpen` opens the first. */
+export type ProjectReviewReminder = { text: string; onOpen: () => void };

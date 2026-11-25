@@ -199,6 +199,7 @@ function goToQuestion(): void {
           followBottom={active ? scroll.followBottom : false}
           activeProject={model.activeProject}
           activeProjectLabel={model.activeProjectLabel}
+          projectReview={model.projectReview}
           approvals={model.approvals}
           pendingUserQuestions={model.pendingUserQuestions}
           pendingPlanReviews={model.pendingPlanReviews}

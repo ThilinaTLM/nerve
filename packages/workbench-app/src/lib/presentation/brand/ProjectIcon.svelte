@@ -9,10 +9,12 @@ type Props = {
 };
 
 let { projectId, name, class: className }: Props = $props();
-let failed = $state(false);
 const source = $derived(
   `/api/projects/${encodeURIComponent(projectId)}/icon?v=2`,
 );
+// Tied to the source, so a reused instance retries when the project changes.
+let failedSource = $state<string>();
+const failed = $derived(failedSource === source);
 const initial = $derived(
   (name.trim().match(/[\p{L}\p{N}]/u)?.[0] ?? "?").toLocaleUpperCase(),
 );
@@ -44,7 +46,7 @@ const initial = $derived(
       loading="lazy"
       decoding="async"
       class="absolute inset-0 size-full bg-muted object-cover"
-      onerror={() => (failed = true)}
+      onerror={() => (failedSource = source)}
     />
   {/if}
 </span>
