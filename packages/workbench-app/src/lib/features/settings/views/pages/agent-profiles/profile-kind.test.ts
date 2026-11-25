@@ -29,7 +29,7 @@ function profile(
     digest: "a".repeat(64),
     local: true,
     enabled: true,
-    trusted: true,
+    trustState: "trusted",
     applicable: !!usableBy,
     diagnostics: [],
     definition: usableBy
