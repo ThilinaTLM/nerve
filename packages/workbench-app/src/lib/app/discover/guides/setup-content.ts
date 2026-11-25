@@ -52,10 +52,10 @@ export const setupGuideSteps: Record<
       id: "provider-subscription",
       title: "Connect a subscription",
       description:
-        "Use Connections to authenticate a supported subscription provider.",
+        "Use Settings → Providers to sign in to a supported subscription.",
       targetId: "setup-auth-connect-subscription",
       fallback:
-        "Open Connections → Subscriptions and choose Connect subscription.",
+        "Open Settings → Providers → Subscriptions and choose Connect subscription.",
       preparation: {
         kind: "settings",
         pageId: "providers",
@@ -85,7 +85,7 @@ export const setupGuideSteps: Record<
         "Voice input uses an OpenAI Codex/ChatGPT subscription connection.",
       targetId: "setup-auth-connect-subscription",
       fallback:
-        "Open Connections → Subscriptions and choose Connect subscription.",
+        "Open Settings → Providers → Subscriptions and choose Connect subscription.",
       preparation: {
         kind: "settings",
         pageId: "providers",

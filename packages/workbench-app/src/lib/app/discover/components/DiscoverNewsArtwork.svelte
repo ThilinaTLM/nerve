@@ -1051,6 +1051,115 @@ const swatchPosition = [
 
       <rect x="30" y="96" width="120" height="5" rx="2.5" class="fill-muted" />
     </svg>
+  {:else if artwork === "forge"}
+    <svg class="size-full" viewBox="0 0 240 120" fill="none">
+      <circle cx="208" cy="22" r="26" class="fill-primary-subtle" />
+      <circle cx="22" cy="100" r="10" class="fill-info-subtle" />
+
+      <!-- Conversation: the request and Forge's reply -->
+      <rect
+        x="14"
+        y="16"
+        width="104"
+        height="30"
+        rx="8"
+        class="fill-primary-subtle stroke-primary"
+        stroke-width="1.5"
+      />
+      <rect x="24" y="25" width="70" height="5" rx="2.5" class="fill-primary" />
+      <rect x="24" y="34" width="48" height="5" rx="2.5" class="fill-primary" />
+
+      <rect
+        x="14"
+        y="54"
+        width="104"
+        height="48"
+        rx="8"
+        class="fill-card stroke-border"
+        stroke-width="2"
+      />
+      <circle cx="28" cy="68" r="6" class="fill-primary-strong" />
+      <path
+        d="M25.5 70.5 29.5 66.5M28.5 65.5 31 68"
+        class="stroke-primary-foreground"
+        stroke-width="1.6"
+        stroke-linecap="round"
+      />
+      <rect x="40" y="65" width="60" height="6" rx="3" class="fill-border" />
+      <rect x="24" y="80" width="84" height="5" rx="2.5" class="fill-muted" />
+      <rect x="24" y="90" width="58" height="5" rx="2.5" class="fill-muted" />
+
+      <!-- Arrow into the new panel -->
+      <path
+        d="M124 60H138M133 55 138 60 133 65"
+        class="stroke-primary-strong"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+
+      <!-- The side panel Forge built: environment status -->
+      <rect
+        x="146"
+        y="14"
+        width="80"
+        height="92"
+        rx="7"
+        class="fill-card stroke-border"
+        stroke-width="2"
+      />
+      <rect x="146" y="14" width="80" height="20" rx="7" class="fill-muted" />
+      <rect x="146" y="27" width="80" height="7" class="fill-muted" />
+      <rect x="156" y="21" width="36" height="6" rx="3" class="fill-border" />
+
+      <circle cx="160" cy="48" r="4" class="fill-success" />
+      <rect x="170" y="45" width="22" height="6" rx="3" class="fill-border" />
+      <rect
+        x="198"
+        y="43"
+        width="20"
+        height="10"
+        rx="5"
+        class="fill-success-subtle"
+      />
+
+      <circle cx="160" cy="66" r="4" class="fill-success" />
+      <rect x="170" y="63" width="28" height="6" rx="3" class="fill-border" />
+      <rect
+        x="198"
+        y="61"
+        width="20"
+        height="10"
+        rx="5"
+        class="fill-success-subtle"
+      />
+
+      <circle
+        cx="160"
+        cy="84"
+        r="4"
+        class="fill-card stroke-warning"
+        stroke-width="2"
+      />
+      <rect x="170" y="81" width="18" height="6" rx="3" class="fill-border" />
+      <rect
+        x="198"
+        y="79"
+        width="20"
+        height="10"
+        rx="5"
+        class="fill-warning-subtle"
+      />
+
+      <rect
+        x="156"
+        y="96"
+        width="40"
+        height="4"
+        rx="2"
+        class="fill-primary-subtle"
+      />
+    </svg>
   {:else}
     <svg class="size-full" viewBox="0 0 240 120" fill="none">
       <circle cx="194" cy="25" r="13" class="fill-success-subtle" />

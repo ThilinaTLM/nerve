@@ -1,5 +1,5 @@
 <!--
-  Project settings › Skills › name: where the user approves a project skill.
+  Settings › Skills (project open) › name: where the user approves a project skill.
   Shows what the agent is told (name and description, all that enters its
   instructions) and every file the approval covers, scripts marked, each one
   click away. The full SKILL.md is not inlined.
