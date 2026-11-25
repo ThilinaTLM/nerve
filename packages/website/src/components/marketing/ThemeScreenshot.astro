@@ -9,9 +9,6 @@ interface Props {
   widths: number[];
   sizes: string;
   loading?: "eager" | "lazy" | null;
-  /* Re-encode quality. The hero passes 100 so its UI text stays crisp. */
-  quality?: number;
-  fetchpriority?: "high" | "low" | "auto";
   draggable?: boolean;
   class?: string;
 }
@@ -23,8 +20,6 @@ const {
   widths,
   sizes,
   loading = "lazy",
-  quality = 90,
-  fetchpriority,
   draggable,
   class: className = "",
 } = Astro.props;
@@ -36,12 +31,11 @@ const {
 >
   <Image
     src={dark}
-    {quality}
+    quality={90}
     {alt}
     {widths}
     {sizes}
     {loading}
-    {fetchpriority}
     {draggable}
   />
 </span>
@@ -51,12 +45,11 @@ const {
 >
   <Image
     src={light}
-    {quality}
+    quality={90}
     {alt}
     {widths}
     {sizes}
     {loading}
-    {fetchpriority}
     {draggable}
   />
 </span>

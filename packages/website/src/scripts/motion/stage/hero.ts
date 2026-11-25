@@ -1,9 +1,8 @@
 /* §1 Hero.
  *
- * Two movements. On load the copy arrives line by line and the Forge stage
- * rises into place; on scroll the composition lifts away. The build inside
- * the stage is replayed by `scripts/marketing/forge-stage.ts`, not by the
- * stage: the stage choreographs the frame, the replay owns the content.
+ * Two movements. On load the copy arrives line by line and the workbench art
+ * rises into place; on scroll the composition lifts away. The layers and the
+ * impulse inside the art are CSS animations owned by `HeroWorkbench.astro`.
  */
 
 import { revealLines } from "./primitives";
@@ -23,18 +22,12 @@ export function heroStage(): void {
   for (const wrapper of wrappers) wrapper.classList.add("is-revealed");
 
   const title = q(".display-title", hero);
-  const lede = q(".hero-lede", hero);
-  const badge = q(".badge", hero);
-  const actions = q(".hero-actions", hero);
-  const install = q(".hero-install", hero);
+  const composer = q("[data-hero-composer]", hero);
+  const meta = q(".hero-meta", hero);
   const charge = q(".hero-charge", hero);
 
   if (allowEntrance) {
     const intro = gsap.timeline({ defaults: { ease: "settle" } });
-
-    if (badge) {
-      intro.from(badge, { opacity: 0, scale: 0.9, y: 8, duration: 0.5 }, 0);
-    }
 
     /* The deck starts furthest back and takes the longest to arrive, so the
      * copy is readable well before the composition finishes settling. */
@@ -58,7 +51,7 @@ export function heroStage(): void {
       );
     }
 
-    for (const [index, target] of [actions, install].entries()) {
+    for (const [index, target] of [composer, meta].entries()) {
       if (!target) continue;
       intro.from(
         target,
@@ -79,7 +72,6 @@ export function heroStage(): void {
   }
 
   revealLines(title, { stagger: 0.09, delay: 0.05 });
-  revealLines(lede, { stagger: 0.05, delay: 0.4 });
 
   /* Scroll-out. Everything is written to custom properties because the deck
    * composes its transform from tilt and depth variables it already owns. */

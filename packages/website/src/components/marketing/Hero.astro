@@ -1,15 +1,25 @@
 ---
 /* The hero.
  *
- * Centered copy about the whole product over one real capture: a Forge
- * conversation and the panel it built, spotlit (`HeroCapture`). The capture
- * renders at native size and is never rotated or scaled at rest, so its UI
- * text stays crisp. `stage/hero.ts` owns the entrance and the scroll-out.
+ * A short headline over Nerve's own composer: example prompts type
+ * themselves into it, each under the lead profile that would take it (Forge,
+ * Coding, Planning, Lead, with the app's icons), and its send button is the
+ * install call to action. Beside it, a stylised workbench in 3D
+ * (`HeroWorkbench`) plays each sent prompt as a run. Side by side on wide screens so both fit one
+ * viewport; stacked on narrow ones.
+ *
+ * Without script the composer shows the Forge prompt. `hero-composer.ts`
+ * types the rest; `stage/hero.ts` owns the entrance and the scroll-out.
  */
 
 import DendriteField from "./DendriteField.astro";
-import HeroCapture from "./HeroCapture.astro";
+import HeroWorkbench from "./HeroWorkbench.astro";
 import Reveal from "./Reveal.astro";
+import { profileIcons } from "./hero-profiles";
+import { heroPrompts } from "../../scripts/marketing/hero-prompts";
+
+const first = heroPrompts[0]!;
+
 ---
 
 <section class="hero" data-hero>
@@ -19,77 +29,59 @@ import Reveal from "./Reveal.astro";
 
   <div class="container-page hero-shell">
     <div class="hero-copy" data-hero-copy>
-      <Reveal>
-        <span class="badge">
-          <span class="badge-dot animate-pulse-ring" aria-hidden="true"></span>
-          New · Ask Forge to build what you need
-        </span>
-      </Reveal>
-
-      <Reveal delay={80}>
+      <Reveal delay={60}>
+        <p class="hero-eyebrow">The open-source AI coding workbench</p>
         <h1 class="display-title">
-          Your AI coding workbench, <span class="gradient-text hero-charge"
-            >shaped to your project</span
-          >.
+          Describe the work. <span class="gradient-text hero-charge"
+            >Watch it ship.</span
+          >
         </h1>
       </Reveal>
 
-      <Reveal delay={160}>
-        <p class="lede hero-lede">
-          Agents that plan, code and open pull requests, with Jira, MCP and
-          your phone built in. Missing something? Ask Forge to build it.
-        </p>
-      </Reveal>
-
-      <Reveal delay={240}>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="/start/install/">
-            Install Nerve <span aria-hidden="true">→</span>
-          </a>
-          <a
-            class="btn btn-ghost"
-            href="https://github.com/ThilinaTLM/nerve"
-            aria-label="Nerve on GitHub"
-            data-github-star-link
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.35-1.3-1.7-1.3-1.7-1.05-.72.08-.71.08-.71 1.16.08 1.78 1.2 1.78 1.2 1.03 1.78 2.7 1.27 3.36.97.1-.75.4-1.27.73-1.56-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.5 3.17-1.18 3.17-1.18.63 1.59.24 2.76.12 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.2.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"
-              ></path>
-            </svg>
-            <span>Star on GitHub</span>
-            <span class="hero-star-separator" aria-hidden="true"></span>
-            <span
-              class="hero-star-count"
-              data-github-star-count
-              aria-hidden="true"
-              >00</span
-            >
-          </a>
+      <Reveal delay={160} class="hero-composer-wrap">
+        <div class="composer" data-hero-composer data-profile={first.profile}>
+          <p class="composer-input">
+            <span class="sr-only">Example prompt: </span>
+            <span data-composer-text>{first.text}</span><span class="composer-caret" aria-hidden="true"></span>
+          </p>
+          <div class="composer-bar">
+            <span class="composer-chip" aria-hidden="true">
+              {
+                Object.entries(profileIcons).map(([name, d]) => (
+                  <svg class={`composer-icon is-${name}`} viewBox="0 0 24 24">
+                    <path d={d} />
+                  </svg>
+                ))
+              }
+              <span data-composer-profile>{first.label}</span>
+            </span>
+            <a class="composer-send" href="/start/install/">
+              Install Nerve
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 19V5M5 12l7-7 7 7"></path>
+              </svg>
+            </a>
+          </div>
         </div>
       </Reveal>
 
-      <Reveal delay={320} class="hero-install">
-        <p class="meta-text">Free &amp; open source · Linux · macOS · Windows</p>
+      <Reveal delay={260}>
+        <p class="meta-text hero-meta">
+          Free &amp; open source · Linux · macOS · Windows
+        </p>
       </Reveal>
     </div>
 
     <Reveal variant="scale" delay={140} class="hero-stage">
       <div class="hero-deck" data-hero-deck>
-        <HeroCapture />
+        <HeroWorkbench />
       </div>
     </Reveal>
   </div>
 </section>
 
 <script>
-  import "../../scripts/marketing/github-stars";
+  import "../../scripts/marketing/hero-composer";
 </script>
 
 <style>
@@ -98,8 +90,6 @@ import Reveal from "./Reveal.astro";
     isolation: isolate;
     overflow: clip;
     min-height: calc(100svh - var(--nav-height));
-    /* Tight enough that the headline, lede, install command, and the whole
-     * device land inside one viewport at common laptop heights. */
     padding-block: clamp(1.5rem, 3.5vw, 4rem) clamp(2.25rem, 5vw, 5rem);
     display: grid;
     align-content: center;
@@ -108,14 +98,9 @@ import Reveal from "./Reveal.astro";
   .hero-dendrites {
     z-index: 0;
     transform: translateZ(var(--z-back));
-  }
-
-  /* Keep the dendrite branches out of the centered headline: they show at the
-   * sides and fade toward the middle. */
-  .hero-dendrites {
-    mask-image: radial-gradient(ellipse 38% 45% at 50% 32%, transparent 40%, black 100%);
+    mask-image: radial-gradient(ellipse 38% 45% at 30% 45%, transparent 40%, black 100%);
     -webkit-mask-image: radial-gradient(
-      ellipse 38% 45% at 50% 32%,
+      ellipse 38% 45% at 30% 45%,
       transparent 40%,
       black 100%
     );
@@ -124,7 +109,7 @@ import Reveal from "./Reveal.astro";
   .hero-glow {
     position: absolute;
     z-index: 0;
-    inset: 45% 15% 0 15%;
+    inset: 20% 0 10% 40%;
     background: radial-gradient(circle, var(--primary), transparent 62%);
     opacity: 0.18;
     filter: blur(90px);
@@ -140,59 +125,215 @@ import Reveal from "./Reveal.astro";
     z-index: 2;
     display: grid;
     justify-items: center;
-    gap: clamp(2.5rem, 5vw, 4rem);
+    gap: clamp(1.5rem, 4vw, 3rem);
   }
 
   .hero-copy {
     display: grid;
     justify-items: center;
-    gap: clamp(1rem, 1.8vh, 1.5rem);
-    max-width: 52rem;
+    gap: clamp(1.25rem, 2.6vh, 2rem);
+    width: min(100%, 36rem);
     text-align: center;
     transform: translateY(var(--copy-shift, 0px));
   }
 
   .hero-copy .display-title {
-    font-size: clamp(2.5rem, 1.2rem + 2.8vw, 3.9rem);
+    font-size: clamp(2.5rem, 1.2rem + 3vw, 4.4rem);
+    text-wrap: balance;
   }
 
-  .hero-lede {
-    max-width: 38rem;
+  .hero-eyebrow {
+    margin: 0 0 0.9rem;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
-  .hero-actions {
+  .hero-copy :global(.hero-composer-wrap) {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  /* Composer -------------------------------------------------------------- */
+
+  /* Drawn after the app's composer: a rounded field, the prompt, and a bar
+   * with the profile chip and the send button. */
+  .composer {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem 1rem 0.85rem 1.15rem;
+    border: 1px solid var(--hairline);
+    border-radius: 1.1rem;
+    background: color-mix(in oklab, var(--card) 88%, transparent);
+    box-shadow:
+      var(--depth-2),
+      0 0 0 1px color-mix(in oklab, var(--primary) 6%, transparent);
+    text-align: left;
+    backdrop-filter: blur(10px);
+  }
+
+  .composer-input {
+    min-height: 3.2em;
+    margin: 0;
+    color: var(--foreground);
+    font-size: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+    font-weight: 450;
+    line-height: 1.5;
+  }
+
+  .composer-caret {
+    display: inline-block;
+    width: 2px;
+    height: 1.15em;
+    margin-left: 2px;
+    vertical-align: -0.2em;
+    background: var(--primary);
+    animation: caret-blink 1.1s steps(1) infinite;
+  }
+
+  /* While a prompt is "sent" its text lifts away before the next one types. */
+  [data-composer-text] {
+    display: inline;
+    transition: color 200ms ease;
+  }
+
+  .composer-bar {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    align-items: center;
+    justify-content: space-between;
     gap: 0.75rem;
   }
 
-  .hero-star-separator {
-    width: 1px;
-    height: 1rem;
-    background-color: var(--hairline);
-  }
-
-  .hero-star-count {
-    min-width: 1.6em;
-    color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    font-variant-numeric: tabular-nums;
-    text-align: center;
-  }
-
-  .hero-install {
-    display: grid;
-    gap: 0.6rem;
-  }
-
-  .badge-dot {
-    width: 0.45rem;
-    height: 0.45rem;
+  .composer-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.75rem 0.35rem 0.6rem;
+    border: 1px solid var(--hairline);
     border-radius: var(--radius-pill);
-    background: var(--warning);
-    color: var(--warning);
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition:
+      color 300ms ease,
+      border-color 300ms ease;
+  }
+
+  .composer[data-profile="forge"] .composer-chip {
+    border-color: color-mix(in oklab, var(--signal) 55%, transparent);
+    color: var(--signal);
+  }
+
+  .composer-icon {
+    display: none;
+    width: 0.95rem;
+    height: 0.95rem;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .composer[data-profile="forge"] .is-forge,
+  .composer[data-profile="coding"] .is-coding,
+  .composer[data-profile="planning"] .is-planning,
+  .composer[data-profile="lead"] .is-lead {
+    display: block;
+  }
+
+  /* The send button, sized like the app's: compact, beside the chip. */
+  .composer-send {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.4rem;
+    height: 2rem;
+    padding-inline: 0.8rem 0.55rem;
+    border-radius: 0.6rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition:
+      box-shadow 200ms ease,
+      filter 200ms ease;
+  }
+
+  .composer-send:hover,
+  .composer-send:focus-visible {
+    box-shadow: var(--glow-primary);
+    filter: brightness(1.06);
+  }
+
+  .composer-send svg {
+    width: 0.95rem;
+    height: 0.95rem;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* While the art plays a run, the field shows the app's placeholder. */
+  .composer.is-waiting [data-composer-text] {
+    color: var(--muted-foreground);
+  }
+
+  .hero-meta {
+    margin: 0;
+  }
+
+  /* Stage ------------------------------------------------------------------ */
+
+  .hero-stage {
+    position: relative;
+    justify-self: stretch;
+    width: min(100%, 40rem);
+    margin-inline: auto;
+  }
+
+  /* The entrance writes --deck-enter-y and the scroll-out --deck-lift. */
+  .hero-deck {
+    position: relative;
+    transform: translateY(calc(var(--deck-lift, 0px) + var(--deck-enter-y, 0px)));
+  }
+
+  /* Side by side: copy left-aligned, the art taking the wider column and
+   * bleeding a little past the page edge. */
+  @media (min-width: 1024px) {
+    .hero-shell {
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: clamp(1rem, 3vw, 3rem);
+      align-items: center;
+      justify-items: start;
+    }
+
+    .hero-copy {
+      justify-items: start;
+      text-align: left;
+    }
+
+    .hero-stage {
+      width: calc(100% + clamp(0rem, 50vw - 42rem, 8rem));
+      margin-inline: 0;
+    }
+  }
+
+  @media (max-width: 1199px) {
+    .hero {
+      min-height: 0;
+    }
+  }
+
+  @media (max-width: 30rem) {
+    .composer-bar {
+      flex-wrap: wrap;
+    }
   }
 
   /* The headline's second line charges like an axon on first paint. `--charge`
@@ -222,28 +363,5 @@ import Reveal from "./Reveal.astro";
 
   :global(html[data-motion-ready]) .hero-charge {
     --charge: 0;
-  }
-
-  /* Stage ---------------------------------------------------------------- */
-
-  /* Native size: the capture is 1440 CSS px wide. */
-  .hero-stage {
-    position: relative;
-    justify-self: stretch;
-    width: min(90rem, calc(100vw - 2rem));
-    margin-inline: calc(50% - min(45rem, 50vw - 1rem));
-  }
-
-  /* The entrance writes --deck-enter-y and the scroll-out --deck-lift.
-   * Translate only: a scale or rotation would resample the capture. */
-  .hero-deck {
-    position: relative;
-    transform: translateY(calc(var(--deck-lift, 0px) + var(--deck-enter-y, 0px)));
-  }
-
-  @media (max-width: 1199px) {
-    .hero {
-      min-height: 0;
-    }
   }
 </style>
