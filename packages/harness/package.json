@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/harness",
-  "version": "0.41.1",
+  "version": "0.42.0",
   "private": true,
   "description": "Reusable model, message, compaction, conversation tree and resource library.",
   "author": "ThilinaTLM",

@@ -9,7 +9,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "forge-self-configuration",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     featured: true,
     artwork: "forge",
     title: "Tell Nerve what your project needs, and it builds it",
@@ -31,7 +31,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "mcp-servers",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     title: "Connect MCP servers",
     summary:
       "Add a server in Settings and agents reach its tools through quick script, so the prompt stays lean.",
@@ -45,7 +45,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "extension-accounts",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     title: "Accounts for your extensions",
     summary:
       "Sign in with OAuth or add an API key. Nerve encrypts credentials and refreshes them before they expire.",
@@ -59,7 +59,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "tailscale-private-access",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     title: "Reach Nerve from anywhere through Tailscale",
     summary:
       "Turn on private access to serve Nerve on your tailnet only, with no certificate setup.",
@@ -73,7 +73,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "phone-push",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     artwork: "mobile",
     title: "A focused phone app with push notifications",
     summary:
@@ -82,7 +82,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "unified-settings",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     title: "One Settings tab for you and your project",
     summary:
       "With a project open, pages show your settings and the project's side by side.",
@@ -90,7 +90,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "trust-decisions",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     title: "Trust or decline project files",
     summary:
       "Decide on each item's page. A decline sticks, and the bell lists only what still needs review.",
@@ -98,7 +98,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "profile-starters",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     artwork: "profiles",
     title: "Start a conversation from a profile",
     summary:
@@ -107,7 +107,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "launches-by-label",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     title: "Agents run your launches by name",
     summary:
       "Agents start, restart, and stop launches, and read their logs, using the labels in the Launches panel.",
@@ -115,7 +115,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "todo-chip-removed",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     title: "The agent todo list is gone",
     summary:
       "Agents no longer keep a todo list, and the composer todo chip is removed.",
@@ -123,7 +123,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "wake-recovery",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.42.0",
     title: "Recovers after your computer wakes",
     summary:
       "A desktop window that stalls after sleep now recovers by itself. Paths on Windows and macOS are steadier.",
