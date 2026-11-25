@@ -98,6 +98,7 @@ const areas = ["Chat", "Git", "Pull requests", "Launches", "Files"];
   }
 
   .float-push-icon {
+    flex: none;
     display: grid;
     place-items: center;
     width: 2.2rem;
@@ -134,6 +135,8 @@ const areas = ["Chat", "Git", "Pull requests", "Launches", "Files"];
   }
 
   .float-ok {
+    flex: none;
+    white-space: nowrap;
     padding: 0.05rem 0.5rem;
     border-radius: var(--radius-pill);
     background: color-mix(in oklab, var(--success) 18%, transparent);
@@ -178,21 +181,33 @@ const areas = ["Chat", "Git", "Pull requests", "Launches", "Files"];
     font-weight: 600;
   }
 
-  /* Narrow screens: the floats tuck in around the phone. */
+  /* Narrow screens: no room beside the phone, so the notification sits over
+   * its top edge and the address under its bottom edge, both in the flow, so
+   * neither covers the screen's content. */
   @media (max-width: 700px) {
-    .float-push {
-      top: 4%;
-      left: 50%;
-      transform: translateX(-50%);
+    .float {
+      position: relative;
+      z-index: 1;
+      max-width: calc(100% - 1rem);
       animation: none;
+    }
+
+    .float-push {
+      top: auto;
+      left: auto;
+      order: -1;
+      margin-bottom: -1.75rem;
     }
 
     .float-tunnel {
       top: auto;
-      bottom: 4%;
-      right: 50%;
-      transform: translateX(50%);
-      animation: none;
+      right: auto;
+      margin-top: -1.5rem;
+    }
+
+    .float-tunnel code {
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .float-areas {
