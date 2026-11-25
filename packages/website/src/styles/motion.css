@@ -122,77 +122,21 @@
   }
 }
 
-/* A button asking to be pressed (task journey approval). */
-@keyframes nudge {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.06);
-  }
-}
-
-/* Task journey: the impulse crosses the axon in the first 72% of the cycle
- * (6.5s of 9s, see TaskJourney.astro), then fades and waits. */
-@keyframes journey-travel {
+/* Task journey: the spark a lit station hands to the stage, travelling
+ * from the station (right) across the gap to the window (see
+ * TaskJourney.astro, `.tj-handoff`). */
+@keyframes tj-handoff {
   0% {
-    opacity: 1;
-    transform: translateX(-100%);
-  }
-  72% {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  80%,
-  100% {
     opacity: 0;
-    transform: translateX(0);
+    transform: translateX(0) scale(0.6);
   }
-}
-
-@keyframes journey-travel-down {
-  0% {
+  20% {
     opacity: 1;
-    transform: translateY(-100%);
-  }
-  72% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  80%,
-  100% {
-    opacity: 0;
-    transform: translateY(0);
-  }
-}
-
-/* Task journey: a station flashing as the impulse reaches it. */
-@keyframes station-hit {
-  0% {
-    opacity: 0.9;
-    transform: scale(1);
-  }
-  12% {
-    opacity: 0;
-    transform: scale(1.8);
+    transform: translateX(calc(-0.2 * var(--tj-gap, 4.5rem))) scale(1);
   }
   100% {
     opacity: 0;
-    transform: scale(1.8);
-  }
-}
-
-/* Task journey: the station's vignette glowing briefly on arrival. */
-@keyframes station-lift {
-  0% {
-    filter: drop-shadow(
-      0 0 14px color-mix(in oklab, var(--primary) 45%, transparent)
-    );
-  }
-  18%,
-  100% {
-    filter: drop-shadow(0 0 0 transparent);
+    transform: translateX(calc(-1 * var(--tj-gap, 4.5rem))) scale(0.8);
   }
 }
 
@@ -222,13 +166,6 @@
   100% {
     opacity: 0;
     transform: scale(1.12);
-  }
-}
-
-/* Marquee: one full copy of the track scrolls past. */
-@keyframes marquee {
-  to {
-    transform: translateX(-50%);
   }
 }
 

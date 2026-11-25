@@ -1,77 +1,1159 @@
 ---
-/* "Everything around the chat": one large real capture with numbered pins on
- * the areas that matter, each with a two-to-four word label. On narrow screens
- * the labels move into a numbered list under the picture. Pin positions are
- * percentages of the capture (`screens.workbench`); move them with the image.
+/* "Everything around the chat": the workbench drawn flat and large, in the
+ * hero's style, with numbered pins on what sits around the conversation.
+ * Four pins mark the workbench itself (projects, search, editor, Git); three
+ * mark what the Forge setup conversation added to `aurora`
+ * (`forge-setup.ts`): the Sentry errors panel, the Web dev launch and the
+ * triage prompt suggestion, drawn in place and lit in the signal colour.
+ *
+ * The layout follows the app: one active view per dock (Search on the left,
+ * Launches in the bottom dock under the chat, Git Changes on the right) and
+ * the conversation as the active centre tab. Two inactive tabs are lifted out
+ * as sheets, the way the hero explodes its layers: the `rate-limit.ts` editor
+ * tab and the Sentry errors dock tab.
+ *
+ * Sizes are container units of the window, so the drawing scales as one
+ * picture and stays crisp. The markup is the final state (all pins shown);
+ * the script hides the pins, then brings them in one by one when the section
+ * scrolls into view and keeps a couple of live details going while visible.
+ * On narrow screens the labels move into the numbered list under the art.
  */
-import DeviceFrame from "./DeviceFrame.astro";
+import BrandIcon from "./BrandIcon.astro";
 import Reveal from "./Reveal.astro";
-import ThemeScreenshot from "./ThemeScreenshot.astro";
-import { screens } from "./screens";
+import { profileIcons } from "./hero-profiles";
+import {
+  forgeSetupItems,
+  forgeSetupProject,
+} from "../../scripts/marketing/forge-setup";
+
+const item = (id: string) => {
+  const found = forgeSetupItems.find((entry) => entry.id === id);
+  if (!found) throw new Error(`forge-setup item ${id} is missing`);
+  return found;
+};
+const sentry = item("sentry-errors");
+const launch = item("web-dev");
+const suggestion = item("triage-sentry");
+const [launchLabel, launchCommand] = launch.name.split(" · ");
+
+const task = "Add rate limiting to the booking API";
+const branch = "feat/rate-limiting";
+
+/* Lucide-style glyphs for the drawn chrome (as in HeroWorkbench). */
+const glyph = {
+  chats:
+    "M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2zM18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1",
+  files: "M4 4h5l2 2h7v4H4zM4 14h5l2 2h7v4H4zM2 4v16",
+  search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3",
+  terminal: "m4 17 6-6-6-6M12 19h8",
+  bell: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0",
+  gear: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
+  branch:
+    "M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9",
+  pr: "M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 9v12M13 6h3a2 2 0 0 1 2 2v7",
+  puzzle:
+    "M10 3.5a2 2 0 0 1 4 0V5h4a1 1 0 0 1 1 1v4h-1.5a2 2 0 0 0 0 4H19v4a1 1 0 0 1-1 1h-4v-1.5a2 2 0 0 0-4 0V19H6a1 1 0 0 1-1-1v-4h1.5a2 2 0 0 0 0-4H5V6a1 1 0 0 1 1-1h4z",
+  play: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM10 8.5v7l6-3.5z",
+  folder: "M4 5h5l2 2h9v12H4z",
+  chevron: "m6 9 6 6 6-6",
+  sparkle: "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z",
+};
 
 interface Pin {
   label: string;
+  /* Position in percent of the window. */
   x: number;
   y: number;
   side: "left" | "right";
+  /* The Forge item it points at (`data-ws-target`). */
+  forge?: string;
 }
 
 const pins: Pin[] = [
-  { label: "Every project, one window", x: 14, y: 3.2, side: "right" },
-  { label: "Files and project search", x: 9, y: 27, side: "right" },
-  { label: "Built-in editor", x: 42, y: 22, side: "right" },
-  { label: "Every repo and worktree", x: 86, y: 22, side: "left" },
-  { label: "Live pull request", x: 86, y: 51, side: "left" },
+  { label: "Every project, one window", x: 22, y: 4, side: "right" },
+  { label: "Files and project search", x: 19.4, y: 21.2, side: "right" },
+  { label: "Built-in editor", x: 60, y: 17, side: "right" },
+  { label: "Repos, worktrees, PRs", x: 83.5, y: 17.2, side: "right" },
+  { label: "Forge's Sentry panel", x: 82, y: 57.5, side: "left", forge: "sentry" },
+  { label: "Forge's dev launch", x: 60, y: 85, side: "left", forge: "launch" },
+  { label: "Forge's triage prompt", x: 36, y: 61.2, side: "right", forge: "suggestion" },
+];
+
+const searchResults = [
+  {
+    file: "src/middleware/rate-limit.ts",
+    lines: [
+      ["export function ", "rateLimit", "(opts) {"],
+      ["const ", "rateLimit", "Store = new Map()"],
+    ],
+  },
+  {
+    file: "src/api/booking.ts",
+    lines: [["router.use(", "rateLimit", "({ perMinute: 30 }))"]],
+  },
+  {
+    file: "test/booking.test.ts",
+    lines: [["it(\"applies ", "rateLimit", " per key\")"]],
+  },
+];
+
+/* The editor's lines: [indent, ...tokens] with a token kind each. */
+type Token = [kind: "kw" | "fn" | "str" | "num" | "txt" | "cm", text: string];
+const code: [number, ...Token[]][] = [
+  [0, ["kw", "export function "], ["fn", "rateLimit"], ["txt", "({ perMinute }) {"]],
+  [1, ["kw", "return "], ["txt", "(req, res, next) => {"]],
+  [2, ["kw", "const "], ["txt", "key = req.headers["], ["str", '"x-api-key"'], ["txt", "];"]],
+  [2, ["kw", "const "], ["txt", "bucket = "], ["fn", "take"], ["txt", "(key, perMinute);"]],
+  [2, ["kw", "if "], ["txt", "(bucket.empty) "], ["kw", "return "], ["txt", "res."], ["fn", "status"], ["txt", "("], ["num", "429"], ["txt", ").end();"]],
+  [2, ["fn", "next"], ["txt", "();"]],
+  [1, ["txt", "};"]],
+  [0, ["txt", "}"]],
+];
+
+const repos = [
+  { name: forgeSetupProject, branch: "main", worktree: false },
+  { name: `${forgeSetupProject}-rate-limit`, branch, worktree: true },
+  { name: `${forgeSetupProject}-docs`, branch: "main", worktree: false },
+];
+
+const sentryIssues = [
+  { title: "TimeoutError", where: "booking/confirm", count: 24 },
+  { title: "TypeError", where: "venues/search", count: 9 },
+  { title: "RangeError", where: "slots/next", count: 3 },
 ];
 ---
 
-<Reveal variant="scale" class="spots">
-  <div class="spots-stage">
-    <DeviceFrame label="nerve · aurora" depth={2}>
-      <ThemeScreenshot
-        light={screens.workbench.light}
-        dark={screens.workbench.dark}
-        alt={screens.workbench.alt}
-        widths={[960, 1440, 1920, 2400, 2880]}
-        sizes="(min-width: 1520px) 1440px, calc(100vw - 2rem)"
-      />
-    </DeviceFrame>
-    <ol class="spots-pins" aria-hidden="true">
-      {
-        pins.map((pin, index) => (
-          <li
-            class="spot"
-            data-side={pin.side}
-            style={`left:${pin.x}%;top:calc(${pin.y}% + 2rem)`}
-          >
-            <span class="spot-pin">{index + 1}</span>
-            <span class="spot-label">{pin.label}</span>
-          </li>
-        ))
-      }
-    </ol>
+<Reveal variant="scale" class="ws" data-workbench-spots>
+  <div class="ws-stage">
+    <div
+      class="ws-window"
+      role="img"
+      aria-label={`An illustration of the Nerve workbench on the ${forgeSetupProject} project: project tabs in the title bar, project search on the left, the conversation "${task}" with the ${suggestion.name} suggestion above the composer, the ${launchLabel} launch running in the Launches panel below it, the Git panel with repositories, a worktree on ${branch} and pull request #42, and two lifted tabs: the rate-limit.ts editor and the ${sentry.name} panel Forge built.`}
+    >
+      <div class="ws-art" aria-hidden="true">
+        <!-- Title bar: project tabs, bell, settings. -->
+        <div class="ws-titlebar">
+          <img class="ws-logo" src="/favicon.svg" alt="" />
+          <span class="ws-tab is-active">{forgeSetupProject}</span>
+          <span class="ws-tab">northstar</span>
+          <span class="ws-tab">relayboard</span>
+          <span class="ws-titlebar-end">
+            <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.bell} /></svg>
+            <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.gear} /></svg>
+          </span>
+        </div>
+
+        <!-- Left dock: Search. -->
+        <div class="ws-panel ws-left">
+          <div class="ws-icon-tabs">
+            <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.chats} /></svg>
+            <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.files} /></svg>
+            <svg class="ws-glyph is-active" viewBox="0 0 24 24"><path d={glyph.search} /></svg>
+            <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.terminal} /></svg>
+          </div>
+          <span class="ws-title">Search</span>
+          <span class="ws-field">
+            <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.search} /></svg>
+            <span class="ws-mono">rateLimit</span>
+          </span>
+          <span class="ws-muted">4 results in 3 files</span>
+          {
+            searchResults.map((result) => (
+              <div class="ws-result">
+                <span class="ws-result-file">
+                  <svg class="ws-glyph" viewBox="0 0 24 24">
+                    <path d={glyph.chevron} />
+                  </svg>
+                  <span>{result.file.split("/").pop()}</span>
+                  <span class="ws-result-dir">
+                    {result.file.split("/").slice(0, -1).join("/")}
+                  </span>
+                </span>
+                {result.lines.map(([before, match, after]) => (
+                  <span class="ws-result-line">
+                    {before}
+                    <mark>{match}</mark>
+                    {after}
+                  </span>
+                ))}
+              </div>
+            ))
+          }
+        </div>
+
+        <!-- Centre: the conversation tab, then the bottom dock. -->
+        <div class="ws-centre">
+          <div class="ws-panel ws-chat">
+            <div class="ws-tabstrip">
+              <span class="ws-ctab is-active">
+                <span class="ws-dot is-primary"></span>{task}
+              </span>
+              <span class="ws-ctab is-lifted">rate-limit.ts</span>
+            </div>
+            <div class="ws-transcript">
+              <div class="ws-bubble">{task}</div>
+              <div class="ws-step">
+                <span class="ws-check"></span><code>edit</code>
+                <span class="ws-mono">src/api/booking.ts</span>
+              </div>
+              <p class="ws-reply">Limits are in and tests pass. Opened PR #42.</p>
+            </div>
+            <div class="ws-suggestions">
+              <span class="ws-suggestion is-forge" data-ws-target="suggestion">
+                <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.sparkle} /></svg>
+                {suggestion.name}
+              </span>
+            </div>
+            <div class="ws-composer">
+              <p class="ws-input">
+                <span class="ws-caret"></span><span class="ws-placeholder"
+                  >Ask the local Nerve agent</span
+                >
+              </p>
+              <div class="ws-composer-bar">
+                <span class="ws-chip">
+                  <svg class="ws-glyph" viewBox="0 0 24 24"><path d={profileIcons.coding} /></svg>
+                  Coding
+                </span>
+                <span class="ws-send"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="ws-panel ws-bottom">
+            <div class="ws-bottom-head">
+              <svg class="ws-glyph is-active" viewBox="0 0 24 24"><path d={glyph.terminal} /></svg>
+              <span class="ws-title">Launches</span>
+              <span class="ws-badge">1 running</span>
+            </div>
+            <div class="ws-launch is-forge" data-ws-target="launch">
+              <svg class="ws-glyph is-ok" viewBox="0 0 24 24"><path d={glyph.play} /></svg>
+              <span class="ws-launch-name">{launchLabel}</span>
+              <span class="ws-mono ws-muted">{launchCommand}</span>
+              <span class="ws-launch-state" data-ws-live-dot></span>
+            </div>
+            <div class="ws-launch is-off">
+              <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.play} /></svg>
+              <span class="ws-launch-name">Tests</span>
+              <span class="ws-mono ws-muted">pnpm test --watch</span>
+              <span class="ws-launch-state"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right dock: Git Changes, with the Sentry tab lifted out. -->
+        <div class="ws-panel ws-right">
+          <div class="ws-icon-tabs">
+            <svg class="ws-glyph is-active" viewBox="0 0 24 24"><path d={glyph.branch} /></svg>
+            <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.pr} /></svg>
+            <span class="ws-tab-brand is-lifted"><BrandIcon name="sentry" size={12} /></span>
+          </div>
+          <span class="ws-title">Git Changes</span>
+          <div class="ws-tree">
+            {
+              repos.map((repo) => (
+                <div class:list={["ws-repo", { "is-current": repo.worktree }]}>
+                  <span class="ws-repo-head">
+                    <svg class="ws-glyph" viewBox="0 0 24 24">
+                      <path d={glyph.folder} />
+                    </svg>
+                    <span>{repo.name}</span>
+                    {repo.worktree && <span class="ws-pill">worktree</span>}
+                  </span>
+                  <span class="ws-repo-branch">
+                    <svg class="ws-glyph" viewBox="0 0 24 24">
+                      <path d={glyph.branch} />
+                    </svg>
+                    <span class="ws-mono">{repo.branch}</span>
+                  </span>
+                  {repo.worktree && (
+                    <div class="ws-pr">
+                      <span class="ws-pr-head">
+                        <svg class="ws-glyph is-ok" viewBox="0 0 24 24">
+                          <path d={glyph.pr} />
+                        </svg>
+                        <b>#42</b>
+                        <span class="ws-pill is-ok">Open</span>
+                      </span>
+                      <span>{task}</span>
+                      <span class="ws-pr-checks">
+                        <span class="ws-check" />
+                        Checks passed
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        <div class="ws-statusbar">
+          <span class="ws-mono">~/{forgeSetupProject}</span>
+          <svg class="ws-glyph" viewBox="0 0 24 24"><path d={glyph.branch} /></svg>
+          <span class="ws-mono">{branch}</span>
+          <span class="ws-status-end">
+            <svg class="ws-glyph is-ok" viewBox="0 0 24 24"><path d={glyph.play} /></svg>1
+            <span class="ws-dot is-ok"></span>Connected
+          </span>
+        </div>
+
+        <!-- Lifted tabs: the editor and the Sentry panel. -->
+        <div class="ws-sheet ws-editor">
+          <div class="ws-sheet-head">
+            <span class="ws-mono">rate-limit.ts</span>
+            <span class="ws-muted ws-mono">src/middleware</span>
+          </div>
+          <div class="ws-code">
+            {
+              code.map(([indent, ...tokens], index) => (
+                <span class="ws-code-line">
+                  <span class="ws-code-num">{index + 1}</span>
+                  <span style={`padding-left:${indent * 1.6}em`}>
+                    {tokens.map(([kind, text]) => (
+                      <span class={`tk-${kind}`}>{text}</span>
+                    ))}
+                  </span>
+                </span>
+              ))
+            }
+          </div>
+        </div>
+
+        <div class="ws-sheet ws-sentry is-forge" data-ws-target="sentry">
+          <div class="ws-sheet-head">
+            <span class="ws-brand"><BrandIcon name="sentry" size={14} /></span>
+            <b>{sentry.name}</b>
+            <span class="ws-tag">
+              <svg class="ws-glyph" viewBox="0 0 24 24"><path d={profileIcons.forge} /></svg>
+              Built by Forge
+            </span>
+          </div>
+          {
+            sentryIssues.map((issue, index) => (
+              <div class="ws-issue">
+                <span class:list={["ws-dot", index === 0 ? "is-bad" : "is-warn"]} />
+                <span class="ws-issue-text">
+                  <b>{issue.title}</b>
+                  <span class="ws-mono ws-muted">{issue.where}</span>
+                </span>
+                <span class="ws-count" data-ws-count={index === 0 ? "" : undefined}>
+                  {issue.count}
+                </span>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      <ol class="ws-pins" aria-hidden="true">
+        {
+          pins.map((pin, index) => (
+            <li
+              class:list={["ws-spot", { "is-forge": pin.forge }]}
+              data-side={pin.side}
+              data-ws-for={pin.forge}
+              data-ws-pin
+              style={`left:${pin.x}%;top:${pin.y}%;--i:${index}`}
+            >
+              <span class="ws-pin">{index + 1}</span>
+              <span class="ws-label">{pin.label}</span>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
   </div>
-  <ol class="spots-list">
-    {pins.map((pin) => <li>{pin.label}</li>)}
+
+  <ol class="ws-list">
+    {
+      pins.map((pin) => (
+        <li class:list={{ "is-forge": pin.forge }}>{pin.label}</li>
+      ))
+    }
   </ol>
+  <p class="ws-legend">
+    <span class="ws-legend-dot" aria-hidden="true"></span>
+    Set up in one Forge conversation
+  </p>
 </Reveal>
 
+<script>
+  /* Pins come in one by one when the art scrolls into view, the workbench
+   * points first, then the three Forge items, each lighting its target.
+   * After that the launch dot breathes and the top Sentry issue counts up,
+   * only while the art is on screen. Without script, or with reduced motion,
+   * the markup's final state stays. */
+  const PIN_MS = 260;
+  const FORGE_PAUSE_MS = 500;
+  const LIVE_MS = 1600;
+
+  function start(): void {
+    const root = document.querySelector<HTMLElement>("[data-workbench-spots]");
+    if (!root) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const pins = [...root.querySelectorAll<HTMLElement>("[data-ws-pin]")];
+    const dot = root.querySelector<HTMLElement>("[data-ws-live-dot]");
+    const count = root.querySelector<HTMLElement>("[data-ws-count]");
+    root.dataset.armed = "";
+
+    let visible = false;
+    let played = false;
+    let tick = 0;
+
+    const wait = async (ms: number) => {
+      let left = ms;
+      while (left > 0) {
+        const step = Math.min(left, 40);
+        await new Promise((resolve) => setTimeout(resolve, step));
+        if (visible && !document.hidden) left -= step;
+      }
+    };
+
+    const play = async () => {
+      for (const [index, pin] of pins.entries()) {
+        const forge = pin.classList.contains("is-forge");
+        if (forge && !pins[index - 1]?.classList.contains("is-forge")) {
+          await wait(FORGE_PAUSE_MS);
+        }
+        pin.classList.add("is-on");
+        const target = pin.dataset.wsFor;
+        if (target) {
+          root
+            .querySelector(`[data-ws-target="${target}"]`)
+            ?.classList.add("is-lit");
+        }
+        await wait(PIN_MS);
+      }
+      for (;;) {
+        await wait(LIVE_MS);
+        tick += 1;
+        dot?.classList.toggle("is-dim", tick % 2 === 1);
+        if (count && tick % 4 === 0 && tick <= 40) {
+          count.textContent = String(Number(count.textContent) + 1);
+          count.classList.add("is-bumped");
+          setTimeout(() => count.classList.remove("is-bumped"), 400);
+        }
+      }
+    };
+
+    new IntersectionObserver(
+      ([entry]) => {
+        visible = Boolean(entry?.isIntersecting);
+        if (visible && !played) {
+          played = true;
+          void play();
+        }
+      },
+      { threshold: 0.35 },
+    ).observe(root);
+  }
+
+  start();
+</script>
+
 <style>
-  /* The capture is a 1440px-wide desktop at 2x. Breaking out of the text
-   * column lets it render at its native scale on common laptop widths, so
-   * small UI text stays crisp instead of being shrunk. */
-  .spots {
+  /* Breaks out of the text column like a full-width figure. */
+  .ws {
     display: grid;
-    gap: 1.25rem;
-    width: min(90rem, calc(100vw - 2rem));
-    margin-inline: calc(50% - min(45rem, 50vw - 1rem));
+    gap: 1rem;
+    width: min(80rem, calc(100vw - 2rem));
+    margin-inline: calc(50% - min(40rem, 50vw - 1rem));
   }
 
-  .spots-stage {
+  .ws-stage {
+    padding-top: 2%;
+  }
+
+  /* The window; every size inside is in units of its width. */
+  .ws-window {
+    container-type: inline-size;
     position: relative;
+    aspect-ratio: 1.72;
   }
 
-  .spots-pins {
+  .ws-art {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: 19% 1fr 25%;
+    grid-template-rows: 4.6cqw 1fr 2.6cqw;
+    gap: 0.8cqw;
+    padding: 0 0.8cqw;
+    border: 1px solid var(--hairline);
+    border-radius: 1.2cqw;
+    background: color-mix(in oklab, var(--card) 92%, var(--background));
+    box-shadow:
+      0 3cqw 6cqw -2cqw color-mix(in oklab, black 40%, transparent),
+      0 0 0 1px color-mix(in oklab, var(--primary) 8%, transparent);
+    color: var(--muted-foreground);
+    font-size: 0.95cqw;
+    line-height: 1.3;
+  }
+
+  /* Shared pieces ---------------------------------------------------------- */
+
+  .ws-glyph {
+    flex: none;
+    width: 1.2cqw;
+    height: 1.2cqw;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .ws-glyph.is-active {
+    color: var(--foreground);
+  }
+
+  .ws-mono {
+    font-family: var(--font-mono);
+  }
+
+  .ws-muted {
+    color: var(--muted-foreground);
+  }
+
+  .ws-title {
+    color: var(--foreground);
+    font-weight: 700;
+  }
+
+  .ws-dot {
+    flex: none;
+    width: 0.65cqw;
+    height: 0.65cqw;
+    border-radius: 50%;
+    background: color-mix(in oklab, var(--foreground) 25%, transparent);
+  }
+
+  .ws-dot.is-primary {
+    background: var(--primary);
+  }
+
+  .ws-dot.is-ok {
+    background: var(--success);
+  }
+
+  .ws-dot.is-warn {
+    background: var(--warning);
+  }
+
+  .ws-dot.is-bad {
+    background: var(--destructive);
+  }
+
+  .is-ok {
+    color: var(--success);
+  }
+
+  .ws-pill {
+    padding: 0.1cqw 0.6cqw;
+    border-radius: 0.4cqw;
+    background: color-mix(in oklab, currentcolor 14%, transparent);
+    font-size: 0.8cqw;
+    font-weight: 600;
+  }
+
+  .ws-check {
+    position: relative;
+    flex: none;
+    width: 1.1cqw;
+    height: 1.1cqw;
+    border-radius: 50%;
+    background: color-mix(in oklab, var(--success) 22%, transparent);
+  }
+
+  .ws-check::after {
+    content: "";
+    position: absolute;
+    top: 22%;
+    left: 36%;
+    width: 25%;
+    height: 45%;
+    border: solid var(--success);
+    border-width: 0 0.16cqw 0.16cqw 0;
+    transform: rotate(45deg);
+  }
+
+  .ws-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7cqw;
+    min-width: 0;
+    min-height: 0;
+    padding: 1cqw;
+    border: 1px solid var(--hairline);
+    border-radius: 0.8cqw;
+    background: var(--card);
+  }
+
+  .ws-icon-tabs {
+    display: flex;
+    align-items: center;
+    gap: 1.1cqw;
+    padding-bottom: 0.7cqw;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  /* A Forge item: outlined in the signal colour once lit. */
+  .is-forge[data-ws-target] {
+    border-color: color-mix(in oklab, var(--signal) 70%, transparent);
+    box-shadow: 0 0 2cqw color-mix(in oklab, var(--signal) 26%, transparent);
+    transition:
+      border-color 500ms ease,
+      box-shadow 500ms ease;
+  }
+
+  /* Title bar and status bar ---------------------------------------------- */
+
+  .ws-titlebar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 1.3cqw;
+    padding-inline: 0.6cqw;
+    border-bottom: 1px solid var(--hairline);
+    margin-inline: -0.8cqw;
+    padding-left: 1.4cqw;
+    padding-right: 1.4cqw;
+  }
+
+  .ws-logo {
+    width: 1.5cqw;
+    height: 1.5cqw;
+  }
+
+  .ws-tab.is-active {
+    padding: 0.2cqw 0.7cqw;
+    border-radius: 0.4cqw;
+    background: color-mix(in oklab, var(--primary) 12%, transparent);
+    color: var(--foreground);
+  }
+
+  .ws-titlebar-end,
+  .ws-status-end {
+    display: flex;
+    align-items: center;
+    gap: 1cqw;
+    margin-left: auto;
+  }
+
+  .ws-statusbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0.6cqw;
+    margin-inline: -0.8cqw;
+    padding-inline: 1.4cqw;
+    border-top: 1px solid var(--hairline);
+    font-size: 0.8cqw;
+  }
+
+  .ws-statusbar .ws-glyph {
+    width: 0.9cqw;
+    height: 0.9cqw;
+  }
+
+  .ws-status-end {
+    gap: 0.5cqw;
+  }
+
+  .ws-status-end .ws-dot {
+    margin-left: 0.8cqw;
+  }
+
+  /* Left dock: Search ------------------------------------------------------ */
+
+  .ws-field {
+    display: flex;
+    align-items: center;
+    gap: 0.6cqw;
+    padding: 0.45cqw 0.6cqw;
+    border: 1px solid color-mix(in oklab, var(--primary) 50%, transparent);
+    border-radius: 0.5cqw;
+    color: var(--foreground);
+  }
+
+  .ws-result {
+    display: grid;
+    gap: 0.3cqw;
+  }
+
+  .ws-result-file {
+    display: flex;
+    align-items: center;
+    gap: 0.4cqw;
+    overflow: hidden;
+    color: var(--foreground);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .ws-result-file .ws-glyph {
+    width: 0.9cqw;
+    height: 0.9cqw;
+  }
+
+  .ws-result-dir {
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: 0.8cqw;
+    font-weight: 400;
+    text-overflow: ellipsis;
+  }
+
+  .ws-result-line {
+    overflow: hidden;
+    padding-left: 1.3cqw;
+    font-family: var(--font-mono);
+    font-size: 0.8cqw;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ws-result-line mark {
+    border-radius: 0.2cqw;
+    background: color-mix(in oklab, var(--warning) 30%, transparent);
+    color: var(--foreground);
+  }
+
+  /* Centre: chat and the bottom dock ---------------------------------------- */
+
+  .ws-centre {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 0.8cqw;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .ws-chat {
+    gap: 0.9cqw;
+  }
+
+  .ws-tabstrip {
+    display: flex;
+    gap: 0.4cqw;
+    padding-bottom: 0.6cqw;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .ws-ctab {
+    display: flex;
+    align-items: center;
+    gap: 0.6cqw;
+    padding: 0.3cqw 0.8cqw;
+    border-radius: 0.5cqw;
+    white-space: nowrap;
+  }
+
+  .ws-ctab.is-active {
+    background: color-mix(in oklab, var(--foreground) 7%, transparent);
+    color: var(--foreground);
+  }
+
+  .ws-ctab.is-lifted {
+    font-family: var(--font-mono);
+    border: 1px dashed var(--hairline);
+  }
+
+  .ws-transcript {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0.7cqw;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .ws-bubble {
+    align-self: flex-end;
+    padding: 0.6cqw 1cqw;
+    border-radius: 0.8cqw;
+    background: color-mix(in oklab, var(--foreground) 9%, transparent);
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  .ws-step {
+    display: flex;
+    align-items: center;
+    gap: 0.8cqw;
+    padding: 0.5cqw 0.8cqw;
+    border: 1px solid var(--hairline);
+    border-radius: 0.6cqw;
+    white-space: nowrap;
+  }
+
+  .ws-step code {
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-weight: 600;
+  }
+
+  .ws-reply {
+    margin: 0;
+    color: var(--foreground);
+  }
+
+  .ws-suggestions {
+    display: flex;
+    gap: 0.5cqw;
+  }
+
+  .ws-suggestion {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5cqw;
+    padding: 0.35cqw 0.8cqw;
+    border: 1px solid var(--hairline);
+    border-radius: 0.5cqw;
+    color: var(--foreground);
+  }
+
+  .ws-suggestion .ws-glyph {
+    width: 1cqw;
+    height: 1cqw;
+    color: var(--primary);
+  }
+
+  .ws-composer {
+    display: grid;
+    gap: 0.8cqw;
+    padding: 0.8cqw 0.8cqw 0.8cqw 1cqw;
+    border: 1px solid var(--hairline);
+    border-radius: 0.8cqw;
+  }
+
+  .ws-input {
+    margin: 0;
+    font-size: 1.05cqw;
+  }
+
+  .ws-caret {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.1em;
+    margin-right: 0.1cqw;
+    vertical-align: -0.18em;
+    background: var(--primary);
+    animation: caret-blink 1.1s steps(1) infinite;
+  }
+
+  .ws-composer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .ws-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5cqw;
+    padding: 0.3cqw 0.8cqw;
+    border: 1px solid var(--hairline);
+    border-radius: 0.8cqw;
+    font-weight: 600;
+  }
+
+  .ws-send {
+    width: 1.8cqw;
+    height: 1.8cqw;
+    border-radius: 0.5cqw;
+    background: var(--primary);
+  }
+
+  .ws-bottom {
+    gap: 0.6cqw;
+  }
+
+  .ws-bottom-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6cqw;
+  }
+
+  .ws-badge {
+    padding: 0.1cqw 0.6cqw;
+    border-radius: 0.4cqw;
+    background: color-mix(in oklab, var(--info, var(--primary)) 16%, transparent);
+    color: var(--foreground);
+    font-size: 0.8cqw;
+    font-weight: 600;
+  }
+
+  .ws-launch {
+    display: flex;
+    align-items: center;
+    gap: 0.8cqw;
+    padding: 0.5cqw 0.8cqw;
+    border: 1px solid var(--hairline);
+    border-radius: 0.6cqw;
+    white-space: nowrap;
+  }
+
+  .ws-launch-name {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  .ws-launch-state {
+    width: 0.8cqw;
+    height: 0.8cqw;
+    margin-left: auto;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 0.3cqw color-mix(in oklab, var(--success) 20%, transparent);
+    transition:
+      opacity 700ms ease,
+      scale 700ms ease;
+  }
+
+  .ws-launch-state:global(.is-dim) {
+    opacity: 0.45;
+    scale: 0.8;
+  }
+
+  .ws-launch.is-off .ws-launch-name {
+    color: var(--muted-foreground);
+  }
+
+  .ws-launch.is-off .ws-launch-state {
+    background: color-mix(in oklab, var(--foreground) 25%, transparent);
+    box-shadow: none;
+  }
+
+  /* Right dock: Git Changes ------------------------------------------------ */
+
+  .ws-tab-brand {
+    display: grid;
+    padding: 0.15cqw;
+    border-radius: 0.3cqw;
+    color: var(--signal);
+    outline: 1px dashed color-mix(in oklab, var(--signal) 60%, transparent);
+    outline-offset: 0.2cqw;
+  }
+
+  .ws-tab-brand :global(svg) {
+    width: 1.1cqw;
+    height: 1.1cqw;
+  }
+
+  .ws-tree {
+    display: grid;
+    gap: 0.5cqw;
+  }
+
+  .ws-repo {
+    display: grid;
+    gap: 0.3cqw;
+    padding: 0.5cqw 0.6cqw;
+    border-radius: 0.5cqw;
+  }
+
+  .ws-repo.is-current {
+    background: color-mix(in oklab, var(--primary) 9%, transparent);
+  }
+
+  .ws-repo-head,
+  .ws-repo-branch {
+    display: flex;
+    align-items: center;
+    gap: 0.5cqw;
+    white-space: nowrap;
+  }
+
+  .ws-repo-head {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  .ws-repo-branch {
+    padding-left: 1.7cqw;
+    font-size: 0.85cqw;
+  }
+
+  .ws-repo-branch .ws-glyph {
+    width: 0.9cqw;
+    height: 0.9cqw;
+  }
+
+  .ws-pr {
+    display: grid;
+    gap: 0.35cqw;
+    margin: 0.2cqw 0 0 1.7cqw;
+    padding: 0.7cqw;
+    border: 1px solid var(--hairline);
+    border-radius: 0.6cqw;
+    background: var(--card);
+    color: var(--foreground);
+  }
+
+  .ws-pr-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5cqw;
+    font-family: var(--font-mono);
+  }
+
+  .ws-pr-checks {
+    display: flex;
+    align-items: center;
+    gap: 0.5cqw;
+    color: var(--success);
+    font-size: 0.85cqw;
+  }
+
+  .ws-pr-checks .ws-check {
+    width: 0.95cqw;
+    height: 0.95cqw;
+  }
+
+  /* Lifted sheets ----------------------------------------------------------- */
+
+  .ws-sheet {
+    position: absolute;
+    display: grid;
+    align-content: start;
+    gap: 0.6cqw;
+    padding: 0.9cqw 1.1cqw;
+    border: 1px solid var(--hairline);
+    border-radius: 0.9cqw;
+    background: var(--card);
+    box-shadow: 0 2.4cqw 4cqw -1.6cqw color-mix(in oklab, black 55%, transparent);
+  }
+
+  .ws-sheet-head {
+    display: flex;
+    align-items: center;
+    gap: 0.7cqw;
+    padding-bottom: 0.6cqw;
+    border-bottom: 1px solid var(--hairline);
+    color: var(--foreground);
+    white-space: nowrap;
+  }
+
+  .ws-editor {
+    top: 17%;
+    left: 35%;
+    width: 36%;
+  }
+
+  .ws-code {
+    display: grid;
+    gap: 0.15cqw;
+    font-family: var(--font-mono);
+    font-size: 0.85cqw;
+    white-space: nowrap;
+  }
+
+  .ws-code-line {
+    display: flex;
+    gap: 1cqw;
+    color: var(--foreground);
+  }
+
+  .ws-code-num {
+    width: 1.2cqw;
+    color: var(--muted-foreground);
+    text-align: right;
+    opacity: 0.6;
+  }
+
+  .tk-kw {
+    color: var(--primary);
+  }
+
+  .tk-fn {
+    color: var(--signal);
+  }
+
+  .tk-str {
+    color: var(--success);
+  }
+
+  .tk-num {
+    color: var(--warning);
+  }
+
+  .tk-cm {
+    color: var(--muted-foreground);
+    font-style: italic;
+  }
+
+  .ws-sentry {
+    top: 57.5%;
+    left: 73%;
+    width: 26%;
+  }
+
+  .ws-brand {
+    display: grid;
+    color: var(--foreground);
+  }
+
+  .ws-brand :global(svg) {
+    width: 1.2cqw;
+    height: 1.2cqw;
+  }
+
+  .ws-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4cqw;
+    margin-left: auto;
+    padding: 0.2cqw 0.7cqw;
+    border-radius: 0.8cqw;
+    background: color-mix(in oklab, var(--signal) 18%, transparent);
+    color: var(--signal);
+    font-size: 0.8cqw;
+    font-weight: 700;
+  }
+
+  .ws-tag .ws-glyph {
+    width: 0.9cqw;
+    height: 0.9cqw;
+  }
+
+  .ws-issue {
+    display: flex;
+    align-items: center;
+    gap: 0.8cqw;
+    padding: 0.3cqw 0;
+  }
+
+  .ws-issue-text {
+    display: grid;
+    color: var(--foreground);
+  }
+
+  .ws-issue-text .ws-mono {
+    font-size: 0.8cqw;
+  }
+
+  .ws-count {
+    margin-left: auto;
+    padding: 0.1cqw 0.6cqw;
+    border-radius: 0.4cqw;
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-size: 0.85cqw;
+    transition: scale 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .ws-count:global(.is-bumped) {
+    scale: 1.25;
+  }
+
+  /* Pins -------------------------------------------------------------------- */
+
+  .ws-pins {
     position: absolute;
     inset: 0;
     margin: 0;
@@ -80,88 +1162,154 @@ const pins: Pin[] = [
     pointer-events: none;
   }
 
-  .spot {
+  .ws-spot {
     position: absolute;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    transform: translate(-1rem, -50%);
+    transform: translate(-0.9rem, -50%);
+    transition:
+      opacity 320ms ease,
+      translate 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
-  .spot[data-side="left"] {
+  .ws-spot[data-side="left"] {
     flex-direction: row-reverse;
-    transform: translate(calc(-100% + 1rem), -50%);
+    transform: translate(calc(-100% + 0.9rem), -50%);
   }
 
-  .spot-pin {
+  .ws-pin {
     position: relative;
     display: grid;
+    flex: none;
     place-items: center;
-    width: 2rem;
-    height: 2rem;
+    width: 1.8rem;
+    height: 1.8rem;
     border-radius: var(--radius-pill);
     background: var(--primary);
     color: var(--primary-foreground);
     font-family: var(--font-mono);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
     box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 25%, transparent);
   }
 
-  .spot-pin::after {
+  .ws-spot.is-forge .ws-pin {
+    background: var(--signal);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--signal) 28%, transparent);
+  }
+
+  .ws-pin::after {
     content: "";
     position: absolute;
     inset: 0;
-    border-radius: inherit;
-    background: var(--primary);
-    animation: pin-breathe 2.6s ease-out infinite;
     z-index: -1;
+    border-radius: inherit;
+    background: inherit;
+    animation: pin-breathe 2.6s ease-out infinite;
   }
 
-  .spot-label {
-    padding: 0.4rem 0.75rem;
+  .ws-label {
+    padding: 0.35rem 0.7rem;
     border: 1px solid var(--myelin);
     border-radius: var(--radius-pill);
     background: color-mix(in oklab, var(--card) 90%, transparent);
     box-shadow: var(--depth-2);
-    font-size: 0.9rem;
+    color: var(--foreground);
+    font-size: 0.85rem;
     font-weight: 600;
     white-space: nowrap;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
 
-  .spots-list {
+  .ws-spot.is-forge .ws-label {
+    border-color: color-mix(in oklab, var(--signal) 55%, transparent);
+  }
+
+  /* Armed by the script: pins wait to be called in, Forge items to be lit. */
+  .ws[data-armed] .ws-spot:not(:global(.is-on)) {
+    opacity: 0;
+    translate: 0 0.4rem;
+  }
+
+  .ws[data-armed] .is-forge[data-ws-target]:not(:global(.is-lit)) {
+    border-color: var(--hairline);
+    box-shadow: none;
+  }
+
+  .ws[data-armed] .ws-sentry:not(:global(.is-lit)) {
+    box-shadow: 0 2.4cqw 4cqw -1.6cqw color-mix(in oklab, black 55%, transparent);
+  }
+
+  /* Legend and narrow-screen list ------------------------------------------ */
+
+  .ws-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+  }
+
+  .ws-legend-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: var(--signal);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--signal) 25%, transparent);
+  }
+
+  .ws-list {
     display: none;
     margin: 0;
     padding-left: 1.5rem;
+    list-style: decimal;
     color: var(--muted-foreground);
   }
 
-  .spots-list li::marker {
+  .ws-list li::marker {
     color: var(--primary);
     font-family: var(--font-mono);
   }
 
+  .ws-list li.is-forge::marker {
+    color: var(--signal);
+  }
+
   @media (max-width: 860px) {
-    .spot-label {
+    .ws-label {
       display: none;
     }
 
-    .spot,
-    .spot[data-side="left"] {
+    .ws-spot,
+    .ws-spot[data-side="left"] {
       transform: translate(-50%, -50%);
     }
 
-    .spot-pin {
-      width: 1.5rem;
-      height: 1.5rem;
-      font-size: 0.7rem;
+    .ws-pin {
+      width: 1.2rem;
+      height: 1.2rem;
+      font-size: 0.6rem;
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 25%, transparent);
     }
 
-    .spots-list {
+    .ws-list {
       display: grid;
       gap: 0.35rem;
+    }
+
+    .ws-legend {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ws-caret,
+    .ws-pin::after {
+      animation: none;
     }
   }
 </style>

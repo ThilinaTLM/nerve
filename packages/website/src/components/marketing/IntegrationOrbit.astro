@@ -1,17 +1,30 @@
 ---
 /* "Plugged into your stack": Nerve at the hub, what ships built in on the inner
  * ring (solid wires carrying impulses), and services a team connects by asking
- * Forge for an extension on the outer ring (dashed). One picture says both
- * "it already talks to your tools" and "it can talk to the rest".
+ * Forge on the outer ring (dashed). The two the Forge setup above added
+ * (`forge-setup.ts`: Linear as an MCP server, Sentry as an extension) join
+ * when the section scrolls into view: their wire draws in from the hub, the
+ * node lights and an "Added by Forge" tag appears. The markup shows them
+ * joined, so the art reads the same without script or motion.
  */
 import BrandIcon from "./BrandIcon.astro";
 import type { BrandIconName } from "./brand-icons";
+import { forgeSetupItems } from "../../scripts/marketing/forge-setup";
 
 interface Node {
   label: string;
   brand?: BrandIconName;
   glyph?: string;
 }
+
+/* The outer services the Forge setup connected, by brand, with how. */
+const added = new Map(
+  forgeSetupItems.flatMap((item) =>
+    item.brand && (item.kind === "mcp" || item.kind === "extension")
+      ? [[item.brand, item.kindLabel] as const]
+      : [],
+  ),
+);
 
 const inner: Node[] = [
   { label: "Jira", brand: "jira" },
@@ -50,26 +63,53 @@ const place = (count: number, radius: number, offset: number) =>
 const innerAt = place(inner.length, 27, 0);
 const outerAt = place(outer.length, 44, 30);
 const round = (value: number) => Math.round(value * 100) / 100;
+const isAdded = (node: Node) => node.brand !== undefined && added.has(node.brand);
+const addedLabels = outer
+  .filter(isAdded)
+  .map((node) => `${node.label} (${added.get(node.brand!)})`)
+  .join(" and ");
 ---
 
-<div class="orbit-wrap">
+<div class="orbit-wrap" data-orbit>
   <figure
     class="orbit"
-    aria-label="Nerve connects to Jira, Confluence, GitHub, MCP servers, the web, office documents and Tailscale out of the box. Services such as AWS, Sentry, Grafana, Linear, Slack or your own API connect through extensions you ask Forge to build."
+    aria-label={`Nerve connects to Jira, Confluence, GitHub, MCP servers, the web, office documents and Tailscale out of the box. Services such as AWS, Sentry, Grafana, Linear, Slack or your own API connect through an MCP server entry or an extension you ask Forge for. The setup above added ${addedLabels}.`}
   >
     <svg class="orbit-wires" viewBox="0 0 100 100" aria-hidden="true">
       <circle class="orbit-ring" cx="50" cy="50" r="27"></circle>
       <circle class="orbit-ring orbit-ring-outer" cx="50" cy="50" r="44"></circle>
       {
-        outerAt.map((point) => (
-          <line
-            class="orbit-wire orbit-wire-outer"
-            x1="50"
-            y1="50"
-            x2={round(point.x)}
-            y2={round(point.y)}
-          />
-        ))
+        outerAt.map((point, index) =>
+          isAdded(outer[index]!) ? (
+            <g class="orbit-join" style={`--join-delay:${index * 120}ms`}>
+              <line
+                class="orbit-wire orbit-wire-joined"
+                x1="50"
+                y1="50"
+                x2={round(point.x)}
+                y2={round(point.y)}
+                pathLength="1"
+              />
+              <line
+                class="orbit-impulse orbit-impulse-joined"
+                x1="50"
+                y1="50"
+                x2={round(point.x)}
+                y2={round(point.y)}
+                pathLength="200"
+                style={`animation-delay:${(index * -0.7).toFixed(2)}s`}
+              />
+            </g>
+          ) : (
+            <line
+              class="orbit-wire orbit-wire-outer"
+              x1="50"
+              y1="50"
+              x2={round(point.x)}
+              y2={round(point.y)}
+            />
+          ),
+        )
       }
       {
         innerAt.map((point, index) => (
@@ -124,8 +164,8 @@ const round = (value: number) => Math.round(value * 100) / 100;
     {
       outer.map((node, index) => (
         <div
-          class="orbit-node orbit-node-outer"
-          style={`left:${round(outerAt[index]!.x)}%;top:${round(outerAt[index]!.y)}%`}
+          class:list={["orbit-node orbit-node-outer", { "orbit-node-added": isAdded(node) }]}
+          style={`left:${round(outerAt[index]!.x)}%;top:${round(outerAt[index]!.y)}%;--join-delay:${index * 120}ms`}
           aria-hidden="true"
         >
           <span class="orbit-mark">
@@ -138,6 +178,7 @@ const round = (value: number) => Math.round(value * 100) / 100;
             )}
           </span>
           <span class="orbit-label">{node.label}</span>
+          {isAdded(node) && <span class="orbit-tag">Added by Forge</span>}
         </div>
       ))
     }
@@ -145,9 +186,26 @@ const round = (value: number) => Math.round(value * 100) / 100;
 
   <ul class="orbit-legend" aria-hidden="true">
     <li><span class="orbit-key"></span>Built in</li>
-    <li><span class="orbit-key orbit-key-outer"></span>Ask Forge for an extension</li>
+    <li><span class="orbit-key orbit-key-added"></span>Added by Forge</li>
+    <li><span class="orbit-key orbit-key-outer"></span>Ask Forge to connect</li>
   </ul>
 </div>
+
+<script>
+  /* Arm the join before the orbit is seen, then play it once on view. */
+  const wrap = document.querySelector<HTMLElement>("[data-orbit]");
+  if (wrap && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    wrap.dataset.join = "armed";
+    new IntersectionObserver(
+      ([entry], observer) => {
+        if (!entry?.isIntersecting) return;
+        observer.disconnect();
+        wrap.dataset.join = "joined";
+      },
+      { threshold: 0.45 },
+    ).observe(wrap);
+  }
+</script>
 
 <style>
   .orbit-wrap {
@@ -200,6 +258,28 @@ const round = (value: number) => Math.round(value * 100) / 100;
     stroke-dasharray: 10 190;
     animation: orbit-pulse 3.2s linear infinite;
     filter: drop-shadow(0 0 1.2px var(--primary));
+  }
+
+  /* Joined by the Forge setup: a signal-coloured wire with its own impulse. */
+  .orbit-wire-joined {
+    stroke: color-mix(in oklab, var(--signal) 60%, transparent);
+    stroke-width: 0.3;
+    stroke-dasharray: 1 1;
+    stroke-dashoffset: 0;
+  }
+
+  .orbit-impulse-joined {
+    stroke: var(--signal);
+    filter: drop-shadow(0 0 1.2px var(--signal));
+  }
+
+  /* Armed: drawn as not yet joined until the orbit scrolls into view. */
+  .orbit-wrap[data-join="armed"] .orbit-wire-joined {
+    stroke-dashoffset: 1;
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-impulse-joined {
+    opacity: 0;
   }
 
   .orbit-hub {
@@ -260,6 +340,90 @@ const round = (value: number) => Math.round(value * 100) / 100;
     box-shadow: none;
   }
 
+  /* An added service: lit in the signal colour, a solid ring over the dashed
+   * one, and a tag naming who added it. */
+  .orbit-node-added .orbit-mark {
+    position: relative;
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: 0 0 1.4rem -0.2rem color-mix(in oklab, var(--signal) 55%, transparent);
+  }
+
+  .orbit-node-added .orbit-mark::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border: 1px solid var(--signal);
+    border-radius: inherit;
+  }
+
+  .orbit-node.orbit-node-added .orbit-label {
+    color: var(--foreground);
+  }
+
+  .orbit-tag {
+    padding: 0.05rem 0.45rem;
+    border-radius: var(--radius-pill);
+    background: color-mix(in oklab, var(--signal) 16%, transparent);
+    color: var(--signal);
+    font-size: 0.66rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-node-added .orbit-mark {
+    background: var(--surface-sunken);
+    color: var(--muted-foreground);
+    box-shadow: none;
+    scale: 0.92;
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-node-added .orbit-mark::after {
+    opacity: 0;
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-node.orbit-node-added .orbit-label {
+    color: var(--muted-foreground);
+  }
+
+  .orbit-wrap[data-join="armed"] .orbit-tag {
+    opacity: 0;
+    translate: 0 -0.3rem;
+  }
+
+  /* Joining: the wire draws from the hub, then the node lights and the tag
+   * drops in. Only this state transitions, so arming is instant. */
+  .orbit-wrap[data-join="joined"] .orbit-wire-joined {
+    transition: stroke-dashoffset 900ms cubic-bezier(0.5, 0, 0.3, 1)
+      calc(300ms + var(--join-delay, 0ms));
+  }
+
+  .orbit-wrap[data-join="joined"] .orbit-impulse-joined {
+    transition: opacity 400ms ease calc(1100ms + var(--join-delay, 0ms));
+  }
+
+  .orbit-wrap[data-join="joined"] .orbit-node-added .orbit-mark {
+    transition:
+      transform 200ms var(--ease-out-expo),
+      scale 500ms cubic-bezier(0.2, 0.8, 0.2, 1) calc(1000ms + var(--join-delay, 0ms)),
+      color 400ms ease calc(1000ms + var(--join-delay, 0ms)),
+      background-color 400ms ease calc(1000ms + var(--join-delay, 0ms)),
+      box-shadow 500ms ease calc(1000ms + var(--join-delay, 0ms));
+  }
+
+  .orbit-wrap[data-join="joined"] .orbit-node-added .orbit-mark::after,
+  .orbit-wrap[data-join="joined"] .orbit-node.orbit-node-added .orbit-label {
+    transition:
+      opacity 400ms ease calc(1000ms + var(--join-delay, 0ms)),
+      color 400ms ease calc(1000ms + var(--join-delay, 0ms));
+  }
+
+  .orbit-wrap[data-join="joined"] .orbit-tag {
+    transition:
+      opacity 400ms ease calc(1200ms + var(--join-delay, 0ms)),
+      translate 500ms cubic-bezier(0.2, 0.8, 0.2, 1) calc(1200ms + var(--join-delay, 0ms));
+  }
+
   .orbit-glyph {
     width: 1.3rem;
     height: 1.3rem;
@@ -307,6 +471,11 @@ const round = (value: number) => Math.round(value * 100) / 100;
     background: color-mix(in oklab, var(--primary) 18%, transparent);
   }
 
+  .orbit-key-added {
+    border-color: var(--signal);
+    background: color-mix(in oklab, var(--signal) 18%, transparent);
+  }
+
   .orbit-key-outer {
     border-style: dashed;
     border-color: var(--muted-foreground);
@@ -342,7 +511,8 @@ const round = (value: number) => Math.round(value * 100) / 100;
       font-size: 0.66rem;
     }
 
-    .orbit-node-outer .orbit-label {
+    .orbit-node-outer .orbit-label,
+    .orbit-tag {
       display: none;
     }
   }

@@ -1,31 +1,40 @@
-/* The Forge demo: plays each build in `forge-demo-builds.ts` on the drawn
+/* The Forge demo: plays the project setup from `forge-setup.ts` on the drawn
  * conversation and workbench (`ForgeDemo.astro`).
  *
- * A build types the request, runs its tool calls while the file it writes
- * travels into the workbench, shows the consent card, moves the pointer to
- * Allow and presses it, then shows the extension live. The figure's
- * `data-stage` (typing, building, consent, live) and `data-kind` (panel,
- * page) drive what the CSS shows.
+ * One pass: type the ask; run each item's tool calls, and as an item is made
+ * fly a chip naming it to where it lands (`data-fd-target`), live at once or
+ * waiting for review; run the check and reload; reply. Then the bell counts
+ * what waits, and the pointer reviews each item, allowing the extension on
+ * its consent card, until its dock panel goes live. The figure's
+ * `data-stage` (typing, building, review, live) and `data-overlay` (none,
+ * bell, consent) drive what the CSS shows.
  *
- * The markup shows the first build live, so nothing is needed without
- * script; with reduced motion the demo stays on it. The loop starts when the
- * demo scrolls into view and pauses while it is off screen.
+ * The markup shows the finished setup, so nothing is needed without script;
+ * with reduced motion the demo stays on it. The loop starts when the demo
+ * scrolls into view and pauses while it is off screen.
  */
 
 import {
-  type ForgeDemoBuild,
-  forgeDemoBuilds,
-  forgeDemoSteps,
-} from "./forge-demo-builds";
+  type ForgeSetupItem,
+  type ForgeSetupStep,
+  forgeSetupAsk,
+  forgeSetupChecks,
+  forgeSetupItems,
+  forgeSetupReviewCount,
+} from "./forge-setup";
 
-const TYPE_MS = 18;
-const READ_MS = 500;
-const STEP_MS = 520;
+const TYPE_MS = 16;
+const READ_MS = 450;
+const STEP_MS = 420;
 const FLY_MS = 700;
-const CONSENT_MS = 700;
-const POINT_MS = 800;
-const PRESS_MS = 220;
-const LIVE_MS = 2800;
+const LAND_MS = 200;
+const REPLY_MS = 1100;
+const MOVE_MS = 700;
+const PRESS_MS = 200;
+const DECIDE_MS = 420;
+const CONSENT_MS = 900;
+const LIVE_MS = 4200;
+const RESET_MS = 600;
 
 function element(tag: string, className: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
@@ -33,6 +42,11 @@ function element(tag: string, className: string, text?: string): HTMLElement {
   if (text !== undefined) node.textContent = text;
   return node;
 }
+
+const nextFrame = () =>
+  new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  );
 
 function start(): void {
   const demo = document.querySelector<HTMLElement>("[data-forge-demo]");
@@ -42,15 +56,32 @@ function start(): void {
 
   const ask = one("[data-fd-ask]");
   const steps = one("[data-fd-steps]");
-  const file = one("[data-fd-file]");
-  const asks = one("[data-fd-asks]");
-  const consentName = one("[data-fd-consent-name]");
-  const tabName = one("[data-fd-tab-name]");
+  const bench = one("[data-fd-bench]");
+  const badge = one("[data-fd-badge]");
+  const count = one("[data-fd-count]");
+  const bell = one("[data-fd-bell]");
+  const panel = one("[data-fd-panel]");
+  const allow = one("[data-fd-allow]");
+  const cursor = demo.querySelector<SVGElement>("[data-fd-cursor]");
   const brands = demo.querySelector<HTMLTemplateElement>("[data-fd-brands]");
-  const results = [...demo.querySelectorAll<HTMLElement>("[data-fd-result]")];
-  if (!ask || !steps || !file || !asks || !consentName || !tabName || !brands) {
+  if (
+    !ask ||
+    !steps ||
+    !bench ||
+    !badge ||
+    !count ||
+    !bell ||
+    !panel ||
+    !allow ||
+    !cursor ||
+    !brands
+  ) {
     return;
   }
+  const targets = (id: string) => [
+    ...demo.querySelectorAll<HTMLElement>(`[data-fd-target="${id}"]`),
+  ];
+  const reviewRow = (id: string) => one(`[data-fd-review="${id}"]`);
 
   let visible = false;
   const wait = async (ms: number) => {
@@ -62,91 +93,161 @@ function start(): void {
     }
   };
 
-  /* The build's brand mark, or nothing. */
-  const brandOf = (build: ForgeDemoBuild) => {
-    const mark = brands.content.querySelector(`[data-brand="${build.id}"]`);
-    return mark ? [...mark.childNodes].map((node) => node.cloneNode(true)) : [];
+  const setState = (id: string, state: "hidden" | "waiting" | "live") => {
+    for (const target of targets(id)) target.dataset.state = state;
   };
 
-  const setBrand = (slot: Element | null, build: ForgeDemoBuild) =>
-    slot?.replaceChildren(...brandOf(build));
-
-  const fillResult = (build: ForgeDemoBuild) => {
-    for (const result of results) {
-      const title = element("span", "fd-result-title");
-      const brand = element("span", "fd-brand");
-      brand.append(...brandOf(build));
-      title.append(brand, element("span", "", build.name));
-      const rows = build.rows.map((row) => {
-        const line = element("span", "fd-row");
-        line.append(
-          element("span", `fd-dot is-${row.tone}`),
-          element("span", "fd-row-label", row.label),
-          element("span", `fd-row-meta is-${row.tone}`, row.meta),
-        );
-        return line;
-      });
-      result.replaceChildren(
-        title,
-        ...rows,
-        element("span", "fd-tag", "Built by Forge"),
-      );
-    }
+  const setCount = (value: number) => {
+    badge.textContent = String(value);
+    count.textContent = String(value);
   };
 
-  const fly = async (name: string) => {
-    file.classList.remove("is-flying");
-    file.textContent = name;
-    void file.offsetWidth;
-    file.classList.add("is-flying");
+  /* A tool call row: running, then done. */
+  const runStep = async (step: ForgeSetupStep) => {
+    const row = element("div", "fd-step is-running is-entering");
+    row.append(
+      element("span", "fd-status"),
+      element("code", "", step.tool),
+      element("span", "fd-detail", step.detail),
+    );
+    steps.append(row);
+    await nextFrame();
+    row.classList.remove("is-entering");
+    await wait(STEP_MS);
+    row.classList.replace("is-running", "is-done");
+    return row;
+  };
+
+  /* A chip naming the item flies from its tool call to where it lands. */
+  const fly = async (item: ForgeSetupItem, from: HTMLElement) => {
+    const to = targets(item.id)[0];
+    if (!to) return;
+    const chip = element("span", "fd-fly");
+    chip.append(element("span", "fd-kind", item.kindLabel));
+    const mark = brands.content.querySelector(`[data-brand="${item.id}"]`);
+    if (mark) chip.append(mark.cloneNode(true));
+    chip.append(element("span", "", item.name));
+    demo.append(chip);
+
+    const box = demo.getBoundingClientRect();
+    const source = from.getBoundingClientRect();
+    const target = to.getBoundingClientRect();
+    const width = chip.offsetWidth;
+    const height = chip.offsetHeight;
+    const at = (x: number, y: number, scale: number) =>
+      `translate(${Math.round(x)}px, ${Math.round(y)}px) scale(${scale})`;
+    chip.style.transition = "none";
+    chip.style.transform = at(
+      source.right - box.left - width - 8,
+      source.top - box.top + (source.height - height) / 2,
+      0.9,
+    );
+    void chip.offsetWidth;
+    chip.style.transition = "";
+    chip.style.opacity = "1";
+    chip.style.transform = at(
+      target.left - box.left + (target.width - width) / 2,
+      target.top - box.top + (target.height - height) / 2,
+      0.85,
+    );
     await wait(FLY_MS);
-    file.classList.remove("is-flying");
+    setState(item.id, item.review ? "waiting" : "live");
+    chip.style.opacity = "0";
+    await wait(LAND_MS);
+    chip.remove();
   };
 
-  const play = async (build: ForgeDemoBuild) => {
+  /* The pointer, its tip on the middle of an element in the workbench. */
+  const pointAt = async (node: HTMLElement) => {
+    const frame = bench.getBoundingClientRect();
+    const rect = node.getBoundingClientRect();
+    cursor.style.setProperty(
+      "--x",
+      `${rect.left - frame.left + rect.width / 2 - 4}px`,
+    );
+    cursor.style.setProperty(
+      "--y",
+      `${rect.top - frame.top + rect.height / 2 - 2}px`,
+    );
+    await wait(MOVE_MS);
+  };
+
+  const press = async (node: HTMLElement) => {
+    await pointAt(node);
+    node.classList.add("is-pressed");
+    await wait(PRESS_MS);
+    node.classList.remove("is-pressed");
+  };
+
+  const reset = async () => {
     demo.dataset.stage = "typing";
-    demo.dataset.kind = build.kind;
-    demo.classList.remove("is-pointing", "is-pressing");
+    demo.dataset.overlay = "none";
+    for (const item of forgeSetupItems) setState(item.id, "hidden");
+    panel.dataset.state = "hidden";
+    await wait(RESET_MS);
+    for (const row of demo.querySelectorAll("[data-fd-review]")) {
+      row.classList.remove("is-done");
+    }
+    setCount(forgeSetupReviewCount);
     steps.replaceChildren();
     ask.textContent = "";
-    for (let length = 1; length <= build.ask.length; length += 1) {
-      ask.textContent = build.ask.slice(0, length);
+  };
+
+  const play = async () => {
+    await reset();
+    for (let length = 1; length <= forgeSetupAsk.length; length += 1) {
+      ask.textContent = forgeSetupAsk.slice(0, length);
       await wait(TYPE_MS);
     }
     await wait(READ_MS);
 
     demo.dataset.stage = "building";
-    for (const step of forgeDemoSteps(build)) {
-      const row = element("div", "fd-step is-running is-entering");
-      row.append(
-        element("span", "fd-status"),
-        element("code", "", step.tool),
-        element("span", "fd-detail", step.detail),
-      );
-      steps.append(row);
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => row.classList.remove("is-entering")),
-      );
-      if (step.tool === "write") void fly(build.source.split("/").pop()!);
-      await wait(STEP_MS);
-      row.classList.replace("is-running", "is-done");
+    for (const item of forgeSetupItems) {
+      let last: HTMLElement | undefined;
+      for (const step of item.steps) last = await runStep(step);
+      if (last) await fly(item, last);
+    }
+    for (const step of forgeSetupChecks) await runStep(step);
+
+    /* The reply, then the bell counts what waits. */
+    demo.dataset.stage = "review";
+    await wait(REPLY_MS);
+
+    /* The user reviews: open the bell, decide each item. */
+    const frame = bench.getBoundingClientRect();
+    cursor.style.transition = "none";
+    cursor.style.setProperty("--x", `${frame.width * 0.75}px`);
+    cursor.style.setProperty("--y", `${frame.height * 0.8}px`);
+    void cursor.getBoundingClientRect();
+    cursor.style.transition = "";
+    demo.classList.add("is-pointing");
+    await press(bell);
+    demo.dataset.overlay = "bell";
+    await wait(DECIDE_MS);
+
+    let waiting = forgeSetupReviewCount;
+    for (const item of forgeSetupItems.filter((entry) => entry.review)) {
+      const row = reviewRow(item.id);
+      const button = row?.querySelector<HTMLElement>("[data-fd-review-button]");
+      if (!row || !button) continue;
+      await press(button);
+      if (item.kind === "extension") {
+        /* Only the user can allow it: the consent card lists what it asks for. */
+        demo.dataset.overlay = "consent";
+        await wait(CONSENT_MS);
+        await press(allow);
+        demo.dataset.overlay = "none";
+        panel.dataset.state = "live";
+      } else {
+        row.classList.add("is-done");
+      }
+      setState(item.id, "live");
+      waiting -= 1;
+      if (waiting > 0) setCount(waiting);
+      await wait(DECIDE_MS);
     }
 
-    /* Pending consent: what it asks for, and the user allows it. */
-    consentName.textContent = build.name;
-    setBrand(one("[data-fd-consent-brand]"), build);
-    asks.replaceChildren(...build.asks.map((text) => element("li", "", text)));
-    fillResult(build);
-    tabName.textContent = build.name;
-    setBrand(one("[data-fd-tab-brand]"), build);
-    demo.dataset.stage = "consent";
-    await wait(CONSENT_MS);
-    demo.classList.add("is-pointing");
-    await wait(POINT_MS);
-    demo.classList.add("is-pressing");
-    await wait(PRESS_MS);
-    demo.classList.remove("is-pressing", "is-pointing");
-
+    demo.classList.remove("is-pointing");
     demo.dataset.stage = "live";
     await wait(LIVE_MS);
   };
@@ -158,13 +259,11 @@ function start(): void {
       if (!visible || started) return;
       started = true;
       void (async () => {
-        await wait(LIVE_MS);
-        for (let index = 1; ; index = (index + 1) % forgeDemoBuilds.length) {
-          await play(forgeDemoBuilds[index]!);
-        }
+        await wait(LIVE_MS / 2);
+        for (;;) await play();
       })();
     },
-    { threshold: 0.35 },
+    { threshold: 0.3 },
   ).observe(demo);
 }
 
