@@ -1,4 +1,3 @@
-import { listProjectInstructionFiles } from "../../../domains/projects/project-instructions.js";
 import {
   createLaunchDefinitionRequestSchema,
   updateLaunchDefinitionRequestSchema,
@@ -56,8 +55,6 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
       await state.promptSuggestions.updateTrust(params);
       return { ok: true };
     },
-    "projectInstructions.list": (state, { projectId }) =>
-      listProjectInstructionFiles(state.getProject(projectId).directory),
     "project.openEditor": (state, params) =>
       state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>

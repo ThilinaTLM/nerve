@@ -9,7 +9,7 @@ import type { AgentDocument, AgentScope } from "./document-adapters.js";
 /** Resolution may omit a broken project override, not a required user/conversation
  * document. This projection never makes the unavailable store generation writable. */
 export function applicableAgentLayers(
-  options: Pick<AgentConfigurationServiceOptions, "isProjectAgentTrusted">,
+  options: Pick<AgentConfigurationServiceOptions, "projectAgentTrustState">,
   states: readonly (ScopeHealth<AgentScope, AgentDocument> | undefined)[],
 ): ScopeGeneration<AgentScope, AgentDocument>[] {
   return states.flatMap((state) => {
@@ -21,12 +21,12 @@ export function applicableAgentLayers(
     if (
       value.scope.scope === "project" &&
       value.digest !== "missing" &&
-      options.isProjectAgentTrusted &&
-      !options.isProjectAgentTrusted(
+      options.projectAgentTrustState &&
+      options.projectAgentTrustState(
         value.scope.projectId,
         value.path,
         value.digest,
-      )
+      ) !== "trusted"
     )
       return [];
     return [value];

@@ -37,7 +37,8 @@ export function projectIdOfDirectory(
  * extension; `name` is the extension id, `content_digest` the hash of its `dist/`, and `grants`
  * what the user approved. Rules:
  *
- * - Nothing runs before consent; a missing, `rejected` or unreadable decision is pending review.
+ * - Nothing runs before consent; a missing or unreadable decision needs review and a `rejected` one
+ *   is declined, whatever the content.
  * - A project extension is pending again on any change of its content.
  * - A user extension keeps consent through a code-only change; a change that adds anything to
  *   its grants (network, accounts, models, frame, namespaces and operations, tools, UI) is pending
@@ -54,9 +55,11 @@ export class ExtensionConsentRepository implements ExtensionTrustGate {
     const record = scope
       ? this.#find(scope.projectId, candidate.folder)
       : undefined;
+    const state = this.sources
+      .trust()
+      .trustState(record, toTrustedDigest(contentHash));
+    if (state === "trusted") return "trusted";
     const approved = record?.status === "trusted" ? record : undefined;
-    if (approved && approved.contentDigest === toTrustedDigest(contentHash))
-      return "trusted";
     const grants = grantSnapshot(candidate.manifest);
     // An extension row holds an extension snapshot; a row of another kind has none to compare.
     const approvedGrants = extensionGrantSnapshotSchema.safeParse(
@@ -87,6 +90,7 @@ export class ExtensionConsentRepository implements ExtensionTrustGate {
         contentHash,
         ...(approvedGrants ? { previous: approvedGrants } : {}),
       }),
+      ...(state === "declined" ? { declined: true as const } : {}),
     };
   }
 

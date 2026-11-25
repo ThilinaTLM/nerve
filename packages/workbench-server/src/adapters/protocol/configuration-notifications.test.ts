@@ -16,7 +16,7 @@ void test("every configuration notification from profile and agent publication p
     projectDirectory: () => projectDirectory,
     conversationOwner: () => ({ projectId: "p", role: "lead" }),
     builtins: {},
-    isProfileTrusted: () => true,
+    profileTrustState: () => "trusted",
     captureResources: () => ({ options: {}, isCurrent: () => true }),
   });
   t.after(async () => {

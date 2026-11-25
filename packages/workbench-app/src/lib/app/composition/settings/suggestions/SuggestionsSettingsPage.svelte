@@ -24,11 +24,13 @@ import {
   SETTINGS_SEARCH_MIN,
   SettingsSection,
   TipBadge,
+  TrustDecisionActions,
   type SettingsLayer,
   type SettingsOrigin,
 } from "$lib/presentation/settings";
 import UntrustedProjectCallout from "$lib/features/settings/views/pages/capabilities/UntrustedProjectCallout.svelte";
 import CreatePromptSuggestionDialog from "$lib/features/prompt-suggestions/views/CreatePromptSuggestionDialog.svelte";
+import { trustPromptSuggestionProjectFile } from "$lib/features/prompt-suggestions/api/prompt-suggestions.api";
 import {
   createPromptSuggestion,
   refreshPromptSuggestionStatuses,
@@ -39,6 +41,7 @@ import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/p
 import type { SuggestionsPageState } from "./suggestions-page-state.svelte";
 import {
   awaitsScriptReview,
+  scriptTrustState,
   suggestionSwitches,
   suggestionWrites,
   trustBadge,
@@ -52,8 +55,6 @@ type Props = {
   onOpenItem?: (id: string) => void;
   /** Leaves the open suggestion for the list. */
   onCloseItem?: () => void;
-  /** Opens the Trust page, where the project's settings files are reviewed. */
-  onReviewTrust?: () => void;
 };
 
 let {
@@ -62,7 +63,6 @@ let {
   itemId = "",
   onOpenItem,
   onCloseItem,
-  onReviewTrust,
 }: Props = $props();
 
 let savingTrustId = $state<string | undefined>(undefined);
@@ -79,11 +79,44 @@ const open = $derived(
     : undefined,
 );
 const projectName = $derived(activeProject?.name);
+const projectFile = $derived(
+  activeProject ? promptSuggestionsState.projectFile : undefined,
+);
+/** The decision on the project's enablement file, when it has one to make. */
+const fileState = $derived(
+  projectFile?.status === "needs_review" ||
+    projectFile?.status === "declined" ||
+    projectFile?.status === "trusted"
+    ? projectFile.status
+    : undefined,
+);
 /** The project's enablement file is not trusted: the daemon ignores it, so its column is locked. */
 const locked = $derived(
-  activeProject !== undefined &&
-    promptSuggestionsState.projectFile?.status === "untrusted",
+  fileState === "needs_review" || fileState === "declined",
 );
+let decidingFile = $state(false);
+async function decideFile(trusted: boolean): Promise<void> {
+  const projectId = activeProject?.id;
+  const digest = projectFile?.digest;
+  if (!projectId || !digest || decidingFile) return;
+  decidingFile = true;
+  mutationError = undefined;
+  try {
+    const status = await trustPromptSuggestionProjectFile({
+      projectId,
+      expectedDigest: digest,
+      trusted,
+    });
+    if (status === "conflict")
+      mutationError =
+        "The project's suggestion settings file changed. Review it again.";
+  } catch (error) {
+    mutationError = error instanceof Error ? error.message : String(error);
+  } finally {
+    decidingFile = false;
+    await refreshPromptSuggestionStatuses(projectId);
+  }
+}
 $effect(() => {
   pageState.projectName = projectName;
   return () => {
@@ -152,13 +185,13 @@ async function change(
 
 async function updateTrust(
   trustId: string | undefined,
-  status: "allowed" | "denied" | "unset",
+  trusted: boolean,
 ): Promise<void> {
   if (!trustId) return;
   savingTrustId = trustId;
   mutationError = undefined;
   try {
-    await setPromptSuggestionTrust({ trustId, status });
+    await setPromptSuggestionTrust({ trustId, trusted });
     await refreshPromptSuggestionStatuses(activeProject?.id);
   } catch (error) {
     mutationError = error instanceof Error ? error.message : String(error);
@@ -244,33 +277,31 @@ function copyPath(path: string): void {
       </Button>
     </div>
   {/if}
-  {#if status.requiresTrust && status.trustId}
+  {@const decision = scriptTrustState(status)}
+  {#if decision && status.trustId}
     <div class="flex flex-wrap gap-1">
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={savingTrustId === status.trustId}
-        onclick={() => updateTrust(status.trustId, "allowed")}>Allow</Button
-      >
-      <Button
-        size="sm"
-        variant="destructive"
-        disabled={savingTrustId === status.trustId}
-        onclick={() => updateTrust(status.trustId, "denied")}>Deny</Button
-      >
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={savingTrustId === status.trustId}
-        onclick={() => updateTrust(status.trustId, "unset")}>Reset</Button
-      >
+      <TrustDecisionActions
+        state={decision}
+        busy={savingTrustId === status.trustId}
+        onTrust={() => updateTrust(status.trustId, true)}
+        onDecline={() => updateTrust(status.trustId, false)}
+        onRevoke={() => updateTrust(status.trustId, false)}
+      />
     </div>
   {/if}
 {/snippet}
 
 {#snippet notices()}
-  {#if locked && projectName}
-    <UntrustedProjectCallout onReview={() => onReviewTrust?.()} />
+  {#if fileState && projectName}
+    <UntrustedProjectCallout
+      state={fileState}
+      subject="This project's suggestion settings file"
+      busy={decidingFile}
+      showTrusted
+      onTrust={() => void decideFile(true)}
+      onDecline={() => void decideFile(false)}
+      onRevoke={() => void decideFile(false)}
+    />
   {/if}
   {#if promptSuggestionsState.error || mutationError}
     <Callout

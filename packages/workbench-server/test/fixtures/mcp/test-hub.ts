@@ -25,6 +25,21 @@ export class MemoryTrust implements McpTrustLookup {
   find(_kind: "mcp_server", projectId: string | null, name: string) {
     return this.rows.get(MemoryTrust.key(projectId, name)) ?? null;
   }
+  state(
+    kind: "mcp_server",
+    projectId: string | null,
+    name: string,
+    contentDigest: string,
+  ) {
+    const row = this.find(kind, projectId, name);
+    return !row
+      ? "needs_review"
+      : row.status === "rejected"
+        ? "declined"
+        : row.contentDigest === contentDigest
+          ? "trusted"
+          : "needs_review";
+  }
   decide(input: {
     projectId: string | null;
     resourceKey: string;

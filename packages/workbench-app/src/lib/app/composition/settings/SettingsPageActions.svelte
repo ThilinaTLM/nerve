@@ -65,14 +65,6 @@ const columnPage = $derived(
       onclick={() => void extensionsPage.run()}
       ><RefreshCw class="size-3.5" />Reload</Button
     >
-  {:else if page.id === "launch"}
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={!project}
-      onclick={() => controllers.openLaunchDialog()}
-      ><Plus class="size-3.5" />New launch</Button
-    >
   {:else if page.id === "mcp-servers"}
     <Button
       size="sm"

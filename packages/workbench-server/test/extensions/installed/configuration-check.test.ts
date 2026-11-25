@@ -34,10 +34,10 @@ void test("check reports the folder on disk: a broken manifest, then a fix that 
   const reloaded = await provider.reload(context);
   assert.deepEqual(
     reloaded.map((entry) => entry.state),
-    ["needs_approval"],
+    ["needs_review"],
   );
   assert.deepEqual(
     (await provider.check(context)).map((entry) => entry.state),
-    ["needs_approval"],
+    ["needs_review"],
   );
 });

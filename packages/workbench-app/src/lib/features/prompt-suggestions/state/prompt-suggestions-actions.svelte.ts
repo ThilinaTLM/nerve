@@ -104,9 +104,9 @@ export async function setPromptSuggestionTrust(
       (id) => id !== request.trustId,
     );
   notify.success(
-    request.status === "unset"
-      ? "Prompt suggestion trust reset"
-      : `Prompt suggestion ${request.status}`,
+    request.trusted
+      ? "Prompt suggestion trusted"
+      : "Prompt suggestion declined",
     { activity: true },
   );
 }

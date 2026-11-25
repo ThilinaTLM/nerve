@@ -32,9 +32,15 @@ function memoryTrust() {
     "prompt-suggestions": "project_capabilities",
   });
   const trust: ProjectSuggestionFileTrust = {
-    isTrusted: (_projectId, path, digest) => {
+    state: (_projectId, path, digest) => {
       const row = rows.get(path);
-      return row?.status === "trusted" && row.contentDigest === digest;
+      return !row
+        ? "needs_review"
+        : row.status === "rejected"
+          ? "declined"
+          : row.contentDigest === digest
+            ? "trusted"
+            : "needs_review";
     },
     decide: ({ projectId, path, digest, trusted }) =>
       rows.set(path, {
@@ -140,7 +146,7 @@ void test("suggestion enablement is project ?? user ?? default, and clearing inh
   assert.equal((await f.status("proj_a")).enabled, base.defaultEnabled);
 });
 
-void test("an untrusted or changed project file is ignored until its exact bytes are trusted", async (t) => {
+void test("a project file that needs review is ignored until its exact bytes are trusted", async (t) => {
   const f = await fixture(t);
   const base = await f.status("proj_a");
   const key = base.definitionKey;
@@ -154,7 +160,7 @@ void test("an untrusted or changed project file is ignored until its exact bytes
 
   // A file the user did not write through Nerve is not applied.
   let file = await f.service.projectFile("proj_a");
-  assert.equal(file.status, "untrusted");
+  assert.equal(file.status, "needs_review");
   let status = await f.status("proj_a");
   assert.equal(status.projectEnabled, undefined);
   assert.equal(status.enabled, base.defaultEnabled);
@@ -185,16 +191,16 @@ void test("an untrusted or changed project file is ignored until its exact bytes
     JSON.stringify({ version: 1, enabled: { [key]: base.defaultEnabled } }),
   );
   file = await f.service.projectFile("proj_a");
-  assert.equal(file.status, "untrusted");
+  assert.equal(file.status, "needs_review");
   assert.equal((await f.status("proj_a")).projectEnabled, undefined);
 
-  // Rejecting keeps it ignored.
+  // Declining keeps it ignored.
   await f.service.decideProjectFile({
     projectId: "proj_a",
     expectedDigest: file.digest!,
     trusted: false,
   });
-  assert.equal((await f.service.projectFile("proj_a")).status, "untrusted");
+  assert.equal((await f.service.projectFile("proj_a")).status, "declined");
 });
 
 void test("edits made in the app keep the project file trusted; an untrusted file stays untrusted", async (t) => {
@@ -223,6 +229,16 @@ void test("edits made in the app keep the project file trusted; an untrusted fil
     JSON.stringify({ version: 1, enabled: { other: true } }),
   );
   await write(true);
-  assert.equal((await f.service.projectFile("proj_a")).status, "untrusted");
+  assert.equal((await f.service.projectFile("proj_a")).status, "needs_review");
   assert.equal((await f.status("proj_a")).projectEnabled, undefined);
+
+  // A declined file stays declined through an edit in the app.
+  const declined = await f.service.projectFile("proj_a");
+  await f.service.decideProjectFile({
+    projectId: "proj_a",
+    expectedDigest: declined.digest!,
+    trusted: false,
+  });
+  await write(false);
+  assert.equal((await f.service.projectFile("proj_a")).status, "declined");
 });

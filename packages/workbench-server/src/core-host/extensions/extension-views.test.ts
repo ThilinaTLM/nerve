@@ -28,7 +28,7 @@ void test("the user view lists every built-in extension with sources, availabili
     paths,
     projectMigration: new ProjectMigrationService({ home }),
     definitions: extensionSettingsDefinitions,
-    isProjectTrusted: () => true,
+    projectTrustState: () => "trusted",
   });
   const file = paths.extensions({ scope: "user" });
   await mkdir(dirname(file), { recursive: true });
@@ -105,7 +105,7 @@ void test("a fresh home's view survives JSON and parses: unset fields have no va
       paths,
       projectMigration: new ProjectMigrationService({ home }),
       definitions: extensionSettingsDefinitions,
-      isProjectTrusted: () => true,
+      projectTrustState: () => "trusted",
     }),
     agents: {} as never,
     catalog: fixedRegistryProvider(hostRegistry),

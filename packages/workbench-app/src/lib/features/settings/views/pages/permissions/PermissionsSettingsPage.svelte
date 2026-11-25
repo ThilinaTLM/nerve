@@ -8,6 +8,8 @@ import type { PermissionRule } from "@nervekit/contracts/permissions";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { Settings } from "$lib/api";
 import { OriginGroup } from "$lib/presentation/settings";
+import { configurationAttention } from "$lib/application/configuration-attention/configuration-attention-state.svelte";
+import UntrustedProjectCallout from "../capabilities/UntrustedProjectCallout.svelte";
 import PermissionRuleDialog from "./PermissionRuleDialog.svelte";
 import PermissionRuleSetDetail from "./PermissionRuleSetDetail.svelte";
 import PermissionRuleSetItem from "./PermissionRuleSetItem.svelte";
@@ -95,11 +97,36 @@ function target() {
 }
 
 async function trustProject(): Promise<void> {
-  if (!projectId) return;
+  if (!projectId || trusting) return;
   trusting = true;
   actionError = await controller.trustProject(projectId);
   trusting = false;
+  configurationAttention.refreshSoon();
 }
+
+/** Declines the project's file, or revokes a trusted one. */
+async function declineProject(): Promise<void> {
+  if (!projectId || trusting) return;
+  trusting = true;
+  // The daemon's own name for the file, from its report of what waits for the user.
+  const reported = configurationAttention.resources.find(
+    (resource) =>
+      resource.kind === "permission-overlay" && resource.scope === "project",
+  )?.path;
+  actionError = await controller.declineProject(projectId, reported);
+  trusting = false;
+  configurationAttention.refreshSoon();
+}
+
+/** The decision on the project's permissions file, when it has one to make. */
+const fileState = $derived.by(() => {
+  const status = configuration?.projectTrust.status;
+  return projectId &&
+    projectName &&
+    (status === "needs_review" || status === "declined" || status === "trusted")
+    ? status
+    : undefined;
+});
 </script>
 
 {#if itemId && onCloseItem}
@@ -127,6 +154,18 @@ async function trustProject(): Promise<void> {
   {#if actionError}
     <Callout layout="block" tone="destructive" text={actionError} />
   {/if}
+  {#if fileState && !itemId}
+    <UntrustedProjectCallout
+      state={fileState}
+      subject="This project's permission rules file"
+      effect="its rule overrides don't apply"
+      busy={trusting}
+      showTrusted
+      onTrust={() => void trustProject()}
+      onDecline={() => void declineProject()}
+      onRevoke={() => void declineProject()}
+    />
+  {/if}
   {#each configuration?.diagnostics ?? [] as diagnostic (diagnostic)}
     <Callout layout="block" tone="warning" text={diagnostic} />
   {/each}
@@ -143,6 +182,7 @@ async function trustProject(): Promise<void> {
       {trusting}
       onEdit={(editScope, rule) => edit(openRuleSet.id, editScope, rule)}
       onTrustProject={() => void trustProject()}
+      onDeclineProject={() => void declineProject()}
     />
   {:else if configuration}
     <PageEmptyState

@@ -72,15 +72,12 @@ let {
   projectName,
   status,
   models = [],
-  onReviewTrust,
 }: {
   /** The open project; without one the page has a single (User) column. */
   projectId?: string;
   projectName?: string;
   status?: StatusResponse;
   models?: ModelInfo[];
-  /** Opens the project's Trust page. */
-  onReviewTrust?: () => void;
 } = $props();
 const layered = $derived(!!projectId && !!projectName);
 /** The project's column is shown next to User (header switch); otherwise the page is User-only. */
@@ -225,7 +222,7 @@ const loading = $derived(!ready && !error);
 const locked = $derived(
   layered &&
     projectEditor.document?.status === "available" &&
-    projectEditor.document.trusted === false,
+    (projectEditor.document.trustState ?? "trusted") !== "trusted",
 );
 
 const editors = { user: userEditor, project: projectEditor } as const;
@@ -336,8 +333,6 @@ const python = $derived(status?.runtime.python);
     document={projectEditor.document}
     scope={projectEditor.scope}
     onReload={() => projectEditor.reload()}
-    {projectName}
-    onReview={onReviewTrust}
   />{/if}
 {#if error}
   <Callout layout="block" tone="destructive" text={error}>

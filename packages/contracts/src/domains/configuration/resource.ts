@@ -33,9 +33,10 @@ export const configurationResourceSchema = z.strictObject({
     "shadowed",
     "invalid",
     "incompatible",
-    "needs_approval",
+    "needs_review",
+    "declined",
   ]),
-  /** For `needs_approval`: what the user decides and where. */
+  /** For `needs_review` and `declined`: what the user decides and where. */
   approval: z
     .strictObject({
       kind: z.enum(["trust", "consent"]),

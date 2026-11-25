@@ -2,7 +2,7 @@
 export const CONFIGURATION_DTS_TYPES = `interface ConfigurationDiagnostic {
   /** "error": the file is not usable. "warning": it loads; read the message. */
   level: "error" | "warning";
-  /** Stable, e.g. "malformed-json", "invalid-value", "unknown-field", "untrusted". */
+  /** Stable, e.g. "malformed-json", "invalid-value", "unknown-field", "needs-review", "declined". */
   code: string;
   /** What is wrong and what to do. */
   message: string;
@@ -15,8 +15,8 @@ interface ConfigurationResource {
   id: string;
   scope: "builtin" | "user" | "project" | "conversation";
   path?: string;
-  /** "invalid": not in use, fix it. "needs_approval": valid but ignored until the user approves it; you cannot approve. */
-  state: "active" | "disabled" | "shadowed" | "invalid" | "incompatible" | "needs_approval";
+  /** "invalid": not in use, fix it. "needs_review": valid but ignored until the user approves it; you cannot approve. "declined": the user declined it; mention it only if it matters for the task. */
+  state: "active" | "disabled" | "shadowed" | "invalid" | "incompatible" | "needs_review" | "declined";
   /** Where the user approves it. Tell them. */
   approval?: { kind: "trust" | "consent"; where: string };
   shadowedBy?: "builtin" | "user" | "project";

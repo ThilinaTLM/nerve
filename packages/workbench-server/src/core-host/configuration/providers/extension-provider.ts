@@ -16,7 +16,7 @@ const STATES: Record<
   ConfigurationResource["state"]
 > = {
   enabled: "active",
-  pending_consent: "needs_approval",
+  pending_consent: "needs_review",
   incompatible: "incompatible",
   invalid: "invalid",
   shadowed: "shadowed",
@@ -55,7 +55,8 @@ export function extensionProvider(options: {
           id: entry.id,
           scope: entry.source,
           ...(entry.path ? { path: entry.path } : {}),
-          state: STATES[entry.state],
+          state:
+            entry.trustState === "declined" ? "declined" : STATES[entry.state],
           ...(entry.state === "pending_consent" ? { approval: CONSENT } : {}),
           ...(entry.shadowedBy ? { shadowedBy: entry.shadowedBy } : {}),
           diagnostics: entry.diagnostics,

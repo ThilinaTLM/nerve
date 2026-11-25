@@ -57,7 +57,7 @@ export class McpEnablementState {
     return (
       this.layered &&
       this.project.document?.status === "available" &&
-      this.project.document.trusted === false
+      (this.project.document.trustState ?? "trusted") !== "trusted"
     );
   }
 

@@ -25,6 +25,8 @@ import ProjectColumnsToggle from "$lib/presentation/settings/ProjectColumnsToggl
 import ProjectOverrideMark from "$lib/presentation/settings/ProjectOverrideMark.svelte";
 import SplitColumns from "$lib/presentation/settings/SplitColumns.svelte";
 import TipBadge from "$lib/presentation/settings/TipBadge.svelte";
+import TrustDecisionActions from "$lib/presentation/settings/TrustDecisionActions.svelte";
+import TrustStateBadge from "$lib/presentation/settings/TrustStateBadge.svelte";
 import type { OAuthFlowInfo } from "@nervekit/contracts/auth";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
@@ -1062,6 +1064,27 @@ let oauthResponse = $state("");
         projectName={layerProject}
         onSelect={() => {}}
       />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="TrustStateBadge + TrustDecisionActions"
+      description="The three decision states of a project item and the actions each offers: Needs review (Review and trust, Decline), Trusted (Revoke), Declined (Review and trust)."
+      source="presentation/settings/TrustDecisionActions.svelte"
+      layout="stack"
+    >
+      {#each ["needs_review", "trusted", "declined"] as const as decision (decision)}
+        <div class="flex flex-wrap items-center gap-2">
+          <TrustStateBadge
+            state={decision}
+            changedSinceDecision={decision === "declined"}
+          />
+          <TrustDecisionActions
+            state={decision}
+            onTrust={() => {}}
+            onDecline={() => {}}
+            onRevoke={() => {}}
+          />
+        </div>
+      {/each}
     </GallerySpecimen>
   </GalleryGroup>
 </div>

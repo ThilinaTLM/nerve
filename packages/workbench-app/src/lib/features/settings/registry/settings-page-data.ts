@@ -221,30 +221,7 @@ const projectPages: Record<string, PageData> = {
       "Sub-agent profiles stored in this project, shared with everyone who opens the repo.",
   },
   "permission-rules": permissionRules,
-  launch: {
-    label: "Launch",
-    description:
-      "Saved commands, such as a dev server, started from the Launches panel.",
-    sections: [{ id: "launch", label: "Launch" }],
-  },
-  "instructions-files": {
-    label: "Instructions files",
-    description: "Files Nerve adds to the system prompt in this project.",
-    sections: [
-      { id: "agents-md", label: "AGENTS.md" },
-      { id: "append-system", label: "Append system" },
-    ],
-  },
   suggestions,
-  trust: {
-    label: "Trust",
-    description:
-      "Project files Nerve uses only after you review them. Trust covers the exact content you reviewed.",
-    sections: [
-      { id: "trust", label: "Trust" },
-      { id: "profile-files", label: "Profile files" },
-    ],
-  },
 };
 
 export const pagesByScope: Record<
@@ -301,11 +278,6 @@ const projectLayout: NavLayout = [
     id: "catalog",
     title: "Catalog",
     pages: ["agents", "sub-agents", "permission-rules", "suggestions"],
-  },
-  {
-    id: "this-project",
-    title: "This project",
-    pages: ["launch", "instructions-files", "trust"],
   },
 ];
 

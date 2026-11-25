@@ -5,7 +5,10 @@ import {
   projectPermissionValue,
 } from "./project-permission-migrations.js";
 import { readFile } from "node:fs/promises";
-import type { CoreStorage } from "@nervekit/conversation-core";
+import type {
+  CoreStorage,
+  TrustedResourceService,
+} from "@nervekit/conversation-core";
 import {
   type PermissionOverlayDocument,
   type PermissionPolicyConfiguration,
@@ -59,10 +62,12 @@ export function createPermissionConfigurationService(options: {
   home: string;
   projectMigration?: ProjectMigrationService;
   storage: CoreStorage;
+  /** Resolves what the stored decision says about the file's current bytes. */
+  trust: Pick<TrustedResourceService, "find" | "trustState">;
   projectDirectory: (projectId: string) => string | undefined;
   published?(path: string): Promise<void>;
 }): PermissionConfigurationService {
-  const { home, storage } = options;
+  const { home, storage, trust } = options;
   const migrations =
     options.projectMigration ??
     new ProjectMigrationService({
@@ -131,12 +136,9 @@ export function createPermissionConfigurationService(options: {
         trust: { status: "invalid", digest, reason: message(error) },
       };
     }
-    const record = storage.trustedResources.find(
-      "project_permissions",
-      projectId,
-      path,
-    );
-    if (record?.status === "trusted" && record.contentDigest === digest)
+    const record = trust.find("project_permissions", projectId, path);
+    const state = trust.trustState(record, digest);
+    if (state === "trusted" && record)
       return {
         path,
         document,
@@ -151,7 +153,7 @@ export function createPermissionConfigurationService(options: {
       path,
       document,
       trust: {
-        status: "untrusted",
+        status: state,
         digest,
         ...(record?.status === "trusted"
           ? {
@@ -159,7 +161,9 @@ export function createPermissionConfigurationService(options: {
               trustedAt: record.updatedAt,
               reason: "The file changed after it was trusted.",
             }
-          : { reason: "The file has not been trusted." }),
+          : state === "declined"
+            ? { reason: "The file was declined." }
+            : { reason: "The file has not been trusted." }),
       },
     };
   }
@@ -206,7 +210,8 @@ export function createPermissionConfigurationService(options: {
       throw new Error("A project is required to edit project permissions.");
     const project = await readProject(target.projectId);
     if (
-      project.trust.status === "untrusted" ||
+      project.trust.status === "needs_review" ||
+      project.trust.status === "declined" ||
       project.trust.status === "invalid"
     )
       throw new Error(

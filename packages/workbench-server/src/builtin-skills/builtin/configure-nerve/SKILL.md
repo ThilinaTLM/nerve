@@ -51,7 +51,7 @@ Model providers, accounts and credentials, extension settings, conversation defa
 
 - Same name: project wins over user, user over built-in. A project profile or skill replaces the lower one whole; nothing is merged.
 - Agent preferences: built-in, then user, then project, then the conversation's own choices; a later layer overrides single fields. A profile's requirements win over all of them.
-- Project files that can run code or widen what agents may do are used only after the user approves their exact content: permission overlays, agent profiles and `agent.json` in Settings → This project → Trust; skills in Project settings → Skills; a suggestion's `enable-js` in Settings → Suggestions; extensions in Settings → Extensions.
+- Project files that can run code or widen what agents may do are used only after the user approves their exact content: `agent.json` in Project settings → General, permission overlays in Project settings → Permission rules, agent profiles in Project settings → Agents or Sub-Agents; skills in Project settings → Skills; a suggestion's `enable-js` in Settings → Suggestions; extensions in Settings → Extensions.
 - Any edit to an approved file, including yours, asks again. You cannot approve, consent or add credentials.
 
 ## The loop
@@ -62,7 +62,7 @@ Nerve does not watch files. In `quick_script`:
 2. **Write.** Read an existing file in full first and keep what you did not mean to change. Before editing a file under `<home>` (usually not in git), copy it next to itself as `<name>.bak` and name the copy in your reply. Before a permission change, say in one sentence what will be allowed, prompted or denied afterwards, unless the user dictated the rule.
 3. **Check**, after the write has finished (not in the same batch of calls). `configuration.check("project")` or `("user")` validates the files on disk and changes nothing. It reports every problem in the scope: fix the ones in files you wrote until none has an `error`; mention the others to the user and leave them alone.
 4. **Reload.** `configuration.reload(scope)` activates the files.
-5. **Hand over.** Report what you wrote with paths, and exactly what `configuration.list({ state: "needs_approval" })` shows, with where the user approves each.
+5. **Hand over.** Report what you wrote with paths, and exactly what `configuration.list({ state: "needs_review" })` shows, with where the user approves each.
 
 ```ts
 const written = "/abs/path/of/the/file/you/wrote";
@@ -75,13 +75,14 @@ return await configuration.reload("project");
 
 What a returned resource means:
 
-| `state`                                     | Meaning                                                                        | You                                                           |
-| ------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `invalid`                                   | Not in use.                                                                    | Fix it, check again.                                          |
-| `active` with `previousVersionActive: true` | The file on disk is invalid; the version loaded before your edit stays in use. | Fix it and reload. Nothing is broken yet.                     |
-| `needs_approval`                            | Valid, and not used until the user approves it.                                | Tell the user where (`approval.where`).                       |
-| `active` with `warning` diagnostics         | In use, and probably not doing what was meant.                                 | Read the message; fix it or tell the user why it is intended. |
-| `shadowed`                                  | Another resource with the same name wins.                                      | Rename it or remove one.                                      |
+| `state`                                     | Meaning                                                                        | You                                                                   |
+| ------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `invalid`                                   | Not in use.                                                                    | Fix it, check again.                                                  |
+| `active` with `previousVersionActive: true` | The file on disk is invalid; the version loaded before your edit stays in use. | Fix it and reload. Nothing is broken yet.                             |
+| `needs_review`                              | Valid, and not used until the user approves it.                                | Tell the user where (`approval.where`).                               |
+| `declined`                                  | The user declined it; it is not used.                                          | Mention it only if it matters for the task; do not ask to reverse it. |
+| `active` with `warning` diagnostics         | In use, and probably not doing what was meant.                                 | Read the message; fix it or tell the user why it is intended.         |
+| `shadowed`                                  | Another resource with the same name wins.                                      | Rename it or remove one.                                              |
 
 Leave no `error` behind when you end your turn. After a restart there is no loaded version to fall back to, and an invalid permission file or preferences that select a missing rule set then block every tool call.
 

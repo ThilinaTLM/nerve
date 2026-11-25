@@ -41,6 +41,8 @@ import {
 } from "./read-installed.js";
 import {
   pendingConsentGate,
+  pendingDiagnostic,
+  pendingTrust,
   type ExtensionTrustGate,
   type ExtensionTrustVerdict,
   type InstalledExtensionCandidate,
@@ -149,6 +151,7 @@ type ScannedExtension = {
   /** What the gate was asked about; absent when the folder is invalid or incompatible. */
   candidate?: InstalledExtensionCandidate;
   consent?: ExtensionConsent;
+  declined?: true;
   /** What the trust gate and the load decided, before precedence and collisions. */
   state: "loadable" | Exclude<ExtensionState, "enabled" | "shadowed">;
   loaded?: LoadedInstalledExtension;
@@ -480,7 +483,7 @@ export class ExtensionCatalog implements ExtensionUiSource {
       manifest,
     };
     const verdict = await this.#gate.decide(candidate);
-    const { decision, consent }: ExtensionTrustVerdict =
+    const { decision, consent, declined }: ExtensionTrustVerdict =
       typeof verdict === "string" ? { decision: verdict } : verdict;
     base.candidate = candidate;
     if (decision === "pending")
@@ -488,14 +491,8 @@ export class ExtensionCatalog implements ExtensionUiSource {
         ...base,
         state: "pending_consent",
         ...(consent ? { consent } : {}),
-        diagnostics: [
-          ...base.diagnostics,
-          diagnostic(
-            "warning",
-            "pending-consent",
-            "Waiting for your consent: the extension is listed, but its code is not opened until you consent in Settings → Extensions.",
-          ),
-        ],
+        ...(declined ? { declined } : {}),
+        diagnostics: [...base.diagnostics, pendingDiagnostic(declined)],
       };
     const loaded = await loadInstalledExtension(read.folder, manifest);
     if ("error" in loaded)
@@ -749,8 +746,8 @@ export class ExtensionCatalog implements ExtensionUiSource {
             : {}),
         ...(outcome.shadowedBy ? { shadowedBy: outcome.shadowedBy } : {}),
         diagnostics: outcome.diagnostics,
-        ...(outcome.state === "pending_consent" && outcome.consent
-          ? { consent: outcome.consent }
+        ...(outcome.state === "pending_consent"
+          ? pendingTrust({ ...outcome, declined: scanned.declined })
           : {}),
       });
     }

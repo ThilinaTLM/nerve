@@ -14,7 +14,7 @@ Use one when the service publishes an MCP server and there is no CLI that alread
 
 ## Approval
 
-An entry does not start, connect or show its tools until the user approved that exact entry, in both files. You cannot approve it. After you write or change an entry, tell the user it waits for review in **User settings → Connections → MCP servers** (user file) or **Project settings → Agent → MCP servers** (project file), then stop: `mcp.servers.list()` shows `needs_approval`, and calls fail with `FORBIDDEN` until the user acts. Retrying does not help. Any change to an entry asks again; entries the user saves in Settings are approved already.
+An entry does not start, connect or show its tools until the user approved that exact entry, in both files. You cannot approve it. After you write or change an entry, tell the user it waits for review in **User settings → Connections → MCP servers** (user file) or **Project settings → Agent → MCP servers** (project file), then stop: `mcp.servers.list()` shows `needs_review`, and calls fail with `FORBIDDEN` until the user acts. Retrying does not help. Any change to an entry asks again; entries the user saves in Settings are approved already.
 
 ## Files and precedence
 

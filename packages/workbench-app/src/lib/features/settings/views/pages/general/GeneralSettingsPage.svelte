@@ -45,15 +45,12 @@ let {
   projectName,
   models = [],
   authProviders = [],
-  onReviewTrust,
 }: {
   /** The open project; without one the page has a single (User) column. */
   projectId?: string;
   projectName?: string;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  /** Opens the project's Trust page. */
-  onReviewTrust?: () => void;
   settingsDraft?: Settings;
 } = $props();
 const layered = $derived(!!projectId && !!projectName);
@@ -133,7 +130,7 @@ const userValues = $derived(valuesOf("user"));
 const locked = $derived(
   layered &&
     projectState.document?.status === "available" &&
-    projectState.document.trusted === false,
+    (projectState.document.trustState ?? "trusted") !== "trusted",
 );
 const projectValues = $derived(locked ? userValues : valuesOf("project"));
 const defaults = $derived(
@@ -501,8 +498,7 @@ const reasoningConflict = $derived(
     document={projectState.document}
     scope={projectState.scope}
     onReload={() => projectState.reload()}
-    {projectName}
-    onReview={onReviewTrust}
+    showTrusted={columns}
   />
 {/if}
 {#if error}

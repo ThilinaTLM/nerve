@@ -7,7 +7,7 @@ export type ExtensionSource = z.infer<typeof extensionSourceSchema>;
 
 /**
  * What the host did with a discovered extension: `enabled` (loaded), `pending_consent` (valid, not
- * trusted, so its code is not opened), `incompatible`
+ * trusted, so its code is not opened; declined or waiting for review, see `trustState`), `incompatible`
  * (outside the supported SDK range), `invalid` (failed validation or collides with another
  * extension) or `shadowed` (a higher-precedence root has the same id).
  */
@@ -101,5 +101,7 @@ export const extensionCatalogEntrySchema = z.strictObject({
   adds: z.array(extensionConsentItemSchema).optional(),
   /** `pending_consent` only: what to review before allowing. */
   consent: extensionConsentSchema.optional(),
+  /** `pending_consent` only: `declined` when the user declined it (nothing asks for attention), else `needs_review`. */
+  trustState: z.enum(["needs_review", "declined"]).optional(),
 });
 export type ExtensionCatalogEntry = z.infer<typeof extensionCatalogEntrySchema>;

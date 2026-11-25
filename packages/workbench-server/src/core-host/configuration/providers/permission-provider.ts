@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { ConfigurationResource } from "@nervekit/contracts/configuration";
-import type { CoreStorage } from "@nervekit/conversation-core";
+import type { TrustedResourceService } from "@nervekit/conversation-core";
 import { builtInPermissionRuleSets } from "@nervekit/tools/policy";
 import type { PermissionFileReport } from "../../permissions/permission-files.js";
 import type { ScopedPermissionPolicySource } from "../../permissions/scoped-permission-source.js";
@@ -11,7 +11,7 @@ import {
   type ResourceFinding,
 } from "../resource-registry.js";
 import {
-  TRUST_PAGE,
+  PERMISSIONS_TRUST_PAGE,
   explainDiagnostic,
 } from "./agent-configuration-provider.js";
 
@@ -20,7 +20,7 @@ const builtinIds = new Set(builtInPermissionRuleSets.map((entry) => entry.id));
 /** Rule sets and permission overlays. The permission source validates; this words its reports. */
 export function permissionProvider(options: {
   policy: Pick<ScopedPermissionPolicySource, "check" | "reload" | "loaded">;
-  trustedResources: Pick<CoreStorage["trustedResources"], "find">;
+  trust: Pick<TrustedResourceService, "state">;
 }): ConfigurationResourceProvider {
   /** The user scope is the user overlay plus every rule set; a project has its overlay. */
   const paths = (context: ResourceContext) =>
@@ -61,7 +61,15 @@ export function permissionProvider(options: {
         } satisfies ResourceFinding;
         const approval = approvalOf(report);
         const [resource] = resourcesFromFindings([
-          { ...at, ...(approval ? { approval } : {}) },
+          {
+            ...at,
+            ...(approval
+              ? {
+                  approval: approval.approval,
+                  ...(approval.declined ? { declined: true as const } : {}),
+                }
+              : {}),
+          },
           ...report.diagnostics.map(
             (diagnostic): ResourceFinding => ({
               ...at,
@@ -94,15 +102,18 @@ export function permissionProvider(options: {
 
     function approvalOf(report: PermissionFileReport) {
       if (report.scope !== "project" || !report.contentDigest) return undefined;
-      const row = options.trustedResources.find(
+      const state = options.trust.state(
         "project_permissions",
         context.projectId ?? null,
         report.path,
+        report.contentDigest,
       );
-      return row?.status === "trusted" &&
-        row.contentDigest === report.contentDigest
+      return state === "trusted"
         ? undefined
-        : ({ kind: "trust", where: TRUST_PAGE } as const);
+        : {
+            approval: { kind: "trust", where: PERMISSIONS_TRUST_PAGE } as const,
+            declined: state === "declined",
+          };
     }
   }
 

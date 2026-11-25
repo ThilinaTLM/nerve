@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
-import type { CoreStorage } from "@nervekit/conversation-core";
+import {
+  TrustedResourceService,
+  type CoreStorage,
+} from "@nervekit/conversation-core";
 import { createScopedPermissionSource } from "../permissions/scoped-permission-source.js";
 import { createResourceRegistry } from "./create-resource-registry.js";
 import { createConfigurationAgentPort } from "./configuration-agent-port.js";
@@ -19,12 +22,13 @@ async function setup(t: test.TestContext) {
   await mkdir(join(project, ".nerve", "agent-profiles"), {
     recursive: true,
   });
+  const trust = new TrustedResourceService({} as CoreStorage, () => "");
   const service = new AgentConfigurationService({
     home,
     projectDirectory: () => project,
     conversationOwner: () => ({ projectId: "p", role: "lead" }),
     builtins: {},
-    isProfileTrusted: () => false,
+    profileTrustState: () => "needs_review",
     captureResources: () => ({ options: {}, isCurrent: () => true }),
   });
   t.after(async () => {
@@ -35,6 +39,7 @@ async function setup(t: test.TestContext) {
   const source = createScopedPermissionSource({
     home,
     storage: {} as CoreStorage,
+    trust,
     agents: service,
     trustGeneration: () => 0,
     requestGenerations: () => undefined,
@@ -49,10 +54,17 @@ async function setup(t: test.TestContext) {
   });
   const registry = createResourceRegistry({
     home,
-    mcpCatalog: new McpCatalog({ home, trust: { find: () => null } }),
+    mcpCatalog: new McpCatalog({
+      home,
+      trust: { state: () => "needs_review" },
+    }),
     agentConfiguration: service,
     policy,
-    trustedResources: { find: () => null },
+    trust: {
+      find: () => null,
+      state: () => "needs_review",
+      trustState: (row, digest) => trust.trustState(row, digest),
+    },
     launchDefinitions: { problem: async () => launchProblem },
     extensionCatalog: { entries: async () => [], reload: async () => {} },
     builtinSkills: () => [],
@@ -277,9 +289,9 @@ void test("project reload flags an unapproved overlay as needing approval and ne
     [
       {
         kind: "permission-overlay",
-        state: "needs_approval",
+        state: "needs_review",
         approval: "trust",
-        codes: ["warning:untrusted"],
+        codes: ["warning:needs-review"],
       },
     ],
   );
@@ -396,6 +408,6 @@ void test("list shows every resource after precedence, with built-ins in the use
   const inProject = await registry.list({ scope: "project", ...context });
   assert.deepEqual(
     inProject.map(({ kind, id, state }) => ({ kind, id, state })),
-    [{ kind: "skill", id: "review", state: "needs_approval" }],
+    [{ kind: "skill", id: "review", state: "needs_review" }],
   );
 });

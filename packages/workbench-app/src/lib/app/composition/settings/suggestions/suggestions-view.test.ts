@@ -76,11 +76,13 @@ describe("suggestionWrites", () => {
 describe("awaitsScriptReview", () => {
   it("asks for review of unreviewed scripts only", () => {
     assert.equal(
-      awaitsScriptReview(status({ requiresTrust: true, status: "unset" })),
+      awaitsScriptReview(
+        status({ requiresTrust: true, status: "needs_review" }),
+      ),
       true,
     );
     assert.equal(
-      awaitsScriptReview(status({ requiresTrust: true, status: "allowed" })),
+      awaitsScriptReview(status({ requiresTrust: true, status: "trusted" })),
       false,
     );
     assert.equal(awaitsScriptReview(status()), false);

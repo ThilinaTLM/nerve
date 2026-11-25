@@ -2,7 +2,7 @@ import type { McpServerRow } from "@nervekit/contracts/mcp";
 
 /** A server waiting for the user's decision on its exact entry. */
 export const mcpPending = (row: Pick<McpServerRow, "review">) =>
-  row.review !== "approved";
+  row.review !== "trusted";
 
 /** The command line or URL, as one line. */
 export function mcpCommandLine(row: Pick<McpServerRow, "entry">): string {
@@ -15,10 +15,10 @@ export function mcpProblem(row: McpServerRow): string | undefined {
   switch (row.state) {
     case "failed":
       return row.error ?? "Could not connect.";
-    case "needs_approval":
-      return "Needs approval";
-    case "rejected":
-      return "Rejected";
+    case "needs_review":
+      return "Needs review";
+    case "declined":
+      return "Declined";
     default:
       return undefined;
   }

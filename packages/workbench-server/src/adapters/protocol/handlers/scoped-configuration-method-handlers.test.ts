@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { TrustedResourceService } from "@nervekit/conversation-core";
 import assert from "node:assert/strict";
 import {
   mkdtemp,
@@ -65,26 +66,25 @@ async function fixture(t: TestContext) {
   >();
   const key = (kind: string, projectId: string, file: string) =>
     JSON.stringify([kind, projectId, file]);
+  const resolver = new TrustedResourceService({} as never, () => "");
   const trusted = (
     kind: string,
     projectId: string,
     file: string,
     digest: string,
-  ) => {
-    const decision = decisions.get(key(kind, projectId, file));
-    return (
-      decision?.status === "trusted" &&
-      decision.contentDigest === `sha256:${digest}`
+  ) =>
+    resolver.trustState(
+      decisions.get(key(kind, projectId, file)) as never,
+      `sha256:${digest}`,
     );
-  };
   const service = new AgentConfigurationService({
     home,
     projectDirectory: () => directory,
     conversationOwner: () => ({ projectId: "p", role: "lead" }),
     builtins: { coding: JSON.stringify(definition) },
-    isProfileTrusted: (id, file, digest) =>
+    profileTrustState: (id, file, digest) =>
       trusted("agent_profile", id, file, digest),
-    isProjectAgentTrusted: (id, file, digest) =>
+    projectAgentTrustState: (id, file, digest) =>
       trusted("project_capabilities", id, file, digest),
     captureResources: () => ({
       options: { referenceAvailable: () => true },
@@ -96,6 +96,8 @@ async function fixture(t: TestContext) {
     admissionPolicy: { invalidate() {} },
     conversationCore: {
       trust: {
+        trustState: (row: never, digest: string) =>
+          resolver.trustState(row, digest),
         decide(input: {
           kind: string;
           projectId: string;
@@ -107,6 +109,7 @@ async function fixture(t: TestContext) {
             key(input.kind, input.projectId, input.resourceKey),
             input,
           );
+          return input;
         },
       },
       retryConfigurationBlocked: async () => {},
@@ -193,7 +196,7 @@ void test("profile handlers edit complete v1 copies, expose provenance, enforce 
   assert.equal(local.profile.source, "project");
   assert.equal(local.profile.local, true);
   assert.equal(local.profile.enabled, false);
-  assert.equal(local.profile.trusted, false);
+  assert.equal(local.profile.trustState, "needs_review");
   assert.equal(
     (await f.service.profiles.get("coding", "p")).status,
     "unavailable",
@@ -272,8 +275,8 @@ void test("project profile and agent trust/revoke bind exact bytes and repair ne
         expectedDigest: saved.digest,
         trusted: true,
       }),
-    ).trusted,
-    true,
+    ).trustState,
+    "trusted",
   );
   assert.equal(
     (await f.service.profiles.get("coding", "p")).status,
@@ -286,8 +289,8 @@ void test("project profile and agent trust/revoke bind exact bytes and repair ne
         expectedDigest: saved.digest,
         trusted: false,
       }),
-    ).trusted,
-    false,
+    ).trustState,
+    "declined",
   );
   assert.equal(
     (await f.service.profiles.get("coding", "p")).status,

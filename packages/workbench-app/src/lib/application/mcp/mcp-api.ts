@@ -74,7 +74,7 @@ export async function listConversationMcpServers(
 ): Promise<McpServerChoice[]> {
   const { servers } = await listMcpServers({ scope: "project", projectId });
   return servers
-    .filter((row) => row.review === "approved" && !row.shadowed)
+    .filter((row) => row.review === "trusted" && !row.shadowed)
     .map(({ name, scope, description, enabled, state }) => ({
       name,
       scope,

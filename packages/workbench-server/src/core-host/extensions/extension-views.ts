@@ -129,7 +129,7 @@ export function createExtensionViews(options: ExtensionViewOptions) {
         path: file.path,
         revision: file.revision,
         digest: file.digest,
-        trusted: file.trusted,
+        trustState: file.trustState,
       },
       diagnostics: resolution.diagnostics.map((diagnostic) => ({
         ...diagnostic,

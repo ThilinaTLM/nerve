@@ -1,3 +1,4 @@
+import type { TrustState } from "@nervekit/contracts/core";
 import { applicableAgentLayers } from "./agent-layers.js";
 import { projectSettings } from "./profile-resources.js";
 import { withoutLegacyTransition } from "./document-adapters.js";
@@ -163,12 +164,12 @@ export function inheritedAgentSettings(
     const trustedProject =
       project &&
       project.scope.scope === "project" &&
-      (!port.options.isProjectAgentTrusted ||
-        port.options.isProjectAgentTrusted(
+      (!port.options.projectAgentTrustState ||
+        port.options.projectAgentTrustState(
           project.scope.projectId,
           project.path,
           project.digest,
-        ));
+        ) === "trusted");
     return resolveInheritedConversationSettings({
       ...resources.options,
       role,
@@ -305,12 +306,12 @@ export async function resolveRepairCandidate(
   // their proposed pair above, but show the actually applicable post-repair view.
   if (
     scope.scope === "project" &&
-    port.options.isProjectAgentTrusted &&
-    !port.options.isProjectAgentTrusted(
+    port.options.projectAgentTrustState &&
+    port.options.projectAgentTrustState(
       scope.projectId,
       port.paths.agent(scope),
       digestBytes(`${JSON.stringify(candidate, null, 2)}\n`),
-    )
+    ) !== "trusted"
   ) {
     return resolveAgentConfiguration({
       ...resources.options,
@@ -433,20 +434,24 @@ export async function prepareConversationDocument(
   return document;
 }
 
-export function isUntrustedAgentDocument(
+/** The trust state of a project's `agent.json`; user, conversation and missing files need no decision (`trusted`). */
+export function agentDocumentTrustState(
   options: AgentConfigurationServiceOptions,
   paths: AgentConfigurationPaths,
   state: ScopeHealth<AgentScope, AgentDocument>,
-): boolean {
+): TrustState {
   const scope =
     state.status === "unavailable" ? state.scope : state.value.scope;
   const digest =
     state.status === "unavailable" ? state.sourceDigest : state.value.digest;
-  return (
-    scope.scope === "project" &&
+  return scope.scope === "project" &&
     digest !== undefined &&
     digest !== "missing" &&
-    options.isProjectAgentTrusted !== undefined &&
-    !options.isProjectAgentTrusted(scope.projectId, paths.agent(scope), digest)
-  );
+    options.projectAgentTrustState !== undefined
+    ? options.projectAgentTrustState(
+        scope.projectId,
+        paths.agent(scope),
+        digest,
+      )
+    : "trusted";
 }

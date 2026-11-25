@@ -32,10 +32,16 @@ export type ExtensionAgentStatus = {
   version?: string;
   sdkVersion?: string;
   /**
-   * `pending`: the user has not allowed it yet, so nothing runs. `granted`: allowed and loaded.
+   * `needs_review`: the user has not decided yet, so nothing runs. `declined`: the user declined it, so nothing runs.
+   * `granted`: allowed and loaded.
    * `not_required`: built in. `unknown`: the extension is invalid, incompatible or shadowed, so no consent was asked.
    */
-  consent?: "pending" | "granted" | "not_required" | "unknown";
+  consent?:
+    | "needs_review"
+    | "declined"
+    | "granted"
+    | "not_required"
+    | "unknown";
   /** The extension's own on/off switch at the project (a loaded extension that is off contributes nothing). */
   switch?: "on" | "off" | "unknown";
   diagnostics: Diagnostic[];

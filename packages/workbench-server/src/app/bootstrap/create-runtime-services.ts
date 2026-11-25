@@ -383,8 +383,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const promptSuggestionEnablement = new PromptSuggestionEnablementService(
     storage.paths.configPath,
     {
-      isTrusted: (projectId, path, digest) =>
-        conversationCore.trust.isTrusted(
+      state: (projectId, path, digest) =>
+        conversationCore.trust.state(
           "project_capabilities",
           projectId,
           path,

@@ -1,3 +1,4 @@
+import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
 
 /** Where a skill definition comes from, independent of who enabled it. */
@@ -14,11 +15,10 @@ export const availableSkillSchema = z.object({
   description: z.string(),
   filePath: z.string().min(1),
   source: skillSourceSchema,
-  /**
-   * Project skills only. `pending`: never approved. `changed`: its files differ from what was
-   * approved. Either way the agent is not told about the skill until the user approves it.
-   */
-  approval: z.enum(["pending", "changed"]).optional(),
+  /** Project skills only. The agent is not told about the skill unless it is `trusted`. */
+  trustState: trustStateSchema.optional(),
+  /** Project skills only: a decision exists and its files differ from the ones decided on. */
+  changedSinceDecision: z.literal(true).optional(),
 });
 export type AvailableSkill = z.infer<typeof availableSkillSchema>;
 
@@ -50,7 +50,9 @@ export const skillReviewSchema = z.strictObject({
   folder: z.string().min(1),
   /** `sha256:<hex>` over every file below; the `contentDigest` of the trust decision. */
   contentDigest: z.string().min(1),
-  status: z.enum(["pending", "changed", "approved"]),
+  trustState: trustStateSchema,
+  /** A decision exists and the files differ from the ones decided on. */
+  changedSinceDecision: z.boolean(),
   files: z.array(skillReviewFileSchema),
 });
 export type SkillReview = z.infer<typeof skillReviewSchema>;

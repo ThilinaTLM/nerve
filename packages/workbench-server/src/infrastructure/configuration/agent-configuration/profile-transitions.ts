@@ -78,8 +78,9 @@ export function createProfileTransitions(service: AgentConfigurationService) {
       return {
         failure: {
           status: "refresh_required",
-          reason: lookup.diagnostics.some((issue) =>
-            issue.code.includes("untrusted"),
+          reason: lookup.diagnostics.some(
+            (issue) =>
+              issue.code === "needs-review" || issue.code === "declined",
           )
             ? "target_untrusted"
             : "target_unavailable",

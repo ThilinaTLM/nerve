@@ -6,10 +6,10 @@ export const MCP_DTS_TYPES = `interface McpServer {
   transport: "stdio" | "http";
   /** Where the entry is defined: the user's mcp.json or the project's. */
   scope: "user" | "project";
-  /** idle: connects on first use; failed: the last attempt failed (see error), the next call retries; disabled: turned off in settings or by enabled: false; needs_approval: the user has not reviewed it yet; rejected: the user rejected it. The last three never start, and calls to them throw FORBIDDEN: only the user can change that. */
-  state: "connected" | "idle" | "disabled" | "needs_approval" | "rejected" | "failed";
+  /** idle: connects on first use; failed: the last attempt failed (see error), the next call retries; disabled: turned off in settings or by enabled: false; needs_review: the user has not reviewed it yet; declined: the user declined it (mention it only if it matters for the task). The last three never start, and calls to them throw FORBIDDEN: only the user can change that. */
+  state: "connected" | "idle" | "disabled" | "needs_review" | "declined" | "failed";
   error?: string;
-  /** A second entry with the name of a server that is in use (a project entry waiting for review or rejected, next to the user's entry that works). Calls by this name reach the other row. */
+  /** A second entry with the name of a server that is in use (a project entry waiting for review or declined, next to the user's entry that works). Calls by this name reach the other row. */
   duplicate?: true;
   /** The server's own name and version, once connected. */
   server?: { name: string; version: string };

@@ -42,10 +42,6 @@ import StorageSettingsPage from "$lib/features/settings/views/pages/storage/Stor
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
 import VoiceSettingsPage from "$lib/features/settings/views/pages/voice/VoiceSettingsPage.svelte";
 import ExtensionsSettingsPage from "$lib/features/settings/views/pages/extensions/ExtensionsSettingsPage.svelte";
-import { LaunchDefinitionDialog } from "$lib/features/launches";
-import InstructionsFilesPage from "$lib/features/settings/views/pages/project/InstructionsFilesPage.svelte";
-import LaunchSettingsPage from "$lib/features/settings/views/pages/project/LaunchSettingsPage.svelte";
-import TrustSettingsPage from "$lib/features/settings/views/pages/project/TrustSettingsPage.svelte";
 import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
 import { contributionsOf, openExtensionPage } from "$lib/features/extension-ui";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
@@ -124,7 +120,7 @@ let {
   theme: ColorTheme;
   onThemeChange?: (theme: ColorTheme) => void;
   onSkillsRetry?: () => void;
-  /** Opens another page of the surface (the Trust page from a trust warning). */
+  /** Opens another page of the surface. */
   onOpenPage?: (pageId: string, item?: string) => void;
 } = $props();
 
@@ -135,9 +131,6 @@ const projectId = $derived(
 // Layered pages show the open project (the tab's own, or the open one in a user tab) as a column.
 const layerProjectId = $derived(project?.id);
 const projectName = $derived(project?.name);
-const reviewTrust = $derived(
-  onOpenPage ? () => onOpenPage("trust") : undefined,
-);
 // Extension pages belong to a project: this one's, or the open project's in user settings.
 const pagesProjectId = $derived(projectId ?? workspaceState.selectedProjectId);
 const extensionPagesOf = (extensionId: string) =>
@@ -201,7 +194,6 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {projectName}
       {models}
       {authProviders}
-      onReviewTrust={reviewTrust}
     />
   {:else if page.id === "suggestions"}
     <SuggestionsSettingsPage
@@ -210,7 +202,6 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {itemId}
       {onOpenItem}
       {onCloseItem}
-      onReviewTrust={reviewTrust}
     />
   {:else if page.id === "models"}
     <ModelsSettingsPage {models} {authProviders} />
@@ -219,7 +210,6 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       projectId={layerProjectId}
       {projectName}
       controller={controllers.extensionsPageController}
-      onReviewTrust={reviewTrust}
       {models}
       {authProviders}
       {itemId}
@@ -229,47 +219,6 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       pagesOf={extensionPagesOf}
       onOpenPage={openExtensionPageTab}
     />
-  {:else if page.id === "launch"}
-    <LaunchSettingsPage
-      definitions={controllers.launchDefinitions()}
-      onAdd={() => controllers.openLaunchDialog()}
-      onEdit={(id) => controllers.openLaunchDialog(id)}
-      onDelete={(id) => void controllers.deleteProjectLaunch(id)}
-    />
-    {#if controllers.launchDialog}
-      {@const session = controllers.launchDialog}
-      {#key session}
-        <LaunchDefinitionDialog
-          open
-          definition={session.kind === "edit" ? session.definition : undefined}
-          projectCwd={project?.directory}
-          folders={controllers.launchFolders()}
-          saving={controllers.launchSaving}
-          onSave={(input, parentFolderId) =>
-            void controllers.saveLaunchDialog(input, parentFolderId)}
-          onOpenChange={(open) => {
-            if (!open) controllers.launchDialog = undefined;
-          }}
-        />
-      {/key}
-    {/if}
-  {:else if page.id === "instructions-files"}
-    <InstructionsFilesPage
-      files={controllers.instructionsFiles}
-      loading={controllers.instructionsLoading}
-      onOpen={project
-        ? (path) => void openFilePane({ projectId: project.id, path })
-        : undefined}
-    />
-  {:else if page.id === "trust"}
-    <TrustSettingsPage
-      projectId={layerProjectId}
-      projectDirectory={project?.directory}
-      entries={controllers.trustEntries()}
-      onOpenMcpServer={onOpenPage
-        ? (item) => onOpenPage("mcp-servers", item)
-        : undefined}
-    />
   {:else if page.id === "providers"}
     <ProvidersSettingsPage {models} {authProviders} />
   {:else if page.id === "tools"}
@@ -278,7 +227,6 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {projectName}
       {models}
       {status}
-      onReviewTrust={reviewTrust}
     />
   {:else if page.id === "skills" && layerProjectId && itemId}
     <SkillReviewPage
@@ -293,7 +241,6 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
     <SkillsSettingsPage
       projectId={layerProjectId}
       {projectName}
-      onReviewTrust={reviewTrust}
       {skills}
       loading={skillsLoading}
       error={skillsError}
@@ -314,7 +261,6 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
     <McpServersSettingsPage
       projectId={layerProjectId}
       {projectName}
-      onReviewTrust={reviewTrust}
       bind:addOpen={controllers.mcpAddOpen}
       onOpenItem={(id) => onOpenItem?.(id)}
     />

@@ -62,7 +62,6 @@ export function isWorkbenchOperation(method: string): boolean {
     "agentProfiles.",
     "extensions.",
     "mcp.",
-    "projectInstructions.",
     "launch.",
     "launchDefinition.",
     "launchFolder.",

@@ -1,4 +1,4 @@
-import { toTrustedDigest } from "@nervekit/contracts/core";
+import { toTrustedDigest, type TrustState } from "@nervekit/contracts/core";
 import { createHash } from "node:crypto";
 import type { TrustedResourceService } from "@nervekit/conversation-core";
 
@@ -11,12 +11,36 @@ export type PromptSuggestionTrustRecord = {
   name: string;
   label: string;
   predicateHash: string;
-  status: "allowed" | "denied";
+  status: "trusted" | "declined";
+};
+
+/** What identifies a predicate: where it lives and its source hash. */
+export type PromptSuggestionPredicate = {
+  predicateHash?: string | undefined;
+  source: {
+    kind: "builtin" | "user" | "project";
+    path: string;
+    projectId?: string | undefined;
+  };
 };
 
 /** Maps the feature's predicate identity to the core's path/content trust. */
 export class PromptSuggestionTrustRepository {
   constructor(private readonly trust: TrustedResourceService) {}
+
+  /** The state of a definition's predicate; a decline stays whatever the predicate says now. */
+  state(definition: PromptSuggestionPredicate): TrustState {
+    if (!definition.predicateHash || definition.source.kind === "builtin")
+      return "needs_review";
+    return this.trust.state(
+      "prompt_suggestion",
+      definition.source.kind === "project"
+        ? (definition.source.projectId ?? null)
+        : null,
+      definition.source.path,
+      toTrustedDigest(definition.predicateHash),
+    );
+  }
 
   list(projectId?: string): PromptSuggestionTrustRecord[] {
     return [
@@ -37,7 +61,7 @@ export class PromptSuggestionTrustRepository {
         name: resource.name ?? resource.resourceKey,
         label: resource.name ?? resource.resourceKey,
         predicateHash: resource.contentDigest.replace(/^sha256:/, ""),
-        status: resource.status === "trusted" ? "allowed" : "denied",
+        status: resource.status === "trusted" ? "trusted" : "declined",
       };
     });
   }
@@ -49,11 +73,7 @@ export class PromptSuggestionTrustRepository {
       resourceKey: record.path,
       name: record.name,
       contentDigest: toTrustedDigest(record.predicateHash),
-      status: record.status === "allowed" ? "trusted" : "rejected",
+      status: record.status === "trusted" ? "trusted" : "rejected",
     });
-  }
-
-  remove(record: PromptSuggestionTrustRecord): void {
-    if (record.resourceId) this.trust.delete(record.resourceId);
   }
 }

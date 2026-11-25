@@ -3,7 +3,10 @@ import { test } from "node:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CoreStorage } from "@nervekit/conversation-core";
+import {
+  TrustedResourceService,
+  type CoreStorage,
+} from "@nervekit/conversation-core";
 import type { PermissionRule } from "@nervekit/contracts/permissions";
 import { createPermissionConfigurationService } from "./permission-configuration.js";
 
@@ -48,6 +51,7 @@ async function fixture() {
   const service = createPermissionConfigurationService({
     home,
     storage,
+    trust: new TrustedResourceService(storage, () => ""),
     projectDirectory: (id) => (id === "project" ? project : undefined),
   });
   return {
@@ -83,7 +87,7 @@ void test("project rules remain visible but untrusted until their exact bytes ar
   try {
     await writeFile(f.projectFile, overlay(rule("allow-tests")));
     let configuration = await f.service.get("project");
-    assert.equal(configuration.projectTrust.status, "untrusted");
+    assert.equal(configuration.projectTrust.status, "needs_review");
     assert.equal(configuration.projectOverlays.overlays[0]?.rules.length, 1);
 
     configuration = await f.service.grantProjectTrust("project");
@@ -94,7 +98,7 @@ void test("project rules remain visible but untrusted until their exact bytes ar
       overlay(rule("allow-tests", { priority: 11 })),
     );
     configuration = await f.service.get("project");
-    assert.equal(configuration.projectTrust.status, "untrusted");
+    assert.equal(configuration.projectTrust.status, "needs_review");
     assert.match(configuration.projectTrust.reason ?? "", /changed/);
   } finally {
     await f.cleanup();

@@ -57,11 +57,11 @@ return await extensions.status("<id>");
 
 Nerve loads a new or changed extension folder only on `extensions.reload`. `configuration.check("user")` (or `"project"`) reads the folders on disk and reports a folder that is valid but not loaded yet as `reload-needed`. When a user and a project extension share an id, `configuration.list({ kind: "extension" })` shows both with their scope and which one is shadowed.
 
-`status` returns `state`, `consent`, `switch`, `diagnostics` and `recentErrors` (since the last reload: backend exceptions, plus uncaught frame errors and CSP violations with `operation: "frame:<kind>/<id>"`; console output is not included). A frame only runs once the user has allowed the extension and opened it, so after they try it, read the status again before you say it works. Fix every `error` diagnostic, run `check`, and reload again. Expected end state for a new extension: `state: "pending_consent"`, `consent: "pending"`.
+`status` returns `state`, `consent`, `switch`, `diagnostics` and `recentErrors` (since the last reload: backend exceptions, plus uncaught frame errors and CSP violations with `operation: "frame:<kind>/<id>"`; console output is not included). A frame only runs once the user has allowed the extension and opened it, so after they try it, read the status again before you say it works. Fix every `error` diagnostic, run `check`, and reload again. Expected end state for a new extension: `state: "pending_consent"`, `consent: "needs_review"`.
 
 ## 7. Hand over to the user
 
-Tell the user to open Settings → Extensions, review what the extension asks for, and choose Allow. Name what you declared (network origins, accounts, file types, tools) so they can compare it with the review. After consent, `extensions.status` shows `consent: "granted"`; if `switch` is `"off"`, ask the user to turn the extension on there. Do not ask for credentials in chat: accounts are added by the user in Settings.
+Tell the user to open Settings → Extensions, review what the extension asks for, and choose Allow. Name what you declared (network origins, accounts, file types, tools) so they can compare it with the review. After consent, `extensions.status` shows `consent: "granted"` (`"declined"` if they declined: mention it only if it matters, and do not ask them to reverse it); if `switch` is `"off"`, ask the user to turn the extension on there. Do not ask for credentials in chat: accounts are added by the user in Settings.
 
 A user extension keeps its consent through code-only changes. It asks again when it gains a permission or UI contribution; reload after such a change and tell the user what is new.
 

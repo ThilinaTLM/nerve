@@ -451,7 +451,7 @@ export class McpService {
         state: "not_found",
         reason: `No MCP server "${request.name}" in this scope.`,
       };
-    if (found.entry.review !== "approved")
+    if (found.entry.review !== "trusted")
       return {
         status: "refused",
         state: found.entry.review,

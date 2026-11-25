@@ -48,7 +48,7 @@ An extension's page shows a problem at the top when it can't be used, with a lin
 
 - **User** settings apply to every project. **Project** settings override them for one project and can be shared through the repository. Anything unset in a project follows your user settings. An [agent profile](/reference/agent-profiles/) can also recommend or require extension settings.
 - **Accounts are user-level or project-level.** A user account is available in every project, a project account in one. Their credentials are stored encrypted on your computer and are never copied into project files; a project selects an account by an ID that exists only on your computer, so a teammate must choose their own. Settings at user scope can choose user accounts only. Manage accounts under **Settings → Accounts**; see [Settings at a glance](/guides/settings/#accounts).
-- A project's `.nerve/config/extensions.json` is ignored until you trust its exact content. The project's Extensions page shows **Project extension settings are not trusted** with a **Trust file** button. Changes you make through Nerve's settings pages are trusted automatically; an edit made in another editor needs trusting again.
+- A project's `.nerve/config/extensions.json` is ignored until you trust its exact content. The project's Extensions page says the file needs your review, with **Review and trust** and **Decline**; a trusted file can be revoked there. Changes you make through Nerve's settings pages are trusted automatically; an edit made in another editor needs trusting again.
 
 See [Configuration](/operations/configuration/#extension-settings-and-accounts) for the files.
 

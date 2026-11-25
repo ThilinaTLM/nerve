@@ -130,7 +130,7 @@ const groups = $derived(settingsNavFor(surface, badges));
 
 // Stale ids (restored state, old links) land on the default page.
 $effect(() => {
-  const resolved = resolveSurfacePageId(surface, activePageId);
+  const resolved = resolveSurfacePageId(activePageId);
   if (resolved !== activePageId) activePageId = resolved;
 });
 

@@ -5,7 +5,6 @@ import Timer from "@lucide/svelte/icons/timer";
 import Bell from "@lucide/svelte/icons/bell";
 import Bot from "@lucide/svelte/icons/bot";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
-import FileText from "@lucide/svelte/icons/file-text";
 import HardDrive from "@lucide/svelte/icons/hard-drive";
 import Keyboard from "@lucide/svelte/icons/keyboard";
 import Library from "@lucide/svelte/icons/library";
@@ -13,7 +12,6 @@ import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import Mic from "@lucide/svelte/icons/mic";
 import Monitor from "@lucide/svelte/icons/monitor";
 import Plug from "@lucide/svelte/icons/plug";
-import Play from "@lucide/svelte/icons/play";
 import Blocks from "@lucide/svelte/icons/blocks";
 import Server from "@lucide/svelte/icons/server";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
@@ -23,7 +21,6 @@ import Users from "@lucide/svelte/icons/users";
 import Wrench from "@lucide/svelte/icons/wrench";
 import Smartphone from "@lucide/svelte/icons/smartphone";
 import Radio from "@lucide/svelte/icons/radio";
-import Boxes from "@lucide/svelte/icons/boxes";
 import type {
   SettingsNavBadge,
   SettingsNavGroup,
@@ -63,14 +60,11 @@ const icons: Record<string, Component> = {
   remote: Radio,
   devices: Smartphone,
   system: Server,
-  launch: Play,
-  "instructions-files": FileText,
-  trust: Boxes,
 };
 
 /**
  * The open project, when there is one. One surface serves both tab kinds: the
- * project only adds a column on layered pages and a nav group of its own.
+ * project only adds a column on layered pages.
  */
 export type SettingsSurface = { projectName?: string };
 
@@ -81,13 +75,6 @@ export const layeredPageIds: readonly string[] = [
   "skills",
   "extensions",
   "mcp-servers",
-];
-
-/** Pages that are only about the open project. */
-export const projectOnlyPageIds: readonly string[] = [
-  "launch",
-  "instructions-files",
-  "trust",
 ];
 
 const surfaceLayout: NavLayout = [
@@ -102,7 +89,6 @@ const surfaceLayout: NavLayout = [
     title: "Models and accounts",
     pages: ["providers", "models", "accounts"],
   },
-  { id: "project", title: "Project", pages: projectOnlyPageIds.slice() },
   {
     id: "app",
     title: "App",
@@ -115,27 +101,14 @@ const surfaceLayout: NavLayout = [
   },
 ];
 
-function surfaceLayoutFor(surface: SettingsSurface): NavLayout {
-  return surfaceLayout
-    .filter((group) => group.id !== "project" || surface.projectName)
-    .map((group) =>
-      group.id === "project" ? { ...group, title: "Project" } : group,
-    );
-}
-
-/** Page ids of the surface in nav order. */
-export function surfacePageIds(surface: SettingsSurface): string[] {
-  return surfaceLayoutFor(surface).flatMap((group) => group.pages);
-}
+/** Page ids in nav order; the same with or without a project. */
+const surfacePageIds: readonly string[] = surfaceLayout.flatMap(
+  (group) => group.pages,
+);
 
 /** Stale or foreign ids (restored state, links) fall back to General. */
-export function resolveSurfacePageId(
-  surface: SettingsSurface,
-  pageId: string | undefined,
-): string {
-  return pageId && surfacePageIds(surface).includes(pageId)
-    ? pageId
-    : "general";
+export function resolveSurfacePageId(pageId: string | undefined): string {
+  return pageId && surfacePageIds.includes(pageId) ? pageId : "general";
 }
 
 function pageData(id: string, surface: SettingsSurface): PageData {
@@ -155,7 +128,7 @@ function pageDef(id: string, surface: SettingsSurface): SettingsPageDef {
 
 /** Page definitions (with sections) of the surface, in nav order. */
 export function settingsPagesFor(surface: SettingsSurface): SettingsPageDef[] {
-  return surfacePageIds(surface).map((id) => pageDef(id, surface));
+  return surfacePageIds.map((id) => pageDef(id, surface));
 }
 
 /** The page for an id; stale or foreign ids resolve to the default page. */
@@ -163,7 +136,7 @@ export function settingsPageFor(
   surface: SettingsSurface,
   pageId: string | undefined,
 ): SettingsPageDef {
-  return pageDef(resolveSurfacePageId(surface, pageId), surface);
+  return pageDef(resolveSurfacePageId(pageId), surface);
 }
 
 /** The grouped nav; `badges` marks pages with items that need the user. */
@@ -171,7 +144,7 @@ export function settingsNavFor(
   surface: SettingsSurface,
   badges: Readonly<Record<string, SettingsNavBadge>> = {},
 ): SettingsNavGroup[] {
-  return surfaceLayoutFor(surface).map(({ id, title, pages: ids }) => ({
+  return surfaceLayout.map(({ id, title, pages: ids }) => ({
     id,
     title,
     items: ids.map(

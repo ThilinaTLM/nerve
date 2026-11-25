@@ -6,6 +6,7 @@ import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import { TrustStateBadge } from "$lib/presentation/settings";
 
 type Props = {
   open?: boolean;
@@ -14,7 +15,8 @@ type Props = {
   lines: { label: string; value: string }[];
   busy?: boolean;
   error?: string;
-  onTrust: () => void | Promise<void>;
+  /** Trusts this exact version, or declines it (also how a trusted one is revoked). */
+  onDecide: (trusted: boolean) => void | Promise<void>;
 };
 let {
   open = $bindable(false),
@@ -22,9 +24,10 @@ let {
   lines,
   busy = false,
   error,
-  onTrust,
+  onDecide,
 }: Props = $props();
 const file = $derived(profile?.definition);
+const decision = $derived(profile?.trustState ?? "needs_review");
 </script>
 
 <Dialog
@@ -44,6 +47,7 @@ const file = $derived(profile?.definition);
         <div class="flex flex-wrap items-center gap-2 px-3 py-2">
           <span class="text-ui text-foreground">{file.label ?? file.name}</span>
           <Badge variant="info">Project file</Badge>
+          <TrustStateBadge state={decision} />
           <span class="text-ui text-muted-foreground"
             >Usable by {file.usableBy === "lead"
               ? "main agent"
@@ -79,8 +83,23 @@ const file = $derived(profile?.definition);
     <Button variant="ghost" disabled={busy} onclick={() => (open = false)}
       >Not now</Button
     >
-    <Button disabled={busy || !profile?.digest} onclick={onTrust}
-      >{profile?.trusted ? "Revoke trust" : "Trust this version"}</Button
-    >
+    {#if decision === "trusted"}
+      <Button
+        variant="outline"
+        disabled={busy || !profile?.digest}
+        onclick={() => onDecide(false)}>Revoke</Button
+      >
+    {:else}
+      {#if decision === "needs_review"}
+        <Button
+          variant="outline"
+          disabled={busy || !profile?.digest}
+          onclick={() => onDecide(false)}>Decline</Button
+        >
+      {/if}
+      <Button disabled={busy || !profile?.digest} onclick={() => onDecide(true)}
+        >Trust this version</Button
+      >
+    {/if}
   {/snippet}
 </Dialog>

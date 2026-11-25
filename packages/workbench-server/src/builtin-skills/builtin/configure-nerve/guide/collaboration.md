@@ -12,4 +12,4 @@ Use this when the user brings a goal or a problem rather than a precise request.
 
 ## Build
 
-Once the user has chosen, follow the "Procedure" at the top of the thing's reference and the loop in `SKILL.md`. Finish with one short summary of what you created or changed, with paths, and any step only the user can do: the approvals `configuration.list({ state: "needs_approval" })` shows, or choosing a profile in the composer.
+Once the user has chosen, follow the "Procedure" at the top of the thing's reference and the loop in `SKILL.md`. Finish with one short summary of what you created or changed, with paths, and any step only the user can do: the approvals `configuration.list({ state: "needs_review" })` shows, or choosing a profile in the composer.

@@ -29,5 +29,7 @@ export { default as LayerEnabledTable } from "./LayerEnabledTable.svelte";
 export { default as LayerRow } from "./LayerRow.svelte";
 export { default as LevelMenu } from "./LevelMenu.svelte";
 export { default as TipBadge } from "./TipBadge.svelte";
+export { default as TrustStateBadge } from "./TrustStateBadge.svelte";
+export { default as TrustDecisionActions } from "./TrustDecisionActions.svelte";
 export { SETTINGS_SEARCH_MIN } from "./settings-search";
 export type { SettingsLayer, SettingsOrigin } from "./settings-origin";

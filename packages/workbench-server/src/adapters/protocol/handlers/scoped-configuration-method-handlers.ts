@@ -1,4 +1,7 @@
-import { toTrustedDigest } from "@nervekit/contracts/core";
+import {
+  toTrustedDigest,
+  type TrustedResource,
+} from "@nervekit/contracts/core";
 import { createConfigurationReload } from "../../../core-host/configuration/configuration-reload.js";
 import { readFile } from "node:fs/promises";
 import {
@@ -53,6 +56,7 @@ async function trust(state: Context, input: ScopedTrustRequest) {
   const service = state.agentConfiguration;
   const file = configurationTargetPath(service, input.target);
   try {
+    let decided: TrustedResource | undefined;
     await withFileMutation(file, async () => {
       const bytes = await readFile(file);
       if (digestBytes(bytes) !== input.expectedDigest)
@@ -73,7 +77,7 @@ async function trust(state: Context, input: ScopedTrustRequest) {
         )
           throw new Error("Profile name differs from filename");
       }
-      state.conversationCore.trust.decide({
+      decided = state.conversationCore.trust.decide({
         kind:
           input.target.document === "agent"
             ? "project_capabilities"
@@ -98,7 +102,10 @@ async function trust(state: Context, input: ScopedTrustRequest) {
     return {
       status: "saved" as const,
       digest: input.expectedDigest,
-      trusted: input.trusted,
+      trustState: state.conversationCore.trust.trustState(
+        decided,
+        toTrustedDigest(input.expectedDigest),
+      ),
     };
   } catch (error) {
     return failure(state, input.target, error);

@@ -9,6 +9,8 @@ import {
   attentionSignature,
   attentionToastTitle,
   groupAttention,
+  projectReviewEntries,
+  reviewReminder,
 } from "./configuration-attention";
 
 const resource = (
@@ -48,9 +50,11 @@ test("only invalid, incompatible, waiting or error-diagnostic resources get an e
     "broken",
   );
   assert.equal(
-    attentionEntry(resource({ state: "needs_approval" }))?.group,
+    attentionEntry(resource({ state: "needs_review" }))?.group,
     "review",
   );
+  // A decline is final: it never asks for attention.
+  assert.equal(attentionEntry(resource({ state: "declined" })), undefined);
 });
 
 test("an entry says what it is, where it comes from and the first diagnostic", () => {
@@ -80,32 +84,46 @@ test("an entry says what it is, where it comes from and the first diagnostic", (
   assert.equal(upgrade?.origin, "Yours, every project");
   assert.equal(upgrade?.askAgent, "upgrade");
 
-  const waiting = attentionEntry(resource({ state: "needs_approval" }));
+  const waiting = attentionEntry(resource({ state: "needs_review" }));
   assert.equal(waiting?.title, "Skill release-notes");
-  assert.equal(waiting?.detail, "Not used until you approve it.");
+  assert.equal(waiting?.detail, "Not used until you trust it.");
   assert.equal(waiting?.askAgent, undefined);
 });
 
 test("review lands in the scope and page that holds the item", () => {
   const target = (patch: Partial<ConfigurationResource>) =>
-    attentionEntry(resource({ state: "needs_approval", ...patch }))?.target;
+    attentionEntry(resource({ state: "needs_review", ...patch }))?.target;
   assert.deepEqual(target({}), {
     scope: "project",
     pageId: "skills",
     item: "release-notes",
   });
+  // Every item is decided on its own page; agent.json only on General.
   assert.deepEqual(target({ kind: "permission-overlay", id: "permissions" }), {
     scope: "project",
-    pageId: "trust",
+    pageId: "permission-rules",
   });
   assert.deepEqual(target({ kind: "agent-preferences", id: "agent.json" }), {
     scope: "project",
-    pageId: "trust",
+    pageId: "general",
   });
   assert.deepEqual(target({ kind: "agent-profile", id: "reviewer" }), {
     scope: "project",
-    pageId: "trust",
+    pageId: "agents",
+    item: "project:reviewer",
   });
+  assert.deepEqual(
+    attentionEntry(
+      resource({
+        kind: "agent-profile",
+        id: "helper",
+        state: "needs_review",
+      }),
+      (scope, name) =>
+        scope === "project" && name === "helper" ? "sub-agents" : undefined,
+    )?.target,
+    { scope: "project", pageId: "sub-agents", item: "project:helper" },
+  );
   assert.deepEqual(target({ kind: "extension", id: "csv", scope: "user" }), {
     scope: "user",
     pageId: "extensions",
@@ -130,7 +148,7 @@ test("review lands in the scope and page that holds the item", () => {
   });
   assert.equal(
     attentionEntry(
-      resource({ kind: "mcp-servers", id: "github", state: "needs_approval" }),
+      resource({ kind: "mcp-servers", id: "github", state: "needs_review" }),
     )?.title,
     "MCP server github",
   );
@@ -162,7 +180,7 @@ test("files the health entries already show are left to them", () => {
     state: "invalid",
     diagnostics: [error("order")],
   });
-  const skill = resource({ state: "needs_approval" });
+  const skill = resource({ state: "needs_review" });
   const entries = attentionEntries(
     [settings, launch, skill, skill],
     [
@@ -180,8 +198,8 @@ test("files the health entries already show are left to them", () => {
 
 test("groups, counts and the set signature", () => {
   const entries = attentionEntries([
-    resource({ state: "needs_approval" }),
-    resource({ kind: "permission-overlay", id: "p", state: "needs_approval" }),
+    resource({ state: "needs_review" }),
+    resource({ kind: "permission-overlay", id: "p", state: "needs_review" }),
     resource({
       kind: "extension",
       id: "csv",
@@ -195,9 +213,13 @@ test("groups, counts and the set signature", () => {
   assert.equal(groups.broken.length, 1);
   const counts = attentionCounts(entries);
   assert.equal(counts.project, 2);
-  assert.equal(counts.user, 1);
-  assert.deepEqual(counts.pages.project, { skills: 1, trust: 1 });
-  assert.deepEqual(counts.pages.user, { extensions: 1 });
+  // The broken user extension is not waiting for review: no badge.
+  assert.equal(counts.user, 0);
+  assert.deepEqual(counts.pages.project, {
+    skills: 1,
+    "permission-rules": 1,
+  });
+  assert.deepEqual(counts.pages.user, {});
 
   const reordered = [...entries].reverse();
   assert.equal(attentionSignature(entries), attentionSignature(reordered));
@@ -209,7 +231,7 @@ test("groups, counts and the set signature", () => {
 });
 
 test("the toast names the cause", () => {
-  const review = attentionEntries([resource({ state: "needs_approval" })]);
+  const review = attentionEntries([resource({ state: "needs_review" })]);
   assert.equal(
     attentionToastTitle(review, "shop"),
     "shop has 1 item waiting for your review",
@@ -253,4 +275,19 @@ test("the agent prompt carries kind, id, scope, path and diagnostics and grants 
     "Do not approve or trust anything",
   ])
     assert.ok(prompt.includes(part), part);
+});
+
+test("the welcome reminds of project items that wait, never of declined ones", () => {
+  const entries = attentionEntries([
+    resource({ state: "needs_review" }),
+    resource({ id: "other", state: "declined" }),
+    resource({ id: "mine", scope: "user", state: "needs_review" }),
+    resource({ id: "broken", state: "invalid", diagnostics: [error("x")] }),
+  ]);
+  assert.deepEqual(
+    projectReviewEntries(entries).map((entry) => entry.id),
+    ["release-notes"],
+  );
+  assert.equal(reviewReminder(1), "1 project file needs your review");
+  assert.equal(reviewReminder(3), "3 project files need your review");
 });

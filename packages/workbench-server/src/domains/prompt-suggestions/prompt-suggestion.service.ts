@@ -110,13 +110,13 @@ export class PromptSuggestionService {
         git,
         definitions: effective,
       },
-      trustRecords,
+      (definition) => this.deps.trustRepository.state(definition),
     );
     return {
       suggestions: evaluated.suggestions.sort(sortSuggestions),
       trustRequests: evaluated.trustRequests,
       statuses: mergeStatuses(
-        statusesFor(definitions, trustRecords),
+        statusesFor(definitions, this.deps.trustRepository),
         staleStatuses(trustRecords, definitions),
       ),
       diagnostics: [...loaded.diagnostics, ...evaluated.diagnostics],
@@ -129,7 +129,7 @@ export class PromptSuggestionService {
     const definitions = await this.applyEnablement(loaded.definitions, project);
     const trustRecords = this.deps.trustRepository.list(projectId);
     return mergeStatuses(
-      statusesFor(definitions, trustRecords),
+      statusesFor(definitions, this.deps.trustRepository),
       staleStatuses(trustRecords, definitions),
     );
   }
@@ -251,7 +251,7 @@ export class PromptSuggestionService {
         "The prompt suggestion file was created but could not be loaded.",
       );
     }
-    const [status] = statusesFor([definition], []);
+    const [status] = statusesFor([definition], this.deps.trustRepository);
     await this.deps.events.publish("prompt_suggestions.created", {
       definitionKey: definition.definitionKey,
       name: definition.name,
@@ -264,40 +264,27 @@ export class PromptSuggestionService {
   async updateTrust(
     request: UpdatePromptSuggestionTrustRequest,
   ): Promise<void> {
-    if (request.status === "unset") {
-      const records = [
-        ...this.deps.trustRepository.list(),
-        ...this.deps
-          .listProjects()
-          .flatMap((project) => this.deps.trustRepository.list(project.id)),
-      ];
-      const record = records.find(
-        (record) => record.trustId === request.trustId,
-      );
-      if (record) this.deps.trustRepository.remove(record);
-    } else {
-      const pending = await this.findDefinitionByTrustId(request.trustId);
-      if (
-        !pending?.trustId ||
-        !pending.predicateHash ||
-        pending.source.kind === "builtin"
-      ) {
-        throw new Error("Prompt suggestion trust target was not found.");
-      }
-      this.deps.trustRepository.set({
-        trustId: pending.trustId,
-        sourceKind: pending.source.kind,
-        projectId: pending.source.projectId,
-        path: pending.source.path,
-        name: pending.name,
-        label: pending.label,
-        predicateHash: pending.predicateHash,
-        status: request.status,
-      });
+    const pending = await this.findDefinitionByTrustId(request.trustId);
+    if (
+      !pending?.trustId ||
+      !pending.predicateHash ||
+      pending.source.kind === "builtin"
+    ) {
+      throw new Error("Prompt suggestion trust target was not found.");
     }
+    this.deps.trustRepository.set({
+      trustId: pending.trustId,
+      sourceKind: pending.source.kind,
+      projectId: pending.source.projectId,
+      path: pending.source.path,
+      name: pending.name,
+      label: pending.label,
+      predicateHash: pending.predicateHash,
+      status: request.trusted ? "trusted" : "declined",
+    });
     await this.deps.events.publish("prompt_suggestions.trust_updated", {
       trustId: request.trustId,
-      status: request.status,
+      trusted: request.trusted,
     });
   }
 
@@ -457,7 +444,7 @@ function effectiveDefinitions(
 
 function statusesFor(
   definitions: PromptSuggestionDefinition[],
-  trustRecords: Awaited<ReturnType<PromptSuggestionTrustRepository["list"]>>,
+  trust: Pick<PromptSuggestionTrustRepository, "state">,
 ): PromptSuggestionStatus[] {
   const winnerByName = new Map<string, PromptSuggestionDefinition>();
   for (const definition of definitions) {
@@ -466,9 +453,6 @@ function statusesFor(
     }
   }
   return definitions.map((definition) => {
-    const trustRecord = definition.trustId
-      ? trustRecords.find((record) => record.trustId === definition.trustId)
-      : undefined;
     const winner = winnerByName.get(definition.name);
     return {
       trustId: definition.trustId,
@@ -480,9 +464,7 @@ function statusesFor(
       sourceKind: definition.source.kind,
       projectId: definition.source.projectId,
       requiresTrust: Boolean(definition.enableJs),
-      status: definition.enableJs
-        ? (trustRecord?.status ?? "unset")
-        : "not_required",
+      status: definition.enableJs ? trust.state(definition) : "not_required",
       enabled: definition.enabled,
       defaultEnabled: definition.defaultEnabled,
       overriddenBy:
@@ -530,11 +512,12 @@ function staleStatuses(
   trustRecords: Awaited<ReturnType<PromptSuggestionTrustRepository["list"]>>,
   definitions: PromptSuggestionDefinition[],
 ): PromptSuggestionStatus[] {
-  const currentTrustIds = new Set(
-    definitions.map((definition) => definition.trustId).filter(Boolean),
+  // A decision is per file: it is stale only when no definition of that file is left.
+  const currentPaths = new Set(
+    definitions.map((definition) => definition.source.path),
   );
   return trustRecords
-    .filter((record) => !currentTrustIds.has(record.trustId))
+    .filter((record) => !currentPaths.has(record.path))
     .map((record) => ({
       trustId: record.trustId,
       definitionKey: `stale:${record.trustId}`,

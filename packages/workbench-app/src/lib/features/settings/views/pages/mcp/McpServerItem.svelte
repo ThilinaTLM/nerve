@@ -7,7 +7,11 @@
 import Plug from "@lucide/svelte/icons/plug";
 import type { McpServerRow } from "@nervekit/contracts/mcp";
 import { PageItem } from "@nervekit/ui-kit/components/composites/page";
-import { LayerSwitches, type SettingsLayer } from "$lib/presentation/settings";
+import {
+  LayerSwitches,
+  TrustStateBadge,
+  type SettingsLayer,
+} from "$lib/presentation/settings";
 import {
   mcpCommandLine,
   mcpPending,
@@ -41,6 +45,8 @@ let {
 }: Props = $props();
 
 const pending = $derived(mcpPending(row));
+/** The user's choice: a quiet badge, not a problem line. */
+const declined = $derived(row.review === "declined");
 /** Where it comes from, kept in the status line so the name never loses room. */
 const origin = $derived(
   row.shadowed
@@ -63,11 +69,16 @@ const summary = $derived(
   icon={Plug}
   muted={row.state === "disabled"}
   {summary}
-  problem={mcpProblem(row)}
-  problemAction={pending ? { label: "Review", onclick: onOpen } : undefined}
+  problem={declined ? undefined : mcpProblem(row)}
+  problemAction={row.review === "needs_review"
+    ? { label: "Review", onclick: onOpen }
+    : undefined}
   {onOpen}
   openLabel={pending ? `Review ${row.name}` : `Open ${row.name}`}
 >
+  {#snippet badges()}
+    {#if declined}<TrustStateBadge state="declined" />{/if}
+  {/snippet}
   {#snippet meta()}
     <LayerSwitches
       name={row.name}

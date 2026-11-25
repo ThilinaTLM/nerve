@@ -60,7 +60,8 @@ void test("baseline failures expose relevant dependency health, never unrelated 
 void test("project documents report whether their exact bytes are trusted", async (t) => {
   const trustedDigests = new Set<string>();
   const f = await fixture(t, {
-    isProjectAgentTrusted: (_id, _path, digest) => trustedDigests.has(digest),
+    projectAgentTrustState: (_id, _path, digest) =>
+      trustedDigests.has(digest) ? "trusted" : "needs_review",
   });
   await f.agent(project, {
     schemaVersion: 1,
@@ -71,13 +72,13 @@ void test("project documents report whether their exact bytes are trusted", asyn
   const untrusted = await operations.get(project);
   assert.equal(untrusted.status, "available");
   if (untrusted.status !== "available") return;
-  assert.equal(untrusted.trusted, false);
+  assert.equal(untrusted.trustState, "needs_review");
   trustedDigests.add(untrusted.source.digest);
   const trusted = await operations.get(project);
-  assert.equal(trusted.status === "available" && trusted.trusted, true);
+  assert.equal(trusted.status === "available" && trusted.trustState, "trusted");
   const userResult = await operations.get(user);
   assert.equal(
-    userResult.status === "available" && userResult.trusted,
+    userResult.status === "available" && userResult.trustState,
     undefined,
   );
 });

@@ -33,7 +33,7 @@ test("a waiting item offers Review only; a broken one the agent and where to loo
     labels({
       group: "review",
       askAgent: undefined,
-      target: { scope: "project", pageId: "trust" },
+      target: { scope: "project", pageId: "general" },
     }),
     ["Review"],
   );

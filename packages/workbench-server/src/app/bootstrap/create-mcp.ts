@@ -15,7 +15,8 @@ export function createMcpHub(deps: RuntimeDeps, core: () => ConversationCore) {
   const catalog = new McpCatalog({
     home: deps.storage.paths.home,
     trust: {
-      find: (kind, projectId, key) => core().trust.find(kind, projectId, key),
+      state: (kind, projectId, key, digest) =>
+        core().trust.state(kind, projectId, key, digest),
     },
   });
   const secrets = new McpSecrets(deps.secrets);

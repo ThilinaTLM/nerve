@@ -1,5 +1,6 @@
 import { consentSourcesOf } from "../../core-host/extensions/extension-catalog/extension-consent.js";
 import { toTrustedDigest } from "@nervekit/contracts/core";
+import { lazyTrust } from "./lazy-trust.js";
 import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
 import { createConversationTitles } from "./create-conversation-titles.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
@@ -453,6 +454,7 @@ export function createConversationCore(
       projects: core.projects.generation,
     });
   const resourceGeneration = resourceGenerationOf(resourceFingerprint);
+  const trustLookup = lazyTrust(() => core.trust);
   const agentConfiguration = new AgentConfigurationService({
     home: deps.storage.paths.home,
     projectDirectory: (id) => storage.projects.get(id)?.directory,
@@ -466,17 +468,13 @@ export function createConversationCore(
     },
     builtins: bundledAgentProfiles,
     projectMigration,
-    isProjectAgentTrusted: (id, path, digest) => {
-      const row = storage.trustedResources.find(
+    projectAgentTrustState: (id, path, digest) =>
+      core.trust.state(
         "project_capabilities",
         id,
         path,
-      );
-      return (
-        row?.status === "trusted" &&
-        row.contentDigest === toTrustedDigest(digest)
-      );
-    },
+        toTrustedDigest(digest),
+      ),
     publish: (domain, scope) => {
       admissionPolicy.invalidate();
       if (domain === "profile")
@@ -492,8 +490,8 @@ export function createConversationCore(
             });
           });
     },
-    isProfileTrusted: (projectId, path, digest) =>
-      core.trust.isTrusted(
+    profileTrustState: (projectId, path, digest) =>
+      core.trust.state(
         "agent_profile",
         projectId,
         path,
@@ -559,8 +557,8 @@ export function createConversationCore(
       extensionCatalog.settingsDefinitions(
         projectId ? projectDirectory(projectId) : undefined,
       ),
-    isProjectTrusted: (projectId, path, digest) =>
-      core.trust.isTrusted(
+    projectTrustState: (projectId, path, digest) =>
+      core.trust.state(
         "project_capabilities",
         projectId,
         path,
@@ -615,7 +613,7 @@ export function createConversationCore(
       tools: tools.definitions,
       nerveSkills: () => deps.nerveSkills.skills,
       agentBrowserSkills: () => deps.agentBrowserSkills.skills,
-      projectSkillTrust: createProjectSkillTrust(storage.trustedResources),
+      projectSkillTrust: createProjectSkillTrust(trustLookup),
       hasChildren: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
       registry: (projectDir) => extensionCatalog.registryFor(projectDir),
@@ -631,6 +629,7 @@ export function createConversationCore(
     projectMigration,
     home: deps.storage.paths.home,
     storage,
+    trust: trustLookup,
     agents: agentConfiguration,
     trustGeneration: () => core.trust.generation + core.projects.generation,
     requestGenerations: (id) => scopedConfiguration.getCapture(id)?.generations,
@@ -642,7 +641,7 @@ export function createConversationCore(
     mcpCatalog,
     agentConfiguration,
     policy: admissionPolicy,
-    trustedResources: storage.trustedResources,
+    trust: trustLookup,
     launchDefinitions: launchServices.definitions,
     extensionCatalog,
     builtinSkills: () => [

@@ -18,13 +18,17 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import { skillApprovalProblem } from "$lib/application/skills/skill-review";
+import {
+  skillApprovalProblem,
+  skillIsPending,
+} from "$lib/application/skills/skill-review";
 import {
   LayerSwitches,
   OriginGroup,
   SETTINGS_SEARCH_MIN,
   SettingsSection,
   TipBadge,
+  TrustStateBadge,
   type SettingsLayer,
   type SettingsOrigin,
 } from "$lib/presentation/settings";
@@ -41,7 +45,6 @@ let {
   skills = [],
   error: catalogError,
   onOpenItem,
-  onReviewTrust,
 }: {
   /** The open project; without one the page has a single (User) column. */
   projectId?: string;
@@ -51,8 +54,6 @@ let {
   error?: string;
   /** Opens a project skill's review page. */
   onOpenItem?: (name: string) => void;
-  /** Opens the project's Trust page. */
-  onReviewTrust?: () => void;
 } = $props();
 
 const userEditor = new ScopedAgentState();
@@ -81,7 +82,7 @@ const error = $derived(
 const locked = $derived(
   layered &&
     projectEditor.document?.status === "available" &&
-    projectEditor.document.trusted === false,
+    (projectEditor.document.trustState ?? "trusted") !== "trusted",
 );
 let query = $state("");
 
@@ -259,8 +260,6 @@ function onRetry() {
     document={projectEditor.document}
     scope={projectEditor.scope}
     onReload={() => projectEditor.reload()}
-    {projectName}
-    onReview={onReviewTrust}
   />{/if}
 {#if error}
   <Callout layout="block" tone="destructive" text={error}>
@@ -296,8 +295,8 @@ function onRetry() {
           icon={group.icon}
           summary={entry.skill.description || entry.skill.filePath}
           mono={!entry.skill.description}
-          problem={skillApprovalProblem(entry.skill.approval)}
-          problemAction={entry.skill.approval
+          problem={skillApprovalProblem(entry.skill)}
+          problemAction={entry.skill.trustState === "needs_review"
             ? {
                 label: "Review",
                 onclick: () => onOpenItem?.(entry.skill.name),
@@ -309,6 +308,12 @@ function onRetry() {
           openLabel={`Review ${entry.skill.name}`}
         >
           {#snippet badges()}
+            {#if entry.skill.trustState === "declined"}
+              <TrustStateBadge
+                state="declined"
+                changedSinceDecision={entry.skill.changedSinceDecision}
+              />
+            {/if}
             {#if row.replaced}
               <TipBadge
                 text="Replaced in project"
@@ -324,7 +329,7 @@ function onRetry() {
               projectSet={row.projectSet}
               projectName={layered ? projectName : undefined}
               projectOnly={entry.source === "project"}
-              pending={!!entry.skill.approval}
+              pending={skillIsPending(entry.skill)}
               inapplicable={row.replaced}
               {locked}
               onChange={(layer, next) => change(row, layer, next)}

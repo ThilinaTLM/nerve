@@ -54,4 +54,4 @@ enable-js: |
 
 Define `function enable(context)` and return `true` to show the chip. It runs synchronously with no access to files, network or modules. `context` has `timestamp`, `platform`, `project` (`id`, `name`, `dir`), `git` (`repos[]` with `relativePath`, `currentBranch`, `dirty`, `changeCount`, `ahead`, `behind`, `hasUpstream`, `hasRemote`, `baseBranch`, `onBaseBranch`, `mergedToBase`, `pullRequest`; `github` with `available`, `authenticated`) and `conversation` (`id`, `title`, `status`, `permissionRuleSetId`, `reasoningLevel`; absent outside a conversation).
 
-The predicate is code, so it runs only after the user approves it in Settings → Suggestions, and any edit of it asks again. `configuration.check` shows the suggestion as `needs_approval` until then. You cannot approve it.
+The predicate is code, so it runs only after the user approves it in Settings → Suggestions, and any edit of it asks again. `configuration.check` shows the suggestion as `needs_review` until then. You cannot approve it.

@@ -62,15 +62,17 @@ Extension pages keep only the choice of which account to use, and link here.
 - **Background jobs** lists work Nerve does on its own while it runs. Today that is **Account credential refresh**, which renews sign-ins that are about to expire so they keep working in the background; it skips accounts you haven't used for 30 days. Each job shows its last run and next run, and **Run now** starts it at once. A job that keeps failing, or an account that needs sign-in, appears in the notification bell. Jobs run only while Nerve runs.
 - **System** covers network access, diagnostics, resource limits, the daemon, desktop rendering, and version details. A control that a command-line flag or environment variable owns shows as locked. Some changes need a restart.
 
-## Project pages
+## Project files you review
 
-Besides the agent and catalog pages above, a project has:
+Some project files change how agents behave, so Nerve uses them only after you trust their exact content: the project's `.nerve/config/agent.json`, permission rules, agent and sub-agent profiles, skills, extensions, MCP servers, and suggestion scripts. You decide each one on the page where it is used, and every item is in one of three states:
 
-- **Launch** for the project's launch definitions.
-- **Instructions files** for `AGENTS.md` files and extra system prompt text.
-- **Trust** for project files Nerve reads only after you review them, such as profile files and suggestion scripts.
+- **Needs review**: new, or changed since you trusted it. Choose **Review and trust** or **Decline**.
+- **Trusted**: Nerve uses it. **Revoke** turns it off again.
+- **Declined**: Nerve doesn't use it and stops asking, even if the file changes. Choose **Review and trust** when you change your mind.
 
-Project **General**, **Tools**, and **Skills** show a warning, **Project agent settings are not trusted**, when the project's `.nerve/config/agent.json` isn't trusted yet. Conversations ignore the file and use your user settings until you choose **Trust file**. Settings you change through Nerve stay trusted; a file edited elsewhere needs trusting again.
+Items that need review show a count next to their page in the settings navigation, appear in the notification bell, and are mentioned in one line on the project's start screen.
+
+When the project's `agent.json` needs review, General, Tools, Skills, and MCP servers show a notice with **Review and trust** and **Decline**. Until you trust it, conversations ignore the file and use your user settings. Settings you change through Nerve stay trusted; a file edited elsewhere needs reviewing again.
 
 ## Good to know
 

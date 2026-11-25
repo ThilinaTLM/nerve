@@ -47,7 +47,7 @@ export const configurationMethods: SdkMethod[] = [
     risk: "none",
     options: ["kind", "scope", "state"],
     signature:
-      '/** Everything configured, after precedence: profiles, rule sets, overlays, launch catalog, skills, prompt suggestions, extensions; built-in, user and this project. Filter with any of kind, scope, state, e.g. `{ kind: "rule-set" }` for the ids a profile may select, `{ state: "needs_approval" }` for what waits for the user, `{ kind: "extension", state: "incompatible" }` after an update. Reads loaded state; `check` reads the disk. */ list(filter?: { kind?: ConfigurationResource["kind"]; scope?: ConfigurationResource["scope"]; state?: ConfigurationResource["state"] }): Promise<ConfigurationResult>',
+      '/** Everything configured, after precedence: profiles, rule sets, overlays, launch catalog, skills, prompt suggestions, extensions; built-in, user and this project. Filter with any of kind, scope, state, e.g. `{ kind: "rule-set" }` for the ids a profile may select, `{ state: "needs_review" }` for what waits for the user, `{ kind: "extension", state: "incompatible" }` after an update. Reads loaded state; `check` reads the disk. */ list(filter?: { kind?: ConfigurationResource["kind"]; scope?: ConfigurationResource["scope"]; state?: ConfigurationResource["state"] }): Promise<ConfigurationResult>',
     parse: (options): ConfigurationListFilter => {
       // A misspelt value would match nothing and read as "nothing configured".
       for (const key of ["kind", "scope", "state"] as const) {
@@ -115,7 +115,7 @@ export const configurationMethods: SdkMethod[] = [
     risk: "read",
     bare: "scope",
     options: ["scope"],
-    signature: `/** Make Nerve re-read the scope's configuration files after you edited them: ${COVERS}. New and removed files are picked up. A file that is invalid on disk does not replace the version that was loaded: it comes back with \`previousVersionActive: true\` and the old version stays in use until you fix the file and reload again. Returns the resources that have a diagnostic; empty means every file is valid and active. Never approves anything: a project file in state "needs_approval" stays ignored until the user approves it where \`approval.where\` says. */ reload(scope: ${SCOPE}): Promise<ConfigurationResult>`,
+    signature: `/** Make Nerve re-read the scope's configuration files after you edited them: ${COVERS}. New and removed files are picked up. A file that is invalid on disk does not replace the version that was loaded: it comes back with \`previousVersionActive: true\` and the old version stays in use until you fix the file and reload again. Returns the resources that have a diagnostic; empty means every file is valid and active. Never approves anything: a project file in state "needs_review" stays ignored until the user approves it where \`approval.where\` says. */ reload(scope: ${SCOPE}): Promise<ConfigurationResult>`,
     parse: (options) => parseScope(options),
     authorize: (scope) => ({
       targets: [`configuration:scope/${scope}`],

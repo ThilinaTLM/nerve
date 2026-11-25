@@ -3,9 +3,11 @@ import { projectConfigurationHealth } from "$lib/application/project-configurati
 import { settingsHealth } from "$lib/application/settings/settings-health-state.svelte";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
+import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import {
   attentionEntries,
   type AttentionEntry,
+  type ProfilePageOf,
 } from "./configuration-attention";
 
 /**
@@ -35,8 +37,23 @@ class ConfigurationAttentionController {
   }
 
   get entries(): AttentionEntry[] {
-    return attentionEntries(this.resources, this.shownPaths);
+    return attentionEntries(
+      this.resources,
+      this.shownPaths,
+      this.#profilePageOf,
+    );
   }
+
+  /** A sub-agent-only profile is decided on Sub-Agents; the rest on Agents. */
+  #profilePageOf: ProfilePageOf = (scope, name) => {
+    const profile = agentProfileCatalog
+      .profiles(scope === "project" ? this.projectId : undefined)
+      .find(
+        (option) =>
+          option.name === name && (option.source ?? "builtin") === scope,
+      );
+    return profile?.usableBy === "subagent" ? "sub-agents" : undefined;
+  };
 
   /** Opens a project file the entry names, in the project it was read for. */
   async openFile(path: string): Promise<void> {
@@ -65,6 +82,15 @@ class ConfigurationAttentionController {
       this.resources = resources;
       this.loaded = true;
       this.error = undefined;
+      // A profile's page depends on who may use it; read once something waits.
+      if (
+        resources.some(
+          (resource) =>
+            resource.kind === "agent-profile" &&
+            resource.state === "needs_review",
+        )
+      )
+        void agentProfileCatalog.ensure(projectId);
     } catch (error) {
       if (request !== this.#request) return;
       this.error =

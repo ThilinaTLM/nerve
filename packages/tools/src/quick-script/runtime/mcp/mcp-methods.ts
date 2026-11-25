@@ -55,7 +55,7 @@ const signal = (env: SdkEnvironment) => ({ signal: env.context.signal });
 const SEARCH_PARALLEL = 4;
 
 /** Servers a call without `server` leaves alone: not started until the user acts. */
-const SKIPPED_STATES = new Set(["disabled", "needs_approval", "rejected"]);
+const SKIPPED_STATES = new Set(["disabled", "needs_review", "declined"]);
 
 /** `tasks` run with at most `parallel` in flight; results keep the order of `items`. */
 async function settleLimited<T, R>(
@@ -87,7 +87,7 @@ async function settleLimited<T, R>(
 /**
  * Servers a call without `server` covers: every one that is connected, idle or failed (at most
  * four at a time), each checked as the call would be with that server named, so a rule on
- * `mcp:server/<name>` applies. A server that is disabled, waiting for approval or rejected, that
+ * `mcp:server/<name>` applies. A server that is disabled, needing review or declined, that
  * is refused, or that fails becomes a note, not an error.
  */
 async function eachServer<T>(
@@ -267,7 +267,7 @@ export const mcpMethods: SdkMethod[] = [
     bare: "server",
     options: ["server"],
     signature:
-      "/** Tools of one server, or of every connected, idle or failed server (a server that fails, is disabled or waits for approval is skipped with a note). Starts or connects to the servers it lists. */ list(server?: string | { server?: string }): Promise<McpTool[]>",
+      "/** Tools of one server, or of every connected, idle or failed server (a server that fails, is disabled or needs review is skipped with a note). Starts or connects to the servers it lists. */ list(server?: string | { server?: string }): Promise<McpTool[]>",
     parse: (options) => text(options, "server"),
     authorize: (server) => ({
       targets: server ? [serverTarget(server)] : [],

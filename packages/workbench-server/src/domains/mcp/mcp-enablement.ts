@@ -31,7 +31,7 @@ export const mcpRunOf = (
 });
 
 /** Why an entry may not run: switched off, or not (yet) approved. `undefined`: it may. */
-export type McpBlock = "disabled" | "needs_approval" | "rejected";
+export type McpBlock = "disabled" | "needs_review" | "declined";
 
 export function mcpBlock(
   entry: CatalogEntry,
@@ -42,7 +42,7 @@ export function mcpBlock(
     enablement?.defaults ??
     entry.server.config.enabled !== false;
   if (!enabled) return "disabled";
-  return entry.review === "approved" ? undefined : entry.review;
+  return entry.review === "trusted" ? undefined : entry.review;
 }
 
 const LAYER_NAMES: Record<string, string> = {
@@ -85,17 +85,17 @@ export function mcpBlockMessage(
     switch (block) {
       case "disabled":
         return `Turned off by ${turnedOffBy(entry, enablement)}. Turn it on to use it.`;
-      case "needs_approval":
+      case "needs_review":
         return "Waiting for your approval. Review it to use it.";
       default:
-        return "You rejected this entry. Approve it to use it.";
+        return "You declined this entry. Approve it to use it.";
     }
   switch (block) {
     case "disabled":
       return `Turned off by ${turnedOffBy(entry, enablement)}. The user turns it on in ${page}.`;
-    case "needs_approval":
+    case "needs_review":
       return `Waiting for the user's approval. The user reviews it in ${page}.`;
     default:
-      return `The user rejected this entry. It stays off until the user approves it in ${page}.`;
+      return `The user declined this entry. It stays off until the user approves it in ${page}.`;
   }
 }

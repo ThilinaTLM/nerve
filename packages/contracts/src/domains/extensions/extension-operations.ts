@@ -1,3 +1,4 @@
+import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
 import { diagnosticSchema } from "../configuration/diagnostic.js";
 import { defineOperation } from "../../operations/definition.js";
@@ -84,7 +85,8 @@ const settingsDiagnosticSchema = diagnosticSchema.extend({
     "unknown-field",
     "scope-not-allowed",
     "file-unavailable",
-    "untrusted-project",
+    "project-needs-review",
+    "project-declined",
   ]),
   extensionId: z.string().optional(),
   layer: z.enum(["user", "project", "profile", "conversation"]),
@@ -101,8 +103,8 @@ export const extensionsViewSchema = z.strictObject({
     path: z.string(),
     revision: z.number().int().nonnegative(),
     digest: z.string(),
-    /** Project files only; untrusted files are ignored by resolution. */
-    trusted: z.boolean().nullable(),
+    /** Project files only (null for user files); anything but `trusted` is ignored by resolution. */
+    trustState: trustStateSchema.nullable(),
   }),
   diagnostics: z.array(settingsDiagnosticSchema),
   /** Every extension the host knows of at the target (built-in, user and the target project's), loaded or not, with its state and diagnostics. */
@@ -182,7 +184,7 @@ export const trustProjectExtensionsResultSchema = z.discriminatedUnion(
   [
     z.strictObject({
       status: z.literal("saved"),
-      trusted: z.boolean(),
+      trustState: trustStateSchema,
       view: extensionsViewSchema,
     }),
     z.strictObject({ status: z.literal("conflict") }),

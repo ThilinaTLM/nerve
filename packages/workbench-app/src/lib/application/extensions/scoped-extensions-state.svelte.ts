@@ -9,7 +9,11 @@ import { requestWorkbench } from "$lib/application/startup/workbench-connection"
 import { publishUserExtensions } from "./selected-accounts.svelte";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { extensionChangeAffects } from "./extension-scope";
-import { observeConversationChannel } from "$lib/application/startup/conversation-connection";
+import {
+  observeConversationChannel,
+  requestConversation,
+} from "$lib/application/startup/conversation-connection";
+import { toTrustedDigest } from "@nervekit/contracts/core";
 
 /** The settings entry of one extension at a scope; omitted keys are removed. */
 export type ExtensionEntryChange = {
@@ -142,6 +146,42 @@ export class ScopedExtensionsState {
         }),
       entry,
     );
+  }
+
+  /**
+   * Declines a pending extension: it stays off and stops asking until the user
+   * allows it. Recorded on the folder, like a revoke, whatever its files become.
+   */
+  async declineConsent(entry: ExtensionCatalogEntry): Promise<boolean> {
+    const target = this.target;
+    const contentHash = entry.consent?.contentHash;
+    const projectId =
+      entry.source === "user"
+        ? null
+        : entry.source === "project" && target?.scope === "project"
+          ? target.projectId
+          : undefined;
+    if (!target || !contentHash || !entry.path || projectId === undefined)
+      return false;
+    if (this.saving) return false;
+    this.saving = true;
+    try {
+      await requestConversation("trust.decide", {
+        kind: "extension",
+        projectId,
+        resourceKey: entry.path,
+        name: entry.id,
+        contentDigest: toTrustedDigest(contentHash),
+        status: "rejected",
+      });
+    } catch (cause) {
+      this.error = cause instanceof Error ? cause.message : String(cause);
+      return false;
+    } finally {
+      this.saving = false;
+    }
+    // The catalog reads decisions when it evaluates a folder.
+    return this.reloadInstalled(entry.id);
   }
 
   revokeConsent(entry: ExtensionCatalogEntry): Promise<boolean> {

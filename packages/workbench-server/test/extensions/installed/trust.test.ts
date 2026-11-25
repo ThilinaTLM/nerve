@@ -132,7 +132,7 @@ void test("nothing runs before consent; consent is bound to the reviewed files",
   assert.equal(row.status, "trusted");
   assert.equal(row.contentDigest, `sha256:${pending.consent!.contentHash}`);
   assert.deepEqual(row.grants?.tools, ["first_echo", "first_ping"]);
-  // Revoking keeps the row as rejected, and the extension is pending review again.
+  // Revoking keeps the row as rejected, and the extension is declined.
   await trust.revoke(await candidate(extensions, "first"));
   assert.equal(
     consent.trust().find("extension", null, candidateFirst.folder)?.status,
@@ -147,6 +147,11 @@ void test("nothing runs before consent; consent is bound to the reviewed files",
     verdict(await trust.decide(await candidate(extensions, "first"))).consent
       ?.update,
     false,
+  );
+  // A decline does not depend on the content: changed files stay declined.
+  assert.equal(
+    verdict(await trust.decide(await candidate(extensions, "first"))).declined,
+    true,
   );
 });
 

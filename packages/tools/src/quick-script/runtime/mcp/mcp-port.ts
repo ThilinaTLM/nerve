@@ -15,9 +15,9 @@ export type McpServerState =
   /** Turned off by the user's settings or by `enabled: false` in mcp.json. Never started; calls fail with FORBIDDEN. */
   | "disabled"
   /** Not reviewed yet: the user must approve the entry before it starts. Never started; calls fail with FORBIDDEN. */
-  | "needs_approval"
-  /** The user reviewed the entry and rejected it. Never started; calls fail with FORBIDDEN. */
-  | "rejected"
+  | "needs_review"
+  /** The user declined the entry. Never started; calls fail with FORBIDDEN. */
+  | "declined"
   /** The last connection attempt failed; `error` says why. The next call tries again. */
   | "failed";
 
@@ -31,7 +31,7 @@ export type McpServerSummary = {
   error?: string;
   /**
    * A second entry with the name of a server that is in use (a project entry waiting for review or
-   * rejected, next to the user's entry that works). Calls by this name reach the other row, not
+   * declined, next to the user's entry that works). Calls by this name reach the other row, not
    * this one.
    */
   duplicate?: true;
@@ -109,7 +109,7 @@ export interface McpAgentPort {
   /**
    * Connects when needed (a server with an index may answer without connecting). Fails with
    * NOT_FOUND naming the configured servers for an unknown name, and with FORBIDDEN for a server
-   * that is disabled, needs approval or is rejected; the message names the state and where the
+   * that is disabled, needs review or is declined; the message names the state and where the
    * user acts (User settings → Connections → MCP servers, or Project settings → Agent → MCP
    * servers). The other methods fail the same way.
    */

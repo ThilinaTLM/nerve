@@ -3,7 +3,7 @@
 import type { McpServerRow } from "@nervekit/contracts/mcp";
 import { FieldRow } from "@nervekit/ui-kit/components/composites/page";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { SettingsSection } from "$lib/presentation/settings";
+import { SettingsSection, TrustStateBadge } from "$lib/presentation/settings";
 
 let {
   row,
@@ -18,7 +18,7 @@ let {
   path?: string;
   busy?: boolean;
   onOpenFile?: () => void;
-  /** Withdraws the approval (rejects the entry). */
+  /** Withdraws trust: the entry becomes Declined. */
   onRevoke?: () => void;
   onRemove: () => void;
 } = $props();
@@ -41,14 +41,14 @@ const where = $derived(
       </div>
     {/snippet}
   </FieldRow>
-  {#if row.review === "approved"}
+  {#if row.review === "trusted"}
     <FieldRow
-      label="Approval"
+      label="Trust"
       description="Covers this exact entry. A change made outside Nerve asks again."
     >
       {#snippet control()}
         <div class="flex items-center justify-end gap-2">
-          <span class="text-ui text-foreground">Approved</span>
+          <TrustStateBadge state="trusted" />
           {#if onRevoke}
             <Button
               size="sm"

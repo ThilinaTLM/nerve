@@ -40,6 +40,7 @@ import {
   LevelMenu,
   SettingsSection,
   TipBadge,
+  TrustDecisionActions,
 } from "$lib/presentation/settings";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import {
@@ -105,7 +106,9 @@ let {
 const entry = $derived(row.entry);
 const definition = $derived(entry.definition);
 const readOnly = $derived(row.origin === "builtin");
-const untrusted = $derived(row.origin === "project" && !entry.trusted);
+const untrusted = $derived(
+  row.origin === "project" && entry.trustState !== "trusted",
+);
 const busy = $derived(!!store.busy);
 const error = $derived(store.errors[row.id]);
 const editor = $derived(store.editorOf(row.origin));
@@ -275,8 +278,8 @@ async function duplicate() {
 async function remove() {
   if (await store.remove(row)) onBack();
 }
-async function trust() {
-  if (await store.trust(row)) reviewOpen = false;
+async function decide(trusted: boolean) {
+  if (await store.trust(row, trusted)) reviewOpen = false;
 }
 </script>
 
@@ -342,7 +345,7 @@ async function trust() {
           <FileText aria-hidden="true" />Open file
         </Button>
       {/if}
-      {#if row.origin === "project" && definition && entry.trusted}
+      {#if row.origin === "project" && definition && entry.trustState === "trusted"}
         <Button size="sm" variant="outline" onclick={() => (reviewOpen = true)}>
           <ShieldCheck aria-hidden="true" />Review trust
         </Button>
@@ -380,19 +383,22 @@ async function trust() {
   </Callout>
 {/if}
 {#if untrusted}
+  {@const declined = entry.trustState === "declined"}
   <Callout
     layout="block"
-    tone="warning"
-    title="Waiting for your review"
-    text="This profile comes from this project's files. Nerve uses it only after you trust these exact contents."
+    tone={declined ? "neutral" : "warning"}
+    title={declined ? "You declined this profile" : "Waiting for your review"}
+    text={declined
+      ? "Nerve doesn't use it until you review and trust it."
+      : "This profile comes from this project's files. Nerve uses it only after you trust these exact contents."}
   >
     {#snippet actions()}
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={busy}
-        onclick={() => (reviewOpen = true)}>Review and trust</Button
-      >
+      <TrustDecisionActions
+        state={entry.trustState}
+        {busy}
+        onTrust={() => (reviewOpen = true)}
+        onDecline={() => swallow(() => decide(false))}
+      />
     {/snippet}
   </Callout>
 {:else if row.replacedBy}
@@ -422,7 +428,7 @@ async function trust() {
     {/snippet}
   </Callout>
 {/if}
-{#each entry.diagnostics.filter((d) => d.code !== "untrusted") as diagnostic, index (index)}
+{#each entry.diagnostics.filter((d) => d.code !== "needs-review" && d.code !== "declined") as diagnostic, index (index)}
   <Callout
     layout="block"
     tone="warning"
@@ -675,7 +681,7 @@ async function trust() {
   }))}
   {busy}
   {error}
-  onTrust={trust}
+  onDecide={(trusted) => swallow(() => decide(trusted))}
 />
 {#if repairOpen}
   <ConfigurationRepairDialog

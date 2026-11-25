@@ -28,7 +28,9 @@ export function extensionAgentStatus(
       entry.source === "builtin"
         ? "not_required"
         : entry.state === "pending_consent"
-          ? "pending"
+          ? entry.trustState === "declined"
+            ? "declined"
+            : "needs_review"
           : entry.state === "enabled"
             ? "granted"
             : "unknown",

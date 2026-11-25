@@ -46,7 +46,8 @@ export type ExtensionDiagnostic = Diagnostic & {
     | "scope-not-allowed"
     /** Host-level: a settings file could not be used. */
     | "file-unavailable"
-    | "untrusted-project";
+    | "project-needs-review"
+    | "project-declined";
   /** Absent for diagnostics about a whole file. */
   extensionId?: string;
   layer: ExtensionLayerName;

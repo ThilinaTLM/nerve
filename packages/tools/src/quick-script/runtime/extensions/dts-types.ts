@@ -7,8 +7,8 @@ export const EXTENSIONS_DTS_TYPES = `interface ExtensionStatus {
   folder?: string;
   version?: string;
   sdkVersion?: string;
-  /** "pending": the user has not allowed it yet and nothing runs. */
-  consent?: "pending" | "granted" | "not_required" | "unknown";
+  /** "needs_review": the user has not decided yet; "declined": the user declined it. Nothing runs in either case. */
+  consent?: "needs_review" | "declined" | "granted" | "not_required" | "unknown";
   /** The extension's own switch at the project. */
   switch?: "on" | "off" | "unknown";
   diagnostics: { level: "error" | "warning"; code: string; message: string }[];
