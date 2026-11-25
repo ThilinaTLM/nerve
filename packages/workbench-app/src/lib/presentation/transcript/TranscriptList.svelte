@@ -12,7 +12,10 @@ import type {
   QueuedPromptRecord,
   UserQuestionRecord,
 } from "../state/tool-types";
-import type { ConversationMenuBuilders } from "../conversations/conversation-view-contracts.js";
+import type {
+  ConversationMenuBuilders,
+  ProjectReviewReminder,
+} from "../conversations/conversation-view-contracts.js";
 import {
   VirtualScroller,
   type VirtualScrollerController,
@@ -65,6 +68,7 @@ type Props = {
   followBottom?: boolean;
   activeProject?: ProjectRecord;
   activeProjectLabel?: string;
+  projectReview?: ProjectReviewReminder;
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];
   pendingPlanReviews?: PlanReviewRecord[];
@@ -137,6 +141,7 @@ let {
   followBottom = true,
   activeProject,
   activeProjectLabel,
+  projectReview,
   approvals = [],
   pendingUserQuestions = [],
   pendingPlanReviews = [],
@@ -371,6 +376,7 @@ $effect(() => {
     projectId={activeProject?.id}
     projectLabel={activeProjectLabel}
     projectPath={activeProject?.dir}
+    review={projectReview}
   />
 {:else}
   <!-- `isolate` keeps the scroll fades' z-index inside the transcript, so

@@ -343,6 +343,7 @@ function menuForTranscript(
     },
     queuedPrompts: rendered.queuedPrompts,
     approvals: rendered.approvals,
+    projectReview: welcomeReview,
     pendingUserQuestions: rendered.pendingUserQuestions,
     pendingPlanReviews: rendered.pendingPlanReviews,
     outcomeUnknownToolCallIds: outcomeUnknownIds,
