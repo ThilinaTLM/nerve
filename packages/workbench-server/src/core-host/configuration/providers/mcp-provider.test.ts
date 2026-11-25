@@ -16,8 +16,16 @@ void test("mcp.json is reported per scope: servers waiting for approval, rejecte
     const catalog = new McpCatalog({
       home,
       trust: {
-        find: (_kind, projectId, key) =>
-          rows.get(`${projectId}:${key}`) ?? null,
+        state: (_kind, projectId, key, digest) => {
+          const row = rows.get(`${projectId}:${key}`);
+          return !row
+            ? "needs_review"
+            : row.status === "rejected"
+              ? "declined"
+              : row.contentDigest === digest
+                ? "trusted"
+                : "needs_review";
+        },
       },
     });
     const provider = mcpProvider({ catalog });
@@ -32,7 +40,7 @@ void test("mcp.json is reported per scope: servers waiting for approval, rejecte
     await write({ ok: { command: "x" } });
     const [waiting] = await provider.check(user);
     assert.equal(waiting.id, "ok");
-    assert.equal(waiting.state, "needs_approval");
+    assert.equal(waiting.state, "needs_review");
     assert.deepEqual(waiting.approval, {
       kind: "consent",
       where: "User settings → Connections → MCP servers",
@@ -45,7 +53,15 @@ void test("mcp.json is reported per scope: servers waiting for approval, rejecte
       [["ok", "active"]],
     );
     rows.set("null:ok", { status: "rejected", contentDigest: entry.digest });
-    assert.equal((await provider.check(user))[0].state, "disabled");
+    const [declined] = await provider.check(user);
+    assert.equal(declined.state, "declined");
+    assert.match(
+      declined.diagnostics[0].message,
+      /declined.*only if it matters/,
+    );
+    // A decline does not depend on the content.
+    rows.set("null:ok", { status: "rejected", contentDigest: "sha256:other" });
+    assert.equal((await provider.check(user))[0].state, "declined");
     await write({ ok: { command: "x" }, bad: {} });
     const partial = (await provider.check(user)).find(
       (r) => r.id === "mcp.json",
@@ -74,7 +90,7 @@ void test("mcp.json is reported per scope: servers waiting for approval, rejecte
       projectDirectory: directory,
     });
     assert.equal(pending.scope, "project");
-    assert.equal(pending.state, "needs_approval");
+    assert.equal(pending.state, "needs_review");
     assert.equal(
       pending.approval?.where,
       "Project settings → Agent → MCP servers",

@@ -24,7 +24,7 @@ const entry = (
     usableBy,
     instructions: "",
   },
-  trusted: true,
+  trustState: "trusted",
   applicable: true,
   enabled: true,
   local: true,

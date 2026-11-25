@@ -11,6 +11,7 @@ import { loadExtensionItems } from "$lib/application/extensions/scoped-extension
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
 import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import {
@@ -23,8 +24,7 @@ import {
 
 /**
  * The one settings surface. The open project (the active workspace project)
- * adds a column on layered pages and a nav group of its own; without one the
- * surface is User only.
+ * adds a column on layered pages; without one the surface is User only.
  */
 let {
   pageId = $bindable(),
@@ -43,12 +43,23 @@ const target = $derived(
 );
 const entries = $derived(configurationAttention.entriesFor(scopeProject?.id));
 const counts = $derived(attentionCounts(entries));
+// The project's suggestion settings file is decided on Suggestions; the registry does not report it.
+const suggestionFileWaits = $derived(
+  !!scopeProject &&
+    promptSuggestionsState.projectFile?.status === "needs_review",
+);
 // What needs the user in User's settings and in the open project.
 const attention = $derived({
   pages: Object.fromEntries(
-    Object.keys({ ...counts.pages.user, ...counts.pages.project }).map((id) => [
+    Object.keys({
+      ...counts.pages.user,
+      ...counts.pages.project,
+      ...(suggestionFileWaits ? { suggestions: 0 } : {}),
+    }).map((id) => [
       id,
-      (counts.pages.user[id] ?? 0) + (counts.pages.project[id] ?? 0),
+      (counts.pages.user[id] ?? 0) +
+        (counts.pages.project[id] ?? 0) +
+        (id === "suggestions" && suggestionFileWaits ? 1 : 0),
     ]),
   ),
 });

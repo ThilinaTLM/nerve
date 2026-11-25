@@ -1,4 +1,7 @@
-import { toTrustedDigest } from "@nervekit/contracts/core";
+import {
+  toTrustedDigest,
+  type TrustedResource,
+} from "@nervekit/contracts/core";
 import { readFile } from "node:fs/promises";
 import type { ExtensionTarget } from "@nervekit/contracts/extensions";
 import type { InstalledExtensionRef } from "../../../core-host/extensions/extension-catalog/extension-catalog.js";
@@ -134,11 +137,12 @@ export const extensionMethodHandlers = define({
     const read = await state.extensionSettings.read(scope);
     if (read.status === "unavailable" || read.digest === "missing")
       return { status: "conflict" as const };
+    let decided: TrustedResource | undefined;
     const outcome = await withFileMutation(read.path, async () => {
       const bytes = await readFile(read.path);
       if (digestBytes(bytes) !== input.expectedDigest) return "conflict";
       // Trust is by exact content, with the same digest format as the project agent file.
-      state.conversationCore.trust.decide({
+      decided = state.conversationCore.trust.decide({
         kind: "project_capabilities",
         projectId: input.projectId,
         name: "Extension settings",
@@ -153,7 +157,10 @@ export const extensionMethodHandlers = define({
     await state.extensionSettings.reload(scope);
     return {
       status: "saved" as const,
-      trusted: input.trusted,
+      trustState: state.conversationCore.trust.trustState(
+        decided,
+        toTrustedDigest(input.expectedDigest),
+      ),
       view: await state.extensionViews.view({
         scope: "project",
         projectId: input.projectId,

@@ -25,6 +25,8 @@ export type InstalledExtensionCandidate = {
 export type ExtensionTrustVerdict = {
   decision: ExtensionTrustDecision;
   consent?: ExtensionConsent;
+  /** With `pending`: the user declined it, so it is listed without asking again. */
+  declined?: true;
 };
 
 /** Which installed extension a consent operation is about. */
@@ -50,7 +52,7 @@ export interface ExtensionTrustGate {
     candidate: InstalledExtensionCandidate,
     contentHash: string,
   ): Promise<boolean>;
-  /** Withdraws consent: the extension is pending again. */
+  /** Withdraws consent: the extension is declined. */
   revoke?(key: InstalledExtensionKey): Promise<void>;
 }
 
@@ -66,4 +68,34 @@ export function overrideTrustGate(
   ) => ExtensionTrustDecision = () => "trusted",
 ): ExtensionTrustGate {
   return { decide };
+}
+
+/** What the agent reads about a pending extension; a declined one asks for nothing. */
+export function pendingDiagnostic(declined: true | undefined) {
+  return declined
+    ? ({
+        level: "warning",
+        code: "declined",
+        message:
+          "The user declined this extension, so its code is not opened. Mention it only if it matters for the task; do not ask the user to reverse it.",
+      } as const)
+    : ({
+        level: "warning",
+        code: "needs-review",
+        message:
+          "Waiting for the user's consent: the extension is listed, but its code is not opened until the user consents in Settings → Extensions. You cannot consent; tell the user if it matters for the task.",
+      } as const);
+}
+
+/** The catalog entry fields of a pending extension: the review it shows and who decided what. */
+export function pendingTrust(outcome: {
+  consent?: ExtensionConsent | undefined;
+  declined?: true | undefined;
+}) {
+  return {
+    ...(outcome.consent ? { consent: outcome.consent } : {}),
+    trustState: outcome.declined
+      ? ("declined" as const)
+      : ("needs_review" as const),
+  };
 }

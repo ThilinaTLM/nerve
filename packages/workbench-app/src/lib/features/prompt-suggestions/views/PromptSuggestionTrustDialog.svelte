@@ -21,11 +21,11 @@ let saving = $state(false);
 const requests = $derived(promptSuggestionsState.trustRequests);
 const open = $derived(requests.length > 0);
 
-async function apply(status: "allowed" | "denied") {
+async function apply(trusted: boolean) {
   saving = true;
   try {
     for (const request of requests) {
-      await setPromptSuggestionTrust({ trustId: request.trustId, status });
+      await setPromptSuggestionTrust({ trustId: request.trustId, trusted });
     }
     if (projectId)
       await refreshPromptSuggestions(projectId, { conversationId });
@@ -42,7 +42,7 @@ function decideLater() {
 
 <DialogShell
   {open}
-  title="Allow prompt suggestion JavaScript?"
+  title="Trust prompt suggestion JavaScript?"
   description="Some prompt suggestions include JavaScript that decides when the suggestion appears."
   size="md"
   onOpenChange={(next) => {
@@ -52,7 +52,7 @@ function decideLater() {
   <div class="grid gap-4">
     <Callout layout="block" tone="warning" icon={AlertTriangle}>
       <p class="text-muted-foreground">
-        Only allow JavaScript from suggestion files you trust. Nerve runs it
+        Only trust JavaScript from suggestion files you know. Nerve runs it
         locally in the daemon with a limited context and timeout, but it is
         still local code from the listed Markdown file.
       </p>
@@ -82,11 +82,9 @@ function decideLater() {
     <Button variant="ghost" disabled={saving} onclick={decideLater}
       >Decide later</Button
     >
-    <Button
-      variant="destructive"
-      disabled={saving}
-      onclick={() => apply("denied")}>Deny</Button
+    <Button variant="outline" disabled={saving} onclick={() => apply(false)}
+      >Decline</Button
     >
-    <Button disabled={saving} onclick={() => apply("allowed")}>Allow</Button>
+    <Button disabled={saving} onclick={() => apply(true)}>Trust</Button>
   {/snippet}
 </DialogShell>

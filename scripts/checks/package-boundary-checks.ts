@@ -19,7 +19,36 @@ export function checkPackageBoundaries(
   fail: Fail,
 ) {
   checkManifestGraph();
+  checkNodeTypesVersion();
   checkSourceImports();
+
+  // One `tsc -b` builds several projects with a shared file cache. Two @types/node versions in it
+  // (a package without its own copy resolves the root one) merge into broken Node types that
+  // `skipLibCheck` hides, so incremental builds fail at random. Every manifest pins one version.
+  function checkNodeTypesVersion() {
+    const manifests = trackedFiles.filter(
+      (path) =>
+        path === "package.json" ||
+        /^packages\/[^/]+\/package\.json$/.test(path),
+    );
+    const versions = new Map<string, string[]>();
+    for (const file of manifests) {
+      const version = JSON.parse(read(file)).devDependencies?.["@types/node"];
+      if (typeof version === "string")
+        versions.set(version, [...(versions.get(version) ?? []), file]);
+    }
+    if (versions.size <= 1) return;
+    const expected = JSON.parse(read("package.json")).devDependencies?.[
+      "@types/node"
+    ];
+    for (const [version, files] of versions)
+      if (version !== expected)
+        for (const file of files)
+          fail(
+            file,
+            `@types/node ${version} differs from the root's ${expected}; pin one version in every manifest`,
+          );
+  }
 
   function checkManifestGraph() {
     for (const [directory, expectedName] of packageByDirectory) {

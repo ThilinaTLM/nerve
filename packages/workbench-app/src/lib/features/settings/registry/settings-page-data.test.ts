@@ -33,7 +33,6 @@ describe("settings page registry", () => {
     assert.deepEqual(grouped("project"), [
       ["Agent", ["general", "tools", "skills", "extensions", "mcp-servers"]],
       ["Catalog", ["agents", "sub-agents", "permission-rules", "suggestions"]],
-      ["This project", ["launch", "instructions-files", "trust"]],
     ]);
   });
 
@@ -58,7 +57,8 @@ describe("settings page registry", () => {
         defaultSettingsPageId("user"),
       );
     assert.equal(resolveSettingsPageId("project", "providers"), "general");
-    assert.equal(resolveSettingsPageId("project", "trust"), "trust");
+    // The Trust page is gone: each item is decided on its own page.
+    assert.equal(resolveSettingsPageId("project", "trust"), "general");
     assert.equal(resolveSettingsPageId("user", undefined), "providers");
   });
 });
@@ -69,9 +69,8 @@ describe("settings deep-link targets", () => {
     for (const pageId of ["devices", "notifications", "providers"]) {
       assert.equal(settingsScopeForPage(true, pageId), "user");
     }
-    assert.equal(settingsScopeForPage(true, "trust"), "project");
     assert.equal(settingsScopeForPage(true, undefined), "project");
-    assert.equal(settingsScopeForPage(false, "trust"), "user");
+    assert.equal(settingsScopeForPage(false, "general"), "user");
   });
 
   const redirects: SettingsRedirect[] = [

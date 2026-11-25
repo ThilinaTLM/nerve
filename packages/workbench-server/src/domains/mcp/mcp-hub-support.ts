@@ -37,7 +37,7 @@ export const sameEntry = (a: CatalogEntry, b: CatalogEntry) =>
   a.digest === b.digest;
 
 export const isApprovedAs = (current: CatalogEntry, entry: CatalogEntry) =>
-  sameEntry(current, entry) && current.review === "approved";
+  sameEntry(current, entry) && current.review === "trusted";
 
 /**
  * The tools of an entry are indexed under its digest (which covers the scope), its name and, for a

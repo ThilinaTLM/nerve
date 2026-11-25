@@ -1,5 +1,5 @@
 import type { McpReviewStatus, McpScope } from "@nervekit/contracts/mcp";
-import type { TrustedResource } from "@nervekit/contracts/core";
+import type { TrustedResourceKind } from "@nervekit/contracts/core";
 import {
   mcpConfigPath,
   mcpEntryDigest,
@@ -15,13 +15,14 @@ export const MCP_SETTINGS_PAGE: Record<McpScope, string> = {
   project: "Project settings → Agent → MCP servers",
 };
 
-/** The consent rows (`mcp_server` in the trusted_resource table), by project (null: user) and server name. */
+/** The state of the consent rows (`mcp_server` in the trusted_resource table), by project (null: user) and server name. */
 export type McpTrustLookup = {
-  find(
-    kind: "mcp_server",
+  state(
+    kind: Extract<TrustedResourceKind, "mcp_server">,
     projectId: string | null,
     resourceKey: string,
-  ): Pick<TrustedResource, "status" | "contentDigest"> | null;
+    contentDigest: string,
+  ): McpReviewStatus;
 };
 
 /** One entry of a file, with the user's decision about its exact content. */
@@ -44,7 +45,7 @@ export type CatalogView = {
   project?: CatalogFile;
   /** The entry each name resolves to, in file order (user names first). */
   active: CatalogEntry[];
-  /** Project entries that are pending or rejected while a user entry of the same name is active. */
+  /** Project entries that are undecided or declined while a user entry of the same name is active. */
   waiting: CatalogEntry[];
   /** User entries an approved project entry replaces. */
   shadowed: CatalogEntry[];
@@ -54,7 +55,7 @@ export type McpProject = { projectId: string; projectDirectory: string };
 
 /**
  * The user's and a project's `mcp.json` after precedence. The same name in both: an approved
- * project entry replaces the user entry whole; while it waits for review (or is rejected) the user
+ * project entry replaces the user entry whole; while it needs review (or is declined) the user
  * entry keeps working. Entries never merge. Read on every call.
  */
 export class McpCatalog {
@@ -68,13 +69,12 @@ export class McpCatalog {
     name: string,
     digest: string,
   ): McpReviewStatus {
-    const row = this.options.trust.find(
+    return this.options.trust.state(
       "mcp_server",
       scope === "project" ? (projectId ?? null) : null,
       name,
+      digest,
     );
-    if (!row || row.contentDigest !== digest) return "needs_approval";
-    return row.status === "trusted" ? "approved" : "rejected";
   }
 
   entry(
@@ -115,7 +115,7 @@ export class McpCatalog {
     for (const entry of projectEntries) {
       const user = active.get(entry.name);
       if (!user) active.set(entry.name, entry);
-      else if (entry.review === "approved") {
+      else if (entry.review === "trusted") {
         shadowed.push(user);
         active.set(entry.name, entry);
       } else waiting.push(entry);

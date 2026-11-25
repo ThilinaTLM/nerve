@@ -16,6 +16,13 @@ import { setConversationUiCapabilities } from "$lib/presentation/context.svelte"
 import WorkbenchComposerAdapter from "./WorkbenchComposerAdapter.svelte";
 import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
 import ConversationWelcome from "$lib/features/conversations/views/ConversationWelcome.svelte";
+import { responsive } from "$lib/app/shell/responsive.svelte";
+import { configurationAttention } from "$lib/application/configuration-attention/configuration-attention-state.svelte";
+import {
+  projectReviewEntries,
+  reviewReminder,
+} from "$lib/application/configuration-attention/configuration-attention";
+import { openProjectSettingsPane } from "$lib/application/settings";
 import { openInlineMermaidPane } from "$lib/features/filesystem";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 
@@ -149,6 +156,25 @@ const conversationOpen = $derived(
   Boolean(activeConversation || pendingConversationActive),
 );
 const activeProjectLabel = $derived(activeProject?.name);
+// The project's undecided items, as one line of the welcome; the phone has no settings pages.
+const welcomeReview = $derived.by(() => {
+  const projectId = activeProject?.id;
+  if (!projectId || responsive.isPhone) return undefined;
+  const waiting = projectReviewEntries(
+    configurationAttention.entriesFor(projectId),
+  );
+  const first = waiting[0]?.target;
+  if (!first) return undefined;
+  return {
+    text: reviewReminder(waiting.length),
+    onOpen: () =>
+      void openProjectSettingsPane(
+        projectId,
+        first.pageId,
+        first.item ? { item: first.item } : {},
+      ),
+  };
+});
 const scrollConversationId = $derived(
   activeConversation?.id ??
     (pendingConversationActive
@@ -464,6 +490,7 @@ function menuForTranscript(
         projectPath={activeProject?.dir}
         availableProfiles={agentProfiles.map((profile) => profile.name)}
         defaultProfile={defaultAgentProfile}
+        review={welcomeReview}
         onNewChat={(initialProfile) => {
           if (activeProject) {
             onNewConversationInProject?.(activeProject.dir, initialProfile);

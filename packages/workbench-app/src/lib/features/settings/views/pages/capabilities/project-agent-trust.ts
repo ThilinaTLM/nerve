@@ -1,4 +1,5 @@
 import type { GetAgentConfigurationResult } from "@nervekit/contracts/agent-configuration";
+import { configurationAttention } from "$lib/application/configuration-attention/configuration-attention-state.svelte";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
 /** Trusts or revokes the exact project agent file bytes the user is looking at. */
@@ -16,6 +17,8 @@ export async function setProjectAgentTrust(
     expectedDigest: document.source.digest,
     trusted,
   });
+  // The bell, the nav badges and the welcome line follow the decision.
+  configurationAttention.refreshSoon();
   if (result.status !== "saved")
     throw new Error(
       `The file changed since it was loaded (${result.status}). Reload and try again.`,

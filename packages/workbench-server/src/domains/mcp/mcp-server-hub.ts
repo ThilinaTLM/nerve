@@ -324,7 +324,7 @@ export class McpServerHub {
       entry.name,
       entry.digest,
     );
-    if (review !== "approved")
+    if (review !== "trusted")
       return {
         ok: false,
         error: mcpBlockMessage(entry, review, undefined, "user"),
@@ -510,7 +510,7 @@ export class McpServerHub {
       if (!current || !isApprovedAs(current, target.entry))
         throw failure(
           "FORBIDDEN",
-          `MCP server "${target.entry.name}": the entry changed or lost its approval while the call started. ${mcpBlockMessage(current ?? target.entry, current?.review === "rejected" ? "rejected" : "needs_approval")} Retrying does not help until then; tell the user.`,
+          `MCP server "${target.entry.name}": the entry changed or lost its approval while the call started. ${mcpBlockMessage(current ?? target.entry, current?.review === "declined" ? "declined" : "needs_review")} Retrying does not help until then; tell the user.`,
         );
     }
   }

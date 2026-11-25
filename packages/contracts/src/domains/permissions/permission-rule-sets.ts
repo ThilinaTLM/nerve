@@ -1,3 +1,4 @@
+import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
 
 const identifierSchema = z
@@ -659,7 +660,7 @@ export type PermissionOverlayOrigin = z.infer<
 
 export const projectPermissionTrustSchema = z
   .object({
-    status: z.enum(["missing", "invalid", "untrusted", "trusted"]),
+    status: z.enum(["missing", "invalid", ...trustStateSchema.options]),
     digest: z
       .string()
       .regex(/^sha256:[a-f0-9]{64}$/)

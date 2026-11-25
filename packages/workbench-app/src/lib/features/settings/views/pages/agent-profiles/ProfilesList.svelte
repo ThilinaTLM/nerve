@@ -16,6 +16,7 @@ import {
   OriginGroup,
   SETTINGS_SEARCH_MIN,
   TipBadge,
+  TrustStateBadge,
 } from "$lib/presentation/settings";
 import { changeRows } from "./profile-changes";
 import type { ProfileOrigin, ProfileRow } from "./profile-groups";
@@ -64,10 +65,13 @@ const shown = (origin: ProfileOrigin) =>
 
 function problemOf(row: ProfileRow): string | undefined {
   if (!row.entry.definition) return "This file can't be read";
-  if (row.origin === "project" && !row.entry.trusted)
+  if (row.origin === "project" && row.entry.trustState === "needs_review")
     return "Waiting for your review";
   return undefined;
 }
+/** A declined project profile is the user's choice: a quiet badge, no problem line. */
+const declined = (row: ProfileRow) =>
+  row.origin === "project" && row.entry.trustState === "declined";
 </script>
 
 {#if total >= SETTINGS_SEARCH_MIN}
@@ -118,6 +122,7 @@ function problemOf(row: ProfileRow): string | undefined {
         openLabel={`Open ${definition?.label ?? row.name}`}
       >
         {#snippet badges()}
+          {#if declined(row)}<TrustStateBadge state="declined" />{/if}
           {#if definition?.usableBy === "both"}
             <TipBadge
               text="Both"
@@ -157,7 +162,7 @@ function problemOf(row: ProfileRow): string | undefined {
               projectSet={launch.projectSet}
               {projectName}
               projectOnly={origin === "project"}
-              pending={!!problem}
+              pending={!!problem || declined(row)}
               inapplicable={!!row.replacedBy}
               locked={store.launchLocked}
               onChange={(layer, next) => void store.setLaunch(row, layer, next)}

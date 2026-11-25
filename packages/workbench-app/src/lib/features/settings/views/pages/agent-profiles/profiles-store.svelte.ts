@@ -64,7 +64,7 @@ export class ProfilesStore {
     return (
       !!this.projectId &&
       document?.status === "available" &&
-      document.trusted === false
+      (document.trustState ?? "trusted") !== "trusted"
     );
   }
 
@@ -303,15 +303,15 @@ export class ProfilesStore {
     }
   }
 
-  /** Trusts (or, for a trusted file, withdraws trust in) this exact version of a project profile. */
-  trust(row: ProfileRow): Promise<boolean> {
+  /** Trusts this exact version of a project profile, or declines it (revoking a trusted one). */
+  trust(row: ProfileRow, trusted: boolean): Promise<boolean> {
     const scope = this.scopeOf(row.origin);
     if (scope?.scope !== "project") return Promise.resolve(false);
     return this.mutate(row.id, () =>
       trustAgentProfile({
         target: { document: "profile", scope, name: row.name },
         expectedDigest: row.entry.digest,
-        trusted: !row.entry.trusted,
+        trusted,
       }),
     );
   }

@@ -46,7 +46,16 @@ const icons: Record<ExtensionConsentItem["kind"], typeof Puzzle> = {
 };
 const adds = $derived(entry.adds ?? []);
 const rows = $derived(installedSourceRows(entry));
-const consent = $derived(consentState(entry));
+// A declined extension says so; reviewing it is still how it is allowed.
+const consent = $derived(
+  entry.state === "pending_consent" && entry.trustState === "declined"
+    ? {
+        ...consentState(entry),
+        label: "Declined",
+        description: "Nothing runs. Review it to allow it.",
+      }
+    : consentState(entry),
+);
 let reviewOpen = $state(false);
 </script>
 
@@ -116,4 +125,5 @@ let reviewOpen = $state(false);
   {entry}
   busy={extensions.saving}
   onAllow={(target) => void extensions.grantConsent(target)}
+  onDecline={(target) => void extensions.declineConsent(target)}
 />

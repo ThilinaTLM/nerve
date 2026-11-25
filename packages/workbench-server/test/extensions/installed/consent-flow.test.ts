@@ -87,6 +87,9 @@ void test(
     );
     assert.equal(await catalog.revokeConsent(ref), true);
     assert.equal((await entryOf()).state, "pending_consent");
+    // A revoked extension is declined, not waiting for review again.
+    assert.equal((await entryOf()).trustState, "declined");
+    assert.equal(pending.trustState, "needs_review");
     assert.equal(
       await catalog.grantConsent({ source: "user", id: "nope" }, "x"),
       "not_found",

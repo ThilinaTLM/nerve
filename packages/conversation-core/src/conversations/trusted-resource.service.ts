@@ -2,6 +2,7 @@ import { createId } from "@nervekit/contracts";
 import { trustedResourceGrantsSchema } from "@nervekit/contracts/core";
 import type {
   TrustDecision,
+  TrustState,
   TrustedResource,
   TrustedResourceKind,
 } from "@nervekit/contracts/core";
@@ -56,15 +57,43 @@ export class TrustedResourceService {
     this.currentGeneration++;
     return result;
   }
+  /**
+   * The one place that maps a stored row to what the user sees: no row is `needs_review`; a
+   * `rejected` row is `declined` whatever the content now is; a `trusted` row is `trusted` only
+   * for the digest it names, else `needs_review`.
+   */
+  trustState(
+    resource:
+      | Pick<TrustedResource, "status" | "contentDigest">
+      | null
+      | undefined,
+    contentDigest: string,
+  ): TrustState {
+    if (!resource) return "needs_review";
+    if (resource.status === "rejected") return "declined";
+    return resource.contentDigest === contentDigest
+      ? "trusted"
+      : "needs_review";
+  }
+  state(
+    kind: TrustedResourceKind,
+    projectId: string | null,
+    resourceKey: string,
+    contentDigest: string,
+  ): TrustState {
+    return this.trustState(
+      this.find(kind, projectId, resourceKey),
+      contentDigest,
+    );
+  }
   isTrusted(
     kind: TrustedResourceKind,
     projectId: string | null,
     resourceKey: string,
     contentDigest: string,
   ): boolean {
-    const resource = this.find(kind, projectId, resourceKey);
     return (
-      resource?.status === "trusted" && resource.contentDigest === contentDigest
+      this.state(kind, projectId, resourceKey, contentDigest) === "trusted"
     );
   }
   delete(id: string) {

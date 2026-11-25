@@ -1,7 +1,3 @@
-import {
-  projectInstructionsListParamsSchema,
-  projectInstructionsListResultSchema,
-} from "./project-instructions.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 import {
@@ -34,15 +30,6 @@ export const projectsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.project.configuration.resolve",
-  ),
-  defineOperation(
-    "projectInstructions.list",
-    projectInstructionsListParamsSchema,
-    projectInstructionsListResultSchema,
-    "read",
-    "none",
-    ["workbench_server"] as const,
-    "operation.projectInstructions.list",
   ),
   defineOperation(
     "project.openEditor",

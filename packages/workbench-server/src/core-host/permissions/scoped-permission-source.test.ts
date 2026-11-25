@@ -5,7 +5,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { CoreStorage } from "@nervekit/conversation-core";
+import {
+  TrustedResourceService,
+  type CoreStorage,
+} from "@nervekit/conversation-core";
 import type { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import { createScopedPermissionSource } from "./scoped-permission-source.js";
 import { createExecutionAdmission } from "./execution-admission/admission.js";
@@ -40,6 +43,7 @@ void test("admission reads live selection, keeps the loaded policy over an inval
     projectMigration: migrations,
     home,
     storage,
+    trust: new TrustedResourceService(storage, () => ""),
     agents,
     trustGeneration: () => 0,
     requestGenerations: () => ({ advertised: 3 }),
@@ -141,6 +145,7 @@ void test("admission reads live selection, keeps the loaded policy over an inval
       projectMigration: new ProjectMigrationService({ home }),
       home,
       storage,
+      trust: new TrustedResourceService(storage, () => ""),
       agents,
       trustGeneration: () => 0,
       requestGenerations: () => undefined,

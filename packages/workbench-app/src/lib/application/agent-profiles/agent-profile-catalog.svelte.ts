@@ -96,7 +96,7 @@ function profileOption(entry: ProfileCatalogEntry): ProfileOption {
     digest: entry.digest,
     source: entry.source,
     error:
-      entry.definition && entry.trusted
+      entry.definition && entry.trustState === "trusted"
         ? undefined
         : entry.diagnostics.map((d) => d.code).join(", ") ||
           "Profile unavailable or untrusted",

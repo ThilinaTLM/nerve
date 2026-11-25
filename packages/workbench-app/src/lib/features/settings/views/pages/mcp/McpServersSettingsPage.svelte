@@ -27,15 +27,12 @@ import { McpEnablementState } from "./mcp-enablement-state.svelte";
 let {
   projectId,
   projectName,
-  onReviewTrust,
   addOpen = $bindable(false),
   onOpenItem,
 }: {
   /** The open project; without one the page has a single (User) column. */
   projectId?: string;
   projectName?: string;
-  /** Opens the project's Trust page. */
-  onReviewTrust?: () => void;
   /** The Add server dialog, opened from the page header. */
   addOpen?: boolean;
   /** Opens a server's page (`mcpItemId`). */
@@ -122,8 +119,6 @@ const onRetry = () => Promise.all([list.reload(), enablement.reload()]);
     document={enablement.project.document}
     scope={enablement.project.scope}
     onReload={() => enablement.project.reload()}
-    {projectName}
-    onReview={onReviewTrust}
   />{/if}
 {#if error}
   <Callout layout="block" tone="destructive" text={error}>

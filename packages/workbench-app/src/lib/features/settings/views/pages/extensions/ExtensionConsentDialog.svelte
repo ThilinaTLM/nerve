@@ -1,6 +1,7 @@
 <!--
   The consent review of a pending installed extension: what it asks to do in
-  plain language (for an update, only what is new), with Allow and Not now.
+  plain language (for an update, only what is new), with Allow, Decline (while
+  it waits for review) and Not now.
   Allowing is bound to the files the summary was made from; if they changed,
   the daemon refuses and the list shows the new summary.
 -->
@@ -15,9 +16,17 @@ type Props = {
   entry?: ExtensionCatalogEntry;
   busy?: boolean;
   onAllow: (entry: ExtensionCatalogEntry) => void;
+  /** Declines it: it stays off and stops asking. */
+  onDecline?: (entry: ExtensionCatalogEntry) => void;
 };
 
-let { open = $bindable(false), entry, busy = false, onAllow }: Props = $props();
+let {
+  open = $bindable(false),
+  entry,
+  busy = false,
+  onAllow,
+  onDecline,
+}: Props = $props();
 
 const consent = $derived(entry?.consent);
 </script>
@@ -58,7 +67,17 @@ const consent = $derived(entry?.consent);
     {/if}
   {/if}
   {#snippet footer()}
-    <Button variant="outline" onclick={() => (open = false)}>Not now</Button>
+    <Button variant="ghost" onclick={() => (open = false)}>Not now</Button>
+    {#if onDecline && entry && entry.trustState !== "declined"}
+      <Button
+        variant="outline"
+        disabled={busy}
+        onclick={() => {
+          onDecline(entry);
+          open = false;
+        }}>Decline</Button
+      >
+    {/if}
     <Button
       disabled={busy || !entry}
       onclick={() => {

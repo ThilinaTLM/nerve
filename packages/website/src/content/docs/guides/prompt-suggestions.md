@@ -34,15 +34,15 @@ Suggestions stay available while the agent works. Clicking one queues its prompt
 
 You can also write suggestions as Markdown files. A project suggestion overrides a user suggestion of the same name, and a user suggestion overrides a built-in one. See the [format reference](/reference/prompt-suggestions/) for fields and file locations.
 
-## Approve JavaScript conditions
+## Trust JavaScript conditions
 
-A suggestion can use a small JavaScript check to decide when it appears. Nerve doesn't run it until you approve it, and approval applies only to that exact code, so editing it asks again.
+A suggestion can use a small JavaScript check to decide when it appears. Nerve doesn't run it until you trust it, and trust applies only to that exact code, so editing it asks again.
 
 :::danger
-A project suggestion's JavaScript comes from the repository. Review it as code, and deny it if you don't recognize its origin.
+A project suggestion's JavaScript comes from the repository. Review it as code, and decline it if you don't recognize its origin.
 :::
 
-You can deny or reset approval under **Settings → Suggestions** or in the project's **Trust** page.
+Open the suggestion under **Settings → Suggestions** to trust, decline, or revoke its script. The same page decides the project's `.nerve/config/prompt-suggestions.json`, which turns suggestions on or off for the project.
 
 ## Next steps
 

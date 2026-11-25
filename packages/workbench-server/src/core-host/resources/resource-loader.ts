@@ -49,7 +49,7 @@ async function approvedOnly(
   const statuses = await Promise.all(
     skills.map((skill) => gate.trust.status(gate.projectId, skill)),
   );
-  return skills.filter((_, index) => statuses[index] === "approved");
+  return skills.filter((_, index) => statuses[index]?.trustState === "trusted");
 }
 
 interface DiscoveredSkillGroups {
@@ -144,10 +144,17 @@ export async function listAvailableSkills(
     groups.projectSkills.map(async (skill): Promise<AvailableSkill> => {
       const status = gate
         ? await gate.trust.status(gate.projectId, skill)
-        : "approved";
+        : undefined;
       return {
         ...toMetadata("project")(skill),
-        ...(status === "approved" ? {} : { approval: status }),
+        ...(status
+          ? {
+              trustState: status.trustState,
+              ...(status.changedSinceDecision
+                ? { changedSinceDecision: true as const }
+                : {}),
+            }
+          : {}),
       };
     }),
   );

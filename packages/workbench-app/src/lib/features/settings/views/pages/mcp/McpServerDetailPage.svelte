@@ -31,7 +31,10 @@ import {
 import { mcpItemId, parseMcpItemId } from "$lib/application/mcp/mcp-item";
 import { McpServersState } from "$lib/application/mcp/mcp-servers-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import { LayerEnabledTable } from "$lib/presentation/settings";
+import {
+  LayerEnabledTable,
+  TrustDecisionActions,
+} from "$lib/presentation/settings";
 import McpEntrySections from "./McpEntrySections.svelte";
 import McpServerEditor from "./McpServerEditor.svelte";
 import McpSourceSection from "./McpSourceSection.svelte";
@@ -85,7 +88,7 @@ const row = $derived(
     : undefined,
 );
 const target = $derived(row ? mcpTarget(row.scope, projectId) : undefined);
-const pending = $derived(!!row && row.review !== "approved");
+const pending = $derived(!!row && row.review !== "trusted");
 const layers = $derived(row ? enablement.layers(row) : undefined);
 const layered = $derived(enablement.layered && !!projectName);
 
@@ -288,29 +291,22 @@ function errorText(cause: unknown) {
     {#if pending}
       <Callout
         layout="block"
-        tone="warning"
+        tone={row.review === "declined" ? "neutral" : "warning"}
         icon={TriangleAlert}
-        title={row.review === "rejected"
-          ? "You rejected this entry"
+        title={row.review === "declined"
+          ? "You declined this entry"
           : "Waiting for your review"}
-        text={row.review === "rejected"
-          ? "It stays off until you approve it."
-          : "It does not run until you approve it. Approval covers exactly this entry; any change asks again."}
+        text={row.review === "declined"
+          ? "It stays off until you review and trust it."
+          : "It does not run until you trust it. Trust covers exactly this entry; any change asks again."}
       >
         {#snippet actions()}
-          {#if row.review === "needs_approval"}
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy || !review}
-              onclick={() => decide("rejected")}>Reject</Button
-            >
-          {/if}
-          <Button
-            size="sm"
-            disabled={busy || !review}
-            onclick={() => decide("trusted")}>Approve</Button
-          >
+          <TrustDecisionActions
+            state={row.review}
+            busy={busy || !review}
+            onTrust={() => decide("trusted")}
+            onDecline={() => decide("rejected")}
+          />
         {/snippet}
       </Callout>
       {#if review}

@@ -1,3 +1,4 @@
+import type { TrustState } from "@nervekit/contracts/core";
 import type { ScopedDocumentOptions } from "../scoped-store/scoped-document-store.js";
 import type { ProjectMigrationService } from "../project-migration/project-migration.js";
 import type {
@@ -14,12 +15,17 @@ export interface AgentConfigurationServiceOptions extends ConfigurationLocations
   retryUserMigration?(): void;
   prepareProject?(projectId: string): Promise<void>;
   retryProjectMigration?(projectId: string): void;
-  isProjectAgentTrusted?(
+  /** The trust state of a project's `agent.json` bytes; absent: every project file is trusted. */
+  projectAgentTrustState?(
     projectId: string,
     path: string,
     digest: string,
-  ): boolean;
-  isProfileTrusted(projectId: string, path: string, digest: string): boolean;
+  ): TrustState;
+  profileTrustState(
+    projectId: string,
+    path: string,
+    digest: string,
+  ): TrustState;
   prepareResources?(projectId: string): Promise<void>;
   captureResources(projectId?: string): ResourceSnapshot;
   publish?(

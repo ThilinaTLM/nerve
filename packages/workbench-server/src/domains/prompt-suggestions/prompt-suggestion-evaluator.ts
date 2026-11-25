@@ -4,7 +4,7 @@ import type {
   PromptSuggestionStatus,
   PromptSuggestionTrustRequest,
 } from "@nervekit/contracts/prompt-suggestions";
-import type { PromptSuggestionTrustRecord } from "./prompt-suggestion-trust.repository.js";
+import type { TrustState } from "@nervekit/contracts/core";
 import { suggestionStatusDetails } from "./prompt-suggestion-summary.js";
 import {
   anyDirtyRepo,
@@ -16,9 +16,14 @@ import {
 
 const JS_TIMEOUT_MS = 50;
 
+/** The trust state of a definition's `enable-js` predicate. */
+export type PromptSuggestionTrustStates = (
+  definition: PromptSuggestionDefinition,
+) => TrustState;
+
 export function evaluatePromptSuggestions(
   input: PromptSuggestionEvaluationInput,
-  trustRecords: PromptSuggestionTrustRecord[],
+  trust: PromptSuggestionTrustStates,
 ): {
   suggestions: PromptSuggestion[];
   trustRequests: PromptSuggestionTrustRequest[];
@@ -30,31 +35,24 @@ export function evaluatePromptSuggestions(
   const statuses: PromptSuggestionStatus[] = [];
   const diagnostics: PromptSuggestionDiagnostic[] = [];
   const context = buildEnableContext(input);
-  const trustById = new Map(
-    trustRecords.map((record) => [record.trustId, record]),
-  );
 
   for (const definition of input.definitions) {
     if (!definition.enabled) {
-      statuses.push(statusFor(definition));
+      statuses.push(statusFor(definition, trust));
       continue;
     }
     if (
       !matchesWhen(definition, input) ||
       (definition.matches !== undefined && !definition.matches(input))
     ) {
-      statuses.push(
-        statusFor(definition, trustById.get(definition.trustId ?? "")),
-      );
+      statuses.push(statusFor(definition, trust));
       continue;
     }
 
-    const trustRecord = definition.trustId
-      ? trustById.get(definition.trustId)
-      : undefined;
     if (definition.enableJs) {
       if (!definition.trustId || !definition.predicateHash) continue;
-      if (!trustRecord) {
+      const state = trust(definition);
+      if (state === "needs_review") {
         trustRequests.push({
           trustId: definition.trustId,
           name: definition.name,
@@ -65,22 +63,18 @@ export function evaluatePromptSuggestions(
           projectId: definition.source.projectId,
           predicateHash: definition.predicateHash,
         });
-        statuses.push(statusFor(definition));
+        statuses.push(statusFor(definition, trust));
         continue;
       }
-      if (
-        trustRecord.status !== "allowed" ||
-        trustRecord.predicateHash !== definition.predicateHash ||
-        trustRecord.path !== definition.source.path
-      ) {
-        statuses.push(statusFor(definition, trustRecord));
+      if (state === "declined") {
+        statuses.push(statusFor(definition, trust));
         continue;
       }
       const enabled = evaluateEnableJs(definition, context, diagnostics);
-      statuses.push(statusFor(definition, trustRecord));
+      statuses.push(statusFor(definition, trust));
       if (!enabled) continue;
     } else {
-      statuses.push(statusFor(definition));
+      statuses.push(statusFor(definition, trust));
     }
 
     suggestions.push({
@@ -93,7 +87,7 @@ export function evaluatePromptSuggestions(
       order: definition.order,
       source: definition.source,
       requiresTrust: Boolean(definition.enableJs),
-      trustStatus: definition.enableJs ? "allowed" : "not_required",
+      trustStatus: definition.enableJs ? "trusted" : "not_required",
     });
   }
 
@@ -213,7 +207,7 @@ function evaluateEnableJs(
 
 function statusFor(
   definition: PromptSuggestionDefinition,
-  trustRecord?: PromptSuggestionTrustRecord,
+  trust: PromptSuggestionTrustStates,
 ): PromptSuggestionStatus {
   return {
     trustId: definition.trustId,
@@ -225,9 +219,7 @@ function statusFor(
     sourceKind: definition.source.kind,
     projectId: definition.source.projectId,
     requiresTrust: Boolean(definition.enableJs),
-    status: definition.enableJs
-      ? (trustRecord?.status ?? "unset")
-      : "not_required",
+    status: definition.enableJs ? trust(definition) : "not_required",
     enabled: definition.enabled,
     defaultEnabled: definition.defaultEnabled,
     predicateHash: definition.predicateHash,

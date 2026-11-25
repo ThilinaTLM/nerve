@@ -1,3 +1,4 @@
+import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
 import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import {
@@ -69,8 +70,8 @@ export const getAgentConfigurationResultSchema = z.discriminatedUnion(
       overrides: leadSettingsOverridesSchema,
       /** Resolved below this scope, without the edited layer or requirements. */
       inherited: leadSettingsOverridesSchema,
-      /** Project scope only: false when the file's exact bytes are not trusted, so resolution ignores them. */
-      trusted: z.boolean().optional(),
+      /** Project scope only: anything but `trusted` means resolution ignores the file. */
+      trustState: trustStateSchema.optional(),
     }),
     configurationUnavailableSchema,
   ],

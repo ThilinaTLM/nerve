@@ -1,4 +1,4 @@
-import type { CoreStorage } from "@nervekit/conversation-core";
+import type { TrustedResourceService } from "@nervekit/conversation-core";
 import type { Skill } from "@nervekit/harness/resources";
 import type { LaunchDefinitionService } from "../../domains/launch-definitions/launch-definition.service.js";
 import type { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
@@ -23,7 +23,7 @@ export function createResourceRegistry(options: {
   mcpCatalog: McpCatalog;
   agentConfiguration: AgentConfigurationService;
   policy: ScopedPermissionPolicySource;
-  trustedResources: Pick<CoreStorage["trustedResources"], "find">;
+  trust: Pick<TrustedResourceService, "find" | "state" | "trustState">;
   launchDefinitions: Pick<LaunchDefinitionService, "problem">;
   extensionCatalog: Pick<ExtensionCatalog, "entries" | "reload">;
   builtinSkills(): readonly Skill[];
@@ -32,7 +32,7 @@ export function createResourceRegistry(options: {
   registry.register(
     permissionProvider({
       policy: options.policy,
-      trustedResources: options.trustedResources,
+      trust: options.trust,
     }),
   );
   registry.register(
@@ -49,7 +49,7 @@ export function createResourceRegistry(options: {
     skillProvider({
       storageHome: options.home,
       builtin: options.builtinSkills,
-      trust: createProjectSkillTrust(options.trustedResources),
+      trust: createProjectSkillTrust(options.trust),
     }),
   );
   registry.register(

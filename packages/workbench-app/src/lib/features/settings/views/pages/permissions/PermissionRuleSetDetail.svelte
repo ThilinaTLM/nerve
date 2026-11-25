@@ -18,7 +18,11 @@ import type {
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
-import { SettingsSection } from "$lib/presentation/settings";
+import {
+  SettingsSection,
+  TrustDecisionActions,
+  TrustStateBadge,
+} from "$lib/presentation/settings";
 import PermissionRuleSetBadges from "./PermissionRuleSetBadges.svelte";
 import {
   overridesFor,
@@ -35,6 +39,8 @@ type Props = {
   projectName?: string;
   onEdit: (scope: OverrideScope, rule?: PermissionRule) => void;
   onTrustProject?: () => void;
+  /** Declines the project's file (also revokes a trusted one). */
+  onDeclineProject?: () => void;
   trusting?: boolean;
 };
 
@@ -45,6 +51,7 @@ let {
   projectName,
   onEdit,
   onTrustProject,
+  onDeclineProject,
   trusting = false,
 }: Props = $props();
 
@@ -58,14 +65,6 @@ const roleNote = $derived(
     ? "Always applied underneath the selected rule set."
     : "Selectable for conversations and agent profiles.",
 );
-
-function trustLabel(): string {
-  return trust.status === "trusted"
-    ? "Trusted"
-    : trust.status === "invalid"
-      ? "Invalid file"
-      : "Not applied · untrusted";
-}
 </script>
 
 <div class="flex flex-wrap items-center gap-2 text-ui text-muted-foreground">
@@ -101,20 +100,18 @@ function trustLabel(): string {
   {@const overrides = overridesFor(configuration, scope, ruleSet.id)}
   {@const locked =
     scope === "project" &&
-    (trust.status === "untrusted" || trust.status === "invalid")}
+    (trust.status === "needs_review" ||
+      trust.status === "declined" ||
+      trust.status === "invalid")}
   <SettingsSection
     id={`${scope}-overrides`}
     title={scope === "user" ? "User overrides" : "Project overrides"}
   >
     {#snippet actions()}
-      {#if scope === "project" && trust.status !== "missing"}
-        <Badge
-          variant={trust.status === "trusted"
-            ? "success"
-            : trust.status === "invalid"
-              ? "destructive"
-              : "warning"}>{trustLabel()}</Badge
-        >
+      {#if scope === "project" && trust.status === "invalid"}
+        <Badge variant="destructive">Invalid file</Badge>
+      {:else if scope === "project" && (trust.status === "needs_review" || trust.status === "trusted" || trust.status === "declined")}
+        <TrustStateBadge state={trust.status} />
       {/if}
       <Button
         variant="outline"
@@ -125,21 +122,28 @@ function trustLabel(): string {
         <Plus data-icon="inline-start" aria-hidden="true" /> Add rule
       </Button>
     {/snippet}
-    {#if scope === "project" && trust.status === "untrusted"}
+    {#if scope === "project" && (trust.status === "needs_review" || trust.status === "declined")}
       <div
-        class="flex flex-wrap items-center justify-between gap-2 text-ui text-warning"
+        class={[
+          "flex flex-wrap items-center justify-between gap-2 text-ui",
+          trust.status === "needs_review"
+            ? "text-warning"
+            : "text-muted-foreground",
+        ]}
       >
         <p>
-          {trust.reason ?? "The file has not been trusted."} Review the rules, then
-          trust the file to apply them and enable editing.
+          {trust.status === "declined"
+            ? "You declined the project's file, so these rules don't apply."
+            : `${trust.reason ?? "The file has not been trusted."} Review the rules, then trust the file to apply them and enable editing.`}
         </p>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={trusting}
-          onclick={() => onTrustProject?.()}
-          >{trusting ? "Trusting…" : "Trust project file"}</Button
-        >
+        <div class="flex flex-wrap gap-2">
+          <TrustDecisionActions
+            state={trust.status}
+            busy={trusting}
+            onTrust={onTrustProject}
+            onDecline={onDeclineProject}
+          />
+        </div>
       </div>
     {/if}
     {#if overrides.length > 0}
@@ -156,7 +160,9 @@ function trustLabel(): string {
               <IconAction
                 icon={Pencil}
                 label={`Edit rule ${rule.id}`}
-                disabled={scope === "project" && trust.status === "untrusted"}
+                disabled={scope === "project" &&
+                  (trust.status === "needs_review" ||
+                    trust.status === "declined")}
                 onclick={() => onEdit(scope, rule)}
               />
             {/snippet}

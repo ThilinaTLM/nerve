@@ -100,7 +100,8 @@ async function fixture(
         },
       }),
     },
-    isProfileTrusted: (_id, _path, digest) => trusted.has(digest),
+    profileTrustState: (_id, _path, digest) =>
+      trusted.has(digest) ? "trusted" : "needs_review",
     captureResources: () => ({
       options: { referenceAvailable: () => true, clampThinking },
       isCurrent: () => true,

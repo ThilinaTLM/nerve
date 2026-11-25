@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
-import { toTrustedDigest } from "@nervekit/contracts/core";
+import { toTrustedDigest, type TrustState } from "@nervekit/contracts/core";
 import type { SkillReview, SkillReviewFile } from "@nervekit/contracts/skills";
-import type { CoreStorage } from "@nervekit/conversation-core";
+import type { TrustedResourceService } from "@nervekit/conversation-core";
 import { listUnignoredEntries, type Skill } from "@nervekit/harness/resources";
 
 const SCRIPT_EXTENSIONS = new Set([
@@ -28,7 +28,11 @@ const SCRIPT_EXTENSIONS = new Set([
 /** A folder larger than this is not a skill; it is not hashed and cannot be approved. */
 const MAX_FILES = 2_000;
 
-export type ProjectSkillStatus = "approved" | "pending" | "changed";
+export type ProjectSkillStatus = {
+  trustState: TrustState;
+  /** A decision exists and the folder differs from the content it was made on. */
+  changedSinceDecision: boolean;
+};
 
 /**
  * Approval of project skills (trust kind `project_skill`). A skill that arrives with a
@@ -36,7 +40,7 @@ export type ProjectSkillStatus = "approved" | "pending" | "changed";
  * approved the exact content of its folder. See docs/architecture/trust.md.
  */
 export interface ProjectSkillTrust {
-  /** Whether the agent may be told about the skill. */
+  /** Whether the agent may be told about the skill: only when `trusted`. */
   status(projectId: string, skill: Skill): Promise<ProjectSkillStatus>;
   /** What the user reviews: every file of the folder and the digest an approval names. */
   review(projectId: string, skill: Skill): Promise<SkillReview>;
@@ -86,29 +90,36 @@ async function digest(
 }
 
 export function createProjectSkillTrust(
-  trustedResources: Pick<CoreStorage["trustedResources"], "find">,
+  trust: Pick<TrustedResourceService, "find" | "trustState">,
 ): ProjectSkillTrust {
   async function review(projectId: string, skill: Skill): Promise<SkillReview> {
     const folder = dirname(skill.filePath);
     const listed = await files(folder);
     const contentDigest = await digest(folder, listed);
-    const row = trustedResources.find("project_skill", projectId, folder);
+    const row = trust.find("project_skill", projectId, folder);
+    const state = trust.trustState(row, contentDigest);
     return {
       name: skill.name,
       description: skill.description,
       folder,
       contentDigest,
       files: listed.slice(0, MAX_FILES),
-      status:
-        row?.status !== "trusted" || listed.length > MAX_FILES
-          ? "pending"
-          : row.contentDigest === contentDigest
-            ? "approved"
-            : "changed",
+      // A folder too large to hash is never trusted, but a decline of it stays.
+      trustState:
+        listed.length > MAX_FILES && state === "trusted"
+          ? "needs_review"
+          : state,
+      changedSinceDecision: !!row && row.contentDigest !== contentDigest,
     };
   }
   return {
     review,
-    status: async (projectId, skill) => (await review(projectId, skill)).status,
+    status: async (projectId, skill) => {
+      const { trustState, changedSinceDecision } = await review(
+        projectId,
+        skill,
+      );
+      return { trustState, changedSinceDecision };
+    },
   };
 }

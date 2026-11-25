@@ -248,6 +248,7 @@ export function createServerAdapterContexts(
         projectMigration: services.projectMigration,
         home: infrastructure.storage.paths.home,
         storage: services.coreStorage,
+        trust: services.conversationCore.trust,
         published: async (path) => {
           await services.admissionPolicy.reload([path]);
         },

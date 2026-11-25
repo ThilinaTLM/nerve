@@ -121,7 +121,7 @@ const userItems = $derived(
   ),
 );
 const projectLocked = $derived(
-  layered && extensions.view?.file.trusted === false,
+  layered && (extensions.view?.file.trustState ?? "trusted") !== "trusted",
 );
 const sameValue = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b);

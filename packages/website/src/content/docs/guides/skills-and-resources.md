@@ -11,7 +11,7 @@ Add instructions that agents follow in every run: project guidance in `AGENTS.md
 
 Put an `AGENTS.md` file in your project, or in a parent folder, to describe conventions, commands, and constraints. Nerve also reads a global `AGENTS.md` from your Nerve home. To add text to the system prompt for one project, use `.nerve/APPEND_SYSTEM.md`.
 
-You can review and edit these in a project's **Settings → Instructions files** page. Changes apply from the next run; a request already sent isn't rewritten.
+You can open and edit these files from the **Files** panel. Changes apply from the next run; a request already sent isn't rewritten.
 
 ## Add a skill
 

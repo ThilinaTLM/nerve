@@ -10,7 +10,6 @@ export {
   restartSelectedLaunch,
   runLaunchCommand,
 } from "./state/launches.svelte";
-export { default as LaunchDefinitionDialog } from "./views/LaunchDefinitionDialog.svelte";
 export { default as LaunchesPanel } from "./views/LaunchesPanel.svelte";
 export * from "./views/launch-panel-controller";
 export * from "./views/launch-panel-types";

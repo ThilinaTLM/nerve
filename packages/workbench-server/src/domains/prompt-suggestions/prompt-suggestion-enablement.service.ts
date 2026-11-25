@@ -2,6 +2,7 @@ import { dirname, join } from "node:path";
 import { mkdir, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import type { TrustState } from "@nervekit/contracts/core";
 import type { ProjectMigrationTrust } from "../../infrastructure/configuration/project-migration/project-migration.js";
 import {
   atomicWriteJson,
@@ -22,7 +23,7 @@ export const PROJECT_SUGGESTION_SETTINGS_TYPE = "prompt-suggestions";
  * Nerve writes for the user.
  */
 export interface ProjectSuggestionFileTrust {
-  isTrusted(projectId: string, path: string, digest: string): boolean;
+  state(projectId: string, path: string, digest: string): TrustState;
   decide(input: {
     projectId: string;
     path: string;
@@ -37,8 +38,8 @@ export type ProjectSuggestionFile = {
   path: string;
   /** Hex sha-256 of the bytes; absent while there is no file. */
   digest?: string;
-  status: "missing" | "trusted" | "untrusted" | "invalid";
-  /** Empty unless the file is trusted: untrusted bytes are ignored. */
+  status: "missing" | "invalid" | TrustState;
+  /** Empty unless the file is trusted: other bytes are ignored. */
   choices: Record<string, boolean>;
 };
 
@@ -79,14 +80,12 @@ export class PromptSuggestionEnablementFile {
       const preferences = await this.list();
       if (enabled === null) delete preferences[definitionKey];
       else preferences[definitionKey] = enabled;
+      // The bytes this write puts on disk, so trust follows exactly them and never a re-read.
       const write = async () => {
         await mkdir(dirname(this.path), { recursive: true });
-        await atomicWriteJson(
-          this.path,
-          { version: 1, enabled: preferences },
-          0o600,
-        );
-        return readFile(this.path);
+        const value = { version: 1, enabled: preferences };
+        await atomicWriteJson(this.path, value, 0o600);
+        return Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
       };
       if (!around) {
         await write();
@@ -143,9 +142,13 @@ export class PromptSuggestionEnablementService {
     const digest = sha256(bytes);
     const choices = await file.list().catch(() => undefined);
     if (!choices) return { path, digest, status: "invalid", choices: {} };
-    if (!this.trust.isTrusted(projectId, path, `sha256:${digest}`))
-      return { path, digest, status: "untrusted", choices: {} };
-    return { path, digest, status: "trusted", choices };
+    const status = this.trust.state(projectId, path, `sha256:${digest}`);
+    return {
+      path,
+      digest,
+      status,
+      choices: status === "trusted" ? choices : {},
+    };
   }
 
   /** Trusts or rejects the exact bytes the user reviewed; false when the file changed since. */
@@ -169,7 +172,7 @@ export class PromptSuggestionEnablementService {
 
   /**
    * Writes on the user's behalf: a trusted file stays trusted and a new file
-   * is trusted; an untrusted file stays untrusted.
+   * is trusted; a file that needs review or was declined stays as it is.
    */
   async setProject(
     projectId: string,

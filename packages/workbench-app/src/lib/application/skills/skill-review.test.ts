@@ -9,14 +9,41 @@ import {
 } from "./skill-review";
 
 test("status lines and captions name the approval state", () => {
-  assert.equal(skillApprovalProblem("pending"), "Waiting for your review");
   assert.equal(
-    skillApprovalProblem("changed"),
-    "Changed since you approved it",
+    skillApprovalProblem({ trustState: "needs_review" }),
+    "Waiting for your review",
   );
-  assert.equal(skillApprovalProblem(undefined), undefined);
-  assert.match(skillReviewCaption("changed"), /approve it again/);
-  assert.match(skillReviewCaption("approved"), /approved$/);
+  assert.equal(
+    skillApprovalProblem({
+      trustState: "needs_review",
+      changedSinceDecision: true,
+    }),
+    "Changed since you trusted it",
+  );
+  // A decline is the user's choice: no problem line asks again.
+  assert.equal(
+    skillApprovalProblem({
+      trustState: "declined",
+      changedSinceDecision: true,
+    }),
+    undefined,
+  );
+  assert.equal(skillApprovalProblem({}), undefined);
+  assert.match(
+    skillReviewCaption({
+      trustState: "needs_review",
+      changedSinceDecision: true,
+    }),
+    /trust it again/,
+  );
+  assert.match(
+    skillReviewCaption({ trustState: "declined", changedSinceDecision: true }),
+    /changed since you declined/,
+  );
+  assert.match(
+    skillReviewCaption({ trustState: "trusted", changedSinceDecision: false }),
+    /trusted$/,
+  );
 });
 
 test("approval names the digest the user saw; changed files reload the review", () => {

@@ -1,3 +1,4 @@
+import type { TrustState } from "@nervekit/contracts/core";
 import { projectSubagentCatalog } from "./project-chains/scoped-migrations.js";
 import { ProjectMigrationService } from "../project-migration/project-migration.js";
 import {
@@ -57,7 +58,7 @@ export interface ProfileCatalogOptions {
   prepareProject?(projectId: string): Promise<void>;
   /** Authored bundled bytes, not legacy profile formats. */
   builtins: Readonly<Record<string, string>>;
-  isTrusted(projectId: string, path: string, exactDigest: string): boolean;
+  trustState(projectId: string, path: string, exactDigest: string): TrustState;
   publish?(scope: AgentScope): void;
   invalidate?(scope: AgentScope): void;
   io?: Pick<
@@ -155,12 +156,18 @@ export class AgentProfileCatalog {
       }
       const value = health.value;
       const diagnostics: ConfigurationDiagnostic[] = [];
-      if (
-        scope.scope === "project" &&
-        !this.options.isTrusted(scope.projectId, value.path, value.digest)
-      )
+      const state =
+        scope.scope === "project"
+          ? this.options.trustState(scope.projectId, value.path, value.digest)
+          : "trusted";
+      if (state !== "trusted")
         diagnostics.push(
-          diagnostic(scope, `profile:${name}`, value.path, "untrusted"),
+          diagnostic(
+            scope,
+            `profile:${name}`,
+            value.path,
+            state === "declined" ? "declined" : "needs-review",
+          ),
         );
       return this.available(
         value.document,
@@ -422,9 +429,10 @@ export class AgentProfileCatalog {
       const definition =
         state.status === "unavailable" ? null : state.value.document;
       const file = this.options.paths.profile(current, name);
-      const trusted =
-        current.scope !== "project" ||
-        this.options.isTrusted(current.projectId, file, digest);
+      const trustState: TrustState =
+        current.scope === "project"
+          ? this.options.trustState(current.projectId, file, digest)
+          : "trusted";
       const shadows =
         index === 0 ? await this.lowerSource(scopes.slice(1), name) : undefined;
       return {
@@ -435,7 +443,7 @@ export class AgentProfileCatalog {
           path: file,
           digest,
           definition,
-          trusted,
+          trustState,
           applicable:
             !!definition &&
             (definition.usableBy === "both" ||
@@ -445,8 +453,15 @@ export class AgentProfileCatalog {
           ...(shadows ? { shadows } : {}),
           diagnostics: [
             ...healthDiagnostics(state, `profile:${name}`),
-            ...(!trusted
-              ? [diagnostic(current, `profile:${name}`, file, "untrusted")]
+            ...(trustState !== "trusted"
+              ? [
+                  diagnostic(
+                    current,
+                    `profile:${name}`,
+                    file,
+                    trustState === "declined" ? "declined" : "needs-review",
+                  ),
+                ]
               : []),
           ],
         },
@@ -463,7 +478,7 @@ export class AgentProfileCatalog {
         path: `builtin:${name}`,
         digest: digestBytes(bytes),
         definition,
-        trusted: true,
+        trustState: "trusted" as const,
         applicable:
           definition.usableBy === "both" ||
           definition.usableBy === (role === "lead" ? "lead" : "subagent"),

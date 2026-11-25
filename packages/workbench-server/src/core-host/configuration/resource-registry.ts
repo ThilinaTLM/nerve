@@ -88,7 +88,7 @@ export function needsAttention(resource: ConfigurationResource): boolean {
   return (
     resource.state === "invalid" ||
     resource.state === "incompatible" ||
-    resource.state === "needs_approval" ||
+    resource.state === "needs_review" ||
     resource.diagnostics.some((diagnostic) => diagnostic.level === "error")
   );
 }
@@ -101,6 +101,8 @@ export type ResourceFinding = Pick<
   path?: string;
   diagnostic?: Diagnostic;
   approval?: ConfigurationResource["approval"];
+  /** With `approval`: the user declined it, so nobody needs to act. */
+  declined?: true;
   previousVersionActive?: true;
 };
 
@@ -109,8 +111,17 @@ export const approvalDiagnostic = (
   approval: NonNullable<ConfigurationResource["approval"]>,
 ): Diagnostic => ({
   level: "warning",
-  code: approval.kind === "trust" ? "untrusted" : "pending-consent",
+  code: "needs-review",
   message: `Valid, but not used until the user approves it in ${approval.where}. You cannot approve it; tell the user.`,
+});
+
+/** Words the state the agent sees when the user declined a resource: nothing to ask for. */
+export const declinedDiagnostic = (
+  approval: NonNullable<ConfigurationResource["approval"]>,
+): Diagnostic => ({
+  level: "warning",
+  code: "declined",
+  message: `The user declined this, so it is not used. Mention it only if it matters for the task; do not ask the user to reverse it. They can change it in ${approval.where}.`,
 });
 
 /** Gathers findings into one resource per file and derives its state. */
@@ -119,6 +130,7 @@ export function resourcesFromFindings(
 ): ConfigurationResource[] {
   const byFile = new Map<string, ConfigurationResource>();
   const seen = new Set<string>();
+  const declined = new Set<ConfigurationResource>();
   for (const finding of findings) {
     const key = [finding.kind, finding.scope, finding.id, finding.path].join(
       "\0",
@@ -138,7 +150,12 @@ export function resourcesFromFindings(
     if (finding.previousVersionActive) resource.previousVersionActive = true;
     if (finding.approval && !resource.approval) {
       resource.approval = finding.approval;
-      resource.diagnostics.push(approvalDiagnostic(finding.approval));
+      if (finding.declined) declined.add(resource);
+      resource.diagnostics.push(
+        finding.declined
+          ? declinedDiagnostic(finding.approval)
+          : approvalDiagnostic(finding.approval),
+      );
     }
     const diagnostic = finding.diagnostic;
     if (!diagnostic) continue;
@@ -158,7 +175,8 @@ export function resourcesFromFindings(
     );
     // A kept previous version is what is in effect, so the resource stays active.
     if (broken && !resource.previousVersionActive) resource.state = "invalid";
-    else if (!broken && resource.approval) resource.state = "needs_approval";
+    else if (!broken && resource.approval)
+      resource.state = declined.has(resource) ? "declined" : "needs_review";
   }
   return [...byFile.values()];
 }

@@ -178,7 +178,7 @@ function fakePort(
   } as unknown as ReturnType<McpServerHub["port"]>;
 }
 
-void test("tools.search skips disabled, unapproved and rejected servers with a note and returns compact matches", async () => {
+void test("tools.search skips disabled, unreviewed and declined servers with a note and returns compact matches", async () => {
   const seen: string[] = [];
   const result = await executeQuickScript(
     { code: `return await mcp.tools.search("item");` },
@@ -190,8 +190,8 @@ void test("tools.search skips disabled, unapproved and rejected servers with a n
           { name: "a", state: "idle" },
           { name: "broken", state: "failed" },
           { name: "off", state: "disabled" },
-          { name: "wait", state: "needs_approval" },
-          { name: "no", state: "rejected" },
+          { name: "wait", state: "needs_review" },
+          { name: "no", state: "declined" },
         ],
         { a: ["get_item"], off: ["item"], wait: ["item"], no: ["item"] },
         seen,
@@ -206,7 +206,7 @@ void test("tools.search skips disabled, unapproved and rejected servers with a n
   );
   assert.match(
     result.content,
-    /not used: off \(disabled\), wait \(needs_approval\), no \(rejected\)/,
+    /not used: off \(disabled\), wait \(needs_review\), no \(declined\)/,
   );
   assert.match(result.content, /MCP server "broken" skipped: cannot start/);
 });
@@ -222,19 +222,19 @@ void test("a pending project row with the name of a working user server is not r
           { name: "github", state: "idle" },
           {
             name: "github",
-            state: "needs_approval",
+            state: "needs_review",
             scope: "project",
             duplicate: true,
           },
-          { name: "other", state: "rejected", scope: "project" },
+          { name: "other", state: "declined", scope: "project" },
         ],
         { github: ["get_item"] },
       ),
       authorizeNested: async () => {},
     },
   );
-  assert.match(result.content, /not used: other \(rejected\)\. Only the user/);
-  assert.doesNotMatch(result.content, /github \(needs_approval\)/);
+  assert.match(result.content, /not used: other \(declined\)\. Only the user/);
+  assert.doesNotMatch(result.content, /github \(needs_review\)/);
   assert.match(result.content, /in Project settings → Agent → MCP servers\./);
 });
 

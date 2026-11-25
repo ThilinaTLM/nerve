@@ -80,7 +80,7 @@ void test(
 
     const pending = await call("extensions.status", ["flow"]);
     assert.equal(pending.state, "pending_consent");
-    assert.equal(pending.consent, "pending");
+    assert.equal(pending.consent, "needs_review");
     assert.equal(pending.source, "user");
     assert.equal(pending.folder, join(userRoot, "flow"));
     assert.ok(!("switch" in pending), "a pending extension has no switch yet");

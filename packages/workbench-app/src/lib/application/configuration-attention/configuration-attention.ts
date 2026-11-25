@@ -83,7 +83,7 @@ export function attentionGroupOf(
   resource: ConfigurationResource,
 ): AttentionGroup | undefined {
   if (!inScope(resource)) return undefined;
-  if (resource.state === "needs_approval") return "review";
+  if (resource.state === "needs_review") return "review";
   if (
     resource.state === "invalid" ||
     resource.state === "incompatible" ||
@@ -93,26 +93,19 @@ export function attentionGroupOf(
   return undefined;
 }
 
-/** Project items that need trust live on the project's Trust page. */
-const TRUST_KINDS = new Set<ConfigurationResourceKind>([
-  "agent-preferences",
-  "agent-profile",
-  "rule-set",
-  "permission-overlay",
-]);
+/** Which of the two profile pages lists a profile; Agents when unknown. */
+export type ProfilePageOf = (
+  scope: "user" | "project",
+  name: string,
+) => "agents" | "sub-agents" | undefined;
 
-/** The settings page that shows the item, in the scope it belongs to. */
+/** The settings page where the item is decided or fixed, in the scope it belongs to. */
 export function attentionTarget(
   resource: ConfigurationResource,
   group: AttentionGroup,
+  profilePageOf?: ProfilePageOf,
 ): AttentionTarget | undefined {
   const scope = resource.scope === "project" ? "project" : "user";
-  if (
-    scope === "project" &&
-    group === "review" &&
-    TRUST_KINDS.has(resource.kind)
-  )
-    return { scope, pageId: "trust" };
   switch (resource.kind) {
     case "skill":
       // Only a skill that waits for approval has a review page; a broken one is not listed.
@@ -124,14 +117,20 @@ export function attentionTarget(
     case "prompt-suggestion":
       return { scope, pageId: "suggestions" };
     case "launch-catalog":
-      return scope === "project" ? { scope, pageId: "launch" } : undefined;
+      // Launches are edited in the Launches panel; the entry offers the file.
+      return undefined;
     case "mcp-servers":
       // A server waiting for review opens its page; the file itself has no item.
       return group === "review" && resource.id !== "mcp.json"
         ? { scope, pageId: "mcp-servers", item: mcpItemId(scope, resource.id) }
         : { scope, pageId: "mcp-servers" };
-    case "agent-profile":
-      return { scope, pageId: "agents" };
+    case "agent-profile": {
+      // A profile waiting for review opens its own page, where it is decided.
+      const pageId = profilePageOf?.(scope, resource.id) ?? "agents";
+      return group === "review"
+        ? { scope, pageId, item: `${scope}:${resource.id}` }
+        : { scope, pageId };
+    }
     case "rule-set":
     case "permission-overlay":
       return { scope, pageId: "permission-rules" };
@@ -145,17 +144,17 @@ function reviewDetail(resource: ConfigurationResource): string {
     return resource.diagnostics.some(
       (diagnostic) => diagnostic.code === "approval-outdated",
     )
-      ? "Changed since you approved it. Not used until you approve it again."
-      : "Not used until you approve it.";
+      ? "Changed since you trusted it. Not used until you trust it again."
+      : "Not used until you trust it.";
   if (resource.kind === "extension") return "Not loaded until you allow it.";
-  if (resource.kind === "mcp-servers")
-    return "Not started until you approve it.";
-  return "Ignored until you approve it.";
+  if (resource.kind === "mcp-servers") return "Not started until you trust it.";
+  return "Ignored until you trust it.";
 }
 
 /** The entry for a resource, or undefined when it needs nobody. */
 export function attentionEntry(
   resource: ConfigurationResource,
+  profilePageOf?: ProfilePageOf,
 ): AttentionEntry | undefined {
   const group = attentionGroupOf(resource);
   if (!group || !inScope(resource)) return undefined;
@@ -163,7 +162,7 @@ export function attentionEntry(
   const upgrade =
     resource.kind === "extension" && resource.state === "incompatible";
   const first = resource.diagnostics[0]?.message;
-  const target = attentionTarget(resource, group);
+  const target = attentionTarget(resource, group, profilePageOf);
   return {
     key: [resource.kind, resource.scope, resource.id, resource.path ?? ""].join(
       "\u0000",
@@ -199,12 +198,13 @@ const normalizePath = (path: string) => path.replace(/[\\/]+$/, "");
 export function attentionEntries(
   resources: readonly ConfigurationResource[],
   alreadyShown: readonly string[] = [],
+  profilePageOf?: ProfilePageOf,
 ): AttentionEntry[] {
   const shown = new Set(alreadyShown.map(normalizePath));
   const seen = new Set<string>();
   const entries: AttentionEntry[] = [];
   for (const resource of resources) {
-    const entry = attentionEntry(resource);
+    const entry = attentionEntry(resource, profilePageOf);
     if (!entry || seen.has(entry.key)) continue;
     if (
       entry.group === "broken" &&
@@ -257,7 +257,24 @@ export function attentionToastTitle(
   return parts.join(" · ");
 }
 
-/** Counts of entries per settings page, by scope; entries without a page count in no page. */
+/** Project items that wait for the user's decision and have a page to decide them on. */
+export function projectReviewEntries(
+  entries: readonly AttentionEntry[],
+): AttentionEntry[] {
+  return entries.filter(
+    (entry) =>
+      entry.group === "review" && entry.scope === "project" && entry.target,
+  );
+}
+
+/** The welcome's one-line reminder of a project's undecided items. */
+export function reviewReminder(count: number): string {
+  return count === 1
+    ? "1 project file needs your review"
+    : `${count} project files need your review`;
+}
+
+/** Counts of entries waiting for review per settings page, by scope; broken items and entries without a page count nowhere. */
 export function attentionCounts(entries: readonly AttentionEntry[]): {
   project: number;
   user: number;
@@ -267,14 +284,15 @@ export function attentionCounts(entries: readonly AttentionEntry[]): {
     user: {},
     project: {},
   };
-  for (const entry of entries) {
+  const waiting = entries.filter((entry) => entry.group === "review");
+  for (const entry of waiting) {
     if (!entry.target) continue;
     const bucket = pages[entry.target.scope];
     bucket[entry.target.pageId] = (bucket[entry.target.pageId] ?? 0) + 1;
   }
   return {
-    project: entries.filter((entry) => entry.scope === "project").length,
-    user: entries.filter((entry) => entry.scope === "user").length,
+    project: waiting.filter((entry) => entry.scope === "project").length,
+    user: waiting.filter((entry) => entry.scope === "user").length,
     pages,
   };
 }

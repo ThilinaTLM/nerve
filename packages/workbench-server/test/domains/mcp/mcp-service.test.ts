@@ -57,7 +57,7 @@ void test("saving writes two-space JSON, stores secrets and records the approval
   });
   assert.equal(result.status, "saved");
   if (result.status !== "saved") return;
-  assert.equal(result.server.review, "approved");
+  assert.equal(result.server.review, "trusted");
   assert.deepEqual(result.server.secrets, [{ name: "key", set: true }]);
   assert.equal(env.vault.values.get("mcp:user:key"), "s3cret");
   const text = await readFile(userFile, "utf8");
@@ -80,8 +80,8 @@ void test("saving writes two-space JSON, stores secrets and records the approval
     }),
   );
   const [row] = (await service.list(user)).servers;
-  assert.equal(row.review, "needs_approval");
-  assert.equal(row.state, "needs_approval");
+  assert.equal(row.review, "needs_review");
+  assert.equal(row.state, "needs_review");
   const review = await service.review({ target: user, name: "api" });
   assert.match(
     review?.sends[0] ?? "",
@@ -202,9 +202,9 @@ void test("project entries: saved ones are approved, project secrets are separat
   assert.deepEqual(
     servers.map((row) => [row.name, row.scope, row.inherited, row.review]),
     [
-      ["team", "project", false, "approved"],
-      ["pulled", "project", false, "needs_approval"],
-      ["personal", "user", true, "approved"],
+      ["team", "project", false, "trusted"],
+      ["pulled", "project", false, "needs_review"],
+      ["personal", "user", true, "trusted"],
     ],
   );
   const refused = await service.test({ target: project, name: "pulled" });

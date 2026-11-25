@@ -5,7 +5,7 @@ import { openCoreDatabase } from "./database.js";
 import { migrate } from "./migrations.js";
 import { TrustedResourceRepository } from "./trusted-resource.repository.js";
 
-test("an extension decision with a grant snapshot of an older shape is read as rejected and can be replaced", () => {
+test("an extension decision with a grant snapshot of an older shape reads as no decision (not a decline) and is replaced by the next one", () => {
   const db = openCoreDatabase(":memory:");
   migrate(db);
   const repository = new TrustedResourceRepository(db);
@@ -29,11 +29,24 @@ test("an extension decision with a grant snapshot of an older shape is read as r
     "UPDATE trusted_resource SET created_at = '2026-01-01T00:00:00.000Z', updated_at = '2026-01-01T00:00:00.000Z'",
   );
 
-  const found = repository.find("extension", null, "/ext/demo");
-  assert.equal(found?.status, "rejected");
-  assert.equal(found?.grants, null);
+  assert.equal(repository.find("extension", null, "/ext/demo"), null);
+  assert.equal(repository.list(null, "extension").length, 0);
+  // The next decision replaces the row.
+  const inserted = repository.insert({
+    id: "t2",
+    kind: "extension",
+    projectId: null,
+    resourceKey: "/ext/demo",
+    name: "demo",
+    contentDigest: digest,
+    status: "trusted",
+    grants: null,
+    createdAt: "2026-01-02T00:00:00.000Z",
+    updatedAt: "2026-01-02T00:00:00.000Z",
+  });
+  assert.equal(
+    repository.find("extension", null, "/ext/demo")?.id,
+    inserted.id,
+  );
   assert.equal(repository.list(null, "extension").length, 1);
-  // The next decision updates the row.
-  const updated = repository.update("t1", { status: "trusted" });
-  assert.equal(updated.status, "trusted");
 });

@@ -107,7 +107,7 @@ describe("permission rule set view helpers", () => {
   it("flags project overrides that are not applied", () => {
     assert.equal(
       overlaySummary(
-        configuration({ supervised: 1 }, {}, "untrusted"),
+        configuration({ supervised: 1 }, {}, "needs_review"),
         "supervised",
       ).label,
       "1 project override (not applied)",

@@ -8,6 +8,7 @@ import { discoverSkillFiles } from "../../resources/resource-loader.js";
 import type { ProjectSkillTrust } from "../../resources/project-skill-trust.js";
 import {
   approvalDiagnostic,
+  declinedDiagnostic,
   projectOf,
   type ConfigurationResourceProvider,
   type ResourceContext,
@@ -79,16 +80,22 @@ export function skillProvider(options: {
         if (context.scope !== "project" || entry.state !== "active")
           return entry;
         const status = await options.trust.status(projectOf(context), skill);
-        return status === "approved"
-          ? entry
+        if (status.trustState === "trusted") return entry;
+        return status.trustState === "declined"
+          ? {
+              ...entry,
+              state: "declined" as const,
+              approval: APPROVAL,
+              diagnostics: [declinedDiagnostic(APPROVAL)],
+            }
           : {
               ...entry,
-              state: "needs_approval" as const,
+              state: "needs_review" as const,
               approval: APPROVAL,
               diagnostics: [
                 {
                   ...approvalDiagnostic(APPROVAL),
-                  ...(status === "changed"
+                  ...(status.changedSinceDecision
                     ? {
                         code: "approval-outdated",
                         message: `Its files changed since the user approved it, so it is not used until they approve it again in ${APPROVAL.where}. You cannot approve it; tell the user.`,

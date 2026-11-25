@@ -5,7 +5,7 @@ import type {
   PromptSuggestionDefinition,
   PromptSuggestionEvaluationInput,
 } from "./prompt-suggestion-types.js";
-import type { PromptSuggestionTrustRecord } from "./prompt-suggestion-trust.repository.js";
+import type { TrustState } from "@nervekit/contracts/core";
 
 void test("when: ahead/behind/base/pull-request fields and JS context expose pullRequest", () => {
   const repo = {
@@ -59,7 +59,7 @@ void test("when: ahead/behind/base/pull-request fields and JS context expose pul
         git: { projectIsRepo: true, repos: [{ ...repo, ...patch }] },
         definitions: [{ ...base, when }],
       },
-      [],
+      () => "needs_review",
     ).suggestions.length;
   assert.equal(count({ gitAhead: true }), 1);
   assert.equal(count({ gitAhead: false }), 0);
@@ -91,17 +91,7 @@ void test("when: ahead/behind/base/pull-request fields and JS context expose pul
         },
       ],
     },
-    [
-      {
-        trustId: "t",
-        sourceKind: "user",
-        path: "/s.md",
-        name: "s",
-        label: "S",
-        predicateHash: "h",
-        status: "allowed",
-      },
-    ],
+    () => "trusted",
   );
   assert.equal(js.suggestions.length, 1);
   assert.match(js.statuses[0].conditionSummary ?? "", /custom JavaScript/);
@@ -140,27 +130,13 @@ void test("evaluates conversation/rule-set conditions and fails closed for untru
     git: { projectIsRepo: false, repos: [] },
     definitions: [definition],
   };
-  const trust: PromptSuggestionTrustRecord = {
-    trustId: "trust",
-    sourceKind: "user",
-    path: definition.source.path,
-    name: "test",
-    label: "Test",
-    predicateHash: "digest",
-    status: "allowed",
-  };
-  const evaluate = (records = [trust]) =>
-    evaluatePromptSuggestions(input, records);
-  assert.equal(evaluate([]).suggestions.length, 0);
-  assert.equal(evaluate([]).trustRequests.length, 1);
-  assert.equal(
-    evaluate([{ ...trust, status: "denied" }]).suggestions.length,
-    0,
-  );
-  assert.equal(
-    evaluate([{ ...trust, predicateHash: "changed" }]).suggestions.length,
-    0,
-  );
+  const evaluate = (state: TrustState = "trusted") =>
+    evaluatePromptSuggestions(input, () => state);
+  assert.equal(evaluate("needs_review").suggestions.length, 0);
+  assert.equal(evaluate("needs_review").trustRequests.length, 1);
+  // A decline asks nothing and runs nothing.
+  assert.equal(evaluate("declined").suggestions.length, 0);
+  assert.equal(evaluate("declined").trustRequests.length, 0);
   assert.equal(evaluate().suggestions.length, 1);
   input.conversation!.permissionRuleSetId = "full_access";
   assert.equal(evaluate().suggestions.length, 0);

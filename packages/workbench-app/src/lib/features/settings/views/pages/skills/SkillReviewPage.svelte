@@ -27,7 +27,10 @@ import {
   skillReviewCaption,
 } from "$lib/application/skills/skill-review";
 import { SkillReviewState } from "$lib/application/skills/skill-review-state.svelte";
-import { SettingsSection } from "$lib/presentation/settings";
+import {
+  SettingsSection,
+  TrustDecisionActions,
+} from "$lib/presentation/settings";
 
 let {
   projectId,
@@ -50,34 +53,28 @@ $effect(() => {
 });
 
 const review = $derived(session.review);
-const approved = $derived(review?.status === "approved");
+const approved = $derived(review?.trustState === "trusted");
 const scripts = $derived(review ? scriptCount(review) : 0);
 </script>
 
 <PageHeader
   title={name}
   description={review
-    ? skillReviewCaption(review.status)
+    ? skillReviewCaption(review)
     : session.phase === "missing"
       ? "This skill is no longer in the project"
       : undefined}
   parent={{ label: "Skills", onBack }}
 >
   {#snippet actions()}
-    {#if review && approved}
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={session.busy}
-        onclick={() => void session.withdraw()}>Withdraw approval</Button
-      >
-    {:else if review}
-      <Button
-        size="sm"
-        disabled={session.busy}
-        onclick={() => void session.approve()}
-        >{review.status === "changed" ? "Approve changes" : "Approve"}</Button
-      >
+    {#if review}
+      <TrustDecisionActions
+        state={review.trustState}
+        busy={session.busy}
+        onTrust={() => void session.approve()}
+        onDecline={() => void session.decline()}
+        onRevoke={() => void session.decline()}
+      />
     {/if}
   {/snippet}
 </PageHeader>
@@ -131,7 +128,7 @@ const scripts = $derived(review ? scriptCount(review) : 0);
 
   <SettingsSection
     title="Files"
-    description="Approval covers exactly these files. Any change asks you again."
+    description="Trust covers exactly these files. Any change asks you again."
     surface={false}
   >
     <PageList ariaLabel="Skill files">

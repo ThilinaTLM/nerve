@@ -40,7 +40,7 @@ async function fixture(t: TestContext) {
     paths,
     projectMigration: new ProjectMigrationService({ home }),
     definitions: [...extensionSettingsDefinitions, userOnly],
-    isProjectTrusted: () => trusted,
+    projectTrustState: () => (trusted ? "trusted" : "needs_review"),
   });
   const user = { scope: "user" as const };
   const projectScope = { scope: "project" as const, projectId: "p" };
@@ -174,7 +174,7 @@ void test("a project file is used only when trusted; its fields override the use
   const ignored = await f.service.resolve({ projectId: "p" }, "project");
   assert.equal(field(ignored, "atlassian", "account").value, "mine");
   assert.ok(
-    ignored.diagnostics.some((issue) => issue.code === "untrusted-project"),
+    ignored.diagnostics.some((issue) => issue.code === "project-needs-review"),
   );
   f.trust(true);
   const used = await f.service.resolve({ projectId: "p" }, "project");

@@ -27,7 +27,8 @@ async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const catalog = new AgentProfileCatalog({
     paths,
     builtins: { coding: JSON.stringify(profile) },
-    isTrusted: (_id, _file, digest) => digest === trustedDigest,
+    trustState: (_id, _file, digest) =>
+      digest === trustedDigest ? "trusted" : "needs_review",
   });
   return {
     paths,
@@ -72,7 +73,7 @@ void test("catalog shadows complete definitions, isolates invalid entries and bi
   });
   const untrusted = await f.catalog.get("coding", "p");
   assert.equal(untrusted.status, "unavailable");
-  assert.equal(untrusted.diagnostics[0]?.code, "untrusted");
+  assert.equal(untrusted.diagnostics[0]?.code, "needs-review");
   f.trust(projectSave.digest);
   const trusted = await f.catalog.get("coding", "p");
   if (trusted.status === "available") {

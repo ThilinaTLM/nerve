@@ -1,3 +1,4 @@
+import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
 import { fileDiagnosticSchema } from "../configuration/diagnostic.js";
 
@@ -26,10 +27,9 @@ export type PromptSuggestionSourceKind = z.infer<
   typeof promptSuggestionSourceKindSchema
 >;
 
+/** The decision state, plus `not_required` (no predicate) and `stale` (a predicate that changed since the user decided; asks again). */
 export const promptSuggestionTrustStatusSchema = z.enum([
-  "unset",
-  "allowed",
-  "denied",
+  ...trustStateSchema.options,
   "not_required",
   "stale",
 ]);
@@ -120,7 +120,7 @@ export type PromptSuggestionListResponse = z.infer<
 
 export const updatePromptSuggestionTrustRequestSchema = z.object({
   trustId: z.string().min(1),
-  status: z.enum(["allowed", "denied", "unset"]),
+  trusted: z.boolean(),
 });
 export type UpdatePromptSuggestionTrustRequest = z.infer<
   typeof updatePromptSuggestionTrustRequestSchema
@@ -201,7 +201,7 @@ export const promptSuggestionProjectFileSchema = z.object({
   path: z.string().min(1),
   /** Hex sha-256 of the reviewed bytes; absent while there is no file. */
   digest: z.string().min(1).optional(),
-  status: z.enum(["missing", "trusted", "untrusted", "invalid"]),
+  status: z.enum(["missing", "invalid", ...trustStateSchema.options]),
 });
 export type PromptSuggestionProjectFile = z.infer<
   typeof promptSuggestionProjectFileSchema

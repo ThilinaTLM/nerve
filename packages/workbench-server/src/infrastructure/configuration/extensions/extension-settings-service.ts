@@ -1,3 +1,4 @@
+import type { TrustState } from "@nervekit/contracts/core";
 import {
   compileSettingsValidator,
   emptyExtensionsDocument,
@@ -52,8 +53,8 @@ export type ScopeRead = {
   revision: number;
   digest: string;
   entries: ExtensionEntries;
-  /** Project files only: untrusted files are ignored by resolution. */
-  trusted: boolean | null;
+  /** Project files only (null for user files): anything but `trusted` is ignored by resolution. A missing file is `trusted`. */
+  trustState: TrustState | null;
   issues: { code: string; pointer: string }[];
 };
 
@@ -88,11 +89,11 @@ export class ExtensionSettingsService {
       definitions:
         | readonly ExtensionSettingsDefinition[]
         | ((projectId?: string) => readonly ExtensionSettingsDefinition[]);
-      isProjectTrusted(
+      projectTrustState(
         projectId: string,
         path: string,
         digest: string,
-      ): boolean;
+      ): TrustState;
       io?: Pick<
         ScopedDocumentOptions<ExtensionScopeRef, ExtensionsDocument>,
         "write" | "syncDirectory"
@@ -168,7 +169,7 @@ export class ExtensionSettingsService {
         revision: 0,
         digest: health.sourceDigest ?? "missing",
         entries: {},
-        trusted: null,
+        trustState: null,
         issues: health.issues.map(({ code, pointer }) => ({ code, pointer })),
       };
     const value = health.value;
@@ -179,14 +180,15 @@ export class ExtensionSettingsService {
       revision: value.revision,
       digest: value.digest,
       entries: value.document.extensions,
-      trusted:
+      trustState:
         scope.scope === "project"
-          ? value.digest === "missing" ||
-            this.options.isProjectTrusted(
-              scope.projectId,
-              value.path,
-              value.digest,
-            )
+          ? value.digest === "missing"
+            ? "trusted"
+            : this.options.projectTrustState(
+                scope.projectId,
+                value.path,
+                value.digest,
+              )
           : null,
       issues: [],
     };
@@ -202,16 +204,18 @@ export class ExtensionSettingsService {
     const skipped = (
       layer: ExtensionLayer["layer"],
       read: ScopeRead,
-      code: "file-unavailable" | "untrusted-project",
+      code: "file-unavailable" | "project-needs-review" | "project-declined",
     ) =>
       diagnostics.push({
         level: code === "file-unavailable" ? "error" : "warning",
         code,
         layer,
         message:
-          code === "untrusted-project"
-            ? "The project's extension settings are not trusted and are ignored."
-            : `The ${layer} extension settings file is unavailable (${read.issues.map((issue) => issue.code).join(", ") || "unreadable"}); defaults apply.`,
+          code === "project-declined"
+            ? "The user declined the project's extension settings, so they are ignored."
+            : code === "project-needs-review"
+              ? "The project's extension settings wait for the user's review and are ignored until then."
+              : `The ${layer} extension settings file is unavailable (${read.issues.map((issue) => issue.code).join(", ") || "unreadable"}); defaults apply.`,
       });
     const take = (
       layer: ExtensionLayer["layer"],
@@ -220,8 +224,14 @@ export class ExtensionSettingsService {
     ) => {
       if (read.status === "unavailable")
         return skipped(layer, read, "file-unavailable");
-      if (read.trusted === false)
-        return skipped(layer, read, "untrusted-project");
+      if (read.trustState !== null && read.trustState !== "trusted")
+        return skipped(
+          layer,
+          read,
+          read.trustState === "declined"
+            ? "project-declined"
+            : "project-needs-review",
+        );
       layers.push({ layer, entries: read.entries, ...extra });
     };
     const child = context.role === "child";

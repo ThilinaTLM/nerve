@@ -28,7 +28,7 @@ void test("explicit Retry reloads invalid agent dependencies and the exact publi
     projectDirectory: () => home,
     conversationOwner: () => ({ projectId: "p", role: "lead" }),
     builtins: {},
-    isProfileTrusted: () => true,
+    profileTrustState: () => "trusted",
     captureResources: () => ({ options: {}, isCurrent: () => true }),
   });
   t.after(async () => {

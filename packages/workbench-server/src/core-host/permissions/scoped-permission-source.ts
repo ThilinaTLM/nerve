@@ -13,7 +13,10 @@ import { permissionFileWarnings } from "./permission-warnings.js";
 import { readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { isPathInside } from "@nervekit/tools/execution";
-import type { CoreStorage } from "@nervekit/conversation-core";
+import type {
+  CoreStorage,
+  TrustedResourceService,
+} from "@nervekit/conversation-core";
 import { supervisionSchema } from "@nervekit/contracts/core";
 import type { ConfigurationDiagnostic } from "../../infrastructure/configuration/agent-configuration/document-adapters.js";
 import type {
@@ -77,6 +80,7 @@ export function createScopedPermissionSource(options: {
   home: string;
   projectMigration?: ProjectMigrationService;
   storage: CoreStorage;
+  trust: Pick<TrustedResourceService, "trustState">;
   agents: AgentConfigurationService;
   trustGeneration(): number;
   requestGenerations(id: string): Record<string, number> | undefined;
@@ -479,14 +483,19 @@ export function createScopedPermissionSource(options: {
               Record<keyof typeof paths, PermissionOverlayDocument>
             > = {};
             for (const origin of ["user", "project", "conversation"] as const) {
-              if (origin === "project" && trust?.status !== "trusted") continue;
               const loaded = await read(paths[origin]);
-              if (
-                origin === "project" &&
-                loaded.kind === "bytes" &&
-                overlayDigest(loaded.bytes) !== trust?.contentDigest
-              )
-                continue;
+              if (origin === "project") {
+                // Only the exact trusted bytes apply; a missing file has none to compare.
+                const digest =
+                  loaded.kind === "bytes"
+                    ? overlayDigest(loaded.bytes)
+                    : trust?.contentDigest;
+                if (
+                  !digest ||
+                  options.trust.trustState(trust, digest) !== "trusted"
+                )
+                  continue;
+              }
               const parsed = parse(paths[origin], loaded);
               if (!parsed.ok) throw new PolicyDocumentError(paths[origin]);
               documents[origin] = parsed.overlay ?? emptyOverlayDocument();

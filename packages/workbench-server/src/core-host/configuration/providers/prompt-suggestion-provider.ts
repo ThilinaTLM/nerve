@@ -2,6 +2,7 @@ import type { ConfigurationResource } from "@nervekit/contracts/configuration";
 import type { PromptSuggestionService } from "../../../domains/prompt-suggestions/prompt-suggestion.service.js";
 import {
   approvalDiagnostic,
+  declinedDiagnostic,
   type ConfigurationResourceProvider,
   type ResourceContext,
 } from "../resource-registry.js";
@@ -32,7 +33,11 @@ export function promptSuggestionProvider(options: {
       .map((status): ConfigurationResource => {
         const pending =
           status.requiresTrust &&
-          (status.status === "unset" || status.status === "stale");
+          (status.status === "needs_review" || status.status === "stale");
+        const declined =
+          status.requiresTrust &&
+          status.status === "declined" &&
+          !status.overriddenBy;
         return {
           kind: "prompt-suggestion",
           id: status.name,
@@ -41,18 +46,24 @@ export function promptSuggestionProvider(options: {
           state: status.overriddenBy
             ? "shadowed"
             : pending
-              ? "needs_approval"
-              : !status.enabled || status.status === "denied"
-                ? "disabled"
-                : "active",
+              ? "needs_review"
+              : declined
+                ? "declined"
+                : !status.enabled
+                  ? "disabled"
+                  : "active",
           ...(status.overriddenBy && status.overriddenBy !== "builtin"
             ? { shadowedBy: status.overriddenBy }
             : {}),
-          ...(pending && !status.overriddenBy ? { approval: APPROVAL } : {}),
+          ...((pending && !status.overriddenBy) || declined
+            ? { approval: APPROVAL }
+            : {}),
           diagnostics:
             pending && !status.overriddenBy
               ? [approvalDiagnostic(APPROVAL)]
-              : [],
+              : declined
+                ? [declinedDiagnostic(APPROVAL)]
+                : [],
         };
       });
     const byPath = new Map(found.map((entry) => [entry.path, entry]));

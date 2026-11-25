@@ -1,3 +1,4 @@
+import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 import {
@@ -18,7 +19,8 @@ export const profileCatalogEntrySchema = z.strictObject({
   path: z.string(),
   digest: z.string().min(1),
   definition: profileDefinitionSchema.nullable(),
-  trusted: z.boolean(),
+  /** Project profiles only decide anything; user and built-in ones are `trusted`. */
+  trustState: trustStateSchema,
   applicable: z.boolean(),
   enabled: z.boolean(),
   local: z.boolean(),
@@ -111,7 +113,7 @@ export const scopedTrustResultSchema = z.union([
   z.strictObject({
     status: z.literal("saved"),
     digest: z.string(),
-    trusted: z.boolean(),
+    trustState: trustStateSchema,
   }),
   configurationMutationFailureSchema,
 ]);

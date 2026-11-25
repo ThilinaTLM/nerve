@@ -63,7 +63,8 @@ export class SkillReviewState {
     await this.#decide("trusted");
   }
 
-  async withdraw(): Promise<void> {
+  /** Declines the skill, or revokes a trusted one; a decline stays whatever the files become. */
+  async decline(): Promise<void> {
     await this.#decide("rejected");
   }
 
@@ -84,7 +85,7 @@ export class SkillReviewState {
       ) {
         this.review = current;
         this.notice =
-          "The skill's files changed while you were reviewing. Review them again before approving.";
+          "The skill's files changed while you were reviewing. Review them again before trusting it.";
         return;
       }
       await requestConversation("trust.decide", {

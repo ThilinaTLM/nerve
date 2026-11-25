@@ -11,6 +11,6 @@ void test("list rejects a filter value no resource can have, naming the valid on
   );
   await assert.rejects(
     list.prepare([{ state: "pending" }], env),
-    /state must be one of .*"needs_approval"/,
+    /state must be one of .*"needs_review"/,
   );
 });

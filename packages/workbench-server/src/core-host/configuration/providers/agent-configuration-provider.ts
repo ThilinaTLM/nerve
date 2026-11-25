@@ -17,8 +17,11 @@ import {
   type ResourceFinding,
 } from "../resource-registry.js";
 
-export const TRUST_PAGE = "Settings → This project → Trust";
-const TRUST = { kind: "trust", where: TRUST_PAGE } as const;
+/** Where the user decides each project file; the decision is made on the page of the resource. */
+export const AGENT_TRUST_PAGE = "Project settings → General";
+export const PERMISSIONS_TRUST_PAGE = "Project settings → Permission rules";
+export const PROFILE_TRUST_PAGE = "Project settings → Agents or Sub-Agents";
+const trustAt = (where: string) => ({ kind: "trust", where }) as const;
 
 /** What a diagnostic code means and what to do next; the parser's detail is appended. */
 const EXPLANATIONS: Record<string, string> = {
@@ -68,7 +71,11 @@ function finding(
     scope: issue.scope,
     path: issue.path,
   };
-  if (issue.code === "untrusted") return { ...at, approval: TRUST };
+  const approval = trustAt(
+    issue.document === "agent" ? AGENT_TRUST_PAGE : PROFILE_TRUST_PAGE,
+  );
+  if (issue.code === "needs-review") return { ...at, approval };
+  if (issue.code === "declined") return { ...at, approval, declined: true };
   return {
     ...at,
     ...(previousVersionActive ? { previousVersionActive: true } : {}),
@@ -100,13 +107,15 @@ export function agentConfigurationProvider(options: {
     context: ResourceContext,
   ): Promise<ResourceFinding[]> => {
     const scope = target(context);
-    return service.untrustedProject(await service.ensureLoaded(scope))
+    const state = service.projectTrustState(await service.ensureLoaded(scope));
+    return state !== "trusted"
       ? [
           {
             ...identify("agent"),
             scope: "project",
             path: service.paths.agent(scope),
-            approval: TRUST,
+            approval: trustAt(AGENT_TRUST_PAGE),
+            ...(state === "declined" ? { declined: true as const } : {}),
           },
         ]
       : [];

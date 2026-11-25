@@ -16,8 +16,14 @@ export class TrustedResourceRepository {
     return row ? mapTrustedResource(row) : null;
   }
 
+  /** Records a decision; an unreadable row of the same resource (see `find`) is replaced. */
   insert(input: TrustedResource): TrustedResource {
     const row = trustedResourceSchema.parse(input);
+    this.db.sqlite
+      .prepare(
+        "DELETE FROM trusted_resource WHERE kind = ? AND project_id IS ? AND resource_key = ?",
+      )
+      .run(row.kind, row.projectId, row.resourceKey);
     this.db.sqlite
       .prepare(
         "INSERT INTO trusted_resource (id, kind, project_id, resource_key, name, content_digest, status, grants, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -70,9 +76,10 @@ export class TrustedResourceRepository {
         "SELECT * FROM trusted_resource WHERE project_id IS ? AND (? IS NULL OR kind = ?) ORDER BY resource_key, id",
       )
       .all(projectId, kind ?? null, kind ?? null)
-      .map(mapTrustedResource);
+      .flatMap((row) => mapTrustedResource(row) ?? []);
   }
 
+  /** The decision for a resource; none when there is no row or it cannot be read. */
   find(
     kind: TrustedResourceKind,
     projectId: string | null,
@@ -93,7 +100,7 @@ export class TrustedResourceRepository {
 
 function mapTrustedResource(
   row: Record<string, SQLOutputValue>,
-): TrustedResource {
+): TrustedResource | null {
   const raw = {
     id: row.id,
     kind: row.kind,
@@ -109,13 +116,9 @@ function mapTrustedResource(
   const parsed = trustedResourceSchema.safeParse(raw);
   if (parsed.success) return parsed.data;
   // A grant snapshot of an older shape (the release before `capabilities` became `models` and
-  // `frame`) cannot be read. The decision does not count: it reads as rejected without grants, and
-  // the user's next decision replaces it.
-  const unreadable = trustedResourceSchema.safeParse({
-    ...raw,
-    status: "rejected",
-    grants: null,
-  });
-  if (unreadable.success && raw.kind === "extension") return unreadable.data;
+  // `frame`) cannot be read. The decision does not count: the resource reads as never decided
+  // (`needs_review`, not a decline), and the user's next decision replaces the row.
+  const unreadable = trustedResourceSchema.safeParse({ ...raw, grants: null });
+  if (unreadable.success && raw.kind === "extension") return null;
   throw parsed.error;
 }

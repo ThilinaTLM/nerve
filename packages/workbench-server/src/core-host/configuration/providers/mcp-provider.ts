@@ -11,6 +11,7 @@ import {
 import { MCP_CONFIG_FILENAME } from "../../../domains/mcp/mcp-config.js";
 import {
   approvalDiagnostic,
+  declinedDiagnostic,
   type ConfigurationResourceProvider,
   type ResourceContext,
 } from "../resource-registry.js";
@@ -18,7 +19,7 @@ import {
 /**
  * The `mcp.json` of the user and of a project: the file (invalid entries are errors; the valid
  * ones keep working) and each server in it. A server waits for the user's approval of its exact
- * entry (`needs_approval`) or was rejected (`disabled`). Files are read fresh on every MCP call, so
+ * entry (`needs_review`) or was declined by the user (`declined`). Files are read fresh on every MCP call, so
  * reload equals check.
  */
 export function mcpProvider(options: {
@@ -62,24 +63,19 @@ export function mcpProvider(options: {
       kind: "consent" as const,
       where: MCP_SETTINGS_PAGE[entry.scope],
     };
-    if (entry.review === "needs_approval")
+    if (entry.review === "needs_review")
       return {
         ...base,
-        state: "needs_approval",
+        state: "needs_review",
         approval,
         diagnostics: [approvalDiagnostic(approval)],
       };
-    if (entry.review === "rejected")
+    if (entry.review === "declined")
       return {
         ...base,
-        state: "disabled",
-        diagnostics: [
-          {
-            level: "warning",
-            code: "rejected",
-            message: `The user rejected this entry, so it is not used. They can approve it in ${approval.where}. You cannot approve it; tell the user.`,
-          },
-        ],
+        state: "declined",
+        approval,
+        diagnostics: [declinedDiagnostic(approval)],
       };
     return { ...base, state: "active", diagnostics: [] };
   };

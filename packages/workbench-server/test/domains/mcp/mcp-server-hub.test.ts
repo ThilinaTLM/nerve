@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { mcpBlock } from "../../../src/domains/mcp/mcp-enablement.js";
 import { createTestMcp } from "../../fixtures/mcp/test-hub.js";
+import { waitFor } from "../../support/wait-for.js";
 
 const FAKE_SERVER = fileURLToPath(
   new URL("../../fixtures/mcp/fake-mcp-server.mjs", import.meta.url),
@@ -120,8 +121,9 @@ void test("a server that exits or idles out is started again on the next call", 
   });
   const echoed = await port.callTool("fake", "echo", { text: "b" });
   assert.deepEqual(echoed.content, [{ type: "text", text: "b" }]);
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  assert.equal((await port.listServers())[0].state, "idle");
+  await waitFor(async () => (await port.listServers())[0].state === "idle", {
+    message: "the server to idle out",
+  });
   const again = await port.callTool("fake", "echo", { text: "c" });
   assert.deepEqual(again.content, [{ type: "text", text: "c" }]);
 });
@@ -162,7 +164,7 @@ void test("an entry that is not approved is never started, indexed or listed wit
   const port = env.hub.port(env.run());
   assert.deepEqual(
     (await port.listServers()).map((server) => [server.name, server.state]),
-    [["fake", "needs_approval"]],
+    [["fake", "needs_review"]],
   );
   for (const call of [
     () => port.listTools("fake"),
@@ -179,7 +181,7 @@ void test("an entry that is not approved is never started, indexed or listed wit
     () => assert.fail("nothing is indexed"),
     () => undefined,
   );
-  // A rejected entry stays off; an edited entry asks again.
+  // A declined entry stays off, and stays declined when it is edited.
   const [entry] = (await env.catalog.load()).active;
   env.trust.decide({
     projectId: null,
@@ -187,9 +189,9 @@ void test("an entry that is not approved is never started, indexed or listed wit
     contentDigest: entry.digest,
     status: "rejected",
   });
-  assert.equal((await port.listServers())[0].state, "rejected");
+  assert.equal((await port.listServers())[0].state, "declined");
   await writeUser(env.home, { fake: fake({ timeout: 5 }) });
-  assert.equal((await port.listServers())[0].state, "needs_approval");
+  assert.equal((await port.listServers())[0].state, "declined");
   assert.equal(started, 0);
 });
 
@@ -203,7 +205,7 @@ void test("approval is per entry: adding a server leaves the others approved", a
   ]);
   assert.deepEqual(states, [
     ["one", "idle"],
-    ["two", "needs_approval"],
+    ["two", "needs_review"],
   ]);
 });
 
@@ -268,8 +270,8 @@ void test("an approved project entry replaces the user entry whole; a pending on
   ]);
   assert.deepEqual(rows, [
     ["shared", "user", "idle", "user"],
-    ["only", "project", "needs_approval", undefined],
-    ["shared", "project", "needs_approval", "project"],
+    ["only", "project", "needs_review", undefined],
+    ["shared", "project", "needs_review", "project"],
   ]);
   await env.approveAll(project);
   assert.deepEqual(
@@ -344,8 +346,9 @@ void test("the tool index answers without starting, follows the entry and refres
   // A tool the server adds shows up after its list_changed notification.
   await port.callTool("fake", "grow", {});
   assert.equal(await starts(), 2);
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  assert.ok((await names()).includes("extra"));
+  await waitFor(async () => (await names()).includes("extra"), {
+    message: "the list_changed notification",
+  });
   assert.equal((await env.hub.status(approved, env.home)).toolCount, 8);
   // A changed entry has its own index: it starts again and does not see the old one.
   await writeUser(env.home, { fake: entry({ EXTRA: "1" }) });
@@ -365,7 +368,7 @@ void test("reconcile closes connections of entries that changed or lost approval
   await writeUser(env.home, { fake: fake({ description: "edited" }) });
   await env.hub.reconcile();
   const [entry] = (await env.catalog.load()).active;
-  assert.equal(entry.review, "needs_approval");
+  assert.equal(entry.review, "needs_review");
   assert.equal((await env.hub.status(entry, env.home)).state, "idle");
 });
 
@@ -375,22 +378,22 @@ void test("mcpBlock: a named decision, then the defaults, then the entry's own e
     scope: "user",
     server: { name: "x", kind: "stdio", config: { command: "c" } },
     digest: "sha256:0",
-    review: "needs_approval",
+    review: "needs_review",
   } as const;
   assert.equal(mcpBlock(entry, { servers: { x: false } }), "disabled");
-  assert.equal(mcpBlock(entry, undefined), "needs_approval");
-  assert.equal(mcpBlock(entry, { servers: { x: true } }), "needs_approval");
+  assert.equal(mcpBlock(entry, undefined), "needs_review");
+  assert.equal(mcpBlock(entry, { servers: { x: true } }), "needs_review");
   assert.equal(mcpBlock(entry, { defaults: false }), "disabled");
   assert.equal(
     mcpBlock(entry, { defaults: false, servers: { x: true } }),
-    "needs_approval",
+    "needs_review",
   );
   const off = {
     ...entry,
     server: { ...entry.server, config: { command: "c", enabled: false } },
   } as const;
   assert.equal(mcpBlock(off, undefined), "disabled");
-  assert.equal(mcpBlock(off, { defaults: true }), "needs_approval");
+  assert.equal(mcpBlock(off, { defaults: true }), "needs_review");
 });
 
 void test("defaults: false turns off a server outside the resolved map; the message names where when known", async () => {
@@ -448,7 +451,7 @@ void test("a rejected project entry leaves the user entry working and is marked 
     rows.map((row) => [row.scope, row.state, row.duplicate]),
     [
       ["user", "idle", undefined],
-      ["project", "rejected", true],
+      ["project", "declined", true],
     ],
   );
   assert.equal(
@@ -530,7 +533,8 @@ void test("an entry withdrawn while it starts leaves no recorded failure; inspec
   await using env = await setup({
     slow: {
       command: process.execPath,
-      args: ["-e", "setTimeout(() => process.exit(3), 300)"],
+      // Outlives the withdrawal below even on a loaded machine, so the start never fails on its own.
+      args: ["-e", "setTimeout(() => process.exit(3), 5_000)"],
     },
   });
   await env.approveAll();
@@ -541,10 +545,12 @@ void test("an entry withdrawn while it starts leaves no recorded failure; inspec
   env.trust.rows.clear();
   await env.hub.reconcile();
   await call;
-  await new Promise((resolve) => setTimeout(resolve, 100));
-  assert.equal((await env.hub.status(entry, env.home)).state, "idle");
+  await waitFor(
+    async () => (await env.hub.status(entry, env.home)).state === "idle",
+    { message: "the withdrawn start to settle" },
+  );
   const pending = (await env.catalog.load()).active[0];
-  assert.equal(pending.review, "needs_approval");
+  assert.equal(pending.review, "needs_review");
   const result = await env.hub.inspect(pending, env.home);
   assert.equal(result.ok, false);
 });

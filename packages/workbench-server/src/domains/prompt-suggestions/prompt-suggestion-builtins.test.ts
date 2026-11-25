@@ -68,7 +68,9 @@ function names(
       enabled: true,
     })),
   };
-  return evaluatePromptSuggestions(input, []).suggestions.map((s) => s.name);
+  return evaluatePromptSuggestions(input, () => "needs_review").suggestions.map(
+    (s) => s.name,
+  );
 }
 
 void test("builtins: every default-off entry is declared and bodies are plain text", () => {
@@ -180,7 +182,7 @@ void test("builtins: labels carry counts and prompts include context without fen
     },
     definitions: builtinPromptSuggestionDefinitions(),
   };
-  const result = evaluatePromptSuggestions(input, []);
+  const result = evaluatePromptSuggestions(input, () => "needs_review");
   const byName = new Map(result.suggestions.map((s) => [s.name, s]));
   assert.equal(byName.get("commit-changes")?.label, "Commit 4 changes");
   assert.equal(byName.get("update-pull-request")?.label, "Update PR #7");

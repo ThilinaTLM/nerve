@@ -52,7 +52,7 @@ export async function fixture(
       };
     },
     builtins: { coding: JSON.stringify(definition) },
-    isProfileTrusted: () => false,
+    profileTrustState: () => "needs_review",
     captureResources: () => ({
       options: { referenceAvailable: () => true },
       isCurrent: () => true,

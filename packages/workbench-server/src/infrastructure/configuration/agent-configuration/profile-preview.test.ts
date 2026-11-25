@@ -36,7 +36,7 @@ void test("transition previews include target metadata/instructions, changed val
       planning: JSON.stringify(planning),
       coding: JSON.stringify(coding),
     },
-    isProfileTrusted: () => true,
+    profileTrustState: () => "trusted",
     captureResources: () => ({
       options: { referenceAvailable: () => true },
       isCurrent: () => true,
@@ -149,7 +149,7 @@ void test("declared model levels diagnose unsupported requirements and block tra
     projectDirectory: () => home,
     conversationOwner: () => ({ projectId: "p", role: "lead" }),
     builtins: { unsupported: JSON.stringify(definition) },
-    isProfileTrusted: () => true,
+    profileTrustState: () => "trusted",
     captureResources: () => ({
       options: { clampThinking, referenceAvailable: () => true },
       isCurrent: () => true,

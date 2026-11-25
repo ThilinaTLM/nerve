@@ -113,12 +113,20 @@ async function trust(trusted: boolean) {
         }}>Cancel</Button
       >
       {#if available.source.digest !== "missing"}
-        {#if available.trusted === false}
-          <Button disabled={busy} onclick={() => trust(true)}>Trust file</Button
+        {@const decision = available.trustState ?? "trusted"}
+        {#if decision === "trusted"}
+          <Button variant="outline" disabled={busy} onclick={() => trust(false)}
+            >Revoke</Button
           >
         {:else}
-          <Button variant="outline" disabled={busy} onclick={() => trust(false)}
-            >Revoke trust</Button
+          {#if decision === "needs_review"}
+            <Button
+              variant="outline"
+              disabled={busy}
+              onclick={() => trust(false)}>Decline</Button
+            >
+          {/if}
+          <Button disabled={busy} onclick={() => trust(true)}>Trust file</Button
           >
         {/if}
       {/if}

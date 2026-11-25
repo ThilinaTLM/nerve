@@ -46,7 +46,7 @@ A project skill is not used until the user approves the exact content of its fol
 - A skill you write at user scope (`<home>/agent/skills/`) works from the next agent run. Prefer user scope for a skill that is personal rather than part of the repository.
 - After editing an approved project skill, tell the user it waits for approval again.
 
-`configuration.list({ kind: "skill", state: "needs_approval" })` lists the skills that wait.
+`configuration.list({ kind: "skill", state: "needs_review" })` lists the skills that wait.
 
 ## Writing the body
 

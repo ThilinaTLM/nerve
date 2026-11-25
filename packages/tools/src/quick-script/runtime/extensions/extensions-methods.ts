@@ -49,7 +49,7 @@ export const extensionsMethods: SdkMethod[] = [
     bare: "id",
     options: ["id"],
     signature:
-      "/** State, source, folder, consent (pending or granted), diagnostics and recent backend errors of an extension in this project. Reads the last load; call `reload` first to re-read the folder. */ status(id: string): Promise<ExtensionStatus>",
+      "/** State, source, folder, consent (needs_review, declined or granted), diagnostics and recent backend errors of an extension in this project. Reads the last load; call `reload` first to re-read the folder. */ status(id: string): Promise<ExtensionStatus>",
     parse: (options) => parseId(options),
     resource: (id) => `extension ${id}`,
     run: async (id, env) => await port(env).status(id),

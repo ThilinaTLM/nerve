@@ -109,9 +109,16 @@ void test("a file created through Nerve is trusted unless the binding changed; p
   await create(path, output);
   assert.equal(record?.status, "trusted");
   assert.equal(record?.contentDigest, digest(output));
+  // A decision about the path that already exists is never replaced by creating the file.
+  assert.equal(
+    await trust.capture({ ...input, type: "extensions" }),
+    undefined,
+  );
   // A decision recorded while the write was in flight wins.
+  const existing = record;
+  record = undefined;
   const stale = (await trust.capture({ ...input, type: "extensions" }))!;
-  record = { ...record, status: "rejected" };
+  record = { ...existing, status: "rejected" };
   await stale(path, output);
   assert.equal(record?.status, "rejected");
 });

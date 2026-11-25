@@ -8,6 +8,7 @@ import {
   type projectCapabilitiesSchema,
 } from "./scoped-migrations.js";
 import type { z } from "zod";
+import type { TrustState } from "@nervekit/contracts/core";
 import { diagnostic } from "../document-adapters.js";
 import type { AgentScope, AgentDocument } from "../document-adapters.js";
 import type { ScopeGeneration } from "../../scoped-store/scoped-document-store.js";
@@ -26,7 +27,7 @@ export class ProjectCapabilityLayer {
   }
   async capture(
     context: ProjectConfigurationContext,
-    isTrusted: (path: string, digest: string) => boolean,
+    trustState: (path: string, digest: string) => TrustState,
   ) {
     const key = JSON.stringify([context.projectId, context.directory]);
     let pending = this.entries.get(key);
@@ -35,8 +36,10 @@ export class ProjectCapabilityLayer {
       this.entries.set(key, pending);
     }
     const result = await pending;
-    const trusted =
-      !!result.sourceDigest && isTrusted(result.path, result.sourceDigest);
+    const state = result.sourceDigest
+      ? trustState(result.path, result.sourceDigest)
+      : "needs_review";
+    const trusted = !!result.sourceDigest && state === "trusted";
     const usable =
       result.classification !== "corrupted" &&
       result.classification !== "incompatible";
@@ -65,15 +68,18 @@ export class ProjectCapabilityLayer {
                   ? "future-version"
                   : !usable
                     ? "invalid-value"
-                    : "untrusted-project",
+                    : state === "declined"
+                      ? "project-declined"
+                      : "project-needs-review",
               ),
             ]
           : [],
       current: () =>
         this.entries.get(key) === pending &&
-        trusted ===
-          (!!result.sourceDigest &&
-            isTrusted(result.path, result.sourceDigest)),
+        state ===
+          (result.sourceDigest
+            ? trustState(result.path, result.sourceDigest)
+            : "needs_review"),
     };
   }
 }

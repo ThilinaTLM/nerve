@@ -1,3 +1,4 @@
+import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
 
 /** Letters, digits, `_` and `-`: the names MCP clients accept, which tool names are built from. */
@@ -42,11 +43,8 @@ export type McpServerEntry = z.infer<typeof mcpServerEntrySchema>;
 export const mcpTransportSchema = z.enum(["stdio", "http"]);
 
 /** The user's decision about an entry, by its exact content. */
-export const mcpReviewStatusSchema = z.enum([
-  "approved",
-  "needs_approval",
-  "rejected",
-]);
+/** The user's decision about an entry, by its exact content. */
+export const mcpReviewStatusSchema = trustStateSchema;
 export type McpReviewStatus = z.infer<typeof mcpReviewStatusSchema>;
 
 export const mcpServerStateSchema = z.enum([
@@ -54,8 +52,8 @@ export const mcpServerStateSchema = z.enum([
   "idle",
   "failed",
   "disabled",
-  "needs_approval",
-  "rejected",
+  "needs_review",
+  "declined",
 ]);
 export type McpServerStateName = z.infer<typeof mcpServerStateSchema>;
 

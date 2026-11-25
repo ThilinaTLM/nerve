@@ -1,3 +1,4 @@
+import type { TrustState } from "@nervekit/contracts/core";
 import { ConfigurationSignals } from "./configuration-signals.js";
 import { registerProjectRecovery } from "./project-chains/recovery.js";
 import { ProjectCapabilityLayer } from "./project-chains/capability-layer.js";
@@ -33,7 +34,7 @@ import {
 import {
   saveAgentDocument,
   readInheritedAgentSettings,
-  isUntrustedAgentDocument,
+  agentDocumentTrustState,
   prepareConversationDocument,
   resolveRepairCandidate,
   resolveStoredAgent,
@@ -186,7 +187,7 @@ export class AgentConfigurationService {
       projectMigration: this.projectMigration,
       prepareProject: (id) => this.prepareProject(id),
       builtins: options.builtins,
-      isTrusted: options.isProfileTrusted,
+      trustState: options.profileTrustState,
       io: options.io,
       publish: (scope) => options.publish?.("profile", scope),
       invalidate: (scope) => {
@@ -333,7 +334,9 @@ export class AgentConfigurationService {
               scope,
               "agent",
               this.paths.agent(scope),
-              "untrusted-project",
+              this.projectTrustState(state) === "declined"
+                ? "project-declined"
+                : "project-needs-review",
             ),
           );
           return [
@@ -476,9 +479,13 @@ export class AgentConfigurationService {
     };
   }
 
-  /** True when a project file's exact bytes lack trust, so resolution ignores them. */
+  /** The trust state of a project's `agent.json`; resolution ignores it unless `trusted`. */
+  projectTrustState(state: ScopeHealth<AgentScope, AgentDocument>): TrustState {
+    return agentDocumentTrustState(this.options, this.paths, state);
+  }
+  /** True when a project file is not `trusted`, so resolution ignores it. */
   untrustedProject(state: ScopeHealth<AgentScope, AgentDocument>): boolean {
-    return isUntrustedAgentDocument(this.options, this.paths, state);
+    return this.projectTrustState(state) !== "trusted";
   }
   private resolve(
     id: string,
@@ -524,7 +531,8 @@ export class AgentConfigurationService {
     const capabilities = await this.capabilityLayer.capture(
       { projectId, directory },
       (file, digest) =>
-        this.options.isProjectAgentTrusted?.(projectId, file, digest) ?? true,
+        this.options.projectAgentTrustState?.(projectId, file, digest) ??
+        "trusted",
     );
     return {
       ...resources,

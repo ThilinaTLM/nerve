@@ -28,6 +28,7 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import {
   LayerSwitches,
   OriginGroup,
+  TrustStateBadge,
   type SettingsLayer,
 } from "$lib/presentation/settings";
 import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
@@ -69,8 +70,6 @@ type Props = {
   onOpenPage?: (extensionId: string, pageId: string) => void;
   /** Receives the page's Reload action for the page header. */
   controller?: ExtensionsPageController;
-  /** Opens the project's Trust page. */
-  onReviewTrust?: () => void;
 };
 
 let {
@@ -85,7 +84,6 @@ let {
   pagesOf,
   onOpenPage,
   controller,
-  onReviewTrust,
 }: Props = $props();
 
 const layered = $derived(!!projectId && !!projectName);
@@ -155,7 +153,9 @@ const registered = $derived(
   ),
 );
 /** The project's extension settings file is not trusted: its column is locked. */
-const locked = $derived(layered && projectExt.view?.file.trusted === false);
+const locked = $derived(
+  layered && (projectExt.view?.file.trustState ?? "trusted") !== "trusted",
+);
 const busy = $derived(extensions.saving || !view);
 const open = $derived(
   itemId
@@ -343,11 +343,7 @@ $effect(() => {
       : undefined}
   />
 {/if}
-{#if layered}<ExtensionsTrustNotice
-    {extensions}
-    {projectName}
-    onReview={onReviewTrust}
-  />{/if}
+{#if layered}<ExtensionsTrustNotice {extensions} />{/if}
 {#if extensions.error}
   <Callout layout="block" tone="destructive" text={extensions.error}>
     {#snippet actions()}
@@ -413,6 +409,7 @@ $effect(() => {
           {@const entry = row.entry}
           {@const layers = layerValue(row)}
           {@const waiting = entry?.state === "pending_consent"}
+          {@const declined = waiting && entry?.trustState === "declined"}
           {@const badge =
             entry && !waiting ? installedStateBadge(entry.state) : undefined}
           {@const fix = loaded
@@ -428,8 +425,10 @@ $effect(() => {
             mono={!loaded && !!entry}
             problem={loaded
               ? extensionProblem(loaded)
-              : entry && installedProblem(entry)}
-            problemAction={waiting && entry?.consent
+              : entry && !declined
+                ? installedProblem(entry)
+                : undefined}
+            problemAction={waiting && !declined && entry?.consent
               ? { label: "Review", onclick: () => review(entry) }
               : fix
                 ? {
@@ -459,6 +458,7 @@ $effect(() => {
               {/if}
             {/snippet}
             {#snippet badges()}
+              {#if declined}<TrustStateBadge state="declined" />{/if}
               {#if badge}<Badge variant={badge.variant}>{badge.label}</Badge
                 >{/if}
             {/snippet}
@@ -485,5 +485,6 @@ $effect(() => {
     entry={reviewing}
     busy={extensions.saving}
     onAllow={(target) => void extensions.grantConsent(target)}
+    onDecline={(target) => void extensions.declineConsent(target)}
   />
 {/if}

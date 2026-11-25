@@ -1,20 +1,32 @@
-import type { SkillReview } from "@nervekit/contracts/skills";
+import type { AvailableSkill, SkillReview } from "@nervekit/contracts/skills";
 
-/** The skill list's status line for a project skill the user has not approved. */
+/** The skill list's problem line for a project skill that waits for the user; a decline has none. */
 export function skillApprovalProblem(
-  approval: "pending" | "changed" | undefined,
+  skill: Pick<AvailableSkill, "trustState" | "changedSinceDecision">,
 ): string | undefined {
-  if (approval === "pending") return "Waiting for your review";
-  if (approval === "changed") return "Changed since you approved it";
+  if (skill.trustState === "needs_review")
+    return skill.changedSinceDecision
+      ? "Changed since you trusted it"
+      : "Waiting for your review";
   return undefined;
 }
 
+/** A project skill the agent is not told about until the user trusts it. */
+export const skillIsPending = (skill: Pick<AvailableSkill, "trustState">) =>
+  skill.trustState !== undefined && skill.trustState !== "trusted";
+
 /** The review page's caption under the title. */
-export function skillReviewCaption(status: SkillReview["status"]): string {
-  if (status === "approved") return "From the repository · approved";
-  if (status === "changed")
-    return "Changed since you approved it · not used until you approve it again";
-  return "From the repository · not used until you approve it";
+export function skillReviewCaption(
+  review: Pick<SkillReview, "trustState" | "changedSinceDecision">,
+): string {
+  if (review.trustState === "trusted") return "From the repository · trusted";
+  if (review.trustState === "declined")
+    return review.changedSinceDecision
+      ? "Declined · changed since you declined"
+      : "From the repository · declined";
+  if (review.changedSinceDecision)
+    return "Changed since you trusted it · not used until you trust it again";
+  return "From the repository · not used until you trust it";
 }
 
 export function formatBytes(bytes: number): string {

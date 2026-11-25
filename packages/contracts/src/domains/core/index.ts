@@ -4,6 +4,8 @@ export {
   conversationLastUserPromptAt,
 } from "./conversation-recency.js";
 export type { Project } from "./project.js";
+export { trustStateSchema } from "./trust-state.js";
+export type { TrustState } from "./trust-state.js";
 export {
   trustedResourceKindSchema,
   trustedResourceStatusSchema,
