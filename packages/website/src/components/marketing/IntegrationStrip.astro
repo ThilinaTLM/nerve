@@ -1,6 +1,10 @@
 ---
 /* The section after the hero: what Nerve connects to out of the box, then
- * the model providers. Marks are monochrome and take the text colour, so
+ * the two ways to bring a model: sign in with a subscription you already
+ * pay for, or add an API key. Subscription sign-in with usage limits covers
+ * Claude, ChatGPT (OpenAI Codex) and GitHub Copilot (docs: models/
+ * providers-and-auth); API keys work with every provider pi-ai supports,
+ * about 25, plus custom OpenAI-compatible and local endpoints. Marks are monochrome and take the text colour, so
  * they sit quietly in both themes. */
 import BrandIcon from "./BrandIcon.astro";
 import type { BrandIconName } from "./brand-icons";
@@ -18,10 +22,21 @@ const integrations: Mark[] = [
   { icon: "tailscale", label: "Tailscale" },
 ];
 
-const models: Mark[] = [
+const subscriptions: Mark[] = [
+  { icon: "anthropic", label: "Claude" },
+  { icon: "openai", label: "ChatGPT" },
+  { icon: "githubcopilot", label: "GitHub Copilot" },
+];
+
+const apiKeys: Mark[] = [
   { icon: "anthropic", label: "Anthropic" },
   { icon: "openai", label: "OpenAI" },
-  { icon: "githubcopilot", label: "GitHub Copilot" },
+  { icon: "googlegemini", label: "Gemini" },
+  { icon: "amazonwebservices", label: "Bedrock" },
+  { icon: "mistralai", label: "Mistral" },
+  { icon: "xai", label: "xAI" },
+  { icon: "deepseek", label: "DeepSeek" },
+  { icon: "huggingface", label: "Hugging Face" },
   { icon: "openrouter", label: "OpenRouter" },
 ];
 ---
@@ -46,17 +61,39 @@ const models: Mark[] = [
     </div>
     <div class="strip-group">
       <p class="strip-label">Your models</p>
-      <ul class="strip-marks">
-        {
-          models.map((mark) => (
-            <li class="strip-mark">
-              <BrandIcon name={mark.icon} size={24} />
-              <span>{mark.label}</span>
+      <div class="strip-ways">
+        <div class="strip-way">
+          <p class="strip-way-title">Sign in with your subscription</p>
+          <ul class="strip-marks">
+            {
+              subscriptions.map((mark) => (
+                <li class="strip-mark">
+                  <BrandIcon name={mark.icon} size={24} />
+                  <span>{mark.label}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+        <span class="strip-or" aria-hidden="true">or</span>
+        <div class="strip-way">
+          <p class="strip-way-title">Bring your API keys</p>
+          <ul class="strip-marks">
+            {
+              apiKeys.map((mark) => (
+                <li class="strip-mark">
+                  <BrandIcon name={mark.icon} size={24} />
+                  <span>{mark.label}</span>
+                </li>
+              ))
+            }
+            <li class="strip-mark strip-more">
+              + Azure, Vertex, Groq, Together and more, or any OpenAI-compatible or
+              local endpoint
             </li>
-          ))
-        }
-        <li class="strip-mark strip-more">+ any OpenAI-compatible API</li>
-      </ul>
+          </ul>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -124,8 +161,64 @@ const models: Mark[] = [
     color: var(--foreground);
   }
 
+  /* The two ways to bring a model, side by side with an "or" between. */
+  .strip-ways {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 1.2fr);
+    align-items: stretch;
+    gap: 1rem;
+    width: min(100%, 66rem);
+  }
+
+  .strip-way {
+    display: grid;
+    align-content: start;
+    justify-items: center;
+    gap: 1.1rem;
+    padding: 1.5rem 1.25rem;
+    border: 1px solid var(--hairline);
+    border-radius: calc(var(--radius) * 1.6);
+    background: color-mix(in oklab, var(--card) 70%, transparent);
+  }
+
+  .strip-way-title {
+    margin: 0;
+    color: var(--foreground);
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+
+  .strip-way .strip-marks {
+    gap: 0.75rem 1.4rem;
+  }
+
+  .strip-way .strip-mark {
+    font-size: 1rem;
+  }
+
+  .strip-or {
+    align-self: center;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 47.99rem) {
+    .strip-ways {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .strip-or {
+      justify-self: center;
+    }
+  }
+
   .strip-more {
-    font-size: 0.9rem;
+    flex-basis: 100%;
+    justify-content: center;
+    font-size: 0.88rem;
     font-weight: 400;
+    text-wrap: balance;
   }
 </style>
