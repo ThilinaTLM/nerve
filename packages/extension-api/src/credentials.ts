@@ -267,9 +267,13 @@ export type CredentialRevokeContext = CredentialContextBase & {
 
 /** What `apply` adds to the request; it cannot change the method, URL, path or body. */
 export type CredentialApplyResult = {
-  /** Headers to set (`Authorization`, `X-Amz-Date`, ...). */
+  /**
+   * Headers to set (`Authorization`, `X-Amz-Date`, ...): at most 32, values up to 8 KiB without
+   * line breaks. Framing and forwarding headers (`host`, `content-length`, `content-encoding`,
+   * `transfer-encoding`, `connection`, `forwarded`, `x-forwarded-*`, `proxy-*`, ...) fail the request.
+   */
   headers?: Record<string, string>;
-  /** Query parameters to add. */
+  /** Query parameters to add: at most 16, names up to 256 characters, values up to 8 KiB. */
   query?: Record<string, string>;
 };
 
@@ -290,8 +294,8 @@ export type CredentialProviderDefinition = {
 /**
  * Defines the credential provider of an extension: `export default defineCredentialProvider({...})`
  * in `src/credentials.ts`. Account kinds that name `provider: "extension"` use it. The host runs it
- * in a separate sandbox, per operation, with the fixed `ctx` above. Returns the definition
- * unchanged; `nerve-ext build` and the host check that `signIn` and `apply` exist.
+ * in a separate sandbox, per operation, with the fixed `ctx` above and no timers (to wait for a
+ * browser sign-in use `ctx.ui.loopback`). Returns the definition unchanged; `nerve-ext build` and the host check that `signIn` and `apply` exist.
  */
 export function defineCredentialProvider(
   definition: CredentialProviderDefinition,

@@ -6,12 +6,18 @@ An extension is a folder with a built `dist/`. Nerve loads it only after the use
 
 Node.js 24 or newer and npm (or pnpm). `scripts/create-extension.mjs` checks them and prints how to install what is missing; relay that to the user instead of installing system software yourself.
 
-## 2. Decide scope and kind
+## 2. Agree the design with the user
 
-Ask one focused question only when the request does not settle these.
+Read `reference/extensions/overview.md` first: it maps the parts, the sandboxes and the sign-in options. A new extension is a design the user lives with (where it shows, what it may reach, what they must sign in to), so settle it before you scaffold. Ask with one `ask_user` call that batches the open questions, each with options and your recommendation. Skip a question only when the user's words already answer it; a default is not an answer.
 
-- **Scope.** `user`: `${NERVE_HOME:-$HOME/.nerve}/agent/extensions/<id>/`, available in every project. `project`: `<project>/.nerve/extensions/<id>/`, shared through the repository as sources (`dist/` stays out of git; teammates build it). Project extensions cannot contribute themes.
-- **Kind.** `preview` (render a file type), `page` (a tab not tied to a file), `panel` (a dock panel), `theme` (colors), `integration` (a `quick_script` namespace and direct tools for a service). Combine kinds the feature needs in one extension, comma-separated (`integration,panel`).
+- **Scope.** `user`: `${NERVE_HOME:-$HOME/.nerve}/agent/extensions/<id>/`, in every project, keeps its consent through code-only changes. `project`: `<project>/.nerve/extensions/<id>/`, shared with the team through the repository as sources (`dist/` stays out of git; teammates build it), and asks for consent again after any change. Project extensions cannot contribute themes. Recommend `user` for a personal tool, `project` for one the team should get.
+- **Where it shows.** A panel beside the conversation, a page in its own tab, a preview of a file type, or agent access only (script namespace, direct tool). Describe each in the user's terms ("a panel next to the chat that lists your tasks") and recommend one.
+- **Sign-in**, when the service needs an account: typed-in key, standard OAuth, or the extension's own sign-in code (shown to the user as broad access). Ask before reading the user's local credential or tool configuration to find out how they sign in, and recommend the simplest option that works for them.
+- **Reach**, when it is not obvious: read-only, or also changes (writes, deletes) in the service.
+
+Then choose without asking:
+
+- **Kind.** The `--kind` values of the chosen parts: `preview`, `page`, `panel`, `theme`, `integration` (namespace and direct tools), comma-separated in one extension (`integration,panel`).
 - **Id.** Lowercase letters, digits and single hyphens (`csv-viewer`); it is also the folder name. Tool names must start with the id with underscores and `_` (`csv_viewer_get`), and account kinds with the id; the build and Nerve reject others.
 
 ## 3. Scaffold
@@ -36,11 +42,12 @@ Install further dependencies with `npm install --ignore-scripts <name>`. Read `s
 
 Declare only what the feature needs: network origins, model services, frame services, accounts. Each one is shown to the user as a line they must accept; broad ones (`*` network, custom editing of files) are called out. Read the references you need, not all of them:
 
+- What to read for which part: `reference/extensions/overview.md`
 - Exact API (every type, option, default and limit), and where to start reading it: `reference/extensions/api.md`
 - Definition decisions, text limits, states: `reference/extensions/manifest.md`
 - Backend (`ctx`, risks, `authorize`, errors, tests): `reference/extensions/backend.md`
 - Previews, pages, panels, bridge, components: `reference/extensions/ui.md`
-- Layout and components that match Nerve (read before writing any frame): `reference/extensions/ui-patterns.md`
+- Layout and components that match Nerve (read before writing any frame): `reference/extensions/ui-patterns.md`; every component and its props: `reference/extensions/components.md`
 - Themes: `reference/extensions/themes.md`
 - What to put in front of the user: `reference/extensions/security.md`
 

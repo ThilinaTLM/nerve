@@ -2,7 +2,15 @@
 // declaration pointers and theme-token mentions are checked against the generated reference in
 // scripts/build/skill-reference-assets.test.ts.
 import assert from "node:assert/strict";
-import { cp, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -19,13 +27,37 @@ const skill = join(
   "configure-nerve",
 );
 
-void test("extensions guide links only to files that exist", async () => {
-  const text = await readFile(join(skill, "guide", "extensions.md"), "utf8");
-  const paths = [
-    ...text.matchAll(/`((?:reference\/extensions|scripts)\/[\w./-]+?)`/g),
-  ].map((match) => match[1]!);
-  assert.ok(paths.length >= 6, paths.join(", "));
-  for (const path of paths) await stat(join(skill, path.replace(/\/$/, "")));
+/** Every `.md` file of the skill, as absolute paths. */
+async function markdownFiles(dir: string): Promise<string[]> {
+  const entries = await readdir(dir, { withFileTypes: true, recursive: true });
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => join(entry.parentPath, entry.name));
+}
+
+// Written at build time by scripts/build/skill-reference-assets.ts (its test generates them and
+// checks the catalog), so they do not exist in the source folder.
+const generated = [
+  "reference/extensions/components.md",
+  "reference/extensions/api/",
+  "reference/schemas/",
+];
+
+void test("the skill's markdown links only to files that exist", async () => {
+  let checked = 0;
+  for (const file of await markdownFiles(skill)) {
+    const text = await readFile(file, "utf8");
+    for (const [, path] of text.matchAll(
+      /`((?:reference|guide|scripts)\/[\w./-]+?)`/g,
+    )) {
+      if (generated.some((root) => path!.startsWith(root))) continue;
+      await stat(join(skill, path!.replace(/\/$/, ""))).catch(() =>
+        assert.fail(`${file}: ${path} does not exist`),
+      );
+      checked++;
+    }
+  }
+  assert.ok(checked >= 6, `only ${checked} links found`);
 });
 
 // ── The scripts ───────────────────────────────────────────────────────────
