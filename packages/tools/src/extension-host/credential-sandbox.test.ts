@@ -341,13 +341,12 @@ void test(
         return { redirectUri: "", state: "", code: Promise.resolve("") };
       },
     };
+    // The path reaches the provider as state, not as interpolated source.
+    const source =
+      "{ signIn: (ctx) => ctx.ui.loopback({ path: ctx.state.path }), apply: () => ({}) }";
     for (const path of ["/a/../b", "/cb?x=1", "//cb", "cb", "/a b"])
       await assert.rejects(
-        run(
-          `{ signIn: (ctx) => ctx.ui.loopback({ path: ${JSON.stringify(path)} }), apply: () => ({}) }`,
-          "signIn",
-          { services: { ui } },
-        ),
+        run(source, "signIn", { services: { ui }, state: { path } }),
         (error: unknown) =>
           error instanceof ExtensionError && error.code === "BAD_REQUEST",
         path,

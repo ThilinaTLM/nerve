@@ -18,10 +18,10 @@ type Hit = { path: string; body: URLSearchParams; authorization?: string };
 /** A fake authorization server: answers are set per test; every request is recorded. */
 async function service() {
   const hits: Hit[] = [];
-  const answers: Record<
+  const answers = new Map<
     string,
     (hit: Hit) => { status?: number; json?: unknown }
-  > = {};
+  >();
   const server: Server = createServer((request, response) => {
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -34,7 +34,11 @@ async function service() {
           : {}),
       };
       hits.push(hit);
-      const answer = answers[hit.path]?.(hit) ?? { status: 404, json: {} };
+      const handler = answers.get(hit.path);
+      const answer =
+        typeof handler === "function"
+          ? handler(hit)
+          : { status: 404, json: {} };
       response.writeHead(answer.status ?? 200, {
         "content-type": "application/json",
       });
@@ -107,7 +111,7 @@ describe("oauth2 provider", () => {
     const fake = await service();
     closers.push(fake.close);
     let challenge = "";
-    fake.answers["/token"] = (hit) => {
+    fake.answers.set("/token", (hit) => {
       const verifier = hit.body.get("code_verifier") ?? "";
       assert.equal(
         createHash("sha256").update(verifier).digest("base64url"),
@@ -121,11 +125,11 @@ describe("oauth2 provider", () => {
           scope: "read write",
         },
       };
-    };
-    fake.answers["/me"] = (hit) => {
+    });
+    fake.answers.set("/me", (hit) => {
       assert.equal(hit.authorization, "Bearer access-1");
       return { json: { user: { login: "octo", id: 7 }, junk: "x\ny" } };
-    };
+    });
     const kind = kindFor(fake.base, {
       userinfo: {
         url: `${fake.base}/me`,
@@ -172,7 +176,7 @@ describe("oauth2 provider", () => {
   it("the client id is an account field; the author's default applies only while it is empty; redirectPath sets the redirect path", async () => {
     const fake = await service();
     closers.push(fake.close);
-    fake.answers["/token"] = () => ({ json: { access_token: "t" } });
+    fake.answers.set("/token", () => ({ json: { access_token: "t" } }));
     const kind = kindFor(fake.base, { redirectPath: "/oauth/callback" });
     const { interaction } = interactionStub({
       browser: async (url) => {
@@ -221,7 +225,7 @@ describe("oauth2 provider", () => {
   it("device code: shows the code, polls through pending and slow_down, then signs in", async () => {
     const fake = await service();
     closers.push(fake.close);
-    fake.answers["/device"] = () => ({
+    fake.answers.set("/device", () => ({
       json: {
         device_code: "dev-1",
         user_code: "ABCD-1234",
@@ -229,9 +233,9 @@ describe("oauth2 provider", () => {
         expires_in: 900,
         interval: 5,
       },
-    });
+    }));
     const polls = ["authorization_pending", "slow_down", "ok"];
-    fake.answers["/token"] = (hit) => {
+    fake.answers.set("/token", (hit) => {
       assert.equal(
         hit.body.get("grant_type"),
         "urn:ietf:params:oauth:grant-type:device_code",
@@ -241,7 +245,7 @@ describe("oauth2 provider", () => {
       return next === "ok"
         ? { json: { access_token: "dev-access", refresh_token: "dev-refresh" } }
         : { status: 400, json: { error: next } };
-    };
+    });
     const kind = kindFor(fake.base, { flows: ["device_code"] });
     const waits: number[] = [];
     const { interaction, events } = interactionStub({});
@@ -262,20 +266,20 @@ describe("oauth2 provider", () => {
   it("device code: declined and expired codes need a new sign-in", async () => {
     const fake = await service();
     closers.push(fake.close);
-    fake.answers["/device"] = () => ({
+    fake.answers.set("/device", () => ({
       json: {
         device_code: "d",
         user_code: "U",
         verification_uri: "https://example.test/device",
         expires_in: 900,
       },
-    });
+    }));
     const kind = kindFor(fake.base, { flows: ["device_code"] });
     for (const [error, message] of [
       ["access_denied", /declined/],
       ["expired_token", /expired/],
     ] as const) {
-      fake.answers["/token"] = () => ({ status: 400, json: { error } });
+      fake.answers.set("/token", () => ({ status: 400, json: { error } }));
       const { interaction } = interactionStub({});
       const outcome = await provider({ sleep: async () => {} }).signIn(
         account(kind),
@@ -289,14 +293,14 @@ describe("oauth2 provider", () => {
   it("with several flows the user chooses", async () => {
     const fake = await service();
     closers.push(fake.close);
-    fake.answers["/device"] = () => ({
+    fake.answers.set("/device", () => ({
       json: {
         device_code: "d",
         user_code: "U",
         verification_uri: "https://x.test",
       },
-    });
-    fake.answers["/token"] = () => ({ json: { access_token: "t" } });
+    }));
+    fake.answers.set("/token", () => ({ json: { access_token: "t" } }));
     const kind = kindFor(fake.base, {
       flows: ["authorization_code", "device_code"],
     });
@@ -314,19 +318,19 @@ describe("oauth2 provider", () => {
   it("endpoints come from OIDC discovery and {field} templates", async () => {
     const fake = await service();
     closers.push(fake.close);
-    fake.answers["/acme/.well-known/openid-configuration"] = () => ({
+    fake.answers.set("/acme/.well-known/openid-configuration", () => ({
       json: {
         authorization_endpoint: `${fake.base}/authorize`,
         token_endpoint: `${fake.base}/real-token`,
         revocation_endpoint: `${fake.base}/revoke`,
       },
-    });
-    fake.answers["/real-token"] = (hit) => ({
+    }));
+    fake.answers.set("/real-token", (hit) => ({
       json: {
         access_token: "new",
         refresh_token: hit.body.get("refresh_token"),
       },
-    });
+    }));
     const kind = kindFor(fake.base, {
       discovery: `${fake.base}/{tenant}`,
       tokenUrl: undefined,
@@ -360,16 +364,16 @@ describe("oauth2 provider", () => {
       closers.push(fake.close);
       const kind = kindFor(fake.base);
       const instance = provider({ now: () => 0 });
-      fake.answers["/token"] = () => ({
+      fake.answers.set("/token", () => ({
         json: { access_token: "a2", refresh_token: "r-new", expires_in: 60 },
-      });
+      }));
       assert.deepEqual(await instance.refresh(account(kind), credential()), {
         status: "ready",
         state: { accessToken: "a2", refreshToken: "r-new" },
         grantedScopes: ["read", "write"],
         expiresAt: new Date(60_000).toISOString(),
       });
-      fake.answers["/token"] = () => ({ json: { access_token: "a3" } });
+      fake.answers.set("/token", () => ({ json: { access_token: "a3" } }));
       const kept = await instance.refresh(account(kind), credential());
       assert.deepEqual((kept as { state: unknown }).state, {
         accessToken: "a3",
@@ -384,9 +388,9 @@ describe("oauth2 provider", () => {
     it("takes the granted scopes from the response", async () => {
       const fake = await service();
       closers.push(fake.close);
-      fake.answers["/token"] = () => ({
+      fake.answers.set("/token", () => ({
         json: { access_token: "a", scope: "read" },
-      });
+      }));
       const outcome = await provider().refresh(
         account(kindFor(fake.base)),
         credential(),
@@ -400,25 +404,25 @@ describe("oauth2 provider", () => {
       const fake = await service();
       closers.push(fake.close);
       const kind = kindFor(fake.base);
-      fake.answers["/token"] = () => ({
+      fake.answers.set("/token", () => ({
         status: 400,
         json: { error: "invalid_grant" },
-      });
+      }));
       assert.equal(
         (await provider().refresh(account(kind), credential())).status,
         "needs_sign_in",
       );
-      fake.answers["/token"] = () => ({
+      fake.answers.set("/token", () => ({
         status: 401,
         json: { error: "invalid_client", error_description: "bad secret" },
-      });
+      }));
       const failed = await provider().refresh(account(kind), credential());
       assert.equal(failed.status, "failed");
       assert.match(
         (failed as { message: string }).message,
         /client id or secret.*bad secret/,
       );
-      fake.answers["/token"] = () => ({ status: 503, json: {} });
+      fake.answers.set("/token", () => ({ status: 503, json: {} }));
       await assert.rejects(
         provider().refresh(account(kind), credential()),
         CredentialTransientError,
@@ -468,7 +472,7 @@ describe("oauth2 provider", () => {
   it("revokes the refresh token at the revocation endpoint", async () => {
     const fake = await service();
     closers.push(fake.close);
-    fake.answers["/revoke"] = () => ({ json: {} });
+    fake.answers.set("/revoke", () => ({ json: {} }));
     const kind = kindFor(fake.base, { revocationUrl: `${fake.base}/revoke` });
     await provider().revoke(account(kind), {
       secrets: {},

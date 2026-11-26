@@ -250,7 +250,8 @@ def copy_provider_config(info: dict, source_home: Path) -> None:
     # Accounts are copied into the slot's database by copy-secrets.ts (see there).
 
 
-def run_secrets_tool(*args: str) -> dict:
+def run_copy_tool(*args: str) -> dict:
+    """Run copy-secrets.ts; its JSON summary holds key names, counts and expiry times, never secret values."""
     cmd = ["pnpm", "exec", "tsx", str(Path(__file__).with_name("copy-secrets.ts")), *args]
     result = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
     if result.returncode != 0:
@@ -281,7 +282,7 @@ def cmd_copy_secrets(info: dict, source: Path, full: bool) -> None:
     backup_secrets(info)
     (info["home"] / "secrets").mkdir(mode=0o700, exist_ok=True)
     try:
-        summary = run_secrets_tool("copy", "--source", str(source.parent), "--target", str(info["home"]))
+        summary = run_copy_tool("copy", "--source", str(source.parent), "--target", str(info["home"]))
     except RuntimeError as error:
         sys.exit(f"copy failed (previous secrets are backed up):\n{error}")
     print(f"API keys copied from {source.parent} (read-only): {len(summary['apiKeys'])}")
@@ -310,7 +311,7 @@ def cmd_copy_secrets(info: dict, source: Path, full: bool) -> None:
 
 def slot_oauth_status(info: dict) -> list | str:
     try:
-        sessions = run_secrets_tool("oauth-status", "--home", str(info["home"]))["oauth"]
+        sessions = run_copy_tool("oauth-status", "--home", str(info["home"]))["oauth"]
     except Exception as error:  # status must not fail on unreadable secrets
         return f"unreadable: {error}"
     return [
