@@ -139,7 +139,6 @@ function submit(): void {
     onOpenCapabilitySettings={actions.onOpenCapabilitySettings}
     capabilityConfiguration={model.capabilityConfiguration}
     capabilitySkills={model.capabilitySkills}
-    capabilityMcpServers={model.capabilityMcpServers}
     capabilityLoading={model.capabilityLoading}
     capabilityDisabled={model.capabilityDisabled ?? controlsDisabled}
     capabilityError={model.capabilityError}
@@ -147,7 +146,6 @@ function submit(): void {
     subagentControlsEnabled={model.subagentControlsEnabled}
     capabilitySubagentProfiles={model.capabilitySubagentProfiles}
     onCapabilityPatch={actions.onCapabilityPatch}
-    onConfigureCapabilityTool={actions.onConfigureCapabilityTool}
     onResetCapabilities={actions.onResetCapabilities}
     onRefreshCapabilities={actions.onRefreshCapabilities}
     onAttachFiles={mobile ? undefined : attachHandler}

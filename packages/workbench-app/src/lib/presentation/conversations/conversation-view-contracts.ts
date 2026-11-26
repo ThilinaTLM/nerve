@@ -10,9 +10,7 @@ import type {
   UserInputAnswer,
 } from "@nervekit/contracts/core";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
-import type { CapabilityMcpServer } from "$lib/presentation/composer/composer-capabilities.svelte";
 import type { CapabilitySubagentProfile } from "$lib/presentation/composer/capability-subagent-profiles";
-import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import type {
   ContextUsage,
   ModelInfo,
@@ -156,7 +154,6 @@ export type ConversationComposerModel = {
   capabilities?: ConversationComposerCapabilities;
   capabilityConfiguration?: AgentEditorView;
   capabilitySkills?: AvailableSkill[];
-  capabilityMcpServers?: CapabilityMcpServer[];
   capabilityLoading?: boolean;
   capabilityError?: string;
   capabilityScopeKey?: string;
@@ -260,8 +257,6 @@ export type ConversationPaneActions = ConversationApprovalPlanActions & {
     page: "tools" | "skills" | "mcp-servers" | "agents" | "sub-agents",
   ) => void;
   onCapabilityPatch?: (patch: LeadSettingsOverrides, resets?: string[]) => void;
-  /** Opens the conversation-level settings dialog for one tool group. */
-  onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
   onPasteImage?: (file: File) => Promise<string>;

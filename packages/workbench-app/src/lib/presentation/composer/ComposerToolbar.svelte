@@ -25,11 +25,7 @@ import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import ComposerPermissionPicker from "./ComposerPermissionPicker.svelte";
 import ComposerSettingsPopover from "./ComposerSettingsPopover.svelte";
-import type {
-  CapabilityMcpServer,
-  ComposerCapabilityProps,
-} from "./composer-capabilities.svelte.js";
-import type { CapabilityToolGroup } from "./capability-tool-labels";
+import type { ComposerCapabilityProps } from "./composer-capabilities.svelte.js";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
 import type { CapabilitySubagentProfile } from "./capability-subagent-profiles";
 import type {
@@ -80,7 +76,6 @@ type Props = {
   onOpenPermissionSettings?: () => void;
   capabilityConfiguration?: AgentEditorView;
   capabilitySkills?: AvailableSkill[];
-  capabilityMcpServers?: CapabilityMcpServer[];
   capabilityLoading?: boolean;
   capabilityError?: string;
   capabilityScopeKey?: string;
@@ -88,7 +83,6 @@ type Props = {
   capabilitySubagentProfiles?: CapabilitySubagentProfile[];
   capabilityDisabled?: boolean;
   onCapabilityPatch?: (patch: LeadSettingsOverrides, resets?: string[]) => void;
-  onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
   onOpenCapabilitySettings?: (
@@ -144,7 +138,6 @@ let {
   onOpenPermissionSettings,
   capabilityConfiguration,
   capabilitySkills = [],
-  capabilityMcpServers = [],
   capabilityLoading = false,
   capabilityError,
   capabilityScopeKey,
@@ -152,7 +145,6 @@ let {
   capabilitySubagentProfiles,
   capabilityDisabled = controlsDisabled,
   onCapabilityPatch,
-  onConfigureCapabilityTool,
   onResetCapabilities,
   onRefreshCapabilities,
   onOpenCapabilitySettings,
@@ -195,12 +187,10 @@ const capability = $derived<ComposerCapabilityProps>({
   subagentControlsEnabled,
   subagentProfiles: capabilitySubagentProfiles,
   skills: capabilitySkills,
-  mcpServers: capabilityMcpServers,
   loading: capabilityLoading,
   error: capabilityError,
   disabled: capabilityDisabled,
   onPatch: onCapabilityPatch,
-  onConfigureTool: onConfigureCapabilityTool,
   onReset: onResetCapabilities,
   onRefresh: onRefreshCapabilities,
   onOpenSettings: onOpenCapabilitySettings,

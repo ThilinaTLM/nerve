@@ -1,7 +1,6 @@
 import type {
   McpReview,
   McpServerEntry,
-  McpServerRow,
   McpTarget,
 } from "@nervekit/contracts/mcp";
 import { configurationAttention } from "$lib/application/configuration-attention/configuration-attention-state.svelte";
@@ -60,26 +59,4 @@ export async function decideMcpServer(
     grants: review.grants,
   });
   configurationAttention.refreshSoon();
-}
-
-/** A server the conversation can use: defined for its project, and approved. */
-export type McpServerChoice = Pick<
-  McpServerRow,
-  "name" | "scope" | "description" | "enabled" | "state"
->;
-
-/** The servers the composer can switch for a conversation of this project. */
-export async function listConversationMcpServers(
-  projectId: string,
-): Promise<McpServerChoice[]> {
-  const { servers } = await listMcpServers({ scope: "project", projectId });
-  return servers
-    .filter((row) => row.review === "trusted" && !row.shadowed)
-    .map(({ name, scope, description, enabled, state }) => ({
-      name,
-      scope,
-      description,
-      enabled,
-      state,
-    }));
 }

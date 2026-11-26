@@ -244,10 +244,7 @@ const capabilityConfiguration: AgentEditorView = {
   resolution: resolveAgentConfiguration({
     role: "lead",
     project: {
-      tools: {
-        web_search: { enabled: false },
-        quick_script: { enabled: true },
-      },
+      tools: { subagents: { enabled: true } },
       skills: { file: { review: true }, nerve: { plan: true } },
     },
     conversation: { skills: { file: { deploy: false } } },
@@ -622,7 +619,7 @@ function cycleMic() {
 
     <GallerySpecimen
       title="ComposerCapabilitiesPopover"
-      description="Tools / Skills tabs: configured, loading, error."
+      description="Skills / Sub-agents tabs: configured, loading, error."
       source="presentation/composer/ComposerCapabilitiesPopover"
       usage="1 file · composer"
       surface="panel"
