@@ -132,7 +132,7 @@ const highlight = $derived(review?.state !== "trusted");
     {/if}
   {/snippet}
 
-  <div class="grid gap-4">
+  <div class="grid gap-3">
     {#if notice}
       <Callout tone="warning" icon={TriangleAlert} text={notice} />
     {/if}
@@ -154,25 +154,28 @@ const highlight = $derived(review?.state !== "trusted");
         </p>
       {/if}
 
-      <section class="grid gap-1.5" aria-labelledby="configuration-review-can">
+      <section class="grid gap-1" aria-labelledby="configuration-review-can">
         <h3 id="configuration-review-can" class="text-ui font-medium">
           What it can do
         </h3>
         <ReviewCapabilityList items={review.items} {highlight} />
       </section>
 
-      <section
-        class="grid gap-1.5"
-        aria-labelledby="configuration-review-source"
-      >
+      <section class="grid gap-1" aria-labelledby="configuration-review-source">
         <h3 id="configuration-review-source" class="text-ui font-medium">
           Source
+          {#if review.sources.length > 1}<span
+              class="font-normal text-muted-foreground tabular-nums"
+              >· {review.sources.length} files</span
+            >{/if}
         </h3>
-        <ReviewSourceList
-          sources={review.sources}
-          onOpen={onOpenSource}
-          {highlight}
-        />
+        {#key review}
+          <ReviewSourceList
+            sources={review.sources}
+            onOpen={onOpenSource}
+            {highlight}
+          />
+        {/key}
       </section>
 
       <p class="text-ui text-muted-foreground">
