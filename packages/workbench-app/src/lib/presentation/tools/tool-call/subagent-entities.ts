@@ -20,6 +20,8 @@ export type EntityItem = {
   title?: string;
   detail?: string;
   body?: string;
+  /** Result line shown in place of the body (a rejection reason). */
+  outcome?: string;
   status?: { tone: StatusTone; label: string };
   followUp?: boolean;
   /** Looked up among live sub-agents for the live dot and Open pill. */
@@ -36,7 +38,9 @@ export function subagentDetails(toolCall: object): unknown {
 /**
  * The persistent argument rows of a settled prompt/stop call, filled with the
  * result (disposition, rejection reason, stop outcome) while keeping each
- * row's key and any status the lifecycle spec already assigned.
+ * row's key and any status the lifecycle spec already assigned. Row text from
+ * exact arguments wins; the bounded transcript preview and the result only
+ * fill what the row lacks, so a settled row never keeps an empty slot.
  */
 export function enrichEntities(
   toolCall: ToolCallDisplayRecord,
@@ -51,12 +55,20 @@ export function enrichEntities(
       : view.action === "stop"
         ? stopEntities(view, details)
         : [];
-  return items.map((item, index) => {
+  const rows = items.map((item, index) => {
     const next = enriched[index];
-    return next
-      ? { ...item, ...next, status: next.status ?? item.status }
-      : item;
+    if (!next) return item;
+    return {
+      ...item,
+      ...next,
+      title: item.title || next.title,
+      detail: item.detail || next.detail,
+      body: item.body || next.body,
+      status: next.status ?? item.status,
+    };
   });
+  // Older previews kept at most six entries; the result still lists the rest.
+  return [...rows, ...enriched.slice(items.length)];
 }
 
 export function textStateTone(state: string): StatusTone {
@@ -91,15 +103,18 @@ export function promptEntities(
     ]),
   );
   return view.assignments.map((assignment, index): EntityItem => {
-    const result = results.get(assignment.name.toLowerCase());
+    const result = assignment.name
+      ? results.get(assignment.name.toLowerCase())
+      : undefined;
     const disposition = result?.disposition ?? assignment.disposition;
     const rejected = disposition === "rejected";
     const queued = assignment.queuedState;
     return {
       key: String(index),
-      title: assignment.name,
+      title: assignment.name || undefined,
       detail: result?.profile ?? assignment.profile,
-      body: rejected && result?.reason ? result.reason : assignment.prompt,
+      body: assignment.prompt || undefined,
+      outcome: rejected ? (result?.reason ?? assignment.reason) : undefined,
       status: rejected
         ? { tone: "destructive", label: "rejected" }
         : disposition === "follow_up"
@@ -108,7 +123,7 @@ export function promptEntities(
             ? { tone: "neutral", label: "created" }
             : undefined,
       followUp: disposition === "follow_up",
-      agentName: rejected ? undefined : assignment.name,
+      agentName: rejected ? undefined : assignment.name || undefined,
     };
   });
 }

@@ -106,6 +106,52 @@ describe("ask_user transcript projection", () => {
   });
 });
 
+describe("subagent_prompt transcript projection", () => {
+  it("keeps every assignment's name and profile when prompts are long", () => {
+    const assignments = Array.from({ length: 10 }, (_, i) => ({
+      prompt: `Task ${i}\n${"detail ".repeat(800)}`,
+      name: `agent-${i}`,
+      profile: "developer",
+    }));
+    const details = {
+      assignments: assignments.map(({ name, profile }) => ({
+        name,
+        profile,
+        disposition: "created",
+        agentId: `conv_${name}`,
+      })),
+    };
+    const projection = buildUserProjection(
+      "subagent_prompt",
+      { context: "Shared ".repeat(2000), assignments },
+      {
+        content: assignments
+          .map((a) => `${a.name} (developer): created`)
+          .join("\n"),
+        details,
+      },
+    );
+    const args = projection.argsPreview as {
+      context: string;
+      assignments: Array<{ name: string; profile: string; prompt: string }>;
+    };
+    assert.deepEqual(
+      args.assignments.map(({ name, profile }) => ({ name, profile })),
+      assignments.map(({ name, profile }) => ({ name, profile })),
+    );
+    for (const [i, item] of args.assignments.entries()) {
+      assert.ok(item.prompt.startsWith(`Task ${i}\n`));
+      assert.ok(item.prompt.length <= 1000);
+    }
+    assert.ok(args.context.length > 0 && args.context.length <= 1000);
+    assert.deepEqual(
+      (projection.resultPreview as { details: unknown }).details,
+      details,
+    );
+    assert.ok(projection.previewOverflow);
+  });
+});
+
 describe("adaptive agent tool-result projection", () => {
   it("keeps a fitting read canonical and emits exact continuation for a large read", () => {
     const small = Array.from(

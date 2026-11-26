@@ -184,6 +184,20 @@ describe("tool lifecycle registry", () => {
       assert.equal(batch.body.items[0].body, "Look");
       assert.equal(batch.body.context?.text, "shared");
     }
+    const drafting = presentToolArguments(
+      "subagent_prompt",
+      {
+        argsText:
+          '{"assignments":[{"name":"auth","prompt":"Look"},{"name":"fix","prom',
+      },
+      "drafting",
+    );
+    if (drafting.body.kind === "entities") {
+      assert.deepEqual(
+        drafting.body.items.map((item) => item.status?.label),
+        ["Pending", undefined],
+      );
+    } else assert.fail("expected entity rows while drafting");
     const single = presentToolArguments(
       "subagent_prompt",
       { args: { assignments: [{ name: "auth", prompt: "Look" }] } },

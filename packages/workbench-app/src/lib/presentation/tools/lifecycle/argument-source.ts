@@ -303,6 +303,11 @@ export class ToolArgumentSource {
     );
   }
 
+  /** Exact or fully streamed arguments; false while the JSON is still partial. */
+  get complete(): boolean {
+    return this.records.length > 0;
+  }
+
   private partialStrings(key: string): ReturnType<typeof partialStrings> {
     let entries = this.partialStringsCache.get(key);
     if (entries === undefined) {

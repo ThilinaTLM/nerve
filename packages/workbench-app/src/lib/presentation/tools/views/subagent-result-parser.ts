@@ -60,31 +60,47 @@ export function parsePromptResult(
   return parsed;
 }
 
-/** Assignments from the call arguments, enriched by the result lines. */
+function nonEmpty(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+/**
+ * One assignment per argument entry, in argument order, enriched by the
+ * result lines. The result lists every assignment in the same order, so an
+ * entry whose name a bounded transcript preview lost takes the result line at
+ * its position, and result lines beyond the previewed entries are appended.
+ * Old previews could also drop entries past the sixth.
+ */
 export function subagentAssignments(
   args: Record<string, unknown>,
   result: string | undefined,
   details?: unknown,
 ): SubagentAssignmentView[] {
-  const results = new Map(
-    parsePromptResult(result, details).map((line) => [
-      line.name.toLowerCase(),
-      line,
-    ]),
-  );
+  const lines = parsePromptResult(result, details);
+  const results = new Map(lines.map((line) => [line.name.toLowerCase(), line]));
   const raw = Array.isArray(args.assignments) ? args.assignments : [];
+  const named = new Set(
+    raw.flatMap((item) => {
+      const name = nonEmpty((item as Record<string, unknown> | null)?.name);
+      return name ? [name.toLowerCase()] : [];
+    }),
+  );
   const assignments: SubagentAssignmentView[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const record = item as Record<string, unknown>;
-    if (typeof record.name !== "string" || !record.name) continue;
-    const line = results.get(record.name.toLowerCase());
+  for (let index = 0; index < Math.max(raw.length, lines.length); index += 1) {
+    const item: unknown = raw[index];
+    const record =
+      item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const positional = lines[index];
+    const line = nonEmpty(record.name)
+      ? results.get(nonEmpty(record.name)!.toLowerCase())
+      : positional && !named.has(positional.name.toLowerCase())
+        ? positional
+        : undefined;
     assignments.push({
-      name: record.name,
-      profile:
-        typeof record.profile === "string" && record.profile
-          ? record.profile
-          : line?.profile,
+      // Empty only when neither the preview nor the result names it; the
+      // entry still holds its position so rows stay aligned with arguments.
+      name: nonEmpty(record.name) ?? line?.name ?? "",
+      profile: nonEmpty(record.profile) ?? line?.profile,
       prompt: typeof record.prompt === "string" ? record.prompt : "",
       disposition: line?.disposition,
       ...(line?.reason !== undefined ? { reason: line.reason } : {}),

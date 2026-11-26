@@ -46,7 +46,7 @@ const agents = $derived(subagents?.list() ?? []);
   <EntityRow
     title={item.title}
     detail={item.detail}
-    body={item.body}
+    body={item.outcome ?? item.body}
     status={agent ? subagentLiveState(agent.status) : item.status}
     followUp={item.followUp}
     onOpen={agent && subagents ? () => subagents.open(agent.id) : undefined}

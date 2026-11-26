@@ -34,7 +34,8 @@ describe("subagent entities", () => {
     );
     assert.equal(items[0].followUp, true);
     assert.equal(items[1].status?.tone, "destructive");
-    assert.equal(items[1].body, "no such profile");
+    assert.equal(items[1].outcome, "no such profile");
+    assert.equal(items[1].body, "do b");
     assert.equal(items[1].agentName, undefined);
   });
 
@@ -91,6 +92,39 @@ describe("subagent entities", () => {
     assert.equal(items[0].body, "stopped · ran 2.0s");
     assert.equal(items[1].status?.tone, "warning");
     assert.equal(items[1].key, "1");
+  });
+
+  it("keeps exact row text and fills only what a truncated preview lost", () => {
+    const toolCall = {
+      id: "t",
+      toolName: "subagent_prompt",
+      status: "completed",
+      argsPreview: {
+        assignments: [
+          { name: "a", profile: "developer", prompt: "do a (head)" },
+          { name: "", profile: "", prompt: "" },
+        ],
+      },
+      resultPreview: {
+        content: "a (developer): created\nb (explore): created",
+        details: {
+          assignments: [
+            { name: "a", profile: "developer", disposition: "created" },
+            { name: "b", profile: "explore", disposition: "created" },
+          ],
+        },
+      },
+    } as unknown as Parameters<typeof enrichEntities>[0];
+    const items = enrichEntities(toolCall, [
+      { key: "0", title: "a", body: "do a (full)", agentName: "a" },
+      { key: "1", title: "", detail: "", body: "", agentName: "" },
+    ]);
+    assert.equal(items[0].body, "do a (full)");
+    assert.deepEqual(
+      [items[1].title, items[1].detail, items[1].body, items[1].agentName],
+      ["b", "explore", undefined, "b"],
+    );
+    assert.equal(items[1].status?.label, "created");
   });
 
   it("reports stop outcome with run duration", () => {
