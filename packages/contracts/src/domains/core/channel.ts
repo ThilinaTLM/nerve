@@ -21,6 +21,11 @@ import {
 } from "../permissions/permission-rule-sets.js";
 import { configurationResourceSchema } from "../configuration/resource.js";
 import {
+  configurationDecisionSchema,
+  configurationReviewSchema,
+  configurationReviewTargetSchema,
+} from "../configuration/review.js";
+import {
   availableSkillsResponseSchema,
   skillReviewRequestSchema,
   skillReviewSchema,
@@ -554,6 +559,24 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.configuration.attention",
+  ),
+  defineOperation(
+    "configuration.review",
+    configurationReviewTargetSchema,
+    configurationReviewSchema,
+    "read",
+    "none",
+    host,
+    "operation.configuration.review",
+  ),
+  defineOperation(
+    "configuration.decide",
+    configurationDecisionSchema,
+    configurationReviewSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.configuration.decide",
   ),
   defineOperation(
     "skill.review",
