@@ -39,12 +39,19 @@
  *
  * ## CI semantics (`ci.ts`)
  *
- * A pull request is `full` when it touches a global path ({@link GLOBAL_FILES},
- * workflows, root TypeScript/ESLint config, a non-tooling `scripts/` path) or
- * a path with unknown ownership. Docs-only paths and developer tooling select
- * nothing beyond the always-on lint job.
+ *  * A change set is `full` when it touches a global path ({@link GLOBAL_FILES},
+ * `.github/workflows/ci.yml`, root TypeScript/ESLint config, a non-tooling,
+ * non-special `scripts/` path), a path with unknown ownership, or the root
+ * `package.json` with a change beyond descriptive metadata and ordinary
+ * scripts (same semantic comparison as focused validation; an unavailable
+ * comparison is full). Prose (`isProse`, checked first, the same rule as
+ * focused validation) and developer tooling (including every other `.github/`
+ * file) select nothing beyond the always-on lint job. Runtime markdown
+ * ({@link RUNTIME_MARKDOWN}, e.g. skills) is not prose: it selects its owning
+ * package. `ci.ts` also runs on pushes to main; an all-zero or unreachable
+ * base falls back to full coverage with a warning.
  *
- * Test-only paths ({@link TEST_ONLY_PATH}) select just their owning package
+ Test-only paths ({@link TEST_ONLY_PATH}) select just their owning package
  * (no reverse dependents). Native suites are selected per suite: `native`
  * when the native package is affected, `tools`/`server`/`desktop` when that
  * package is affected, `migrations` only for migration inputs
@@ -85,9 +92,14 @@ export const WORKBENCH_PACKAGES: ReadonlySet<string> = new Set([
   "@nervekit/workbench-server",
 ]);
 
-/** Root files whose change can affect everything CI builds or tests. */
+/**
+ * Root files whose change can affect everything CI builds or tests. The root
+ * `package.json` is not listed: it is compared semantically instead.
+ */
+export const CI_WORKFLOW = ".github/workflows/ci.yml";
+
+/** Root files that are global (see {@link CI_WORKFLOW} for the workflow). */
 export const GLOBAL_FILES: ReadonlySet<string> = new Set([
-  "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "Cargo.toml",
@@ -98,21 +110,20 @@ export const GLOBAL_FILES: ReadonlySet<string> = new Set([
   "tsconfig.base.json",
 ]);
 
-/** Root documents that never affect CI. */
-export const DOCS_ONLY_ROOT_FILES: ReadonlySet<string> = new Set([
-  "README.md",
-  "CONTRIBUTING.md",
-  "SECURITY.md",
-  "LICENSE",
-  "NOTICE",
-]);
-
 /** A repository file owned by specific packages although it lives outside `packages/`. */
 export interface SpecialOwner {
   owners: readonly string[];
 }
 
 export const SPECIAL_OWNERS: ReadonlyMap<string, SpecialOwner> = new Map([
+  [
+    "scripts/build/skill-reference-assets.ts",
+    { owners: ["@nervekit/workbench-server"] },
+  ],
+  [
+    "scripts/build/extension-frame.css",
+    { owners: ["@nervekit/workbench-server", "@nervekit/ui-kit"] },
+  ],
   [
     "scripts/build/copy-workbench-app-dist-to-workbench-server.ts",
     { owners: ["@nervekit/workbench-app", "@nervekit/workbench-server"] },
@@ -151,14 +162,22 @@ export const BRAND_ASSET_OWNER = "@nervekit/desktop-shell";
  * Developer tooling whose only CI consumer is the always-on lint job (format,
  * lint, policies and the `scripts/**` tests). It never reaches a product
  * package, so it must not escalate to full coverage and has no package owner
- * for focused validation. Build and release scripts stay unknown on purpose:
- * they change what CI builds and ships.
+ * for focused validation. `scripts/build/` stays unknown on purpose (except
+ * special owners): it changes what CI builds and ships. Release scripts are
+ * tooling: CI never runs them apart from `smoke-workbench-release.ts`, which
+ * keeps its special owners; their type check and tests run in the always-on
+ * lint job, and packaging is exercised by Release: Cut (dry runs from any
+ * branch). Any `scripts/**\/*.test.ts` and `scripts/**\/test/` file is tooling
+ * too, as is every `.github/` file except the CI workflow.
  */
 export const TOOLING_SCRIPT_PREFIXES: readonly string[] = [
+  "scripts/bench/",
+  "scripts/benchmarks/",
   "scripts/checks/",
   "scripts/cli/",
   "scripts/development/",
   "scripts/impact/",
+  "scripts/release/",
   "scripts/storage-migrations/",
   "scripts/testing/",
   "scripts/workspace/",

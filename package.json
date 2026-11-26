@@ -20,7 +20,7 @@
     "test:focused": "tsx scripts/testing/run-focused-tests.ts",
     "knip": "knip",
     "test:scripts": "tsx --test \"scripts/**/*.test.ts\"",
-    "test:packages": "pnpm --workspace-concurrency=4 -r --if-present test",
+    "test:packages": "pnpm --workspace-concurrency=4 -r --no-sort --if-present test",
     "test:packages:coverage": "c8 pnpm run test:packages",
     "test:full": "pnpm build:native && pnpm test:scripts && pnpm test:packages",
     "test:coverage": "c8 pnpm run test:full",

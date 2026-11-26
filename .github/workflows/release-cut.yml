@@ -79,8 +79,8 @@ jobs:
         run: |
           node scripts/release/commit-release.ts "${RELEASE_BRANCH}" "${BASE_SHA}" "chore(release): bump version to v${VERSION}"
 
-  # Full coverage: called from a non-pull-request event, the paths job selects
-  # every area.
+  # Full coverage: called from workflow_dispatch, the paths job selects every
+  # area (pushes to main run only the affected jobs). No coverage report.
   ci:
     name: CI
     needs: prepare
@@ -131,6 +131,11 @@ jobs:
         with:
           toolchain: 1.97.1
           targets: ${{ matrix.target }}
+      # Dependencies only (workspace crates are rebuilt), so a version bump
+      # still restores it; mostly pays off when a failed cut is rerun.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: native-prebuild-${{ matrix.target }}
       - run: pnpm install --frozen-lockfile
       - name: Verify runner architecture
         env:
@@ -201,13 +206,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Installs the tarballs the Ubuntu job packed (the ones that ship) and smokes
+  # them on the other host OSes; nothing is rebuilt here.
   native-package-smoke:
     name: npm package smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs:
       - prepare
-      - native-prebuilds
-    timeout-minutes: 30
+      - build-and-package
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -226,24 +233,16 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+      # The verifier imports esbuild through the bundle helpers.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Download native prebuilds
+      - name: Download verified desktop tarballs
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: native-prebuild-*
-          path: packages/native/prebuilds
-          merge-multiple: true
-      - name: Verify native prebuild inventory
-        run: node scripts/release/verify-native-prebuilds.ts
-      - name: Build all packages
-        run: pnpm build
-      - name: Smoke generated desktop assets
-        run: node scripts/release/smoke-desktop-package.ts
-      - name: Pack and verify npm tarballs
-        run: node scripts/release/pack-npm.ts
-      - name: Verify built desktop runtime
-        run: node scripts/release/smoke-desktop-release.ts
+          name: npm-desktop-packages
+          path: release/npm
+      - name: Install and smoke the desktop tarballs
+        run: node scripts/release/verify-npm-tarballs.ts release/npm
 
   extension-packages:
     name: Extension packages (pack and SDK end-to-end)

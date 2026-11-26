@@ -8,7 +8,7 @@
  *   (used by the fix/check planners).
  *
  * Both are built on the same path predicates ({@link isProse},
- * {@link isDocsOnly}, {@link isToolingPath}, {@link isGlobalPath}) and the data in
+ * {@link isToolingPath}, {@link isGlobalPath}) and the data in
  * `rules.ts`, which also documents the selection semantics.
  */
 import { isDeepStrictEqual } from "node:util";
@@ -24,9 +24,9 @@ import {
   BRAND_ASSET_OWNER,
   BRAND_ASSET_PREFIX,
   BUILD_SCRIPTS,
+  CI_WORKFLOW,
   CORE_PACKAGES,
   DEPENDENCY_GROUPS,
-  DOCS_ONLY_ROOT_FILES,
   ESLINT_CONFIG,
   FORMATTER_CONFIG,
   FORMAT_TOOLS,
@@ -63,22 +63,15 @@ export function isProse(path: string): boolean {
   );
 }
 
-/** Paths CI never needs to act on: documentation, root docs and non-website Markdown. */
-export function isDocsOnly(path: string): boolean {
-  return (
-    DOCS_ONLY_ROOT_FILES.has(path) ||
-    path.startsWith("docs/") ||
-    (!path.startsWith("packages/website/") && path.endsWith(".md"))
-  );
-}
-
 /** Developer tooling with no product-package consumer (see `TOOLING_SCRIPT_PREFIXES`). */
 export function isToolingPath(path: string): boolean {
   if (SPECIAL_OWNERS.has(path)) return false;
   return (
     TOOLING_ROOT_FILES.has(path) ||
     TOOLING_SCRIPT_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
-    /^scripts\/(?:[^/]+\/)*test\//.test(path)
+    /^scripts\/(?:[^/]+\/)*test\//.test(path) ||
+    /^scripts\/(?:.+\/)?[^/]+\.test\.ts$/.test(path) ||
+    (path.startsWith(".github/") && path !== CI_WORKFLOW)
   );
 }
 
@@ -91,7 +84,7 @@ export function isTestOnlyPath(path: string): boolean {
 export function isGlobalPath(path: string): boolean {
   return (
     GLOBAL_FILES.has(path) ||
-    path.startsWith(".github/workflows/") ||
+    path === CI_WORKFLOW ||
     SHARED_TSCONFIG.test(path) ||
     /^eslint(?:\.[^/]+)?\.(?:js|mjs|cjs)$/.test(path) ||
     (path.startsWith("scripts/") &&
@@ -132,7 +125,7 @@ const normalizePath = (path: string) =>
 export function classifyChanges(
   changedPaths: readonly string[],
   workspace: Workspace,
-  options: { full?: boolean } = {},
+  options: { full?: boolean; rootManifest?: RootManifestDelta } = {},
 ): CiImpact {
   const paths = changedPaths
     .map(normalizePath)
@@ -145,11 +138,23 @@ export function classifyChanges(
   let website = false;
 
   for (const path of paths) {
+    // Prose and `docs/` assets (any type) never affect CI.
+    if (isProse(path) || path.startsWith("docs/")) continue;
+    if (path === "package.json") {
+      // Only a semantic change beyond metadata and ordinary scripts is global.
+      if (
+        diffRootManifest(options.rootManifest).some(
+          (change) => change.kind !== "script" || isGovernedScript(change.name),
+        )
+      )
+        full = true;
+      continue;
+    }
     if (isGlobalPath(path)) {
       full = true;
       continue;
     }
-    if (isDocsOnly(path) || isToolingPath(path)) continue;
+    if (isToolingPath(path)) continue;
 
     const packageName = packageForPath(path, workspace);
     if (packageName) {
@@ -268,6 +273,66 @@ export interface ValidationImpact {
 /** A manifest field known to be an object of entries (dependency group, scripts). */
 const entries = (value: unknown) => (value ?? {}) as Record<string, unknown>;
 
+/** One semantic difference between the root manifests (see {@link diffRootManifest}). */
+export type RootManifestChange =
+  | { kind: "unavailable"; reason: string }
+  | { kind: "script"; name: string }
+  | { kind: "dependency"; group: string; name: string }
+  | { kind: "resolution"; field: string }
+  | { kind: "other"; field: string };
+
+/** Whether a root script governs validation or the build (others are ordinary). */
+export const isGovernedScript = (name: string): boolean =>
+  VALIDATION_SCRIPTS_FIX.includes(name) || BUILD_SCRIPTS.includes(name);
+
+const keysOf = (...records: unknown[]) =>
+  new Set(records.flatMap((record) => Object.keys(entries(record))));
+
+/**
+ * Semantic root `package.json` comparison shared by CI and focused validation:
+ * whitespace, key order and descriptive metadata never count. An unavailable
+ * comparison is a single `unavailable` change.
+ */
+export function diffRootManifest(
+  delta: RootManifestDelta | undefined,
+): RootManifestChange[] {
+  const { before, after, reason } = delta ?? {};
+  if (after != null && (typeof after !== "object" || Array.isArray(after))) {
+    throw new Error("Invalid current root package.json: expected an object.");
+  }
+  if (!before || !after) {
+    return [
+      {
+        kind: "unavailable",
+        reason: reason ?? "Root manifest semantic comparison unavailable.",
+      },
+    ];
+  }
+  const changes: RootManifestChange[] = [];
+  for (const field of keysOf(before, after)) {
+    const left = (before as Record<string, unknown>)[field];
+    const right = (after as Record<string, unknown>)[field];
+    if (isDeepStrictEqual(left, right) || ROOT_MANIFEST_METADATA.has(field))
+      continue;
+    if (field === "scripts" || DEPENDENCY_GROUPS.has(field)) {
+      for (const name of keysOf(left, right)) {
+        if (isDeepStrictEqual(entries(left)[name], entries(right)[name]))
+          continue;
+        changes.push(
+          field === "scripts"
+            ? { kind: "script", name }
+            : { kind: "dependency", group: field, name },
+        );
+      }
+    } else if (RESOLUTION_FIELDS.includes(field)) {
+      changes.push({ kind: "resolution", field });
+    } else {
+      changes.push({ kind: "other", field });
+    }
+  }
+  return changes;
+}
+
 const RANK: Record<Scope, number> = {
   none: 0,
   changed: 1,
@@ -300,75 +365,50 @@ export function classifyValidationImpact(
       widen(stage, "all", reason);
   }
   function manifestImpact() {
-    const { before, after, reason } = rootManifest ?? {};
-    if (after != null && (typeof after !== "object" || Array.isArray(after))) {
-      throw new Error("Invalid current root package.json: expected an object.");
-    }
-    if (!before || !after) {
-      widen(
-        "packages",
-        "all",
-        reason ?? "Root manifest semantic comparison unavailable.",
-      );
-      return;
-    }
-    for (const field of new Set([
-      ...Object.keys(before),
-      ...Object.keys(after),
-    ])) {
-      if (
-        isDeepStrictEqual(before[field], after[field]) ||
-        ROOT_MANIFEST_METADATA.has(field)
-      )
-        continue;
-      const reason = `Root manifest ${field} changed.`;
-      if (field === "scripts") {
-        for (const name of new Set([
-          ...Object.keys(before.scripts ?? {}),
-          ...Object.keys(after.scripts ?? {}),
-        ])) {
-          if (isDeepStrictEqual(before.scripts?.[name], after.scripts?.[name]))
-            continue;
-          const scriptReason = `Root validation/build script ${name} changed.`;
-          if (VALIDATION_SCRIPTS_FIX.includes(name)) {
+    for (const change of diffRootManifest(rootManifest)) {
+      switch (change.kind) {
+        case "unavailable":
+          widen("packages", "all", change.reason);
+          break;
+        case "script": {
+          const reason = `Root validation/build script ${change.name} changed.`;
+          if (VALIDATION_SCRIPTS_FIX.includes(change.name)) {
             for (const stage of ["format", "lint", "native"] as const)
-              widen(stage, "all", scriptReason);
-            if (name.startsWith("check"))
-              widen("packages", "all", scriptReason);
-          } else if (BUILD_SCRIPTS.includes(name)) {
-            widen("packages", "all", scriptReason);
-            if (name === "build:native") widen("native", "all", scriptReason);
+              widen(stage, "all", reason);
+            if (change.name.startsWith("check"))
+              widen("packages", "all", reason);
+          } else if (BUILD_SCRIPTS.includes(change.name)) {
+            widen("packages", "all", reason);
+            if (change.name === "build:native") widen("native", "all", reason);
           }
+          break;
         }
-      } else if (DEPENDENCY_GROUPS.has(field)) {
-        widen("packages", "all", reason);
-        for (const name of new Set([
-          ...Object.keys(entries(before[field])),
-          ...Object.keys(entries(after[field])),
-        ])) {
-          if (
-            isDeepStrictEqual(
-              entries(before[field])[name],
-              entries(after[field])[name],
-            )
-          )
-            continue;
-          if (FORMAT_TOOLS.has(name))
+        case "dependency":
+          widen("packages", "all", `Root manifest ${change.group} changed.`);
+          if (FORMAT_TOOLS.has(change.name))
             widen(
               "format",
               "all",
-              `Root formatter dependency ${name} changed.`,
+              `Root formatter dependency ${change.name} changed.`,
             );
-          if (LINT_TOOLS.has(name))
-            widen("lint", "all", `Root lint dependency ${name} changed.`);
+          if (LINT_TOOLS.has(change.name))
+            widen(
+              "lint",
+              "all",
+              `Root lint dependency ${change.name} changed.`,
+            );
+          break;
+        case "resolution":
+          resolution(
+            `Tool/dependency-resolution uncertainty: root ${change.field} changed.`,
+          );
+          break;
+        case "other": {
+          const reason = `Root manifest ${change.field} changed.`;
+          widen("packages", "all", reason);
+          if (change.field === "type") widen("lint", "all", reason);
+          break;
         }
-      } else if (RESOLUTION_FIELDS.includes(field)) {
-        resolution(
-          `Tool/dependency-resolution uncertainty: root ${field} changed.`,
-        );
-      } else {
-        widen("packages", "all", reason);
-        if (field === "type") widen("lint", "all", reason);
       }
     }
   }
@@ -417,7 +457,7 @@ export function classifyValidationImpact(
       if (NATIVE_RUST_INPUT.test(path)) {
         widen("native", "all", `Native Rust input changed: ${path}.`);
       }
-    } else if (isToolingPath(path) || path.startsWith(".github/workflows/")) {
+    } else if (isToolingPath(path) || path.startsWith(".github/")) {
       // Known validation tooling has no application package owner.
     } else {
       widen("packages", "all", `Unknown package ownership: ${path}.`);

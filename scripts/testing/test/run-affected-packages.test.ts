@@ -28,10 +28,17 @@ test("pnpm receives package names as separate arguments", () => {
       "@nervekit/contracts",
       "--filter",
       "@nervekit/protocol",
+      "--no-sort",
       "--if-present",
       "test",
     ],
   );
+  assert.deepEqual(pnpmArguments("build", ["@nervekit/contracts"]), [
+    "--filter",
+    "@nervekit/contracts",
+    "--if-present",
+    "build",
+  ]);
   assert.throws(() => pnpmArguments("publish", []), /Unsupported/);
 });
 

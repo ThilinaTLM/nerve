@@ -93,8 +93,16 @@ test("tree monitor reports changes outside ignored directories only", async (t) 
         message: "new notice",
       },
     );
-    await writeFile(join(root, "src/new/deeper/second.ts"), "x");
-    await waitFor(() => saw("second.ts"), { message: "second.ts notice" });
+    // The "new" notice can be flushed before the watcher registers `deeper`
+    // (it is discovered from a later event), and a write in that gap is not
+    // reported. Rewrite until a write lands on the registered watch.
+    await waitFor(
+      async () => {
+        await writeFile(join(root, "src/new/deeper/second.ts"), "x");
+        return saw("second.ts");
+      },
+      { message: "second.ts notice", intervalMs: 50 },
+    );
   } finally {
     await monitor.close();
     await rm(root, { recursive: true, force: true });

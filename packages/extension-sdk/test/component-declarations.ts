@@ -1,7 +1,8 @@
 // The generated component declarations (`scripts/components-dts.ts`) read through the TypeScript
 // checker, for the tests that guard them: `ui-components.test.ts` (documentation, real prop types)
 // and `public-surface.test.ts` (the props are surface).
-import { mkdtemp, rm } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -45,23 +46,27 @@ export type GeneratedComponents = {
   declarations: ComponentDeclarations;
 };
 
+let shared: Promise<GeneratedComponents> | undefined;
+
 /**
  * Generates the declarations into a scratch folder inside the package (so `svelte`, `bits-ui` and
- * the other libraries they import resolve), hands them to `use` and removes the folder.
+ * the other libraries they import resolve) and hands them to `use`. The generation (svelte2tsx and
+ * the declaration emit of ~100 components) runs once per test process and is shared by every
+ * caller, which treat it as read-only; the folder is removed when the process exits.
  */
 export async function withGeneratedComponents<T>(
   use: (generated: GeneratedComponents) => T | Promise<T>,
 ): Promise<T> {
-  const root = await mkdtemp(join(sdkRoot, ".components-"));
-  try {
+  shared ??= (async () => {
+    const root = await mkdtemp(join(sdkRoot, ".components-"));
+    process.once("exit", () => rmSync(root, { recursive: true, force: true }));
     const files = await generateSdkComponentDeclarations(
       join(root, "components"),
     );
     const declarations = read(join(root, "components", "components.d.ts"));
-    return await use({ root, files, declarations });
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
+    return { root, files, declarations };
+  })();
+  return use(await shared);
 }
 
 function read(entry: string): ComponentDeclarations {

@@ -78,16 +78,11 @@ function resolveElectronPath(): string {
   }
 }
 
-const child = spawn(electronPath, electronArgs, {
-  cwd,
-  env,
-  stdio: "inherit",
-  windowsHide: false,
-});
-
 // The isolated development launcher signals this wrapper, not arbitrary
 // Electron instances. Relay only to the Electron child it actually spawned.
 let terminationTimer: NodeJS.Timeout | undefined;
+// Registered before the spawn: a signal that lands while Electron boots must be relayed, not kill this wrapper and orphan Electron.
+// The handlers only run from the event loop, after `child` is assigned.
 const relaySignal = (signal: NodeJS.Signals) => {
   child.kill(signal);
   // Escalate at the actual Electron child before an outer development launcher
@@ -101,6 +96,13 @@ if (env.NERVE_ELECTRON_USER_DATA) {
   process.on("SIGINT", relayInterrupt);
   process.on("SIGTERM", relayTerminate);
 }
+
+const child = spawn(electronPath, electronArgs, {
+  cwd,
+  env,
+  stdio: "inherit",
+  windowsHide: false,
+});
 
 child.on("error", (error) => {
   clearTimeout(terminationTimer);

@@ -160,6 +160,16 @@ function runtimeForManagedTarget(target: ManagedTarget): LaunchRuntime {
 }
 
 function runtimeIdentity(identity: string): LaunchRuntimeIdentity {
+  // Native reports `exited:<pid>` when the child exited before the OS exposed its
+  // identity (a fast command, notably on macOS). Nothing is left to manage, so
+  // record an identity that can never match a live process: cleanup and liveness
+  // checks then refuse to signal a reused PID.
+  if (identity.startsWith("exited:")) {
+    if (process.platform === "linux")
+      return { kind: "linux", startTimeTicks: 0 };
+    if (process.platform === "darwin")
+      return { kind: "darwin", startFingerprint: `darwin:${identity}` };
+  }
   if (identity.startsWith("linux:")) {
     const startTimeTicks = Number(identity.slice("linux:".length));
     if (Number.isSafeInteger(startTimeTicks) && startTimeTicks >= 0) {

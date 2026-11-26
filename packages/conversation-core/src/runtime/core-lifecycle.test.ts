@@ -124,9 +124,11 @@ void test(
       await waitUntil(
         () =>
           signals.length === 2 &&
-          core
-            .getSnapshot("conv_tools")
-            .toolCalls.some((call) => call.state === "awaiting_input"),
+          ["awaiting_approval", "awaiting_input"].every((state) =>
+            core
+              .getSnapshot("conv_tools")
+              .toolCalls.some((call) => call.state === state),
+          ),
       );
       await createConversation(core, "conv_model");
       core.submitInput({

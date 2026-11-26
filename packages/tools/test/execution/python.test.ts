@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { EOL } from "node:os";
 import { join } from "node:path";
 import { describe, it, type TestContext } from "node:test";
@@ -107,11 +107,13 @@ describe("python executor", () => {
 
   it(
     "streams flushed output before the Python process completes",
-    { timeout: 5_000 },
+    // Only bounds a hang: the test waits on events, but Python startup on a slow Windows runner can take seconds.
+    { timeout: 30_000 },
     async (t) => {
       const runtime = await runtimeOrSkip(t);
       if (!runtime) return;
       const project = await createTempProject();
+      const release = join(project.root, "release.flag");
       const updates: string[] = [];
       let settled = false;
       let resolveFirstUpdate!: (chunk: string) => void;
@@ -122,9 +124,10 @@ describe("python executor", () => {
       const execution = executePython(
         {
           code: [
-            "import time",
+            "import os, time",
             "print('tick 1', flush=True)",
-            "time.sleep(0.25)",
+            // The process stays alive until the test releases it, so "not settled" is not a timing guess.
+            `while not os.path.exists(${JSON.stringify(release)}): time.sleep(0.02)`,
             "print('tick 2', flush=True)",
           ].join("\n"),
         },
@@ -149,6 +152,7 @@ describe("python executor", () => {
 
       assert.match(await firstUpdate, /tick 1/);
       assert.equal(settled, false);
+      await writeFile(release, "");
 
       const result = await execution;
       assert.equal(result.exitCode, 0);

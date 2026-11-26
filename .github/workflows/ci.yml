@@ -1,12 +1,16 @@
 name: CI
 
+# Pull requests and pushes to main run the jobs their changes affect. Full
+# coverage runs nightly (when main moved), on manual dispatch and from
+# Release: Cut, which runs the full suite on the release commit before tagging.
 on:
   pull_request:
   push:
     branches:
       - main
-  # Release: Cut runs the full suite on the release commit before tagging it.
-  # A non-pull-request event, so the paths job selects full coverage.
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
   workflow_call:
     inputs:
       ref:
@@ -30,15 +34,15 @@ jobs:
     name: Changes / Detect affected areas
     runs-on: ubuntu-latest
     outputs:
-      full: ${{ steps.impact.outputs.full || steps.impact_main.outputs.full }}
-      packages: ${{ steps.impact.outputs.packages || steps.impact_main.outputs.packages }}
-      dependency_packages: ${{ steps.impact.outputs.dependency_packages || steps.impact_main.outputs.dependency_packages }}
-      has_packages: ${{ steps.impact.outputs.has_packages || steps.impact_main.outputs.has_packages }}
-      website: ${{ steps.impact.outputs.website || steps.impact_main.outputs.website }}
-      workbench: ${{ steps.impact.outputs.workbench || steps.impact_main.outputs.workbench }}
-      native: ${{ steps.impact.outputs.native || steps.impact_main.outputs.native }}
-      native_windows_suites: ${{ steps.impact.outputs.native_windows_suites || steps.impact_main.outputs.native_windows_suites }}
-      native_macos_suites: ${{ steps.impact.outputs.native_macos_suites || steps.impact_main.outputs.native_macos_suites }}
+      full: ${{ steps.impact.outputs.full }}
+      packages: ${{ steps.impact.outputs.packages }}
+      dependency_packages: ${{ steps.impact.outputs.dependency_packages }}
+      has_packages: ${{ steps.impact.outputs.has_packages }}
+      website: ${{ steps.impact.outputs.website }}
+      workbench: ${{ steps.impact.outputs.workbench }}
+      native: ${{ steps.impact.outputs.native }}
+      native_windows_suites: ${{ steps.impact.outputs.native_windows_suites }}
+      native_macos_suites: ${{ steps.impact.outputs.native_macos_suites }}
 
     steps:
       - name: Check out repository
@@ -55,17 +59,30 @@ jobs:
         with:
           node-version: 24
 
-      - name: Classify pull request impact
+      # Pull requests compare with their base, pushes with the previous main
+      # (an unusable base falls back to full coverage). Called from Release:
+      # Cut, github.event_name is the caller's (workflow_dispatch): full.
+      - name: Classify impact
         id: impact
-        if: github.event_name == 'pull_request'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/impact/ci.ts --base "${BASE_SHA}"
-
-      - name: Select full coverage for main
-        id: impact_main
-        if: github.event_name != 'pull_request'
-        run: node scripts/impact/ci.ts --full
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          case "${EVENT}" in
+            pull_request) node scripts/impact/ci.ts --base "${PR_BASE}" ;;
+            push) node scripts/impact/ci.ts --base "${PUSH_BEFORE}" ;;
+            schedule)
+              # Nothing to cover when main has not moved since the last night.
+              if [ -z "$(git log -1 --since='25 hours ago' --format=%H)" ]; then
+                node scripts/impact/ci.ts --base HEAD
+              else
+                node scripts/impact/ci.ts --full
+              fi
+              ;;
+            *) node scripts/impact/ci.ts --full ;;
+          esac
 
   lint:
     name: Lint / Format, lint, policies and script tests
@@ -270,7 +287,7 @@ jobs:
 
     steps: *native_addon_steps
 
-  # Narrow (non-full) pull requests: the package check (~1 min) and the package
+  # Narrow (non-full) pull requests and pushes: the package check (~1 min) and the package
   # tests (~3-4 min) are independent, so they run as two parallel jobs instead
   # of back to back. Each repeats only install + dependency prep; the steps are
   # shared through a YAML anchor and select their task through `env.TASK`.
@@ -366,6 +383,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TASK: test
+      # Package pretest scripts recopy assets the build step already produced,
+      # deleting them first while other packages' tests may read them.
+      pnpm_config_enable_pre_post_scripts: "false"
     needs:
       - paths
       - native-linux
@@ -432,6 +452,10 @@ jobs:
   package-tests:
     name: Packages / All tests (Ubuntu)
     runs-on: ubuntu-latest
+    env:
+      # Package pretest scripts recopy assets the build step already produced,
+      # deleting them first while other packages' tests may read them.
+      pnpm_config_enable_pre_post_scripts: "false"
     needs:
       - paths
       - native-linux
@@ -484,18 +508,18 @@ jobs:
       - name: Build workspace package outputs
         run: pnpm -r --filter '!nerve' --filter '!@nervekit/desktop-shell' --filter '!@nervekit/workbench-app' --filter '!@nervekit/ui-kit' --filter '!@nervekit/website' --if-present build
 
-      # Pull requests run the same tests without c8 instrumentation; coverage
-      # is collected and uploaded on main only.
+      # c8 instrumentation slows the suite, so coverage is collected and
+      # uploaded by the nightly run only.
       - name: Run complete package test suite
-        if: github.event_name == 'pull_request'
+        if: github.event_name != 'schedule'
         run: pnpm run test:packages
 
       - name: Run complete package test suite with coverage
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'schedule'
         run: pnpm run test:packages:coverage
 
       - name: Upload coverage report
-        if: github.event_name != 'pull_request' && always()
+        if: github.event_name == 'schedule' && always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: typescript-coverage
@@ -609,6 +633,8 @@ jobs:
     timeout-minutes: 25
     env:
       SUITES: ${{ needs.paths.outputs.native_windows_suites }}
+      # The build steps already copied the assets package pretest scripts recopy.
+      pnpm_config_enable_pre_post_scripts: "false"
     defaults:
       run:
         shell: bash
@@ -705,6 +731,8 @@ jobs:
     timeout-minutes: 25
     env:
       SUITES: ${{ needs.paths.outputs.native_macos_suites }}
+      # The build steps already copied the assets package pretest scripts recopy.
+      pnpm_config_enable_pre_post_scripts: "false"
     defaults:
       run:
         shell: bash
