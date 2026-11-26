@@ -8,6 +8,10 @@ type Props = {
   /** Profiles offered by the selector; an empty list drops it entirely. */
   agentProfiles: ComposerAgentProfile[];
   agentProfile: string;
+  /** Profiles that wait for review: listed disabled, with Review. */
+  pendingProfiles?: ComposerAgentProfile[];
+  /** Opens the review dialog on a waiting profile. */
+  onReview?: (name: string) => void;
   /** Read-only: shows the profile without offering a switch. */
   disabled?: boolean;
   controlsDisabled?: boolean;
@@ -19,6 +23,8 @@ type Props = {
 let {
   agentProfiles,
   agentProfile,
+  pendingProfiles = [],
+  onReview,
   disabled = false,
   controlsDisabled = false,
   shortcut,
@@ -72,8 +78,15 @@ function select(name: string) {
     <ComposerProfilePanel
       {agentProfiles}
       {agentProfile}
+      {pendingProfiles}
       disabled={controlsDisabled || disabled}
       onSelect={select}
+      onReview={onReview
+        ? (name) => {
+            open = false;
+            onReview(name);
+          }
+        : undefined}
     />
   </Popover>
 {/if}

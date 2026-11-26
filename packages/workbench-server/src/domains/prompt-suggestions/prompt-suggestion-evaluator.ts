@@ -12,6 +12,7 @@ import {
   type PromptSuggestionDiagnostic,
   type PromptSuggestionEnableContext,
   type PromptSuggestionEvaluationInput,
+  suggestionRequiresTrust,
 } from "./prompt-suggestion-types.js";
 
 const JS_TIMEOUT_MS = 50;
@@ -49,7 +50,7 @@ export function evaluatePromptSuggestions(
       continue;
     }
 
-    if (definition.enableJs) {
+    if (suggestionRequiresTrust(definition)) {
       if (!definition.trustId || !definition.predicateHash) continue;
       const state = trust(definition);
       if (state === "needs_review") {
@@ -70,9 +71,12 @@ export function evaluatePromptSuggestions(
         statuses.push(statusFor(definition, trust));
         continue;
       }
-      const enabled = evaluateEnableJs(definition, context, diagnostics);
       statuses.push(statusFor(definition, trust));
-      if (!enabled) continue;
+      if (
+        definition.enableJs &&
+        !evaluateEnableJs(definition, context, diagnostics)
+      )
+        continue;
     } else {
       statuses.push(statusFor(definition, trust));
     }
@@ -86,8 +90,10 @@ export function evaluatePromptSuggestions(
       context: definition.buildContext?.(input),
       order: definition.order,
       source: definition.source,
-      requiresTrust: Boolean(definition.enableJs),
-      trustStatus: definition.enableJs ? "trusted" : "not_required",
+      requiresTrust: suggestionRequiresTrust(definition),
+      trustStatus: suggestionRequiresTrust(definition)
+        ? "trusted"
+        : "not_required",
     });
   }
 
@@ -218,8 +224,10 @@ function statusFor(
     path: definition.source.path,
     sourceKind: definition.source.kind,
     projectId: definition.source.projectId,
-    requiresTrust: Boolean(definition.enableJs),
-    status: definition.enableJs ? trust(definition) : "not_required",
+    requiresTrust: suggestionRequiresTrust(definition),
+    status: suggestionRequiresTrust(definition)
+      ? trust(definition)
+      : "not_required",
     enabled: definition.enabled,
     defaultEnabled: definition.defaultEnabled,
     predicateHash: definition.predicateHash,

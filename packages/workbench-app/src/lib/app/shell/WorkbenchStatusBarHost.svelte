@@ -19,6 +19,7 @@ import { ShellChannelStatus } from "./shell-channel-status.svelte";
 import { gitSelectors } from "$lib/features/git";
 import { launchSelectors } from "$lib/features/launches";
 import { settingsSelectors } from "$lib/features/settings";
+import { releaseSelectors } from "$lib/features/releases";
 import { setUiZoomLevel } from "$lib/application/settings";
 import { usageSelectors } from "$lib/application/usage/usage-selectors.svelte";
 import { maintenance, workspaceSelectors } from "$lib/application/workspace";
@@ -96,6 +97,7 @@ const dockToggles = $derived<DockToggle[]>(
   {gitStatus}
   {subscriptionUsages}
   {status}
+  latestRelease={releaseSelectors.latest}
   {maintenanceOperation}
   homeDir={status?.storage.userHome}
   zoomLevel={currentZoomLevel}

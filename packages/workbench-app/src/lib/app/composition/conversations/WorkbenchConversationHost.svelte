@@ -23,6 +23,10 @@ import {
   reviewReminder,
 } from "$lib/application/configuration-attention/configuration-attention";
 import { openProjectSettingsPane } from "$lib/application/settings";
+import ReviewMarker from "$lib/presentation/activity/ReviewMarker.svelte";
+import { attentionIsland } from "$lib/application/attention-island/attention-island-state.svelte";
+import { markerShown } from "$lib/application/attention-island/attention-island";
+import { attentionIslandModel } from "$lib/app/shell/attention-island-model.svelte";
 import { openInlineMermaidPane } from "$lib/features/filesystem";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 
@@ -325,6 +329,23 @@ function menuForTranscript(
 }
 </script>
 
+{#snippet reviewMarker()}
+  <!-- Trust items only; conversations waiting stay in the bell island. The
+       phone has no island, so the marker opens the review queue there. -->
+  <ReviewMarker
+    count={attentionIslandModel.counts.trust}
+    pulse={attentionIsland.state.trustArrivals}
+    pulsing={attentionIsland.state.phase === "arrival" &&
+      attentionIsland.state.arrival?.level === "trust"}
+    openLabel={responsive.isPhone ? "review them" : "show the list"}
+    onOpen={() =>
+      responsive.isPhone
+        ? attentionIslandModel.review()
+        : attentionIsland.expand()}
+    onLater={() => attentionIsland.later()}
+  />
+{/snippet}
+
 <ConversationPane
   model={{
     conversationId: scrollConversationId,
@@ -419,6 +440,9 @@ function menuForTranscript(
   menus={{ transcriptMenu: menuForTranscript, selectionActions }}
   {activity}
   {history}
+  marker={markerShown(attentionIsland.state, attentionIslandModel.counts.trust)
+    ? reviewMarker
+    : undefined}
 >
   {#snippet composer(activityContent)}
     <WorkbenchComposerAdapter

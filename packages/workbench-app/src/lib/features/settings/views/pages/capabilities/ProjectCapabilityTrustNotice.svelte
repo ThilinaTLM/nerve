@@ -1,7 +1,9 @@
 <!--
-  The project's `agent.json` on a layered page: unavailable (repair), or not
-  trusted (decided here, inline). General also shows the trusted file, with
-  Revoke; the other pages it affects only show the notice while it is not.
+  An `agent.json` on a layered page: unavailable (repair), or waiting for
+  review or declined (decided here: Trust opens the review dialog, Decline and
+  Revoke decide on the bytes shown). The project's file locks its column; the
+  user's file keeps its last trusted version in effect. General also shows a
+  trusted project file, with Revoke; other pages only while it is not.
 -->
 <script lang="ts">
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
@@ -9,9 +11,14 @@ import type {
   AgentScope,
   GetAgentConfigurationResult,
 } from "@nervekit/contracts/agent-configuration";
+import type { ConfigurationReviewTarget } from "@nervekit/contracts/configuration";
+import {
+  onConfigurationDecision,
+  openConfigurationReview,
+} from "$lib/application/configuration-review/configuration-review-queue.svelte";
+import ConfigurationReviewCallout from "$lib/presentation/configuration-review/ConfigurationReviewCallout.svelte";
 import ProjectCapabilityTrustAction from "./ProjectCapabilityTrustAction.svelte";
-import UntrustedProjectCallout from "./UntrustedProjectCallout.svelte";
-import { setProjectAgentTrust } from "./project-agent-trust";
+import { useItemReview } from "../review/item-review.svelte";
 let {
   document,
   scope,
@@ -24,8 +31,6 @@ let {
   /** Also show the trusted file, with Revoke (General only). */
   showTrusted?: boolean;
 } = $props();
-let busy = $state(false);
-let error = $state<string>();
 const decision = $derived(
   document?.status === "available" &&
     document.source.digest !== "missing" &&
@@ -33,19 +38,30 @@ const decision = $derived(
     ? document.trustState
     : undefined,
 );
-async function decide(trusted: boolean) {
-  if (busy) return;
-  busy = true;
-  error = undefined;
-  try {
-    await setProjectAgentTrust(document, trusted);
-    await onReload();
-  } catch (cause) {
-    error = cause instanceof Error ? cause.message : String(cause);
-  } finally {
-    busy = false;
-  }
-}
+const fileScope = $derived(
+  document?.status === "available" ? document.source.scope : scope,
+);
+const target = $derived<ConfigurationReviewTarget | undefined>(
+  fileScope?.scope === "project"
+    ? {
+        kind: "agent-preferences",
+        scope: "project",
+        projectId: fileScope.projectId,
+        id: "agent.json",
+      }
+    : fileScope?.scope === "user"
+      ? { kind: "agent-preferences", scope: "user", id: "agent.json" }
+      : undefined,
+);
+const user = $derived(fileScope?.scope === "user");
+const review = useItemReview(() => (decision ? target : undefined));
+
+// A decision in the review dialog changes the file's state: read it again.
+$effect(() =>
+  onConfigurationDecision((review) => {
+    if (review.target.kind === "agent-preferences") void onReload();
+  }),
+);
 </script>
 {#if document?.status === "unavailable"}
   <Callout
@@ -60,20 +76,18 @@ async function decide(trusted: boolean) {
       />{/snippet}
   </Callout>
 {:else if decision}
-  <UntrustedProjectCallout
+  <ConfigurationReviewCallout
     state={decision}
-    {busy}
-    {error}
+    subject={user ? "Your agent settings file" : "This project's settings file"}
+    effect={user
+      ? "the last version you trusted stays in effect"
+      : "the project uses your settings and its column is locked"}
+    changedSinceDecision={review.current?.review?.changedSinceDecision}
+    busy={review.current?.busy}
+    error={review.current?.notice ?? review.current?.error}
     {showTrusted}
-    onDecline={() => void decide(false)}
-    onRevoke={() => void decide(false)}
-  >
-    {#snippet review()}<ProjectCapabilityTrustAction
-        {document}
-        {scope}
-        {onReload}
-        variant="outline"
-        label="Review and trust"
-      />{/snippet}
-  </UntrustedProjectCallout>
+    onTrust={target ? () => openConfigurationReview([target]) : undefined}
+    onDecline={() => void review.current?.decline()}
+    onRevoke={() => void review.current?.decline()}
+  />
 {/if}

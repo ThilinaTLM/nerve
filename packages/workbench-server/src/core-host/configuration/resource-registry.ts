@@ -115,6 +115,15 @@ export const approvalDiagnostic = (
   message: `Valid, but not used until the user approves it in ${approval.where}. You cannot approve it; tell the user.`,
 });
 
+/** Words the state the agent sees when the user's earlier trusted version stays in effect while the new one waits. */
+export const approvalKeptDiagnostic = (
+  approval: NonNullable<ConfigurationResource["approval"]>,
+): Diagnostic => ({
+  level: "warning",
+  code: "needs-review",
+  message: `The changed file waits for the user to approve it in ${approval.where}; until then the version the user last approved stays in effect (after a restart, none). You cannot approve it; tell the user.`,
+});
+
 /** Words the state the agent sees when the user declined a resource: nothing to ask for. */
 export const declinedDiagnostic = (
   approval: NonNullable<ConfigurationResource["approval"]>,
@@ -154,7 +163,9 @@ export function resourcesFromFindings(
       resource.diagnostics.push(
         finding.declined
           ? declinedDiagnostic(finding.approval)
-          : approvalDiagnostic(finding.approval),
+          : resource.previousVersionActive
+            ? approvalKeptDiagnostic(finding.approval)
+            : approvalDiagnostic(finding.approval),
       );
     }
     const diagnostic = finding.diagnostic;

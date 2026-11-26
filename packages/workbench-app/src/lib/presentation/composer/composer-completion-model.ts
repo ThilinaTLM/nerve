@@ -29,7 +29,9 @@ export type ComposerCompletionAction =
       source: ComposerSourceState;
       actionId: "open_pull_requests" | "open_settings";
     }
-  | { type: "item"; item: CompletionItem };
+  | { type: "item"; item: CompletionItem }
+  /** A `/profile` row of a profile that waits for the user's review. */
+  | { type: "review-profile"; name: string };
 
 /** Categories a mention can be narrowed to (`@pr:` etc.). */
 export const COMPLETION_SCOPES = [
@@ -152,6 +154,8 @@ export type PopupRow = {
   chipLabel: string;
   /** Slash command name (no "/"). */
   command?: string;
+  /** Slash: the profile this row would switch to waits for review; Review opens it. */
+  reviewProfile?: string;
   mono: boolean;
 };
 
@@ -362,8 +366,14 @@ export type SlashContext = {
   profile: string;
   /** Profiles `/profile <name>` can switch to. */
   profiles: readonly { name: string; label: string; whenToUse?: string }[];
+  /** Profiles that wait for the user's review: listed, unavailable, with Review. */
+  pendingProfiles?: readonly { name: string; label: string }[];
   running: boolean;
 };
+
+/** The reason a waiting profile's `/profile` row gives. */
+export const PENDING_PROFILE_REASON =
+  "Waiting for your review. Trust it before you switch to it.";
 
 export function buildSlashGroups(
   items: readonly CompletionItem[],
@@ -372,10 +382,15 @@ export function buildSlashGroups(
 ): PopupGroup[] {
   const needle = rawToken.replace(/^\//, "").toLowerCase();
   const byGroup = new Map<string, PopupRow[]>();
-  for (const item of slashCommandItemsForProfiles(
-    items,
-    context?.profiles ?? [],
-  )) {
+  const pending = new Set(
+    (context?.pendingProfiles ?? []).map(
+      (profile) => `profile ${profile.name}`,
+    ),
+  );
+  for (const item of slashCommandItemsForProfiles(items, [
+    ...(context?.profiles ?? []),
+    ...(context?.pendingProfiles ?? []),
+  ])) {
     const command = item.label.replace(/^\//, "");
     if (command === "abort" && !context?.running) continue;
     if (needle && !command.toLowerCase().includes(needle)) continue;
@@ -393,7 +408,14 @@ export function buildSlashGroups(
       name: command,
       meta: item.detail,
       title: item.info,
-      state: "ready",
+      state: pending.has(command) ? "unavailable" : "ready",
+      ...(pending.has(command)
+        ? {
+            badge: { text: "Needs review", variant: "warning" as const },
+            reason: PENDING_PROFILE_REASON,
+            reviewProfile: command.slice("profile ".length),
+          }
+        : {}),
       toggleable: false,
       insert: item.label,
       chipLabel: command,

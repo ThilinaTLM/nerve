@@ -132,6 +132,17 @@ System notifications disabled or unavailable normally fall back to an Open toast
 
 Rows and tabs share the activity indicator, including a success dot for unseen finished results. Project buttons count conversation attention/work with urgency coloring, or show a success dot when only unseen results remain; background-launch counts stay in popover rows. The bell and mobile inbox share root input/failure/interruption derivation, and unseen results join finished activities. The bell groups attention, running and finished items; its number counts input requests, while failures use the unseen-failure dot.
 
+### Two levels waiting for the user
+
+Two kinds of things wait for the user, and the higher level always comes first:
+
+| Level        | What waits                                                              | Tone    | Where it shows                                   |
+| ------------ | ----------------------------------------------------------------------- | ------- | ------------------------------------------------ |
+| Trust        | Configuration that needs review ([trust](trust.md)), user and project   | warning | Bell island and the marker in every conversation |
+| Conversation | A root conversation waiting for input (question, approval, plan review) | info    | Bell island only                                 |
+
+While anything waits, the titlebar bell becomes the **bell island**. It morphs in place: **Arrival** shows one new item on one line for about four seconds (held while hovered), **Compact** is the bell's size with the icon and count of the highest level waiting, and **Expanded** grows down into the lists ("Needs your review" first, then "Conversations waiting") with All notifications, Later and Review all. Arrivals queue with trust first and never stack. What already waits when the list first loads (startup, switching projects) does not arrive; neither does the conversation already open, and an item arrives only once (opening its conversation does not clear it; answering does). **Later** hides the island and the transcript marker until a new trust item arrives, for this session; the plain bell keeps counting. The bell's own list shows waiting trust items as one summary row that opens the island, and they raise no toast (configuration that does not work still does). The list is read again on configuration events and when the window regains focus, since files changed by an editor or a script send no event. On the phone there is no island: the marker opens the review queue directly.
+
 The dock/taskbar badge is another passive projection, not a presence-triggered notification. It sends the input-attention count, excluding failures and finished results, through desktop IPC to best-effort `app.setBadgeCount` and clears at zero. This keeps outstanding requests visible while the running app is hidden in the tray.
 
 ### Owners
@@ -141,6 +152,7 @@ The dock/taskbar badge is another passive projection, not a presence-triggered n
 | Presence, urgency, mute and delivery | [attention-policy](../../packages/workbench-app/src/lib/application/notifications/attention-policy.ts)                                |
 | Rows, tabs and projects              | [ConversationActivityIndicator](../../packages/workbench-app/src/lib/presentation/conversations/ConversationActivityIndicator.svelte) |
 | Bell and inbox derivation            | [deriveNeedsYou](../../packages/workbench-app/src/lib/application/activity/needs-you.ts)                                              |
+| Bell island arrivals, Later          | [attention-island](../../packages/workbench-app/src/lib/application/attention-island/attention-island.ts)                             |
 | Desktop notifications and badge      | [notifications IPC](../../packages/desktop-shell/src/ipc/notifications-ipc.ts)                                                        |
 
 ## Deliberate limits

@@ -35,7 +35,10 @@ import { settingsSectionDomId } from "$lib/presentation/settings/section-id";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import { accountOptions } from "../tools/tool-settings";
 import { applyLayerChange } from "../../shared/layer-change";
-import ExtensionConsentDialog from "./ExtensionConsentDialog.svelte";
+import {
+  onConfigurationDecision,
+  openConfigurationReview,
+} from "$lib/application/configuration-review/configuration-review-queue.svelte";
 import ExtensionMark from "./ExtensionMark.svelte";
 import ExtensionDetail from "./ExtensionDetail.svelte";
 import ExtensionDetailHeader from "./ExtensionDetailHeader.svelte";
@@ -170,12 +173,17 @@ const openInherited = $derived(
     : undefined,
 );
 let listElement = $state<HTMLElement>();
-let reviewing = $state<ExtensionCatalogEntry>();
-let reviewOpen = $state(false);
+/** Review opens the shared review dialog on the extension. */
 function review(entry: ExtensionCatalogEntry): void {
-  reviewing = entry;
-  reviewOpen = true;
+  const target = extensions.reviewTarget(entry);
+  if (target) openConfigurationReview([target]);
 }
+// A decision in the review dialog loads or unloads the extension.
+$effect(() =>
+  onConfigurationDecision((decided) => {
+    if (decided.target.kind === "extension") void reloadViews();
+  }),
+);
 
 type Origin = "project" | "user" | "builtin";
 type Row = {
@@ -480,11 +488,4 @@ $effect(() => {
       </OriginGroup>
     {/each}
   </div>
-  <ExtensionConsentDialog
-    bind:open={reviewOpen}
-    entry={reviewing}
-    busy={extensions.saving}
-    onAllow={(target) => void extensions.grantConsent(target)}
-    onDecline={(target) => void extensions.declineConsent(target)}
-  />
 {/if}

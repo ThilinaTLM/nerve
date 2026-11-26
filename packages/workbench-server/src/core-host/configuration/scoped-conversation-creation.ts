@@ -139,6 +139,22 @@ export function scopedConversationCreation(
       if (capture.view.status !== "available" || capture.view.role !== "lead")
         throw new Error("Children cannot delegate");
       const scope = service.paths.locations.conversationOwner(parentId);
+      const lookup = await service.profiles.get(
+        profile,
+        scope.projectId,
+        "child",
+      );
+      const waiting =
+        lookup.status === "unavailable" &&
+        lookup.diagnostics.find(
+          (item) => item.code === "needs-review" || item.code === "declined",
+        );
+      if (waiting)
+        throw new Error(
+          waiting.code === "declined"
+            ? `Profile "${profile}" is unavailable: the user declined it. Do not retry; choose another profile or tell the user.`
+            : `Profile "${profile}" is unavailable: it waits for the user's review in Settings → Sub-Agents and cannot be used until they approve it. Do not retry; choose another profile or tell the user.`,
+        );
       const resolved = await resolve(scope.projectId, profile, parentId);
       const settings = resolved.resolution.settings;
       const application: Awaited<

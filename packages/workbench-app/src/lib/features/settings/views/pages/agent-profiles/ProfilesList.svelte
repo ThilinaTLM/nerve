@@ -18,6 +18,7 @@ import {
   TipBadge,
   TrustStateBadge,
 } from "$lib/presentation/settings";
+import { openConfigurationReview } from "$lib/application/configuration-review/configuration-review-queue.svelte";
 import { changeRows } from "./profile-changes";
 import type { ProfileOrigin, ProfileRow } from "./profile-groups";
 import type { ProfileKind } from "./profile-kind";
@@ -63,15 +64,30 @@ const shown = (origin: ProfileOrigin) =>
         .includes(needle),
   );
 
+const waiting = (row: ProfileRow) =>
+  row.origin !== "builtin" && row.entry.trustState === "needs_review";
 function problemOf(row: ProfileRow): string | undefined {
   if (!row.entry.definition) return "This file can't be read";
-  if (row.origin === "project" && row.entry.trustState === "needs_review")
-    return "Waiting for your review";
+  if (waiting(row)) return "Waiting for your review";
   return undefined;
 }
-/** A declined project profile is the user's choice: a quiet badge, no problem line. */
+/** A declined profile is the user's choice: a quiet badge, no problem line. */
 const declined = (row: ProfileRow) =>
-  row.origin === "project" && row.entry.trustState === "declined";
+  row.origin !== "builtin" && row.entry.trustState === "declined";
+
+/** Review opens the review dialog on the profile; a broken file opens its page. */
+function review(row: ProfileRow): void {
+  if (!waiting(row) || (row.origin === "project" && !store.projectId))
+    return onOpen(row.id);
+  openConfigurationReview([
+    {
+      kind: "agent-profile",
+      scope: row.origin === "project" ? "project" : "user",
+      ...(row.origin === "project" ? { projectId: store.projectId } : {}),
+      id: row.name,
+    },
+  ]);
+}
 </script>
 
 {#if total >= SETTINGS_SEARCH_MIN}
@@ -116,7 +132,7 @@ const declined = (row: ProfileRow) =>
           : undefined}
         {problem}
         problemAction={problem
-          ? { label: "Review", onclick: () => onOpen(row.id) }
+          ? { label: "Review", onclick: () => review(row) }
           : undefined}
         onOpen={() => onOpen(row.id)}
         openLabel={`Open ${definition?.label ?? row.name}`}

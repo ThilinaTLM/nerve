@@ -27,8 +27,8 @@ async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const catalog = new AgentProfileCatalog({
     paths,
     builtins: { coding: JSON.stringify(profile) },
-    trustState: (_id, _file, digest) =>
-      digest === trustedDigest ? "trusted" : "needs_review",
+    trustState: (id, _file, digest) =>
+      id === null || digest === trustedDigest ? "trusted" : "needs_review",
   });
   return {
     paths,
@@ -163,4 +163,61 @@ void test("editing reports which lower layer a local copy shadows", async (t) =>
   const own = { ...profile, name: "own" };
   await f.catalog.save(project, "own", "missing", own);
   assert.equal(await shadows(project, "own"), undefined);
+});
+
+void test("a user profile is available only while its exact bytes are trusted, and Nerve's own writes keep it trusted", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "profile-catalog-user-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const paths = new AgentConfigurationPaths({
+    home: path.join(root, "home"),
+    projectDirectory: () => path.join(root, "project"),
+    conversationOwner: () => ({ projectId: "p", role: "lead" }),
+  });
+  const trusted = new Set<string>();
+  const captured: string[] = [];
+  const revoked: string[] = [];
+  const catalog = new AgentProfileCatalog({
+    paths,
+    builtins: { coding: JSON.stringify(profile) },
+    trustState: (_id, _file, digest) =>
+      trusted.has(digest) ? "trusted" : "needs_review",
+    userTrust: {
+      capture: async (kind, file) => {
+        captured.push(`${kind}:${file}`);
+        return async (_file, output) => {
+          trusted.add(
+            `${(await import("node:crypto")).createHash("sha256").update(output).digest("hex")}`,
+          );
+        };
+      },
+      revoke: (_kind, file) => void revoked.push(file),
+    },
+  });
+  // A file written by someone else waits.
+  const file = paths.profile(user, "reviewer");
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(
+    file,
+    JSON.stringify({ ...profile, name: "reviewer", instructions: "Review." }),
+  );
+  const waiting = await catalog.get("reviewer");
+  assert.equal(waiting.status, "unavailable");
+  if (waiting.status === "unavailable")
+    assert.equal(waiting.diagnostics[0].code, "needs-review");
+  // A profile saved through Nerve is trusted from the start and after each edit.
+  const saved = await catalog.save(user, "writer", "missing", {
+    ...profile,
+    name: "writer",
+  });
+  assert.equal((await catalog.get("writer")).status, "available");
+  await catalog.save(user, "writer", saved.digest, {
+    ...profile,
+    name: "writer",
+    instructions: "Edited",
+  });
+  assert.equal((await catalog.get("writer")).status, "available");
+  assert.equal(captured.length, 2);
+  const current = await catalog.readForEditing(user, "writer");
+  await catalog.deleteLocal(user, "writer", current.localDigest);
+  assert.deepEqual(revoked, [paths.profile(user, "writer")]);
 });

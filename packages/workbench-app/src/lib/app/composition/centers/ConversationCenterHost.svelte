@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { ConfigurationReviewTarget } from "@nervekit/contracts/configuration";
 import { untrack } from "svelte";
 import ProfileUpdateNotice from "$lib/features/conversations/views/ProfileUpdateNotice.svelte";
 import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
@@ -8,7 +9,12 @@ import { createComposerView } from "$lib/application/composer/composer-view.svel
 import { activateComposer } from "$lib/application/composer/active-composer.svelte";
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
-import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/views/PromptSuggestionTrustDialog.svelte";
+import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
+import { dismissPromptSuggestionTrustRequest } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
+import {
+  configurationReviewQueue,
+  openConfigurationReview,
+} from "$lib/application/configuration-review/configuration-review-queue.svelte";
 import type { EventTreeNode } from "@nervekit/contracts/core";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
@@ -185,6 +191,34 @@ const activeProject = $derived.by(() => {
     ? workspaceState.projects.find((p) => p.id === id)
     : workspaceSelectors.activeProject;
   return project ? projectView(project) : undefined;
+});
+
+// A suggestion that waits for review opens the shared review dialog once,
+// unless the user is already reviewing something.
+$effect(() => {
+  const requests = promptSuggestionsState.trustRequests;
+  if (!requests.length) return;
+  untrack(() => {
+    if (configurationReviewQueue.open) return;
+    const projectId = activeProject?.id;
+    const targets = requests.flatMap((request): ConfigurationReviewTarget[] =>
+      request.sourceKind === "user"
+        ? [{ kind: "prompt-suggestion", scope: "user", id: request.name }]
+        : request.sourceKind === "project" && (request.projectId ?? projectId)
+          ? [
+              {
+                kind: "prompt-suggestion",
+                scope: "project",
+                projectId: (request.projectId ?? projectId)!,
+                id: request.name,
+              },
+            ]
+          : [],
+    );
+    for (const request of requests)
+      dismissPromptSuggestionTrustRequest(request.trustId);
+    if (targets.length) openConfigurationReview(targets);
+  });
 });
 const activeApprovals = $derived(view?.approvals ?? []);
 const pendingUserQuestions = $derived(view?.pendingUserQuestions ?? []);
@@ -730,5 +764,3 @@ const historyLocked = $derived(stoppable || isForking(conversationId));
     await store?.configure({ instructions: value });
   }}
 />
-
-<PromptSuggestionTrustDialog projectId={activeProject?.id} {conversationId} />

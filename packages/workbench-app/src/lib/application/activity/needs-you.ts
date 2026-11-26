@@ -37,6 +37,9 @@ export function deriveNeedsYou(input: {
         ? input.projectNameById[conversation.projectId]
         : undefined,
       at: at ?? conversation?.updatedAt ?? "",
+      ...(conversation?.pendingInput
+        ? { pendingInput: conversation.pendingInput.kind }
+        : {}),
     };
   };
   const needsYou = buildMobileInbox({

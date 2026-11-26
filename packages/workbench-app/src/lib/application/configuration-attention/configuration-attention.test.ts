@@ -96,7 +96,7 @@ test("review lands in the scope and page that holds the item", () => {
   assert.deepEqual(target({}), {
     scope: "project",
     pageId: "skills",
-    item: "release-notes",
+    item: "project:release-notes",
   });
   // Every item is decided on its own page; agent.json only on General.
   assert.deepEqual(target({ kind: "permission-overlay", id: "permissions" }), {

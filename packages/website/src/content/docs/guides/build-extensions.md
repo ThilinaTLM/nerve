@@ -41,7 +41,7 @@ Color themes are always yours; a project can't add one.
 
 ## Review and allow
 
-A new extension does nothing until you allow it. Open **Settings → Extensions**. It appears as **Pending consent** with a plain-language list of what it asks for: websites it connects to, accounts it uses, file types it opens, tools it adds. Compare that with what you asked for, then choose **Allow**. The agent can't allow an extension for you.
+A new extension does nothing until you trust it. Open **Settings → Extensions**. It appears as **Needs review** with a plain-language list of what it asks for: websites it connects to, accounts it uses, file types it opens, tools it adds. Compare that with what you asked for, then choose **Trust**. The agent can't trust an extension for you.
 
 Turn the extension on if its switch is off. Accounts and API tokens are added by you on the extension's page or under **Accounts**, never in chat. An extension can sign in with static keys or OAuth 2.0 (see [Accounts](/integrations/extensions/#accounts)).
 

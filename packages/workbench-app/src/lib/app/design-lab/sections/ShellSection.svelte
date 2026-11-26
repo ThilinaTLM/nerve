@@ -25,6 +25,18 @@ import StatusPopover from "$lib/app/shell/StatusPopover.svelte";
 import { SubscriptionUsageChip } from "$lib/features/usage";
 import Titlebar from "$lib/app/shell/Titlebar.svelte";
 import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
+import AttentionIsland from "$lib/presentation/activity/AttentionIsland.svelte";
+import ReviewMarker from "$lib/presentation/activity/ReviewMarker.svelte";
+import type {
+  IslandConversationRow,
+  IslandTrustRow,
+} from "$lib/presentation/activity/attention-island";
+import UpdateIndicator from "$lib/app/shell/UpdateIndicator.svelte";
+import Library from "@lucide/svelte/icons/library";
+import MessageCircleQuestionMark from "@lucide/svelte/icons/message-circle-question-mark";
+import Shield from "@lucide/svelte/icons/shield";
+import ShieldQuestionMark from "@lucide/svelte/icons/shield-question-mark";
+import Users from "@lucide/svelte/icons/users";
 import NerveMark from "$lib/presentation/brand/NerveMark.svelte";
 import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenanceProgressView.svelte";
 import {
@@ -62,6 +74,72 @@ import {
   labUsages,
   labVersion,
 } from "./shell-fixtures";
+
+/* ---------------------------- Waiting for you ---------------------------- */
+
+const islandTrust: IslandTrustRow[] = [
+  {
+    key: "profile:reviewer",
+    name: "reviewer",
+    kindLabel: "Sub-agent profile",
+    scopeLabel: "User",
+    icon: Users,
+    risk: "Runs without asking",
+    changed: "changed 2m ago",
+  },
+  {
+    key: "skill:release-notes",
+    name: "release-notes",
+    kindLabel: "Skill",
+    scopeLabel: "Project",
+    icon: Library,
+    risk: "May run a script",
+    changed: "added 2m ago",
+  },
+  {
+    key: "overlay:user",
+    name: "permissions.json",
+    kindLabel: "Permission rules",
+    scopeLabel: "User",
+    icon: Shield,
+    changed: "changed 5m ago",
+  },
+];
+const islandConversations: IslandConversationRow[] = [
+  {
+    key: "conv:release-notes",
+    conversationId: "c3",
+    title: "Draft release notes for 0.37",
+    project: "nerve",
+    waits: "asks a question",
+    time: "just now",
+    icon: MessageCircleQuestionMark,
+  },
+  {
+    key: "conv:linear",
+    conversationId: "c4",
+    title: "Connect Linear to this project",
+    project: "nerve",
+    waits: "waits for your approval",
+    time: "4m ago",
+    icon: ShieldQuestionMark,
+  },
+];
+const newerRelease = {
+  ...labLatestRelease,
+  version: "0.38.0",
+  releaseUrl: "https://github.com/nervekit/nerve/releases/tag/v0.38.0",
+};
+let markerPulse = $state(0);
+let markerPulsing = $state(false);
+let markerTimer: ReturnType<typeof setTimeout> | undefined;
+function replayMarker(): void {
+  markerPulse += 1;
+  markerPulsing = true;
+  clearTimeout(markerTimer);
+  markerTimer = setTimeout(() => (markerPulsing = false), 4000);
+}
+let islandExpanded = $state(true);
 
 /* ----------------------------- Panel views ----------------------------- */
 
@@ -406,6 +484,130 @@ function openWhileVisible(
   </GalleryGroup>
 
   <GalleryGroup
+    title="Waiting for you"
+    description="The bell island and the transcript marker: configuration waiting for the user's trust (warning) and conversations waiting for an answer (info)."
+  >
+    <GallerySpecimen
+      title="AttentionIsland"
+      source="presentation/activity/AttentionIsland"
+      usage="1 file · titlebar"
+      description="The titlebar bell while something waits. Compact shows the highest level waiting; Arrival shows one new item for about 4 s (trust first, never stacked); Expanded grows down into the lists. Click the compact bell to expand; Escape or a click outside folds it."
+      surface="panel"
+      layout="stack"
+    >
+      <div class="flex flex-wrap items-center justify-end gap-6">
+        <AttentionIsland
+          phase="compact"
+          trust={islandTrust}
+          conversations={islandConversations}
+          onExpand={noop}
+          onCollapse={noop}
+          onLater={noop}
+          onReview={noop}
+          onReviewAll={noop}
+          onOpenConversation={noop}
+          onAllNotifications={noop}
+        />
+        <AttentionIsland
+          phase="compact"
+          trust={[]}
+          conversations={islandConversations}
+          onExpand={noop}
+          onCollapse={noop}
+          onLater={noop}
+          onReview={noop}
+          onReviewAll={noop}
+          onOpenConversation={noop}
+          onAllNotifications={noop}
+        />
+        <AttentionIsland
+          phase="arrival"
+          arrival={{ level: "trust", row: islandTrust[0]! }}
+          trust={islandTrust}
+          conversations={islandConversations}
+          onExpand={noop}
+          onCollapse={noop}
+          onLater={noop}
+          onReview={noop}
+          onReviewAll={noop}
+          onOpenConversation={noop}
+          onAllNotifications={noop}
+        />
+        <AttentionIsland
+          phase="arrival"
+          arrival={{ level: "conversation", row: islandConversations[0]! }}
+          trust={islandTrust}
+          conversations={islandConversations}
+          onExpand={noop}
+          onCollapse={noop}
+          onLater={noop}
+          onReview={noop}
+          onReviewAll={noop}
+          onOpenConversation={noop}
+          onAllNotifications={noop}
+        />
+      </div>
+      <div class="flex min-h-120 justify-end rounded-md border bg-panel p-1.5">
+        <AttentionIsland
+          phase={islandExpanded ? "expanded" : "compact"}
+          trust={islandTrust}
+          conversations={islandConversations}
+          onExpand={() => (islandExpanded = true)}
+          onCollapse={() => (islandExpanded = false)}
+          onLater={() => (islandExpanded = false)}
+          onReview={noop}
+          onReviewAll={noop}
+          onOpenConversation={noop}
+          onAllNotifications={noop}
+        />
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="ReviewMarker"
+      source="presentation/activity/ReviewMarker"
+      usage="1 file · conversation pane"
+      description="Top centre of every conversation pane while configuration waits for trust; never for conversations. Tinted warning on the popover base with a fade band under the tab strip. It pulses three times with the island's arrival (off with reduced motion, stops on hover); ✕ is Later."
+      surface="background"
+      layout="stack"
+    >
+      <div
+        class="relative h-40 overflow-hidden rounded-md border bg-background"
+      >
+        <p class="px-6 pt-4 text-body text-muted-foreground">
+          The transcript scrolls under the band, so the marker never sits on a
+          line of text.
+        </p>
+        <ReviewMarker
+          count={islandTrust.length}
+          pulse={markerPulse}
+          pulsing={markerPulsing}
+          onOpen={noop}
+          onLater={noop}
+        />
+      </div>
+      <div>
+        <Button variant="outline" size="sm" onclick={replayMarker}
+          >Replay arrival</Button
+        >
+      </div>
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="UpdateIndicator"
+      source="app/shell/UpdateIndicator · features/releases/ReleaseCommands"
+      usage="1 file · titlebar"
+      description="Nothing while the version is current; an Update button at the titlebar button's height once a newer stable release exists. Its popover has the commands to run it. The version itself is in the daemon status popover and Settings › About."
+      surface="panel"
+    >
+      <UpdateIndicator
+        currentVersion={labVersion}
+        latestRelease={newerRelease}
+      />
+    </GallerySpecimen>
+  </GalleryGroup>
+
+  <GalleryGroup
     title="Titlebar & status bar"
     description="Window chrome on the panel surface."
   >
@@ -413,7 +615,7 @@ function openWhileVisible(
       title="ShellTitlebar"
       source="app/shell/Titlebar → presentation/shell/ShellTitlebar"
       usage="1 file · shell"
-      description="The real Titlebar view: NerveMark, ProjectSwitcher (four quick projects, one active, one running), VersionIndicator, Activity bell, Discover (setup dot), logs and settings. The switcher, version, and bell open their real popovers."
+      description="The real Titlebar view: NerveMark, ProjectSwitcher (four quick projects, one active, one running), Activity bell, Discover (setup dot), logs and settings (the version is current, so no Update button). The switcher and bell open their real popovers."
       surface="panel"
       layout="stack"
     >

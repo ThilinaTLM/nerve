@@ -5,15 +5,12 @@ import type {
   ExtensionsView,
   ExtensionTarget,
 } from "@nervekit/contracts/extensions";
+import type { ConfigurationReviewTarget } from "@nervekit/contracts/configuration";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { publishUserExtensions } from "./selected-accounts.svelte";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { extensionChangeAffects } from "./extension-scope";
-import {
-  observeConversationChannel,
-  requestConversation,
-} from "$lib/application/startup/conversation-connection";
-import { toTrustedDigest } from "@nervekit/contracts/core";
+import { observeConversationChannel } from "$lib/application/startup/conversation-connection";
 
 /** The settings entry of one extension at a scope; omitted keys are removed. */
 export type ExtensionEntryChange = {
@@ -76,6 +73,22 @@ export class ScopedExtensionsState {
     }
   }
 
+  /** The review dialog's target for an installed extension of this view. */
+  reviewTarget(
+    entry: Pick<ExtensionCatalogEntry, "id" | "source">,
+  ): ConfigurationReviewTarget | undefined {
+    if (entry.source === "user")
+      return { kind: "extension", scope: "user", id: entry.id };
+    if (entry.source === "project" && this.target?.scope === "project")
+      return {
+        kind: "extension",
+        scope: "project",
+        projectId: this.target.projectId,
+        id: entry.id,
+      };
+    return undefined;
+  }
+
   reload(): Promise<void> {
     return this.target ? this.load(this.target) : Promise.resolve();
   }
@@ -130,70 +143,6 @@ export class ScopedExtensionsState {
     } finally {
       this.saving = false;
     }
-  }
-
-  /** The user allows what was reviewed (`entry.consent`); only an installed, pending extension has it. */
-  grantConsent(entry: ExtensionCatalogEntry): Promise<boolean> {
-    const contentHash = entry.consent?.contentHash;
-    if (!contentHash) return Promise.resolve(false);
-    return this.installed(
-      (target, source) =>
-        requestWorkbench("extensions.grantConsent", {
-          target,
-          source,
-          id: entry.id,
-          contentHash,
-        }),
-      entry,
-    );
-  }
-
-  /**
-   * Declines a pending extension: it stays off and stops asking until the user
-   * allows it. Recorded on the folder, like a revoke, whatever its files become.
-   */
-  async declineConsent(entry: ExtensionCatalogEntry): Promise<boolean> {
-    const target = this.target;
-    const contentHash = entry.consent?.contentHash;
-    const projectId =
-      entry.source === "user"
-        ? null
-        : entry.source === "project" && target?.scope === "project"
-          ? target.projectId
-          : undefined;
-    if (!target || !contentHash || !entry.path || projectId === undefined)
-      return false;
-    if (this.saving) return false;
-    this.saving = true;
-    try {
-      await requestConversation("trust.decide", {
-        kind: "extension",
-        projectId,
-        resourceKey: entry.path,
-        name: entry.id,
-        contentDigest: toTrustedDigest(contentHash),
-        status: "rejected",
-      });
-    } catch (cause) {
-      this.error = cause instanceof Error ? cause.message : String(cause);
-      return false;
-    } finally {
-      this.saving = false;
-    }
-    // The catalog reads decisions when it evaluates a folder.
-    return this.reloadInstalled(entry.id);
-  }
-
-  revokeConsent(entry: ExtensionCatalogEntry): Promise<boolean> {
-    return this.installed(
-      (target, source) =>
-        requestWorkbench("extensions.revokeConsent", {
-          target,
-          source,
-          id: entry.id,
-        }),
-      entry,
-    );
   }
 
   /** Re-reads installed extensions from disk: one, or all. A reload never grants consent. */

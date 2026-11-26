@@ -3,14 +3,12 @@ import type {
   CreatePromptSuggestionRequest,
   PromptSuggestionStatus,
   UpdatePromptSuggestionEnabledRequest,
-  UpdatePromptSuggestionTrustRequest,
 } from "../api/prompt-suggestions.api";
 import {
   requestPromptSuggestionCreation,
   getPromptSuggestionStatuses,
   getPromptSuggestions,
   updatePromptSuggestionEnabled,
-  updatePromptSuggestionTrust,
 } from "../api/prompt-suggestions.api";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { promptSuggestionsState } from "./prompt-suggestions-state.svelte";
@@ -93,20 +91,4 @@ export function dismissPromptSuggestionTrustRequest(trustId: string): void {
     promptSuggestionsState.trustRequests.filter(
       (request) => request.trustId !== trustId,
     );
-}
-
-export async function setPromptSuggestionTrust(
-  request: UpdatePromptSuggestionTrustRequest,
-): Promise<void> {
-  await updatePromptSuggestionTrust(request);
-  promptSuggestionsState.dismissedTrustIds =
-    promptSuggestionsState.dismissedTrustIds.filter(
-      (id) => id !== request.trustId,
-    );
-  notify.success(
-    request.trusted
-      ? "Prompt suggestion trusted"
-      : "Prompt suggestion declined",
-    { activity: true },
-  );
 }

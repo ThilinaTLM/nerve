@@ -20,7 +20,6 @@ import {
   loadPermissionOverlay,
   mutatePermissionOverlay,
   overlayDigest,
-  trustProjectPermissions,
 } from "./permission-overlays.js";
 import { listPermissionRuleSets } from "./permission-rule-sets.js";
 import {
@@ -45,7 +44,6 @@ export interface PermissionConfigurationService {
   deleteRule(
     input: PermissionRuleTarget & { ruleId: string },
   ): Promise<PermissionPolicyConfiguration>;
-  grantProjectTrust(projectId: string): Promise<PermissionPolicyConfiguration>;
 }
 
 type ProjectOverlayState = {
@@ -73,7 +71,7 @@ export function createPermissionConfigurationService(options: {
     new ProjectMigrationService({
       home,
       trust: projectMigrationTrust(() => storage, {
-        "permission-overlay": "project_permissions",
+        "permission-overlay": "permissions",
       }),
     });
   migrations.register(projectPermissionsConfiguration);
@@ -136,7 +134,7 @@ export function createPermissionConfigurationService(options: {
         trust: { status: "invalid", digest, reason: message(error) },
       };
     }
-    const record = trust.find("project_permissions", projectId, path);
+    const record = trust.find("permissions", projectId, path);
     const state = trust.trustState(record, digest);
     if (state === "trusted" && record)
       return {
@@ -242,7 +240,13 @@ export function createPermissionConfigurationService(options: {
           return { result: undefined, changed: true };
         },
       );
-    return mutatePermissionOverlay(target.scope, path, mutate);
+    return mutatePermissionOverlay(
+      target.scope,
+      path,
+      mutate,
+      undefined,
+      () => storage,
+    );
   }
   return {
     get,
@@ -290,17 +294,6 @@ export function createPermissionConfigurationService(options: {
           );
       });
       return afterWrite(input, path);
-    },
-    async grantProjectTrust(projectId) {
-      const project = await readProject(projectId);
-      if (
-        project.trust.status === "missing" ||
-        project.trust.status === "invalid"
-      )
-        throw new Error("There is no valid project permissions file to trust.");
-      await trustProjectPermissions(storage, projectId, project.path);
-      await options.published?.(project.path);
-      return get(projectId);
     },
   };
 }

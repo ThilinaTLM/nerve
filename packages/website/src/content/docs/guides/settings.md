@@ -17,15 +17,15 @@ Without an open project the page shows only the User column. Phones show a small
 
 ## Pages
 
-| Group                   | Pages                                                         | Use them to                                                                                                                                                                               |
-| ----------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agent**               | General, Tools, Skills, Extensions, MCP servers               | Set defaults for new conversations, turn tools and skills on or off, set up [extensions](/integrations/extensions/) and [MCP servers](/integrations/mcp/).                                |
-| **Profiles and rules**  | Agents, Sub-Agents, Permission rules, Suggestions             | Edit agent profiles, choose teammate profiles, define permission rules, and manage prompt chips.                                                                                          |
-| **Models and accounts** | Providers, Models, Accounts                                   | Sign in to model providers, limit the models in pickers, and manage the accounts extensions use. See [Providers](/models/providers-and-auth/) and [Accounts](#accounts).                  |
-| **App**                 | Workbench, Notifications, Shortcuts, Voice, Titles            | Pick a theme, set desktop options, tune notifications and sounds, review shortcuts, set up voice input, and enable AI titles.                                                             |
-| **System**              | Storage, Background jobs, Remote connections, Devices, System | See what Nerve stores, check background work, set up [private access and same-network access](/operations/lan-mobile/), manage paired devices, and change diagnostics and daemon options. |
+| Group                   | Pages                                                                | Use them to                                                                                                                                                                                                  |
+| ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Agent**               | General, Tools, Skills, Extensions, MCP servers                      | Set defaults for new conversations, turn tools and skills on or off, set up [extensions](/integrations/extensions/) and [MCP servers](/integrations/mcp/).                                                   |
+| **Profiles and rules**  | Agents, Sub-Agents, Permission rules, Suggestions                    | Edit agent profiles, choose teammate profiles, define permission rules, and manage prompt chips.                                                                                                             |
+| **Models and accounts** | Providers, Models, Accounts                                          | Sign in to model providers, limit the models in pickers, and manage the accounts extensions use. See [Providers](/models/providers-and-auth/) and [Accounts](#accounts).                                     |
+| **App**                 | Workbench, Notifications, Shortcuts, Voice, Titles                   | Pick a theme, set desktop options, tune notifications and sounds, review shortcuts, set up voice input, and enable AI titles.                                                                                |
+| **System**              | Storage, Background jobs, Remote connections, Devices, System, About | See what Nerve stores, check background work, set up [private access and same-network access](/operations/lan-mobile/), manage paired devices, change diagnostics and daemon options, and check the version. |
 
-There are no separate Trust, Launch, or Instructions files pages. Review decisions are made on the page where an item is used (see [Project files you review](#project-files-you-review)), launches are managed in the Launches panel, and project instructions are the repository's `AGENTS.md` files.
+There are no separate Trust, Launch, or Instructions files pages. Review decisions are made on the page where an item is used (see [Items you review](#items-you-review)), launches are managed in the Launches panel, and project instructions are the repository's `AGENTS.md` files.
 
 ### Workbench
 
@@ -70,19 +70,22 @@ Extension pages keep only the choice of which account to use, and link here.
 - **Background jobs** lists work Nerve does on its own while it runs. Today that is **Account credential refresh**, which renews sign-ins that are about to expire so they keep working in the background; it skips accounts you haven't used for 30 days. Each job shows its last run and next run, and **Run now** starts it at once. A job that keeps failing, or an account that needs sign-in, appears in the notification bell. Jobs run only while Nerve runs.
 - **Remote connections** turns on private access with Tailscale (**Anywhere, with Tailscale**) or access from the same network, and pairs devices. See [Phone and remote access](/operations/lan-mobile/).
 - **Devices** lists paired phones and browsers, passkeys, and recent activity.
-- **System** covers network listener settings, diagnostics, resource limits, the daemon, desktop rendering, and version details. A control that a command-line flag or environment variable owns shows as locked. Some changes need a restart.
+- **System** covers network listener settings, diagnostics, resource limits, the daemon, desktop rendering, and daemon options. A control that a command-line flag or environment variable owns shows as locked. Some changes need a restart.
+- **About** shows the version you run and whether a newer stable release exists, with the commands to run it, the Apache License 2.0, and links to the website, documentation, source code, releases and issue tracker. The title bar shows the version only as an **Update** button while a newer release exists; otherwise the version is in the daemon status popover.
 
-## Project files you review
+## Items you review
 
-Some project files change how agents behave, so Nerve uses them only after you trust their exact content: the project's `.nerve/config/agent.json`, permission rules, agent and sub-agent profiles, skills, extensions, MCP servers, and suggestion scripts. You decide each one on the page where it is used, and every item is in one of three states:
+Some configuration changes how agents behave, so Nerve uses it only after you trust its exact content. This covers your own settings as well as the project's: skills, agent and sub-agent profiles, permission rule sets and your permission overlay, `agent.json`, prompt suggestions, extensions, and MCP servers. Built-in items need no approval. You decide each item on the page where it is used, and every item is in one of three states:
 
-- **Needs review**: new, or changed since you trusted it. Choose **Review and trust** or **Decline**.
+- **Needs review**: new, or changed since you trusted it. Choose **Review** to open the review dialog, then **Trust** or **Decline**.
 - **Trusted**: Nerve uses it. **Revoke** turns it off again.
-- **Declined**: Nerve doesn't use it and stops asking, even if the file changes. Choose **Review and trust** when you change your mind.
+- **Declined**: Nerve doesn't use it and stops asking, even if the file changes. Choose **Trust** when you change your mind.
 
-Items that need review show a count next to their page in the settings navigation, appear in the notification bell under **Waiting for your review**, and are mentioned in one line on the project's start screen. Items that fail to load appear under **Not working**, with an **Ask the agent to fix** button; see [Configure Nerve by chat](/guides/configure-by-chat/#the-attention-bell). Nerve never lets the agent approve an item for you.
+All kinds open the same review dialog. **What it can do** lists the effect in plain words, broad items first and anything new since your last approval marked **New**. **Source** lists the files with an **Open** button. **Not now** leaves the item waiting, **Decline** and **Trust** decide it, and **Details** opens its page. See [Configure Nerve by chat](/guides/configure-by-chat/#the-review-dialog).
 
-When the project's `agent.json` needs review, General, Tools, Skills, and MCP servers show a notice with **Review and trust** and **Decline**. Until you trust it, conversations ignore the file and use your user settings. Settings you change through Nerve stay trusted; a file edited elsewhere needs reviewing again.
+Items that need review show a count next to their page in the settings navigation, appear in the bell's **Needs your review** list and the marker at the top of each conversation, and the project's start screen mentions project items in one line. Items that fail to load appear under **Not working**, with an **Ask the agent to fix** button; see [Configure Nerve by chat](/guides/configure-by-chat/#the-attention-bell). Nerve never lets the agent approve an item for you.
+
+When an `agent.json` needs review, General, Tools, Skills, and MCP servers show a notice with the same actions. Until you trust a project's `agent.json`, conversations ignore it and use your user settings; until you trust a changed user `agent.json` or permission file, Nerve keeps using the last version you trusted. Settings you change through Nerve stay trusted; a file edited elsewhere, by the agent, a script or `git pull`, needs reviewing again. Items that exist when you upgrade to this version are trusted as they are.
 
 ## Good to know
 

@@ -118,14 +118,6 @@ export type PromptSuggestionListResponse = z.infer<
   typeof promptSuggestionListResponseSchema
 >;
 
-export const updatePromptSuggestionTrustRequestSchema = z.object({
-  trustId: z.string().min(1),
-  trusted: z.boolean(),
-});
-export type UpdatePromptSuggestionTrustRequest = z.infer<
-  typeof updatePromptSuggestionTrustRequestSchema
->;
-
 /**
  * Sets one layer's choice; `enabled: null` clears it so the layer inherits
  * (project from user, user from the built-in default). `scope` defaults to user.

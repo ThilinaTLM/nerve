@@ -29,7 +29,7 @@ If two skills share a name, the project's wins over your own. The [resource refe
 
 Open **Settings → Skills** to see each skill's source and switch it on or off without deleting its file.
 
-- Skills you write are on by default.
+- Skills you write are on by default, but a skill isn't offered to the agent until you approve it. A new or changed user or project skill shows **Needs review** in **Settings → Skills**, where you see every file in its folder with scripts marked. Built-in skills need no approval, and a skill you save in Settings stays approved.
 - Built-in Nerve skills and Agent Browser guidance are off by default; the **Forge** profile turns on **configure-nerve**. Enabled ones add their name and description to the agent's instructions.
 
 Use **User** scope to set defaults for all projects and **Project** scope to share overrides with your team. Source labels explain why a value is on or off, and **Reset** removes an override so the value is inherited again. A profile can also turn skills on or off for conversations that use it.

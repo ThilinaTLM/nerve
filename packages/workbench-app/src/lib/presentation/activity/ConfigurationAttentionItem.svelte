@@ -1,6 +1,8 @@
 <!--
   Persistent notification entries for configuration that waits for the user or
-  does not work, in two groups. The host computes the rows; this only draws them.
+  does not work. Items waiting for review are one summary row that opens the
+  bell island's list; items that do not work are listed one by one. The host
+  computes the rows; this only draws them.
 -->
 <script lang="ts" module>
 import type { NotificationEntryAction } from "./NotificationEntry.svelte";
@@ -22,8 +24,16 @@ export type ConfigurationAttentionRow = {
 <script lang="ts">
 import { GroupLabel } from "@nervekit/ui-kit/components/composites/group-label";
 import NotificationEntry from "./NotificationEntry.svelte";
+import { waitingLabel } from "./attention-island";
 
-let { rows }: { rows: readonly ConfigurationAttentionRow[] } = $props();
+let {
+  rows,
+  review,
+}: {
+  rows: readonly ConfigurationAttentionRow[];
+  /** Items waiting for review, shown as one row instead of `review` rows. */
+  review?: { count: number; onOpen: () => void };
+} = $props();
 
 const groups = $derived([
   {
@@ -46,7 +56,15 @@ const groups = $derived([
   aria-label="Configuration needs attention"
   data-testid="configuration-attention"
 >
-  {#each groups.filter((group) => group.rows.length) as group (group.id)}
+  {#if review?.count}
+    <NotificationEntry
+      tone="attention"
+      title={waitingLabel(review.count)}
+      context="Not used until you trust them"
+      actions={[{ label: "Show", onSelect: review.onOpen }]}
+    />
+  {/if}
+  {#each groups.filter((group) => group.rows.length && !(review && group.id === "review")) as group (group.id)}
     <GroupLabel
       class="px-3 pt-2"
       label={group.label}

@@ -17,6 +17,10 @@ import { attentionRows } from "$lib/app/shell/configuration-attention-rows";
 import { projectConfigurationHealth } from "$lib/application/project-configuration/project-configuration-health-state.svelte";
 import { settingsHealth } from "$lib/application/settings/settings-health-state.svelte";
 import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
+import AttentionIsland from "$lib/presentation/activity/AttentionIsland.svelte";
+import { attentionIsland } from "$lib/application/attention-island/attention-island-state.svelte";
+import { islandShown } from "$lib/application/attention-island/attention-island";
+import { attentionIslandModel as island } from "$lib/app/shell/attention-island-model.svelte";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
 import { unseenResults } from "$lib/application/activity/unseen-results.svelte";
 import { attentionMute } from "$lib/application/notifications";
@@ -124,7 +128,19 @@ function clearFinished(): void {
 const projectIssues = $derived(
   Object.values(projectConfigurationHealth.byProject).flat(),
 );
-const attentionEntries = $derived(configurationAttention.entries);
+// Items waiting for review are one summary row here; the island lists them.
+const attentionEntries = $derived(
+  configurationAttention.entries.filter((entry) => entry.group !== "review"),
+);
+// The bell's list opens over the plain bell, from the island or elsewhere.
+const showIsland = $derived(
+  islandShown(attentionIsland.state, island.counts) && !activityInbox.open,
+);
+const islandPhase = $derived(
+  attentionIsland.state.phase === "later"
+    ? "compact"
+    : attentionIsland.state.phase,
+);
 const attentionProjectId = $derived(configurationAttention.projectId);
 const attentionRowItems = $derived(
   attentionRows(attentionEntries, {
@@ -298,8 +314,17 @@ $effect(() => {
   {#if settingsHealth.notice.health.invalid.length || settingsHealth.notice.error}
     {@render settingsHealthItem()}
   {/if}
-  {#if attentionRowItems.length}
-    <ConfigurationAttentionItem rows={attentionRowItems} />
+  {#if attentionRowItems.length || island.counts.trust}
+    <ConfigurationAttentionItem
+      rows={attentionRowItems}
+      review={{
+        count: island.counts.trust,
+        onOpen: () => {
+          activityInbox.setOpen(false);
+          attentionIsland.expand();
+        },
+      }}
+    />
   {/if}
   {#if projectIssues.length}
     <ProjectConfigurationHealthItem
@@ -352,46 +377,67 @@ $effect(() => {
   onClose={() => void handleDesktopClose()}
 >
   {#snippet activity()}
-    <ActivityPopover
-      items={notifications}
-      error={activityInbox.error}
-      unseenFailure={activityInbox.unseenFailure || unseenConversationFailure}
-      muted={attentionMute.muted}
-      attention={settingsHealth.notice.health.invalid.length ||
-      settingsHealth.notice.error ||
-      projectIssues.length ||
-      attentionRowItems.length ||
-      hasUpgradeReports()
-        ? attentionItems
-        : undefined}
-      open={activityInbox.open}
-      onOpenChange={activityInbox.setOpen}
-      onOpenItem={(item) => {
-        if (!item.conversationId) return;
-        activityInbox.setOpen(false);
-        void openConversation(item.conversationId);
-      }}
-      onAction={(intent, item) => {
-        if (intent === "open") {
-          if (item.conversationId) {
-            activityInbox.setOpen(false);
-            void openConversation(item.conversationId);
-          }
-        } else if (intent === "settings") {
-          if (item.settingsPage) {
-            activityInbox.setOpen(false);
-            void openSettingsPane(item.settingsPage);
-          }
-        } else void activityInbox.action(intent, item.id);
-      }}
-      onDeleteConversations={(entries) =>
-        fromPopover(() => (unreadableDelete = entries))}
-      onDismiss={dismissNotification}
-      onClearFinished={clearFinished}
-      onToggleMute={() =>
-        attentionMute.muted ? attentionMute.unmute() : attentionMute.mute()}
-      onViewed={activityInbox.markRead}
-    />
+    {#if showIsland}
+      <AttentionIsland
+        phase={islandPhase}
+        arrival={island.arrival}
+        trust={island.trustRows}
+        conversations={island.conversationRows}
+        onExpand={() => attentionIsland.expand()}
+        onCollapse={() => attentionIsland.collapse()}
+        onLater={() => attentionIsland.later()}
+        onReview={(row) => island.review(row.key)}
+        onReviewAll={() => island.review()}
+        onOpenConversation={(row) => island.openConversation(row)}
+        onAllNotifications={() => {
+          attentionIsland.dismiss();
+          activityInbox.setOpen(true);
+        }}
+        onHover={(hovered) => attentionIsland.hover(hovered)}
+      />
+    {:else}
+      <ActivityPopover
+        items={notifications}
+        error={activityInbox.error}
+        unseenFailure={activityInbox.unseenFailure || unseenConversationFailure}
+        muted={attentionMute.muted}
+        attention={settingsHealth.notice.health.invalid.length ||
+        settingsHealth.notice.error ||
+        projectIssues.length ||
+        attentionRowItems.length ||
+        island.counts.trust ||
+        hasUpgradeReports()
+          ? attentionItems
+          : undefined}
+        open={activityInbox.open}
+        onOpenChange={activityInbox.setOpen}
+        onOpenItem={(item) => {
+          if (!item.conversationId) return;
+          activityInbox.setOpen(false);
+          void openConversation(item.conversationId);
+        }}
+        onAction={(intent, item) => {
+          if (intent === "open") {
+            if (item.conversationId) {
+              activityInbox.setOpen(false);
+              void openConversation(item.conversationId);
+            }
+          } else if (intent === "settings") {
+            if (item.settingsPage) {
+              activityInbox.setOpen(false);
+              void openSettingsPane(item.settingsPage);
+            }
+          } else void activityInbox.action(intent, item.id);
+        }}
+        onDeleteConversations={(entries) =>
+          fromPopover(() => (unreadableDelete = entries))}
+        onDismiss={dismissNotification}
+        onClearFinished={clearFinished}
+        onToggleMute={() =>
+          attentionMute.muted ? attentionMute.unmute() : attentionMute.mute()}
+        onViewed={activityInbox.markRead}
+      />
+    {/if}
   {/snippet}
 </Titlebar>
 

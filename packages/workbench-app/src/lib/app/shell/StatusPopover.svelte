@@ -10,11 +10,15 @@ import Popover, {
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { type StatusTone } from "@nervekit/ui-kit/display/status";
 import { STATUS_BAR_CHIP_BUTTON } from "$lib/presentation/shell";
+import type { LatestRelease } from "@nervekit/contracts/status";
+import { displayVersion, isVersionOutdated } from "$lib/features/releases";
 
 type Props = {
   connection?: string;
   live?: boolean;
   status?: StatusResponse;
+  /** The newest stable release: the version line says when it is newer. */
+  latestRelease?: LatestRelease;
   side?: "top" | "bottom";
   /** Phone widths: show the dot alone; the popover carries the detail. */
   compact?: boolean;
@@ -25,6 +29,7 @@ let {
   connection = "connecting",
   live = false,
   status,
+  latestRelease,
   side = "top",
   compact = false,
   open = $bindable(false),
@@ -42,8 +47,17 @@ const connectionTone = $derived<StatusTone>(
 // The status-bar chip that opens this panel is the connection indicator, so
 // the panel states version and health instead of repeating it.
 const summary = $derived(live ? "Connected" : connection);
+const outdated = $derived(
+  status?.version
+    ? isVersionOutdated(status.version, latestRelease?.version)
+    : false,
+);
 const versionLabel = $derived(
-  status?.version ? `v${status.version}` : undefined,
+  status?.version
+    ? outdated && latestRelease
+      ? `${displayVersion(status.version)} · ${displayVersion(latestRelease.version)} available`
+      : displayVersion(status.version)
+    : undefined,
 );
 
 const uptime = $derived.by(() => {
@@ -72,10 +86,15 @@ const uptime = $derived.by(() => {
     </span>
   {/snippet}
 
-  <PopoverHeader title="Nerve daemon" meta={versionLabel} />
+  <PopoverHeader title="Nerve daemon" />
 
   <PopoverBody>
     <PopoverProperties>
+      <PopoverProperty
+        label="Version"
+        value={versionLabel}
+        valueClass={outdated ? "text-warning" : undefined}
+      />
       <PopoverProperty label="Uptime" value={uptime ?? undefined} />
       <PopoverProperty
         label="Index"

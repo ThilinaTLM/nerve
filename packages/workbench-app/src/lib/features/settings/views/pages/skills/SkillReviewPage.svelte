@@ -1,44 +1,33 @@
 <!--
-  Settings › Skills (project open) › name: where the user approves a project skill.
-  Shows what the agent is told (name and description, all that enters its
-  instructions) and every file the approval covers, scripts marked, each one
-  click away. The full SKILL.md is not inlined.
+  Settings › Skills › name: the page of a user or project skill that needs
+  the user's decision. A "Waiting for your review" callout with the decision,
+  then what the skill can do and the files the decision covers, scripts
+  marked, each one click away. SKILL.md is not inlined.
 -->
 <script lang="ts">
 import {
-  FieldRow,
   PageEmptyState,
   PageHeader,
-  PageItem,
-  PageList,
 } from "@nervekit/ui-kit/components/composites/page";
-import { untrack } from "svelte";
-import FileCode from "@lucide/svelte/icons/file-code";
-import FileText from "@lucide/svelte/icons/file-text";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import {
-  formatBytes,
-  scriptCount,
-  skillFilePath,
-  skillReviewCaption,
-} from "$lib/application/skills/skill-review";
-import { SkillReviewState } from "$lib/application/skills/skill-review-state.svelte";
-import {
-  SettingsSection,
-  TrustDecisionActions,
-} from "$lib/presentation/settings";
+import { reviewKindLine } from "$lib/presentation/configuration-review/review-format";
+import ConfigurationReviewCallout from "$lib/presentation/configuration-review/ConfigurationReviewCallout.svelte";
+import ConfigurationReviewSections from "$lib/presentation/configuration-review/ConfigurationReviewSections.svelte";
+import { useItemReview } from "../review/item-review.svelte";
 
 let {
+  scope,
   projectId,
   name,
   onBack,
   onOpenFile,
 }: {
-  projectId: string;
+  scope: "user" | "project";
+  /** Required for a project skill. */
+  projectId?: string;
   name: string;
   /** Returns to the Skills list. */
   onBack: () => void;
@@ -46,122 +35,61 @@ let {
   onOpenFile?: (path: string) => void;
 } = $props();
 
-const session = $derived(new SkillReviewState(projectId, name));
-$effect(() => {
-  const current = session;
-  untrack(() => void current.load());
-});
-
-const review = $derived(session.review);
-const approved = $derived(review?.trustState === "trusted");
-const scripts = $derived(review ? scriptCount(review) : 0);
+const item = useItemReview(() => ({
+  kind: "skill",
+  scope,
+  ...(scope === "project" && projectId ? { projectId } : {}),
+  id: name,
+}));
+const session = $derived(item.current);
+const review = $derived(session?.review);
 </script>
 
 <PageHeader
   title={name}
   description={review
-    ? skillReviewCaption(review)
-    : session.phase === "missing"
-      ? "This skill is no longer in the project"
-      : undefined}
+    ? reviewKindLine(review)
+    : session?.phase === "error"
+      ? undefined
+      : scope === "project"
+        ? "Skill · Project"
+        : "Skill · User"}
   parent={{ label: "Skills", onBack }}
->
-  {#snippet actions()}
-    {#if review}
-      <TrustDecisionActions
-        state={review.trustState}
-        busy={session.busy}
-        onTrust={() => void session.approve()}
-        onDecline={() => void session.decline()}
-        onRevoke={() => void session.decline()}
-      />
-    {/if}
-  {/snippet}
-</PageHeader>
+/>
 
-{#if session.notice}
+{#if session?.notice}
   <Callout tone="warning" icon={TriangleAlert} text={session.notice} />
 {/if}
 
-{#if session.phase === "loading"}
+{#if !session || session.phase === "loading"}
   <Skeleton class="h-24 w-full" />
-{:else if session.phase === "missing"}
+{:else if session.phase === "error"}
   <PageEmptyState
     variant="card"
-    title="Skill not found"
-    description={`The project has no skill named "${name}" any more. It may have been renamed, moved or deleted.`}
-  >
-    {#snippet actions()}
-      <Button size="sm" variant="outline" onclick={onBack}
-        >Back to Skills</Button
-      >
-    {/snippet}
-  </PageEmptyState>
-{:else if session.phase === "error"}
-  <Callout
-    layout="block"
-    tone="destructive"
-    text={session.error ?? "Could not load the skill."}
+    title="Skill not available"
+    description={session.error ??
+      `There is no skill named "${name}" here any more. It may have been renamed, moved or deleted.`}
   >
     {#snippet actions()}
       <Button size="sm" variant="outline" onclick={() => void session.load()}
         >Retry</Button
       >
+      <Button size="sm" variant="outline" onclick={onBack}
+        >Back to Skills</Button
+      >
     {/snippet}
-  </Callout>
+  </PageEmptyState>
 {:else if review}
-  {#if session.error}
-    <Callout tone="destructive" text={session.error} />
-  {/if}
-
-  <SettingsSection
-    title="What the agent is told"
-    description="Added to the agent's instructions in this project. It reads the files below only when a task matches."
-    divided
-  >
-    <FieldRow label={review.name} description="Name" />
-    <FieldRow
-      label={review.description || "No description"}
-      description="When the agent should use it"
-    />
-  </SettingsSection>
-
-  <SettingsSection
-    title="Files"
-    description="Trust covers exactly these files. Any change asks you again."
-    surface={false}
-  >
-    <PageList ariaLabel="Skill files">
-      {#each review.files as file (file.path)}
-        <PageItem
-          title={file.path}
-          icon={file.script ? FileCode : FileText}
-          compact
-          onOpen={onOpenFile
-            ? () => onOpenFile(skillFilePath(review.folder, file.path))
-            : undefined}
-          openLabel={`Open ${file.path}`}
-        >
-          {#snippet badges()}
-            {#if file.script}<Badge variant={approved ? "neutral" : "warning"}
-                >Script</Badge
-              >{/if}
-          {/snippet}
-          {#snippet meta()}
-            <span class="text-caption text-muted-foreground"
-              >{formatBytes(file.bytes)}</span
-            >
-          {/snippet}
-        </PageItem>
-      {/each}
-    </PageList>
-  </SettingsSection>
-
-  {#if scripts > 0 && !approved}
-    <Callout
-      tone="warning"
-      icon={TriangleAlert}
-      text={`This skill includes ${scripts} script${scripts === 1 ? "" : "s"}. The agent may run ${scripts === 1 ? "it" : "them"} when it uses the skill; your permission rules still apply to that command.`}
-    />
-  {/if}
+  <ConfigurationReviewCallout
+    state={review.state}
+    effect="the agent is not told about it"
+    changedSinceDecision={review.changedSinceDecision}
+    busy={session.busy}
+    error={session.error}
+    showTrusted
+    onTrust={() => session.trust()}
+    onDecline={() => void session.decline()}
+    onRevoke={() => void session.decline()}
+  />
+  <ConfigurationReviewSections {review} onOpenSource={onOpenFile} />
 {/if}

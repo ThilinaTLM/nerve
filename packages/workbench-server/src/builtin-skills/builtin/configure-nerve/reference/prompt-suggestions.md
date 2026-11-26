@@ -8,7 +8,7 @@ A prompt suggestion is a chip above the composer that inserts or sends a saved p
 2. Choose the scope: `<project>/.nerve/suggestions/<name>.md` for the repository, `<home>/agent/suggestions/<name>.md` for every project.
 3. `configuration.list({ kind: "prompt-suggestion" })`: a project file with the name of a user or built-in one replaces it.
 4. Write the file. Prefer `when` conditions; add `enable-js` only when they cannot express the condition, because it needs the user's approval.
-5. `configuration.check(scope)`. Hand over: the chip appears when its condition holds; a suggestion with `enable-js` first needs approval in Settings → Suggestions.
+5. `configuration.check(scope)`. Hand over: the suggestion file waits for the user's approval in Settings → Suggestions, whatever the scope, and appears only after it, when its condition holds.
 
 ## File
 
@@ -54,4 +54,4 @@ enable-js: |
 
 Define `function enable(context)` and return `true` to show the chip. It runs synchronously with no access to files, network or modules. `context` has `timestamp`, `platform`, `project` (`id`, `name`, `dir`), `git` (`repos[]` with `relativePath`, `currentBranch`, `dirty`, `changeCount`, `ahead`, `behind`, `hasUpstream`, `hasRemote`, `baseBranch`, `onBaseBranch`, `mergedToBase`, `pullRequest`; `github` with `available`, `authenticated`) and `conversation` (`id`, `title`, `status`, `permissionRuleSetId`, `reasoningLevel`; absent outside a conversation).
 
-The predicate is code, so it runs only after the user approves it in Settings → Suggestions, and any edit of it asks again. `configuration.check` shows the suggestion as `needs_review` until then. You cannot approve it.
+The user approves the whole suggestion file, so the predicate runs only after they have, and any edit of the file asks again. `configuration.check` shows the suggestion as `needs_review` until then. You cannot approve it.

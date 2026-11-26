@@ -60,8 +60,8 @@ void test("baseline failures expose relevant dependency health, never unrelated 
 void test("project documents report whether their exact bytes are trusted", async (t) => {
   const trustedDigests = new Set<string>();
   const f = await fixture(t, {
-    projectAgentTrustState: (_id, _path, digest) =>
-      trustedDigests.has(digest) ? "trusted" : "needs_review",
+    agentTrustState: (id, _path, digest) =>
+      id === null || trustedDigests.has(digest) ? "trusted" : "needs_review",
   });
   await f.agent(project, {
     schemaVersion: 1,

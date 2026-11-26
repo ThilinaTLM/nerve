@@ -202,7 +202,7 @@ export async function seedSkills(
       filePath: join(folder, "SKILL.md"),
     });
     services.conversationCore.trust.decide({
-      kind: "project_skill",
+      kind: "skill",
       projectId,
       resourceKey: folder,
       name: skill.name,

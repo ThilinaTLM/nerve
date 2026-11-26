@@ -1,6 +1,7 @@
 import { consentSourcesOf } from "../../core-host/extensions/extension-catalog/extension-consent.js";
 import { toTrustedDigest } from "@nervekit/contracts/core";
 import { lazyTrust } from "./lazy-trust.js";
+import { userTrustWrites } from "../../infrastructure/configuration/trusted-write.js";
 import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
 import { createConversationTitles } from "./create-conversation-titles.js";
 import { projectGitRemotes } from "../../core-host/project-git-remotes.js";
@@ -468,13 +469,9 @@ export function createConversationCore(
     },
     builtins: bundledAgentProfiles,
     projectMigration,
-    projectAgentTrustState: (id, path, digest) =>
-      core.trust.state(
-        "project_capabilities",
-        id,
-        path,
-        toTrustedDigest(digest),
-      ),
+    userTrust: userTrustWrites(() => storage),
+    agentTrustState: (id, path, digest) =>
+      core.trust.state("capabilities", id, path, toTrustedDigest(digest)),
     publish: (domain, scope) => {
       admissionPolicy.invalidate();
       if (domain === "profile")
@@ -559,7 +556,7 @@ export function createConversationCore(
       ),
     projectTrustState: (projectId, path, digest) =>
       core.trust.state(
-        "project_capabilities",
+        "capabilities",
         projectId,
         path,
         toTrustedDigest(digest),

@@ -6,7 +6,6 @@ import {
   promptSuggestionStatusSchema,
   updatePromptSuggestionEnabledRequestSchema,
   updatePromptSuggestionProjectFileTrustRequestSchema,
-  updatePromptSuggestionTrustRequestSchema,
 } from "./prompt-suggestion.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
@@ -44,15 +43,6 @@ export const promptSuggestionsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.promptSuggestion.statuses.list",
-  ),
-  defineOperation(
-    "promptSuggestion.trust.update",
-    updatePromptSuggestionTrustRequestSchema,
-    okResultSchema,
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.promptSuggestion.trust.update",
   ),
   defineOperation(
     "promptSuggestion.projectFile.trust",

@@ -398,7 +398,11 @@ export class ComposerCompletionController {
         tone: "warning",
         icon: "warning",
         text: selected.reason ?? `${selected.name} isn’t available right now.`,
-        action: onAction ? { label: "Settings", id: "item" } : undefined,
+        action: onAction
+          ? selected.reviewProfile
+            ? { label: "Review", id: "review" }
+            : { label: "Settings", id: "item" }
+          : undefined,
       };
     if (selected?.state === "off")
       return {
@@ -502,7 +506,16 @@ export class ComposerCompletionController {
     const row = this.selected;
     if (!row) return false;
     if (this.pending) return true;
-    if (this.token!.kind === "slash") return this.runSlash(row);
+    if (this.token!.kind === "slash") {
+      // A waiting profile can't be switched to; its footer offers Review.
+      if (row.reviewProfile) {
+        this.notice = undefined;
+        this.notice = this.footer(row);
+        this.publish();
+        return true;
+      }
+      return this.runSlash(row);
+    }
     if (row.state === "unavailable") {
       const onAction = this.options.action?.();
       this.notice = {
@@ -635,6 +648,12 @@ export class ComposerCompletionController {
   runFooterAction(): void {
     const onAction = this.options.action?.();
     if (!onAction) return;
+    const reviewProfile = this.selected?.reviewProfile;
+    if (reviewProfile) {
+      this.close();
+      onAction({ type: "review-profile", name: reviewProfile });
+      return;
+    }
     if (this.noticeItem || this.selected?.state === "unavailable") {
       onAction({ type: "item", item: this.noticeItem ?? this.selected!.item });
       return;

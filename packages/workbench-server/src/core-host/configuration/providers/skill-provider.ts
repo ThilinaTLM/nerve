@@ -14,10 +14,15 @@ import {
   type ResourceContext,
 } from "../resource-registry.js";
 
-const APPROVAL = {
-  kind: "trust",
-  where: "Settings → Skills, project column",
-} as const;
+/** Where the user decides a skill; the project's skills have their own column. */
+const approvalFor = (scope: "user" | "project") =>
+  ({
+    kind: "trust",
+    where:
+      scope === "user"
+        ? "Settings → Skills"
+        : "Settings → Skills, project column",
+  }) as const;
 
 const shadowed = (by: string): Diagnostic => ({
   level: "warning",
@@ -33,7 +38,7 @@ export function skillProvider(options: {
   storageHome: string;
   /** Skills that ship with Nerve (its own and the agent-browser ones). */
   builtin(): readonly Skill[];
-  /** Project skills wait for the user's approval of their exact content. */
+  /** Project and user skills wait for the user's approval of their exact content. */
   trust: ProjectSkillTrust;
 }): ConfigurationResourceProvider {
   async function all(
@@ -77,9 +82,12 @@ export function skillProvider(options: {
     const found = await Promise.all(
       group.skills.map(async (skill) => {
         const entry = resource(skill, context.scope);
-        if (context.scope !== "project" || entry.state !== "active")
-          return entry;
-        const status = await options.trust.status(projectOf(context), skill);
+        if (entry.state !== "active") return entry;
+        const APPROVAL = approvalFor(context.scope);
+        const status = await options.trust.status(
+          context.scope === "project" ? projectOf(context) : null,
+          skill,
+        );
         if (status.trustState === "trusted") return entry;
         return status.trustState === "declined"
           ? {

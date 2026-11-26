@@ -81,6 +81,7 @@ async function fixture(
     socket as unknown as WebSocket,
     {
       daemonId: "isolation-test",
+      storage: { paths: { home: "/nonexistent-nerve-home" } },
       coreStorage: {
         conversations: {
           reportFailure: (id: string) => {
@@ -88,7 +89,7 @@ async function fixture(
           },
         },
       },
-      operationContexts: { platform: more.platform ?? {} },
+      operationContexts: { platform: more.platform ?? {}, projects: {} },
       logger: {
         warn: async (message: string) => {
           warnings.push(message);
@@ -97,6 +98,7 @@ async function fixture(
       agentConfiguration: {
         subscribeHealth: () => () => {},
         subscribeCreation: () => () => {},
+        paths: {},
       },
       conversationCore: {
         projects: { list: () => [] },
@@ -302,89 +304,6 @@ void test(
         f.warnings.includes("Conversation stream unavailable"),
         false,
       );
-    } finally {
-      f.dispose();
-    }
-  },
-);
-
-void test(
-  "an MCP trust decision is checked against the entry, stores server-computed grants and reconciles; delete reconciles too",
-  { timeout: 5000 },
-  async () => {
-    const decided: unknown[] = [];
-    const changed: unknown[] = [];
-    const row = { kind: "mcp_server", projectId: "proj_1" };
-    const grants = { transport: "http", url: "https://x.test", references: [] };
-    const f = await fixture("live", {
-      core: {
-        trust: {
-          decide: (input: unknown) => {
-            decided.push(input);
-            return {
-              ...(input as object),
-              id: "t1",
-              createdAt: at,
-              updatedAt: at,
-            };
-          },
-          delete: () => {},
-        },
-        retryConfigurationBlocked: async () => {},
-      },
-      state: {
-        admissionPolicy: { invalidate: () => {} },
-        agentConfiguration: {
-          subscribeHealth: () => () => {},
-          subscribeCreation: () => () => {},
-          invalidateResources: () => {},
-        },
-        coreStorage: {
-          conversations: { reportFailure: () => {} },
-          trustedResources: { get: () => row },
-        },
-      },
-      platform: {
-        mcp: {
-          checkDecision: async (input: { contentDigest: string }) => {
-            if (input.contentDigest !== "sha256:aa")
-              throw new Error("changed since it was reviewed");
-            return grants;
-          },
-          approvalChanged: async (target: unknown) => {
-            changed.push(target);
-          },
-        },
-      },
-    });
-    try {
-      const decision = {
-        kind: "mcp_server" as const,
-        projectId: "proj_1",
-        resourceKey: "github",
-        name: null,
-        status: "trusted" as const,
-      };
-      await assert.rejects(
-        f.client.request("trust.decide", {
-          ...decision,
-          contentDigest: "sha256:bb",
-          grants: null,
-        }),
-        /changed since it was reviewed/,
-      );
-      assert.deepEqual(decided, []);
-      await f.client.request("trust.decide", {
-        ...decision,
-        contentDigest: "sha256:aa",
-        grants: null,
-      });
-      assert.deepEqual((decided[0] as { grants: unknown }).grants, grants);
-      await f.client.request("trust.delete", { trustedResourceId: "t1" });
-      assert.deepEqual(changed, [
-        { scope: "project", projectId: "proj_1" },
-        { scope: "project", projectId: "proj_1" },
-      ]);
     } finally {
       f.dispose();
     }

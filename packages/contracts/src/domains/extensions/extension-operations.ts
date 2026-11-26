@@ -205,13 +205,6 @@ const installedExtensionRefSchema = z.strictObject({
 });
 export type InstalledExtensionRef = z.infer<typeof installedExtensionRefSchema>;
 
-/** Consent to run an installed extension; only the signed-in user's UI sends it, never an agent. */
-export const grantExtensionConsentRequestSchema =
-  installedExtensionRefSchema.extend({
-    /** `catalog[].consent.contentHash` the user reviewed. */
-    contentHash: z.string().min(1),
-  });
-export const revokeExtensionConsentRequestSchema = installedExtensionRefSchema;
 export const reloadExtensionsRequestSchema = z.strictObject({
   target: installedExtensionRefSchema.shape.target,
   /** One extension folder; absent: every installed extension. */
@@ -264,24 +257,6 @@ export const extensionOperationDefinitions = [
     "none",
     host,
     "operation.extensions.trustProject",
-  ),
-  defineOperation(
-    "extensions.grantConsent",
-    grantExtensionConsentRequestSchema,
-    installedExtensionResultSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.extensions.grantConsent",
-  ),
-  defineOperation(
-    "extensions.revokeConsent",
-    revokeExtensionConsentRequestSchema,
-    installedExtensionResultSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.extensions.revokeConsent",
   ),
   defineOperation(
     "extensions.reload",

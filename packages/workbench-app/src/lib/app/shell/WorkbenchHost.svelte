@@ -10,6 +10,7 @@ import ConfigurationAttentionWatcher from "$lib/app/shell/ConfigurationAttention
 import WorkbenchEditorHost from "$lib/app/shell/WorkbenchEditorHost.svelte";
 import WorkbenchPanelHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
 import QuickOpenHost from "$lib/app/composition/dialogs/QuickOpenHost.svelte";
+import ConfigurationReviewHost from "$lib/app/composition/dialogs/ConfigurationReviewHost.svelte";
 import DropToOpenHost from "$lib/app/composition/dialogs/DropToOpenHost.svelte";
 import ProjectDialogHost from "$lib/app/shell/ProjectDialogHost.svelte";
 import WorkbenchStatusBarHost from "$lib/app/shell/WorkbenchStatusBarHost.svelte";
@@ -178,3 +179,4 @@ $effect(() => {
 <ProjectDialogHost />
 <DropToOpenHost />
 <QuickOpenHost />
+<ConfigurationReviewHost />

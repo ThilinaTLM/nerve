@@ -14,7 +14,6 @@ import type {
   PromptSuggestionListResponse,
   PromptSuggestionStatus,
   UpdatePromptSuggestionEnabledRequest,
-  UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts/prompt-suggestions";
 import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
@@ -32,6 +31,7 @@ import type {
   PromptSuggestionDefinition,
   PromptSuggestionPullRequest,
 } from "./prompt-suggestion-types.js";
+import { suggestionRequiresTrust } from "./prompt-suggestion-types.js";
 
 type SuggestionProject = Pick<Project, "id" | "name"> & { dir: string };
 
@@ -42,6 +42,11 @@ export type PromptSuggestionServiceDeps = {
   projectMigration?: ProjectMigrationService;
   events: WorkbenchNoticePublisher;
   trustRepository: PromptSuggestionTrustRepository;
+  /** Keeps trust across a user suggestion file Nerve writes (docs/architecture/trust.md). */
+  captureUserTrust?(
+    path: string,
+    source: Buffer | undefined,
+  ): Promise<((path: string, output: Buffer) => Promise<void>) | undefined>;
   enablementRepository: PromptSuggestionEnablementService;
   git: GitService;
   getProject: (projectId: string) => SuggestionProject;
@@ -80,7 +85,10 @@ export class PromptSuggestionService {
     const project = this.deps.getProject(projectId);
     const loaded = await this.discoverDefinitions(project);
     const definitions = await this.applyEnablement(loaded.definitions, project);
-    const effective = effectiveDefinitions(definitions);
+    const effective = effectiveDefinitions(
+      definitions,
+      this.deps.trustRepository,
+    );
     const trustRecords = this.deps.trustRepository.list(projectId);
     const git = await this.gitContext(projectId);
     const snapshot = options.conversationId
@@ -213,6 +221,8 @@ export class PromptSuggestionService {
         },
       );
     } else {
+      // A file Nerve creates is trusted, unless a decision about its path already exists.
+      const commit = await this.deps.captureUserTrust?.(path, undefined);
       const file = await open(path, "wx", 0o600).catch(
         (error: NodeJS.ErrnoException) => {
           if (error.code === "EEXIST") {
@@ -223,14 +233,13 @@ export class PromptSuggestionService {
           throw error;
         },
       );
+      const text = serializePromptSuggestionMarkdown(request);
       try {
-        await file.writeFile(
-          serializePromptSuggestionMarkdown(request),
-          "utf8",
-        );
+        await file.writeFile(text, "utf8");
       } finally {
         await file.close();
       }
+      await commit?.(path, Buffer.from(text, "utf8"));
     }
 
     const loaded = await loadPromptSuggestionDefinitions(
@@ -261,33 +270,6 @@ export class PromptSuggestionService {
     return status;
   }
 
-  async updateTrust(
-    request: UpdatePromptSuggestionTrustRequest,
-  ): Promise<void> {
-    const pending = await this.findDefinitionByTrustId(request.trustId);
-    if (
-      !pending?.trustId ||
-      !pending.predicateHash ||
-      pending.source.kind === "builtin"
-    ) {
-      throw new Error("Prompt suggestion trust target was not found.");
-    }
-    this.deps.trustRepository.set({
-      trustId: pending.trustId,
-      sourceKind: pending.source.kind,
-      projectId: pending.source.projectId,
-      path: pending.source.path,
-      name: pending.name,
-      label: pending.label,
-      predicateHash: pending.predicateHash,
-      status: request.trusted ? "trusted" : "declined",
-    });
-    await this.deps.events.publish("prompt_suggestions.trust_updated", {
-      trustId: request.trustId,
-      trusted: request.trusted,
-    });
-  }
-
   private async findDefinitionByKey(
     definitionKey: string,
   ): Promise<PromptSuggestionDefinition | undefined> {
@@ -299,17 +281,6 @@ export class PromptSuggestionService {
     return definitions.find(
       (definition) => definition.definitionKey === definitionKey,
     );
-  }
-
-  private async findDefinitionByTrustId(
-    trustId: string,
-  ): Promise<PromptSuggestionDefinition | undefined> {
-    const base = await this.discoverDefinitions();
-    const definitions = [...base.definitions];
-    for (const project of this.deps.listProjects()) {
-      definitions.push(...(await this.discoverProjectDefinitions(project)));
-    }
-    return definitions.find((definition) => definition.trustId === trustId);
   }
 
   private async discoverDefinitions(project?: SuggestionProject) {
@@ -432,12 +403,19 @@ export class PromptSuggestionService {
   }
 }
 
+/** The first definition of each name; one waiting for review never hides a trusted one below it. */
 function effectiveDefinitions(
   definitions: PromptSuggestionDefinition[],
+  trust: Pick<PromptSuggestionTrustRepository, "state">,
 ): PromptSuggestionDefinition[] {
+  const usable = (definition: PromptSuggestionDefinition) =>
+    !suggestionRequiresTrust(definition) ||
+    trust.state(definition) === "trusted";
   const byName = new Map<string, PromptSuggestionDefinition>();
   for (const definition of definitions) {
-    if (!byName.has(definition.name)) byName.set(definition.name, definition);
+    const first = byName.get(definition.name);
+    if (!first || (!usable(first) && usable(definition)))
+      byName.set(definition.name, definition);
   }
   return [...byName.values()];
 }
@@ -463,8 +441,10 @@ function statusesFor(
       path: definition.source.path,
       sourceKind: definition.source.kind,
       projectId: definition.source.projectId,
-      requiresTrust: Boolean(definition.enableJs),
-      status: definition.enableJs ? trust.state(definition) : "not_required",
+      requiresTrust: suggestionRequiresTrust(definition),
+      status: suggestionRequiresTrust(definition)
+        ? trust.state(definition)
+        : "not_required",
       enabled: definition.enabled,
       defaultEnabled: definition.defaultEnabled,
       overriddenBy:

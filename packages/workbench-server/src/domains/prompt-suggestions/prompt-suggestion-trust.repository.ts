@@ -65,15 +65,4 @@ export class PromptSuggestionTrustRepository {
       };
     });
   }
-
-  set(record: PromptSuggestionTrustRecord): void {
-    this.trust.decide({
-      kind: "prompt_suggestion",
-      projectId: record.projectId ?? null,
-      resourceKey: record.path,
-      name: record.name,
-      contentDigest: toTrustedDigest(record.predicateHash),
-      status: record.status === "trusted" ? "trusted" : "rejected",
-    });
-  }
 }

@@ -31,6 +31,8 @@ import {
 type Props = {
   agentProfiles: ComposerAgentProfile[];
   agentProfile: string;
+  pendingAgentProfiles?: ComposerAgentProfile[];
+  onReviewAgentProfile?: (name: string) => void;
   profileDisabled?: boolean;
   controlsDisabled?: boolean;
   onAgentProfileChange?: (name: string) => void;
@@ -191,8 +193,15 @@ function back() {
       <ComposerProfilePanel
         agentProfiles={props.agentProfiles}
         agentProfile={props.agentProfile}
+        pendingProfiles={props.pendingAgentProfiles}
         disabled={props.controlsDisabled || props.profileDisabled}
         onBack={back}
+        onReview={props.onReviewAgentProfile
+          ? (name) => {
+              open = false;
+              props.onReviewAgentProfile?.(name);
+            }
+          : undefined}
         onSelect={(name) => {
           if (name !== props.agentProfile) props.onAgentProfileChange?.(name);
           back();

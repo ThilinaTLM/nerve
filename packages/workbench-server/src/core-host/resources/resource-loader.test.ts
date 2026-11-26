@@ -186,3 +186,56 @@ void test("a project skill reaches the agent only while its exact folder content
     await cleanup();
   }
 });
+
+void test("a user skill reaches the agent only while its exact folder content is approved, and a project skill of the same name falls back to it", async () => {
+  const { home, projectDir, write, cleanup } = await fixture();
+  try {
+    const folder = join(home, "agent", "skills", "deploy");
+    await write(
+      join(folder, "SKILL.md"),
+      "---\nname: deploy\ndescription: user deploy\n---\nDeploy.\n",
+    );
+    const rows = new Map<string, { status: string; contentDigest: string }>();
+    const service = new TrustedResourceService({} as never, () => "");
+    const asked: (string | null)[] = [];
+    const trust = createProjectSkillTrust({
+      find: ((_kind: string, project: string | null, key: string) => {
+        asked.push(project);
+        return rows.get(key) ?? null;
+      }) as never,
+      trustState: (row, digest) => service.trustState(row, digest),
+    });
+    const options = {
+      projectDir,
+      storageHome: home,
+      projectSkills: { trust, projectId: "p" },
+    };
+    const names = async () =>
+      (await loadHarnessResources(projectDir, options)).skills.map(
+        (skill) => skill.name,
+      );
+    assert.ok(!(await names()).includes("deploy"));
+    assert.ok(
+      asked.includes(null),
+      "user skills are asked about with no project",
+    );
+    const listed = (await listAvailableSkills(projectDir, options)).skills.find(
+      (skill) => skill.source === "user" && skill.name === "deploy",
+    );
+    assert.equal(listed?.trustState, "needs_review");
+    const [skill] = (await discoverSkillFiles(projectDir, home)).user.skills;
+    const review = await trust.review(null, skill);
+    rows.set(folder, {
+      status: "trusted",
+      contentDigest: review.contentDigest,
+    });
+    assert.ok((await names()).includes("deploy"));
+    await write(
+      join(folder, "SKILL.md"),
+      "---\nname: deploy\ndescription: changed\n---\nDeploy.\n",
+    );
+    assert.ok(!(await names()).includes("deploy"));
+  } finally {
+    await cleanup();
+  }
+});

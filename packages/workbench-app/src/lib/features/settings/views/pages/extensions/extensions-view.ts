@@ -709,7 +709,7 @@ export function installedStateBadge(
 ): StateBadge | undefined {
   switch (state) {
     case "pending_consent":
-      return { label: "Pending consent", variant: "warning" };
+      return { label: "Needs review", variant: "warning" };
     case "incompatible":
       return { label: "Incompatible", variant: "warning" };
     case "invalid":
@@ -734,8 +734,8 @@ export function installedProblem(
 ): string | undefined {
   if (entry.state === "pending_consent")
     return entry.consent?.update
-      ? "Changed since you allowed it. Review what is new."
-      : "Waiting for your consent. Nothing runs until you allow it.";
+      ? "Changed outside Nerve. Review what is new."
+      : "Waiting for your review";
   const diagnostic =
     entry.diagnostics.find((candidate) => candidate.level === "error") ??
     (entry.state === "shadowed" || entry.state === "incompatible"
@@ -778,16 +778,16 @@ export function consentState(entry: ExtensionCatalogEntry): {
     entry.state === "pending_consent" && entry.consent !== undefined;
   if (entry.state === "enabled")
     return {
-      label: "Allowed",
+      label: "Trusted",
       description:
-        "You allowed what it adds. Revoking stops it until you allow it again.",
+        "You trusted this version. Revoking stops it until you trust it again.",
       canRevoke: true,
       canReview: false,
     };
   if (entry.state === "pending_consent")
     return {
-      label: "Waiting for your consent",
-      description: "Nothing runs until you allow it.",
+      label: "Needs review",
+      description: "Nothing runs until you trust it.",
       canRevoke: false,
       canReview: review,
     };

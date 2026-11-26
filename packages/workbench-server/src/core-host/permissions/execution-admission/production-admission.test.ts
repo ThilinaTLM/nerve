@@ -1,3 +1,4 @@
+import { overlayDigest } from "../permission-overlays.js";
 import {
   createConfigurationReload,
   resolveWithConfigurationRetry,
@@ -148,7 +149,17 @@ for (const invalid of ["malformed", "unreadable"] as const) {
 
       const repairId = callId(await f.command());
       await rm(path, { recursive: true, force: true });
-      await writeFile(path, JSON.stringify({ schemaVersion: 2, overlays: [] }));
+      const repaired = JSON.stringify({ schemaVersion: 2, overlays: [] });
+      await writeFile(path, repaired);
+      // Written outside Nerve, so it applies only once the user has trusted it.
+      f.runtime.core.trust.decide({
+        kind: "permissions",
+        projectId: null,
+        resourceKey: path,
+        name: null,
+        contentDigest: overlayDigest(repaired),
+        status: "trusted",
+      });
       await resolve({
         toolCallId: repairId,
         resolutionRequestId: "retry-repaired",

@@ -4,6 +4,7 @@ import {
   PageList,
 } from "@nervekit/ui-kit/components/composites/page";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
+import { openConfigurationReview } from "$lib/application/configuration-review/configuration-review-queue.svelte";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import FolderGit2 from "@lucide/svelte/icons/folder-git-2";
@@ -52,7 +53,7 @@ let {
   skills?: AvailableSkill[];
   loading?: boolean;
   error?: string;
-  /** Opens a project skill's review page. */
+  /** Opens a skill's page (`user:<name>` or `project:<name>`). */
   onOpenItem?: (name: string) => void;
 } = $props();
 
@@ -245,9 +246,26 @@ function clearOrphans(values: typeof orphans) {
   })();
 }
 
-/** A project skill opens its review page; user and built-in skills have none. */
+/** A user or project skill with a decision opens its page; built-in skills have none. */
 const reviewable = (entry: SkillEntry) =>
-  entry.source === "project" && !!onOpenItem;
+  (entry.source === "project" ||
+    (entry.source === "user" && entry.skill.trustState !== undefined)) &&
+  !!onOpenItem;
+const itemOf = (entry: SkillEntry) =>
+  `${entry.source === "project" ? "project" : "user"}:${entry.skill.name}`;
+/** Review opens the review dialog on the skill. */
+function review(entry: SkillEntry): void {
+  const scope = entry.source === "project" ? "project" : "user";
+  if (scope === "project" && !projectId) return onOpenItem?.(itemOf(entry));
+  openConfigurationReview([
+    {
+      kind: "skill",
+      scope,
+      ...(scope === "project" ? { projectId } : {}),
+      id: entry.skill.name,
+    },
+  ]);
+}
 function onRetry() {
   return Promise.all([
     userEditor.reload(),
@@ -299,11 +317,11 @@ function onRetry() {
           problemAction={entry.skill.trustState === "needs_review"
             ? {
                 label: "Review",
-                onclick: () => onOpenItem?.(entry.skill.name),
+                onclick: () => review(entry),
               }
             : undefined}
           onOpen={reviewable(entry)
-            ? () => onOpenItem?.(entry.skill.name)
+            ? () => onOpenItem?.(itemOf(entry))
             : undefined}
           openLabel={`Review ${entry.skill.name}`}
         >

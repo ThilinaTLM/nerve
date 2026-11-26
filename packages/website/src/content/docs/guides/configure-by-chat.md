@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-You don't have to learn Nerve's configuration files. Start a conversation with the **Forge** profile, say what you want, and the agent writes the configuration for you, checks it, and reloads it. Anything that could widen what agents run or reach waits for your approval in Settings.
+You don't have to learn Nerve's configuration files. Start a conversation with the **Forge** profile, say what you want, and the agent writes the configuration for you, checks it, and reloads it. Anything that could widen what agents run or reach, in your user settings or in the project, waits for your approval.
 
 <!-- screenshot: forge-build -->
 
@@ -47,19 +47,30 @@ The agent defaults to the project for things a team should share (instructions, 
 
 ## What only you can do
 
-The agent can't approve, trust, consent, or add credentials. It writes the files, then tells you where each item waits:
+The agent can't approve, trust, consent, or add credentials. It writes the files, then tells you where each item waits. This holds for your user settings as much as for the project: a skill, profile, permission rule set, `agent.json`, prompt suggestion, extension or MCP server entry the agent writes in your Nerve home isn't used until you approve it. Built-in items ship with Nerve and need no approval.
 
 | Item                                             | You approve it in                       |
 | ------------------------------------------------ | --------------------------------------- |
-| A project skill                                  | **Settings → Skills**                   |
-| A project `agent.json`                           | **Settings → General**                  |
-| Project permission rules                         | **Settings → Permission rules**         |
-| A project agent or sub-agent profile             | **Settings → Agents** or **Sub-Agents** |
-| A prompt suggestion's script                     | **Settings → Suggestions**              |
+| A skill (user or project)                        | **Settings → Skills**                   |
+| An `agent.json` (user or project)                | **Settings → General**                  |
+| Permission rule sets and your permission overlay | **Settings → Permission rules**         |
+| An agent or sub-agent profile (user or project)  | **Settings → Agents** or **Sub-Agents** |
+| A prompt suggestions file (user or project)      | **Settings → Suggestions**              |
 | A new extension, or one that gained a permission | **Settings → Extensions**               |
 | An MCP server entry (user or project)            | **Settings → MCP servers**              |
 
-Each item is **Needs review**, **Trusted**, or **Declined**. Changing an approved file, even through the agent, asks again. See [Trust and review](/guides/settings/#project-files-you-review). An entry you save through Nerve's own Settings pages stays trusted; a change made by editing the file asks again.
+Each item is **Needs review**, **Trusted**, or **Declined**. Changing an approved item outside Nerve's Settings pages, whether the agent, a script, `git pull` or your own editor does it, asks again. An entry you save through Nerve's own Settings pages, or with **Always allow** on an approval, stays trusted. While a changed item waits, Nerve keeps using the version you last trusted where one exists (permission files and a project's version of a user item); otherwise the item isn't used. See [Trust and review](/guides/settings/#items-you-review).
+
+### The review dialog
+
+Every kind of item opens the same dialog, from **Review** on a notification or on the item's page:
+
+- **What it can do** lists the item's effect in plain words, with anything broad first (for example "Runs without asking" or "Can run scripts"). When a trusted item changed, what is new comes first and is marked **New**.
+- **Source** lists the files it comes from, with their paths and an **Open** button. Nerve doesn't show the source inside the dialog.
+- **Not now** moves to the next item and leaves this one waiting. **Decline** stops Nerve using it and asking again. **Trust** approves exactly what you reviewed, so a later change asks again. **Details** opens the item's Settings page.
+- A trusted item offers **Revoke** on its page, which returns it to declined.
+
+If the file changed while the dialog was open, the dialog shows the new review instead of deciding on the old one.
 
 ## Checked before it takes effect
 
@@ -74,10 +85,14 @@ The agent also uses `configuration.describe()`, `configuration.list()`, and `con
 
 ## The attention bell
 
-The bell in the header lists configuration that needs you, in two groups:
+While something waits for you, the bell in the title bar becomes a small **island**. It shows each new item for a few seconds, then settles to the bell with a count, and expands into two lists:
 
-- **Waiting for your review**: valid items that aren't used until you decide, each with **Review**, which opens the right Settings page.
-- **Not working**: items that failed to load, with **Details** (or **Open file**) and **Ask the agent to fix**. For an extension that needs upgrading after a Nerve update, the button reads **Ask the agent to upgrade**.
+- **Needs your review**: items that aren't used until you decide, each with **Review**, which opens the review dialog. This level comes first and is tinted as a warning.
+- **Conversations waiting**: conversations that need an answer.
+
+While configuration waits, a **Needs your review** marker also sits at the top of every conversation, so you notice it where you work. It opens the island; on a phone it opens the review queue. **Later** hides the island and the marker until a new item needs review in this session; the bell keeps counting. See [Notifications and activity](/guides/notifications/).
+
+Items that failed to load appear in the bell's notifications under **Not working**, with **Details** (or **Open file**) and **Ask the agent to fix**. For an extension that needs upgrading after a Nerve update, the button reads **Ask the agent to upgrade**.
 
 **Ask the agent to fix** opens a new Forge conversation with a prompt that names the item and its problems. It isn't sent until you send it, and it states that you review approvals yourself. Items waiting for review also add a count beside their Settings page, and the project's start screen says how many project files need your review.
 

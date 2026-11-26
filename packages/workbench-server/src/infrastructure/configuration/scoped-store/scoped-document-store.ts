@@ -109,6 +109,16 @@ export interface ScopedDocumentOptions<S, D extends SchemaDocument> {
     scope: S,
     prepare: () => Promise<unknown>,
   ): Promise<string | undefined>;
+  /**
+   * Keeps an approval across a write Nerve makes itself (see `captureTrust`): returns the commit
+   * for the bytes about to replace `source`, or undefined when the scope needs none. Only the
+   * default writer calls it; `persist` owners carry trust themselves.
+   */
+  captureTrust?(
+    scope: S,
+    path: string,
+    source: Buffer | undefined,
+  ): Promise<((path: string, output: Buffer) => Promise<void>) | undefined>;
   /** Synchronous publication of one complete immutable generation. Throwing blocks the scope. */
   publish?(value: ScopeGeneration<S, D>): void;
   /** Test/host IO ports. The default writer uses the existing serialized atomic primitive. */
@@ -339,6 +349,9 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
     const persisted = await this.options.persist?.(scope, prepare);
     if (persisted !== undefined) return persisted;
     let serialized: string | undefined;
+    let commit: Awaited<
+      ReturnType<NonNullable<typeof this.options.captureTrust>>
+    >;
     await (this.options.write ?? atomicReplaceFile)(
       this.key(scope),
       async (handle) => {
@@ -349,13 +362,19 @@ export class ScopedDocumentStore<S, D extends SchemaDocument> {
       {
         mode: 0o600,
         prepare: async () => {
+          const path = this.key(scope);
+          const source = this.options.captureTrust
+            ? await readFile(path).catch(() => undefined)
+            : undefined;
           serialized = `${JSON.stringify(await prepare(), null, 2)}\n`;
+          commit = await this.options.captureTrust?.(scope, path, source);
           return undefined;
         },
       },
     );
     if (serialized === undefined)
       throw new Error("Writer did not prepare document");
+    await commit?.(this.key(scope), Buffer.from(serialized));
     return serialized;
   }
   private async commit(

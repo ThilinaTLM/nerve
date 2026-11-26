@@ -24,7 +24,8 @@ import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import { SettingsSection } from "$lib/presentation/settings";
-import ExtensionConsentDialog from "./ExtensionConsentDialog.svelte";
+import { openConfigurationReview } from "$lib/application/configuration-review/configuration-review-queue.svelte";
+import { useItemReview } from "../review/item-review.svelte";
 import { consentState, installedSourceRows } from "./extensions-view";
 
 type Props = {
@@ -52,11 +53,15 @@ const consent = $derived(
     ? {
         ...consentState(entry),
         label: "Declined",
-        description: "Nothing runs. Review it to allow it.",
+        description: "Nothing runs until you review and trust it.",
       }
     : consentState(entry),
 );
-let reviewOpen = $state(false);
+const reviewTarget = $derived(extensions.reviewTarget(entry));
+// Revoke declines exactly the version its review read.
+const trusted = useItemReview(() =>
+  consent.canRevoke ? reviewTarget : undefined,
+);
 </script>
 
 {#each entry.diagnostics as diagnostic (diagnostic.message)}
@@ -97,33 +102,27 @@ let reviewOpen = $state(false);
       {/snippet}
     </FieldRow>
   {/each}
-  <FieldRow label="Consent" description={consent.description}>
+  <FieldRow label="Trust" description={consent.description}>
     {#snippet control()}
       <div class="flex flex-wrap items-center justify-end gap-2">
         <span class="text-ui text-foreground">{consent.label}</span>
-        {#if consent.canReview}
+        {#if consent.canReview && reviewTarget}
           <Button
             size="sm"
             variant="outline"
-            onclick={() => (reviewOpen = true)}>Review</Button
+            onclick={() => openConfigurationReview([reviewTarget])}
+            >Review</Button
           >
         {/if}
-        {#if consent.canRevoke}
+        {#if consent.canRevoke && trusted.current}
           <Button
             size="sm"
             variant="outline"
-            disabled={extensions.saving}
-            onclick={() => void extensions.revokeConsent(entry)}>Revoke</Button
+            disabled={trusted.current.busy || !trusted.current.review}
+            onclick={() => void trusted.current?.decline()}>Revoke</Button
           >
         {/if}
       </div>
     {/snippet}
   </FieldRow>
 </SettingsSection>
-<ExtensionConsentDialog
-  bind:open={reviewOpen}
-  {entry}
-  busy={extensions.saving}
-  onAllow={(target) => void extensions.grantConsent(target)}
-  onDecline={(target) => void extensions.declineConsent(target)}
-/>

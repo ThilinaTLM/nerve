@@ -33,21 +33,23 @@ export interface LoadHarnessResourcesOptions {
   enabledAgentBrowserSkillNames?: readonly string[];
   agentBrowserSkills?: readonly Skill[];
   /**
-   * Approval of project skills. With it, a project skill the user has not approved (or whose
+   * Approval of project and user skills. With it, a skill the user has not approved (or whose
    * files changed since) is not loaded. Every host caller passes it; only standalone use omits it.
    */
   projectSkills?: ProjectSkillGate;
 }
 
+/** `projectId` is the project whose skills are gated; the user's skills are always gated with it. */
 export type ProjectSkillGate = { trust: ProjectSkillTrust; projectId: string };
 
 async function approvedOnly(
   skills: readonly Skill[],
   gate: ProjectSkillGate | undefined,
+  projectId: string | null,
 ): Promise<Skill[]> {
   if (!gate) return [...skills];
   const statuses = await Promise.all(
-    skills.map((skill) => gate.trust.status(gate.projectId, skill)),
+    skills.map((skill) => gate.trust.status(projectId, skill)),
   );
   return skills.filter((_, index) => statuses[index]?.trustState === "trusted");
 }
@@ -77,6 +79,12 @@ export async function loadHarnessResources(
       projectSkills: await approvedOnly(
         skillGroups.projectSkills,
         options.projectSkills,
+        options.projectSkills?.projectId ?? null,
+      ),
+      userSkills: await approvedOnly(
+        skillGroups.userSkills,
+        options.projectSkills,
+        null,
       ),
     },
     options,
@@ -140,13 +148,14 @@ export async function listAvailableSkills(
       source,
     });
   const gate = options.projectSkills;
-  const projectSkills = await Promise.all(
-    groups.projectSkills.map(async (skill): Promise<AvailableSkill> => {
+  const withTrust =
+    (source: "project" | "user", projectId: string | null) =>
+    async (skill: Skill): Promise<AvailableSkill> => {
       const status = gate
-        ? await gate.trust.status(gate.projectId, skill)
+        ? await gate.trust.status(projectId, skill)
         : undefined;
       return {
-        ...toMetadata("project")(skill),
+        ...toMetadata(source)(skill),
         ...(status
           ? {
               trustState: status.trustState,
@@ -156,12 +165,17 @@ export async function listAvailableSkills(
             }
           : {}),
       };
-    }),
+    };
+  const projectSkills = await Promise.all(
+    groups.projectSkills.map(withTrust("project", gate?.projectId ?? null)),
+  );
+  const userSkills = await Promise.all(
+    groups.userSkills.map(withTrust("user", null)),
   );
   return {
     skills: [
       ...projectSkills,
-      ...groups.userSkills.map(toMetadata("user")),
+      ...userSkills,
       ...(options.nerveSkills ?? []).map(toMetadata("nerve")),
       ...(options.agentBrowserSkills ?? []).map(toMetadata("agentBrowser")),
     ],

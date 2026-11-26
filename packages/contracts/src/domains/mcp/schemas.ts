@@ -100,7 +100,7 @@ export const mcpGrantSnapshotSchema = z.strictObject({
 });
 export type McpGrantSnapshot = z.infer<typeof mcpGrantSnapshotSchema>;
 
-/** The review of one entry: the grants plus what to approve (`trust.decide` with `digest` and `grants`). */
+/** The review of one entry: the grants plus what to approve (`configuration.decide` on `digest`). */
 export const mcpReviewSchema = z.strictObject({
   name: mcpServerNameSchema,
   scope: mcpScopeSchema,

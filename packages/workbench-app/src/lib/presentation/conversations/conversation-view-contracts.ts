@@ -120,6 +120,8 @@ export type ConversationComposerModel = {
   agentProfile: string;
   /** Profiles offered by the selector; empty hides it. */
   agentProfiles: ComposerAgentProfile[];
+  /** Profiles that wait for the user's review: listed disabled, with Review. */
+  pendingAgentProfiles?: ComposerAgentProfile[];
   /** Fields the active profile locks; their pickers are disabled. */
   lockedFields?: ComposerLockedFields;
   permissionRuleSetId: PermissionRuleSetId;
@@ -271,6 +273,8 @@ export type ConversationPaneActions = ConversationApprovalPlanActions & {
   onEditorReady?: (api: ComposerEditorApi) => void;
   /** Runs a slash command immediately on the client (nothing is sent). */
   onSlashCommand?: (name: string) => void;
+  /** Opens the review dialog on a profile that waits for review. */
+  onReviewAgentProfile?: (name: string) => void;
   /** A fix-it offered by the suggestion popup (connect, settings, item). */
   onCompletionAction?: (action: ComposerCompletionAction) => void;
   /** Brings the pending ask-user question card into view. */

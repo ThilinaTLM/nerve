@@ -54,8 +54,9 @@ Model providers, accounts and credentials, extension settings, conversation defa
 
 - Same name: project wins over user, user over built-in. A project profile or skill replaces the lower one whole; nothing is merged.
 - Agent preferences: built-in, then user, then project, then the conversation's own choices; a later layer overrides single fields. A profile's requirements win over all of them.
-- Project files that can run code or widen what agents may do are used only after the user approves their exact content: `agent.json` in Settings → General, project column, permission overlays in Settings → Permission rules, agent profiles in Settings → Agents or Sub-Agents; skills in Settings → Skills, project column; a suggestion's `enable-js` in Settings → Suggestions; extensions in Settings → Extensions.
-- Any edit to an approved file, including yours, asks again. You cannot approve, consent or add credentials.
+- Nothing you write is used until the user approves its exact content, in the user's files and the project's alike: `agent.json` in Settings → General; permission overlays and rule sets in Settings → Permission rules; agent profiles in Settings → Agents or Sub-Agents; skills in Settings → Skills; prompt suggestion files in Settings → Suggestions; extensions in Settings → Extensions; MCP entries in Settings → MCP servers. Only what the user changes in Nerve's own Settings stays approved.
+- Any edit outside Settings, including yours, asks again. You cannot approve, consent or add credentials.
+- While a changed user permission file or `agent.json` waits, the version the user last approved stays in effect. Until the user approves, a new rule set, profile, skill or suggestion is not selectable, offered or shown.
 
 ## The loop
 
@@ -65,7 +66,7 @@ Nerve does not watch files. In `quick_script`:
 2. **Write.** Read an existing file in full first and keep what you did not mean to change. Before editing a file under `<home>` (usually not in git), copy it next to itself as `<name>.bak` and name the copy in your reply. Before a permission change, say in one sentence what will be allowed, prompted or denied afterwards, unless the user dictated the rule.
 3. **Check**, after the write has finished (not in the same batch of calls). `configuration.check("project")` or `("user")` validates the files on disk and changes nothing. It reports every problem in the scope: fix the ones in files you wrote until none has an `error`; mention the others to the user and leave them alone.
 4. **Reload.** `configuration.reload(scope)` activates the files.
-5. **Hand over.** Report what you wrote with paths, and exactly what `configuration.list({ state: "needs_review" })` shows, with where the user approves each.
+5. **Hand over.** Report what you wrote with paths, and exactly what `configuration.list({ state: "needs_review" })` shows, with where the user approves each. A reload activates nothing the user has not approved: say what waits and where, and that it does nothing until then, whatever the scope.
 
 ```ts
 const written = "/abs/path/of/the/file/you/wrote";

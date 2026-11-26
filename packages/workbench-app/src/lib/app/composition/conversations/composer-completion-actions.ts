@@ -17,7 +17,12 @@ export type CapabilitySettingsPage =
 export function handleComposerCompletionAction(
   action: ComposerCompletionAction,
   openCapabilitySettings: (page: CapabilitySettingsPage) => void,
+  reviewAgentProfile?: (name: string) => void,
 ): void {
+  if (action.type === "review-profile") {
+    reviewAgentProfile?.(action.name);
+    return;
+  }
   if (action.type === "source") {
     if (action.actionId === "open_pull_requests") {
       // The Pull requests panel shows the gh CLI install / sign-in guidance.

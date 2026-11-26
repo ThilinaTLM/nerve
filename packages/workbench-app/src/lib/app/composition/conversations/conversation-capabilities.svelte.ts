@@ -1,3 +1,5 @@
+import { blockedReviewTargets } from "$lib/application/configuration-review/blocked-review";
+import { openConfigurationReview } from "$lib/application/configuration-review/configuration-review-queue.svelte";
 import { createId } from "@nervekit/contracts";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import { conversationDraftStore } from "$lib/application/workspace/conversation-draft-store";
@@ -86,6 +88,10 @@ export function workbenchConversationUiCapabilities(
         throw new Error(
           "Configuration is still blocked. Repair the document and retry.",
         );
+    },
+    reviewConfigurationBlock: (diagnostics) => {
+      const targets = blockedReviewTargets(diagnostics, selection.projectId);
+      if (targets.length) openConfigurationReview(targets);
     },
     askUserDrafts: conversationDraftStore(),
     fetchToolCall: (toolCallId) => getToolCallDetails(toolCallId),

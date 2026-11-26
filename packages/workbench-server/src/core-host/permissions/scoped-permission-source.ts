@@ -19,10 +19,7 @@ import type {
 } from "@nervekit/conversation-core";
 import { supervisionSchema } from "@nervekit/contracts/core";
 import type { ConfigurationDiagnostic } from "../../infrastructure/configuration/agent-configuration/document-adapters.js";
-import type {
-  PermissionOverlayDocument,
-  ToolRisk,
-} from "@nervekit/contracts/permissions";
+import type { PermissionOverlayDocument } from "@nervekit/contracts/permissions";
 import { activeToolNameSchema } from "@nervekit/contracts/tools";
 import {
   composeEffectivePermissionPolicy,
@@ -31,7 +28,6 @@ import {
   normalizeOperationRequest,
   normalizePermissionRequest,
   builtInPermissionRuleSets,
-  type OperationRisk,
 } from "@nervekit/tools/policy";
 import {
   allScopedToolNames,
@@ -51,11 +47,24 @@ import {
   type CurrentPolicy,
 } from "./execution-admission/admission.js";
 import { emptyOverlayDocument, overlayDigest } from "./permission-overlays.js";
+import {
+  extensionIdOf,
+  nestedOperation,
+  operationEffectiveRisk,
+  withScriptOperations,
+} from "./scoped-permission-operations.js";
 import { hostRegistry } from "../host-tools.js";
 
 class PolicyDocumentError extends Error {
   constructor(readonly policyPath: string) {
     super("Invalid permission document");
+  }
+}
+
+/** A user permission file that waits for the user's review and has no trusted version to fall back on. */
+class PolicyPendingError extends Error {
+  constructor(readonly policyPath: string) {
+    super("Permission document waits for review");
   }
 }
 
@@ -92,7 +101,7 @@ export function createScopedPermissionSource(options: {
     new ProjectMigrationService({
       home: options.home,
       trust: projectMigrationTrust(() => options.storage, {
-        "permission-overlay": "project_permissions",
+        "permission-overlay": "permissions",
       }),
     });
   migrations.register(projectPermissionsConfiguration);
@@ -113,7 +122,11 @@ export function createScopedPermissionSource(options: {
   >();
   const files = new Map<string, Promise<LoadedPermissionFile>>();
   let catalog:
-    | Promise<{ values: typeof builtInPermissionRuleSets; invalid: string[] }>
+    | Promise<{
+        values: typeof builtInPermissionRuleSets;
+        invalid: string[];
+        pending: string[];
+      }>
     | undefined;
   const policies = new Map<
     string,
@@ -151,17 +164,84 @@ export function createScopedPermissionSource(options: {
       .sort()
       .map((name) => join(directory, name));
   };
-  const rules = () =>
-    (catalog ??= (async () => {
+  /**
+   * The user's permission files apply only while their exact bytes are trusted. A file that waits
+   * keeps the last trusted version this process held in effect, like a file that is invalid on
+   * disk; with none (after a restart), the file is `pending` and affected calls are blocked.
+   */
+  const lastTrusted = new Map<string, LoadedPermissionFile>();
+  const userKind = (path: string) =>
+    identifyPermissionFile(options.home, path).kind === "rule-set"
+      ? ("permission_rule_set" as const)
+      : ("permissions" as const);
+  const userTrustState = (path: string, file: LoadedPermissionFile) =>
+    file.kind === "bytes"
+      ? options.trust.trustState(
+          options.storage.trustedResources.find(userKind(path), null, path),
+          overlayDigest(file.bytes),
+        )
+      : "trusted";
+  const effectiveUser = async (
+    path: string,
+  ): Promise<{ file: LoadedPermissionFile | undefined; pending: boolean }> => {
+    let loaded = await read(path);
+    let state = userTrustState(path, loaded);
+    if (state !== "trusted" && loaded.kind === "bytes") {
+      // The user trusted a version that is not the loaded one: activate it if it is valid.
+      const row = options.storage.trustedResources.find(
+        userKind(path),
+        null,
+        path,
+      );
+      if (
+        row?.status === "trusted" &&
+        row.contentDigest !== overlayDigest(loaded.bytes)
+      ) {
+        const fresh = await readPermissionFile(path);
+        if (
+          userTrustState(path, fresh) === "trusted" &&
+          parse(path, fresh).ok
+        ) {
+          files.set(path, Promise.resolve(fresh));
+          loaded = fresh;
+          state = "trusted";
+        }
+      }
+    }
+    if (state === "trusted") {
+      // "No file" is a trusted state too: a file that appears later waits for review.
+      lastTrusted.set(path, loaded);
+      return { file: loaded, pending: false };
+    }
+    // An invalid file has nothing to review; it is reported as invalid, like any other.
+    if (loaded.kind === "bytes" && !parse(path, loaded).ok)
+      return { file: loaded, pending: false };
+    return { file: lastTrusted.get(path), pending: true };
+  };
+  let catalogTrust = -1;
+  const rules = () => {
+    // A decision changes which rule sets are trusted.
+    if (catalogTrust !== options.trustGeneration()) {
+      catalog = undefined;
+      catalogTrust = options.trustGeneration();
+    }
+    return (catalog ??= (async () => {
       const values = [...builtInPermissionRuleSets];
       const invalid: string[] = [];
+      const pending: string[] = [];
       for (const path of await ruleSetPaths()) {
-        const parsed = parse(path, await read(path));
+        const effective = await effectiveUser(path);
+        if (!effective.file) {
+          pending.push(path);
+          continue;
+        }
+        const parsed = parse(path, effective.file);
         if (parsed.ok && parsed.ruleSet) values.push(parsed.ruleSet);
         else invalid.push(path);
       }
-      return { values, invalid };
+      return { values, invalid, pending };
     })());
+  };
   const userOverlayPath = join(options.home, "config", "permissions.json");
   /** The user overlay and every rule set; an unreadable rule-set folder is reported on the folder. */
   const userPaths = async (): Promise<{
@@ -209,6 +289,12 @@ export function createScopedPermissionSource(options: {
           ? { contentDigest: overlayDigest(candidate.bytes) }
           : {}),
         ...(candidate.kind === "missing" ? {} : { exists: true as const }),
+        ...(identity.scope === "user" &&
+        candidate.kind === "bytes" &&
+        userTrustState(path, candidate) !== "trusted" &&
+        lastTrusted.has(path)
+          ? { previousVersionActive: true as const }
+          : {}),
         ...(parsed.ok && parsed.ruleSet
           ? {
               ruleSet: {
@@ -257,6 +343,7 @@ export function createScopedPermissionSource(options: {
     code: string,
     conversationId: string,
   ): CurrentPolicy {
+    const waiting = code === "needs-review";
     const scope = isPathInside(join(options.home, "config"), path)
       ? "user"
       : isPathInside(join(options.home, "data", "conversations"), path)
@@ -274,18 +361,17 @@ export function createScopedPermissionSource(options: {
             code,
             pointer: "",
             affectedCapability: "tool-execution",
-            recoveryChoices: ["retry", "reload", "repair"],
+            recoveryChoices: waiting
+              ? ["retry"]
+              : ["retry", "reload", "repair"],
           },
         ],
       },
     };
   }
   const trustIdentity = (projectId: string, path: string) =>
-    options.storage.trustedResources.find(
-      "project_permissions",
-      projectId,
-      path,
-    ) ?? null;
+    options.storage.trustedResources.find("permissions", projectId, path) ??
+    null;
   const inspect = async (
     paths: readonly string[] | undefined,
     from: (path: string) => Promise<LoadedPermissionFile>,
@@ -471,7 +557,12 @@ export function createScopedPermissionSource(options: {
           const invalidSelected = definitions.invalid.find(
             (path) => basename(path, ".json") === selectedId,
           );
-          if (invalidSelected || !selected) {
+          const pendingSelected = definitions.pending.find(
+            (path) => basename(path, ".json") === selectedId,
+          );
+          if (pendingSelected && !selected) {
+            result = blocked(pendingSelected, "needs-review", conversation.id);
+          } else if (invalidSelected || !selected) {
             result = blocked(
               invalidSelected ??
                 join(options.home, "config", "rule-sets", `${selectedId}.json`),
@@ -483,7 +574,12 @@ export function createScopedPermissionSource(options: {
               Record<keyof typeof paths, PermissionOverlayDocument>
             > = {};
             for (const origin of ["user", "project", "conversation"] as const) {
-              const loaded = await read(paths[origin]);
+              let loaded = await read(paths[origin]);
+              if (origin === "user") {
+                const effective = await effectiveUser(paths.user);
+                if (!effective.file) throw new PolicyPendingError(paths.user);
+                loaded = effective.file;
+              }
               if (origin === "project") {
                 // Only the exact trusted bytes apply; a missing file has none to compare.
                 const digest =
@@ -591,10 +687,17 @@ export function createScopedPermissionSource(options: {
           }
         } catch (error) {
           const path =
-            error instanceof PolicyDocumentError
+            error instanceof PolicyDocumentError ||
+            error instanceof PolicyPendingError
               ? String(error.policyPath)
               : join(options.home, "config", "rule-sets");
-          result = blocked(path, "invalid-policy", conversation.id);
+          result = blocked(
+            path,
+            error instanceof PolicyPendingError
+              ? "needs-review"
+              : "invalid-policy",
+            conversation.id,
+          );
         }
         if (
           version !== epoch ||
@@ -653,61 +756,4 @@ export function createScopedPermissionSource(options: {
       await source.reload([join(context.directory, ".nerve", type.path)]);
   });
   return source;
-}
-
-/** Names the SDK operations a quick-script script contains, so the approval shows what it does. */
-function withScriptOperations(
-  reason: string,
-  operations: readonly string[],
-): string {
-  return operations.length > 0
-    ? `${reason} Script operations: ${operations.join(", ")}.`
-    : reason;
-}
-
-function extensionIdOf(
-  ownerOf: ((namespace: string) => string | undefined) | undefined,
-  operation: string,
-): { extensionId?: string } {
-  const id = ownerOf?.(operation.split(".")[0]);
-  return id === undefined ? {} : { extensionId: id };
-}
-
-/** The SDK operation a quick-script broker check names, or undefined for any other request. */
-function nestedOperation(
-  input: Parameters<AdmissionPolicySource["ensureLoaded"]>[0],
-) {
-  const target = input.target as { kind?: unknown } | null;
-  const args = input.args as {
-    operation?: unknown;
-    targets?: unknown;
-    risk?: unknown;
-  };
-  if (
-    input.toolName !== "quick_script" ||
-    target?.kind !== "quick_script_nested" ||
-    typeof args.operation !== "string"
-  )
-    return undefined;
-  return {
-    operation: args.operation,
-    targets: (args.targets as string[] | undefined) ?? [],
-    risk: args.risk as OperationRisk,
-  };
-}
-
-function operationEffectiveRisk(risk: unknown): ToolRisk {
-  switch (risk) {
-    case "none":
-    case "read":
-      return "read";
-    case "write":
-      return "workspace_write";
-    case "external_write":
-      return "external_write";
-    case "destructive":
-      return "destructive";
-    default:
-      return "external_read";
-  }
 }

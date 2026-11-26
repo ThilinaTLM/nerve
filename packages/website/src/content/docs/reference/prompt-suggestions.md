@@ -30,7 +30,7 @@ Settings lists built-ins even when their condition is false, with a description,
 
 ## Files
 
-User files live in `<NERVE_HOME>/agent/suggestions/*.md` (normally `~/.nerve/agent/suggestions/*.md`); project files live in `<project>/.nerve/suggestions/*.md`. Internal enablement/trust state is created lazily on first use, so a fresh Nerve home does not contain an empty prompt-suggestion state directory.
+User files live in `<NERVE_HOME>/agent/suggestions/*.md` (normally `~/.nerve/agent/suggestions/*.md`); project files live in `<project>/.nerve/suggestions/*.md`. Internal enablement state is created lazily on first use, so a fresh Nerve home does not contain an empty prompt-suggestion state directory.
 
 ```md
 ---
@@ -81,8 +81,8 @@ Define `function enable(context) { return true; }`. The read-only `context` cont
 
 `git.repos[]` entries include `relativePath`, `currentBranch`, `detached`, `dirty`, `changeCount`, `ahead`, `behind` (both `null` without an upstream), `hasUpstream`, `hasRemote`, `hasGithubRemote`, `baseBranch`, `onBaseBranch`, `mergedToBase`, and `pullRequest`. `pullRequest` is the open PR for the current branch as `{ number, url, isDraft, checks, checksRunning, reviewRequested }`, where `checks` is the outcome so far (`pending`, `passing`, `failing`, or `none`; one failure makes it `failing` even while others run) and `checksRunning` is `true` while any check is still running or queued. It is `null` when there is no open PR and `undefined` when unknown (not a GitHub repository, GitHub unavailable, or not yet synced). It comes from Nerve's PR cache, so it can lag slightly. `git.github` has `available` and `authenticated`.
 
-Nerve requires explicit approval before execution and binds trust to the predicate content hash. Editing it requires approval again.
+Nerve uses a suggestion file, user or project, only after you approve it, and binds trust to the whole file's content, not only the predicate. The review shows each prompt, where it shows, and whether a script decides when. Editing the file outside Nerve requires approval again; built-in suggestions need none.
 
 :::danger
-Treat suggestion JavaScript as project code, not passive Markdown.
+Treat suggestion JavaScript as code, not passive Markdown.
 :::

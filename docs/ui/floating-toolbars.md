@@ -26,3 +26,10 @@ Page-level actions of a tab page or pane (image, SVG and Mermaid viewers, code f
 - Keep 4–8 visible controls per bar; put the rest in `FloatingToolbarMenu`. `collapse` only readouts and actions that the menu also offers.
 - Toggles use `pressed`; fields only inside `FloatingPanel`.
 - Motion is built in (enter and exit from the anchor edge, smooth resizing, item fades) and follows the `--motion-*` tokens and reduced motion; add none of your own.
+
+## Attention over panes
+
+Two app-level surfaces float above whatever is open; they are not pane toolbars and are built from their own components in `$lib/presentation/activity`:
+
+- **`AttentionIsland`** replaces the titlebar bell while something waits (Arrival, Compact, Expanded). It is exactly the titlebar icon button's size when compact, one control-height line when an item arrives, and grows down into a `bg-popover`/`shadow-overlay` panel when expanded. Two levels and their order: [conversation state and attention](../architecture/conversation-state-and-attention.md#two-levels-waiting-for-the-user).
+- **`ReviewMarker`** sits at the top centre of every conversation pane while configuration waits for trust (never for conversations): one line at control height, the popover base under a warning tint with a warning border and `shadow-overlay`, and a fade band under the tab strip so it never covers text (the transcript starts below it). On a new item it pulses with the island's arrival through the `attention-ring` class from `animation.css` (three rings, stops on hover, off with reduced motion). It has no list: it expands the island, or on the phone opens the review queue.

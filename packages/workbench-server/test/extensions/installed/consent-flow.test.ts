@@ -27,7 +27,6 @@ import {
   createHostExtensionCatalog,
   hostRegistry,
 } from "../../../src/core-host/host-tools.js";
-import { extensionMethodHandlers } from "../../../src/adapters/protocol/handlers/extension-method-handlers.js";
 import {
   fixtureBackend,
   writeExtension,
@@ -58,7 +57,7 @@ async function world() {
 }
 
 void test(
-  "consent through the catalog: pending, grant, revoke; each reload publishes a change",
+  "consent through the catalog: pending, then grant; each reload publishes a change",
   { skip },
   async () => {
     const { home, userRoot } = await world();
@@ -85,16 +84,12 @@ void test(
     assert.ok(
       (await catalog.registryFor()).extensions.some((e) => e.id === "flow"),
     );
-    assert.equal(await catalog.revokeConsent(ref), true);
-    assert.equal((await entryOf()).state, "pending_consent");
-    // A revoked extension is declined, not waiting for review again.
-    assert.equal((await entryOf()).trustState, "declined");
     assert.equal(pending.trustState, "needs_review");
     assert.equal(
       await catalog.grantConsent({ source: "user", id: "nope" }, "x"),
       "not_found",
     );
-    assert.ok(changes >= 2, `reloads notify subscribers (${changes})`);
+    assert.ok(changes >= 1, `reloads notify subscribers (${changes})`);
   },
 );
 
@@ -313,23 +308,20 @@ void test("no agent-reachable surface can grant consent", async () => {
     names(registry.tools.map((tool) => tool.definition.name)),
     forbidden,
   );
-  // The operations that change consent are addressed to the workbench server only, as app calls.
+  // The operations that decide or reload are addressed to the workbench server only, as app calls.
   const consentOperations = allOperationDefinitions().filter((operation) =>
-    /^extensions\.(grantConsent|revokeConsent|reload)$/.test(operation.method),
+    /^(configuration\.decide|extensions\.reload)$/.test(operation.method),
   );
-  assert.equal(consentOperations.length, 3);
+  assert.equal(consentOperations.length, 2);
   for (const operation of consentOperations)
     assert.deepEqual(operation.allowedTargetRoles, ["workbench_server"]);
-  // Every trust decision operation (all kinds) is addressed to the workbench server only.
-  const trustOperations = allOperationDefinitions().filter((operation) =>
-    operation.method.startsWith("trust."),
-  );
+  // No raw trust-row operation exists: every decision is `configuration.decide` on a reviewed digest.
   assert.deepEqual(
-    trustOperations.map((operation) => operation.method).sort(),
-    ["trust.decide", "trust.delete", "trust.list"],
+    allOperationDefinitions().filter((operation) =>
+      operation.method.startsWith("trust."),
+    ),
+    [],
   );
-  for (const operation of trustOperations)
-    assert.deepEqual(operation.allowedTargetRoles, ["workbench_server"]);
   // The UI bridge operations (frames asking the daemon for files and backend calls) are app calls too.
   const uiOperations = allOperationDefinitions().filter((operation) =>
     operation.method.startsWith("extensions.ui."),
@@ -386,94 +378,6 @@ void test("no agent-reachable surface can grant consent", async () => {
   await walk(join(packages, "extensions", "src"));
   assert.deepEqual(seen, []);
 });
-
-void test(
-  "the consent operations resolve project extensions from the target's project and refuse a mismatch",
-  { skip },
-  async () => {
-    const { home, project } = await world();
-    const p = await project("api");
-    await writeExtension(p.root, { id: "api-ext" });
-    const catalog = createTestCatalog({ home });
-    const views: unknown[] = [];
-    const state = {
-      conversationCore: {
-        projects: {
-          get: (id: string) => (id === "p1" ? { directory: p.dir } : undefined),
-        },
-      },
-      extensionCatalog: catalog,
-      extensionViews: {
-        view: async (target: unknown) => (views.push(target), { target }),
-      },
-    } as never;
-    const handlers = extensionMethodHandlers as unknown as Record<
-      string,
-      (state: unknown, input: unknown) => Promise<{ status: string }>
-    >;
-    const target = { scope: "project", projectId: "p1" };
-    const pending = (await catalog.entries(p.dir)).find(
-      (e) => e.id === "api-ext",
-    )!;
-    assert.equal(pending.state, "pending_consent");
-    // A project extension cannot be named from the user target, or an unknown project.
-    assert.equal(
-      (
-        await handlers["extensions.grantConsent"]!(state, {
-          target: { scope: "user" },
-          source: "project",
-          id: "api-ext",
-          contentHash: pending.consent!.contentHash,
-        })
-      ).status,
-      "not_found",
-    );
-    assert.equal(
-      (
-        await handlers["extensions.grantConsent"]!(state, {
-          target: { scope: "project", projectId: "nope" },
-          source: "project",
-          id: "api-ext",
-          contentHash: pending.consent!.contentHash,
-        })
-      ).status,
-      "not_found",
-    );
-    const changed = await handlers["extensions.grantConsent"]!(state, {
-      target,
-      source: "project",
-      id: "api-ext",
-      contentHash: "stale",
-    });
-    assert.equal(changed.status, "changed");
-    const granted = await handlers["extensions.grantConsent"]!(state, {
-      target,
-      source: "project",
-      id: "api-ext",
-      contentHash: pending.consent!.contentHash,
-    });
-    assert.equal(granted.status, "saved");
-    assert.equal(
-      (await catalog.entries(p.dir)).find((e) => e.id === "api-ext")!.state,
-      "enabled",
-    );
-    assert.equal(
-      (
-        await handlers["extensions.revokeConsent"]!(state, {
-          target,
-          source: "project",
-          id: "api-ext",
-        })
-      ).status,
-      "saved",
-    );
-    assert.equal(
-      (await handlers["extensions.reload"]!(state, { target })).status,
-      "saved",
-    );
-    assert.ok(views.length >= 4);
-  },
-);
 
 void test("without a consent store nothing installed runs", async () => {
   const { userRoot } = await world();

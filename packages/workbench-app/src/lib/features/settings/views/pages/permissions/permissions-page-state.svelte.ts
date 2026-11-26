@@ -5,9 +5,6 @@ import type {
 import {
   deletePermissionRule,
   getPermissionConfiguration,
-  declineProjectPermissionTrust,
-  grantProjectPermissionTrust,
-  projectPermissionTrustKey,
   savePermissionRule,
   type PermissionRuleTarget,
 } from "$lib/features/settings/api/permissions.api";
@@ -57,35 +54,6 @@ export class PermissionsPageController {
     ruleId: string,
   ): Promise<string | undefined> {
     return this.#mutate(() => deletePermissionRule(target, ruleId));
-  }
-
-  async trustProject(projectId: string): Promise<string | undefined> {
-    return this.#mutate(() => grantProjectPermissionTrust(projectId));
-  }
-
-  /**
-   * Declines the project's permissions file, or revokes a trusted one. The
-   * decision is keyed by the file's path as the daemon names it: the existing
-   * decision's key, else the path the configuration report gives.
-   */
-  async declineProject(
-    projectId: string,
-    reportedPath: string | undefined,
-  ): Promise<string | undefined> {
-    const digest = this.configuration?.projectTrust.digest;
-    if (!digest?.startsWith("sha256:"))
-      return "The project's permissions file can't be read. Reload and try again.";
-    let path: string | undefined;
-    try {
-      path = (await projectPermissionTrustKey(projectId)) ?? reportedPath;
-    } catch (error) {
-      return messageOf(error);
-    }
-    if (!path)
-      return "The project's permissions file is not known yet. Reload and try again.";
-    return this.#mutate(() =>
-      declineProjectPermissionTrust(projectId, path, digest),
-    );
   }
 
   async #mutate(

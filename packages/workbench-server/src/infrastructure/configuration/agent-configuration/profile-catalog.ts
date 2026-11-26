@@ -1,3 +1,4 @@
+import type { UserTrustWrites } from "./agent-configuration-options.js";
 import type { TrustState } from "@nervekit/contracts/core";
 import { projectSubagentCatalog } from "./project-chains/scoped-migrations.js";
 import { ProjectMigrationService } from "../project-migration/project-migration.js";
@@ -58,7 +59,13 @@ export interface ProfileCatalogOptions {
   prepareProject?(projectId: string): Promise<void>;
   /** Authored bundled bytes, not legacy profile formats. */
   builtins: Readonly<Record<string, string>>;
-  trustState(projectId: string, path: string, exactDigest: string): TrustState;
+  /** Keeps approvals across Nerve's own writes of user profiles. */
+  userTrust?: UserTrustWrites;
+  trustState(
+    projectId: string | null,
+    path: string,
+    exactDigest: string,
+  ): TrustState;
   publish?(scope: AgentScope): void;
   invalidate?(scope: AgentScope): void;
   io?: Pick<
@@ -96,6 +103,11 @@ export class AgentProfileCatalog {
         options.paths,
         (scope) => projectProfileConfiguration(scope.name),
       ),
+      captureTrust: (scope, path, source) =>
+        scope.scope === "user"
+          ? (options.userTrust?.capture("agent_profile", path, source) ??
+            Promise.resolve(undefined))
+          : Promise.resolve(undefined),
       fromDisk: (input, scope) =>
         scope.scope === "project" ? profileDocumentValue(input) : input,
       toDisk: (document, scope) =>
@@ -156,10 +168,11 @@ export class AgentProfileCatalog {
       }
       const value = health.value;
       const diagnostics: ConfigurationDiagnostic[] = [];
-      const state =
-        scope.scope === "project"
-          ? this.options.trustState(scope.projectId, value.path, value.digest)
-          : "trusted";
+      const state = this.options.trustState(
+        scope.scope === "project" ? scope.projectId : null,
+        value.path,
+        value.digest,
+      );
       if (state !== "trusted")
         diagnostics.push(
           diagnostic(
@@ -429,10 +442,11 @@ export class AgentProfileCatalog {
       const definition =
         state.status === "unavailable" ? null : state.value.document;
       const file = this.options.paths.profile(current, name);
-      const trustState: TrustState =
-        current.scope === "project"
-          ? this.options.trustState(current.projectId, file, digest)
-          : "trusted";
+      const trustState: TrustState = this.options.trustState(
+        current.scope === "project" ? current.projectId : null,
+        file,
+        digest,
+      );
       const shadows =
         index === 0 ? await this.lowerSource(scopes.slice(1), name) : undefined;
       return {
@@ -581,6 +595,7 @@ export class AgentProfileCatalog {
           throw new ScopeUnavailableError();
         }
         await unlink(file);
+        this.options.userTrust?.revoke("agent_profile", file);
       }
       if (expectedDigest !== "missing")
         await (this.options.io?.syncDirectory ?? synchronizeDirectory)(file);

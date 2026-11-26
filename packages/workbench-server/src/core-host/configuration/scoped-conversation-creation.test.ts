@@ -53,7 +53,8 @@ async function fixture(requiredModel = false) {
           : {},
       }),
     },
-    profileTrustState: () => "needs_review",
+    profileTrustState: (projectId) =>
+      projectId === null ? "trusted" : "needs_review",
     captureResources: () => ({ options: {}, isCurrent: () => true }),
   });
   await service.createConversation("parent", {

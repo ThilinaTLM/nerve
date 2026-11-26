@@ -27,6 +27,12 @@ import SplitColumns from "$lib/presentation/settings/SplitColumns.svelte";
 import TipBadge from "$lib/presentation/settings/TipBadge.svelte";
 import TrustDecisionActions from "$lib/presentation/settings/TrustDecisionActions.svelte";
 import TrustStateBadge from "$lib/presentation/settings/TrustStateBadge.svelte";
+import ConfigurationReviewCallout from "$lib/presentation/configuration-review/ConfigurationReviewCallout.svelte";
+import ConfigurationReviewDialog from "$lib/presentation/configuration-review/ConfigurationReviewDialog.svelte";
+import ConfigurationReviewSections from "$lib/presentation/configuration-review/ConfigurationReviewSections.svelte";
+import ReviewCapabilityList from "$lib/presentation/configuration-review/ReviewCapabilityList.svelte";
+import ReviewSourceList from "$lib/presentation/configuration-review/ReviewSourceList.svelte";
+import type { ConfigurationReview } from "@nervekit/contracts/configuration";
 import type { OAuthFlowInfo } from "@nervekit/contracts/auth";
 import BrainIcon from "@lucide/svelte/icons/brain";
 import CpuIcon from "@lucide/svelte/icons/cpu";
@@ -89,6 +95,62 @@ const stats: PageStat[] = [
   { label: "Proxy", value: "not configured" },
   { label: "Data directory", value: longText, wide: true, mono: true },
 ];
+
+const reviewNow = Date.parse("2026-11-26T12:00:00Z");
+const profileReview: ConfigurationReview = {
+  target: { kind: "agent-profile", scope: "user", id: "reviewer" },
+  name: "reviewer",
+  kindLabel: "Sub-agent profile",
+  state: "needs_review",
+  changedSinceDecision: true,
+  changedAt: "2026-11-26T11:58:00Z",
+  items: [
+    {
+      text: "Runs without asking: requires the `autonomous` rule set",
+      short: "Runs without asking",
+      broad: true,
+      new: true,
+    },
+    {
+      text: "Offered to main agents in every project with delegation on",
+      short: "Offered for delegation",
+      broad: false,
+      new: false,
+    },
+    {
+      text: "Uses `claude-sonnet-4`, thinking high",
+      short: "Picks a model",
+      broad: false,
+      new: false,
+    },
+    {
+      text: "6 lines of instructions",
+      short: "Adds instructions",
+      broad: false,
+      new: false,
+    },
+  ],
+  sources: [
+    {
+      path: "/home/me/.nerve/agent/agent-profiles/reviewer.json",
+      label: "~/.nerve/agent/agent-profiles/reviewer.json",
+    },
+  ],
+  digest: "sha256:specimen",
+};
+const skillSources = [
+  {
+    path: "/p/.nerve/skills/release-notes/SKILL.md",
+    label: "SKILL.md",
+  },
+  {
+    path: "/p/.nerve/skills/release-notes/scripts/collect-changes.sh",
+    label: "scripts/collect-changes.sh",
+    script: true,
+  },
+];
+let reviewDialogOpen = $state(false);
+let reviewPosition = $state(0);
 
 const layerProject = "TestApp";
 const layered = $state({
@@ -1067,7 +1129,7 @@ let oauthResponse = $state("");
     </GallerySpecimen>
     <GallerySpecimen
       title="TrustStateBadge + TrustDecisionActions"
-      description="The three decision states of a project item and the actions each offers: Needs review (Review and trust, Decline), Trusted (Revoke), Declined (Review and trust)."
+      description="The three decision states and the actions each offers on a page: Needs review (Decline, Trust), Trusted (Revoke), Declined (Trust). Trust opens the review dialog."
       source="presentation/settings/TrustDecisionActions.svelte"
       layout="stack"
     >
@@ -1085,6 +1147,95 @@ let oauthResponse = $state("");
           />
         </div>
       {/each}
+    </GallerySpecimen>
+  </GalleryGroup>
+
+  <GalleryGroup
+    title="Configuration review"
+    description="One review for every kind of configuration: what it can do and where its source is, never the source itself."
+  >
+    <GallerySpecimen
+      title="ConfigurationReviewDialog"
+      description="Opened by Review anywhere in the app; steps through a queue. Not now moves on, Decline and Trust decide on this exact version, a trusted item offers Revoke. Details and Open are hidden on the phone."
+      source="presentation/configuration-review/ConfigurationReviewDialog.svelte"
+    >
+      <Button
+        variant="outline"
+        onclick={() => {
+          reviewPosition = 0;
+          reviewDialogOpen = true;
+        }}>Open review</Button
+      >
+      <ConfigurationReviewDialog
+        open={reviewDialogOpen}
+        review={reviewPosition === 0
+          ? profileReview
+          : {
+              ...profileReview,
+              state: "trusted",
+              changedSinceDecision: false,
+            }}
+        position={reviewPosition}
+        total={2}
+        now={reviewNow}
+        onClose={() => (reviewDialogOpen = false)}
+        onPrevious={() => (reviewPosition = 0)}
+        onNext={() => (reviewPosition = 1)}
+        onSkip={() =>
+          reviewPosition === 0
+            ? (reviewPosition = 1)
+            : (reviewDialogOpen = false)}
+        onTrust={() => (reviewPosition = 1)}
+        onDecline={() => (reviewDialogOpen = false)}
+        onDetails={() => (reviewDialogOpen = false)}
+        onOpenSource={() => {}}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ConfigurationReviewCallout"
+      description="The decision notice at the top of an item's page, or of the list a settings file belongs to. Trust opens the review dialog."
+      source="presentation/configuration-review/ConfigurationReviewCallout.svelte"
+      layout="stack"
+    >
+      <ConfigurationReviewCallout
+        state="needs_review"
+        effect="Nerve doesn't offer or use it"
+        changedSinceDecision
+        onTrust={() => {}}
+        onDecline={() => {}}
+      />
+      <ConfigurationReviewCallout
+        state="declined"
+        subject="Your permission rules file"
+        effect="the last version you trusted stays in effect"
+        onTrust={() => {}}
+      />
+      <ConfigurationReviewCallout
+        state="trusted"
+        subject="This project's settings file"
+        showTrusted
+        onRevoke={() => {}}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ConfigurationReviewSections"
+      description="The dialog's two sections on an item's Settings page."
+      source="presentation/configuration-review/ConfigurationReviewSections.svelte"
+      layout="stack"
+    >
+      <ConfigurationReviewSections
+        review={profileReview}
+        onOpenSource={() => {}}
+      />
+    </GallerySpecimen>
+    <GallerySpecimen
+      title="ReviewCapabilityList + ReviewSourceList"
+      description="Broad items first in warning tone, New for what was not approved before; source files with scripts marked, each opening in the file viewer."
+      source="presentation/configuration-review/ReviewSourceList.svelte"
+      layout="stack"
+    >
+      <ReviewCapabilityList items={profileReview.items} />
+      <ReviewSourceList sources={skillSources} onOpen={() => {}} />
     </GallerySpecimen>
   </GalleryGroup>
 </div>

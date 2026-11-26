@@ -16,12 +16,12 @@ export const projectConfigurationDescriptors: readonly {
   trustKind?: TrustedResourceKind;
 }[] = [
   { type: launchDefinitionsConfiguration },
-  { type: projectAgentConfiguration, trustKind: "project_capabilities" },
+  { type: projectAgentConfiguration, trustKind: "capabilities" },
   { type: projectConversationDefaults },
-  { type: projectCapabilitiesConfiguration, trustKind: "project_capabilities" },
-  { type: projectExtensionsConfiguration, trustKind: "project_capabilities" },
+  { type: projectCapabilitiesConfiguration, trustKind: "capabilities" },
+  { type: projectExtensionsConfiguration, trustKind: "capabilities" },
   { type: projectSubagentCatalog, trustKind: "agent_profile" },
-  { type: projectPermissionsConfiguration, trustKind: "project_permissions" },
+  { type: projectPermissionsConfiguration, trustKind: "permissions" },
 ];
 
 export const projectConfigurationTrustKinds: Readonly<
@@ -30,7 +30,7 @@ export const projectConfigurationTrustKinds: Readonly<
   "agent-profile": "agent_profile",
   "prompt-suggestion": "prompt_suggestion",
   /** The project's suggestion enablement file; trusted by exact content like the other settings files. */
-  "prompt-suggestions": "project_capabilities",
+  "prompt-suggestions": "capabilities",
   ...Object.fromEntries(
     projectConfigurationDescriptors.flatMap(({ type, trustKind }) =>
       trustKind ? [[type.id, trustKind]] : [],

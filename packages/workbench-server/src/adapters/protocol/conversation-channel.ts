@@ -53,6 +53,7 @@ import {
 import { needsAttention } from "../../core-host/configuration/resource-registry.js";
 import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
 import { listPermissionRuleSets } from "../../core-host/permissions/permission-rule-sets.js";
+import { configurationReviewHandlers } from "./configuration-review-handlers.js";
 import { orchestratorSource } from "./messages.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import type { LocalProtocolSession } from "./protocol-websocket.js";
@@ -230,31 +231,6 @@ export function createConversationProtocolSession(
       await core.projects.delete(projectId);
       return null;
     },
-    "trust.list": ({ projectId, kind }) => core.trust.list(projectId, kind),
-    "trust.decide": async (input) => {
-      // Extension consent needs the reviewed content hash (`extensions.grantConsent`); here the
-      // user can only withdraw it.
-      if (input.kind === "extension" && input.status === "trusted")
-        throw new Error(
-          "Extensions are trusted by reviewing them in Settings.",
-        );
-      // An MCP decision is on the entry as it is now, with grants computed here.
-      const decision =
-        input.kind === "mcp_server"
-          ? { ...input, grants: await platform.mcp.checkDecision(input) }
-          : input;
-      const result = core.trust.decide(decision);
-      configurationPublished();
-      if (input.kind === "mcp_server") mcpApprovalChanged(input.projectId);
-      return result;
-    },
-    "trust.delete": ({ trustedResourceId }) => {
-      const removed = state.coreStorage.trustedResources.get(trustedResourceId);
-      core.trust.delete(trustedResourceId);
-      configurationPublished();
-      if (removed?.kind === "mcp_server") mcpApprovalChanged(removed.projectId);
-      return null;
-    },
     "conversation.create": async (input) => {
       projects.add(input.projectId);
       const snapshot = await core.createConversation(input);
@@ -413,10 +389,6 @@ export function createConversationProtocolSession(
       ),
     "permission.rule.delete": (input) =>
       permissionMutation(() => state.permissionConfiguration.deleteRule(input)),
-    "permission.projectTrust.grant": ({ projectId }) =>
-      permissionMutation(() =>
-        state.permissionConfiguration.grantProjectTrust(projectId),
-      ),
     "skill.list": ({ projectId } = {}) => {
       const project = projectId ? core.projects.get(projectId) : null;
       if (projectId && !project) throw new Error("Project not found");
@@ -453,6 +425,10 @@ export function createConversationProtocolSession(
       ];
       return { resources: found.filter(needsAttention) };
     },
+    ...configurationReviewHandlers(state, {
+      published: configurationPublished,
+      mcpApprovalChanged,
+    }),
     "skill.review": async ({ projectId, name }) => {
       const project = core.projects.get(projectId);
       if (!project) throw new Error("Project not found");

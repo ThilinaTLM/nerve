@@ -48,7 +48,7 @@ An extension's page shows a problem at the top when it can't be used, with a lin
 
 - **User** and **project** switches sit side by side on each extension row. The project switch overrides the user one for that project and can be shared through the repository. Anything unset in a project follows your user settings. An [agent profile](/reference/agent-profiles/) can also recommend or require extension settings.
 - **Accounts are user-level or project-level.** A user account is available in every project, a project account in one. Their credentials are stored encrypted on your computer and are never copied into project files; a project selects an account by an ID that exists only on your computer, so a teammate must choose their own. Settings at user scope can choose user accounts only. Manage accounts under **Settings → Accounts**; see [Settings at a glance](/guides/settings/#accounts).
-- A project's `.nerve/config/extensions.json` is ignored until you trust its exact content. The Extensions page says the file needs your review, with **Review and trust** and **Decline**; a trusted file can be revoked there. Changes you make through Nerve's settings pages stay trusted; an edit made in another editor needs review again.
+- A project's `.nerve/config/extensions.json` is ignored until you trust its exact content. The Extensions page says the file needs your review, with **Review**, **Trust** and **Decline**; a trusted file can be revoked there. Changes you make through Nerve's settings pages stay trusted; an edit made in another editor needs review again.
 
 See [Configuration](/operations/configuration/#extension-settings-and-accounts) for the files.
 
@@ -56,7 +56,7 @@ See [Configuration](/operations/configuration/#extension-settings-and-accounts) 
 
 Beyond the built-ins, you or the agent can install extensions as folders: in `<NERVE_HOME>/agent/extensions/<id>/` for every project, or in `<project>/.nerve/extensions/<id>/` for one project and its teammates. The easiest way to make one is to ask a [Forge conversation](/guides/configure-by-chat/) to build it; [Build an extension](/guides/build-extensions/) covers the workflow, and [Extension locations and trust](/reference/extensions/) the rules.
 
-A new extension shows as **Pending consent** in **Settings → Extensions** with a plain-language list of what it asks for. Nothing runs until you choose **Allow**, and the agent can't do that for you. A project extension asks again after any change; a user extension asks again only when it gains a permission or contribution. **Revoke** in the Source section withdraws consent.
+A new extension shows as **Needs review** in **Settings → Extensions** with a plain-language list of what it asks for. Nothing runs until you choose **Trust**, and the agent can't do that for you. A user or project extension asks again after any change made outside Nerve. **Revoke** in the Source section withdraws consent.
 
 {/* screenshot: extension-consent */}
 

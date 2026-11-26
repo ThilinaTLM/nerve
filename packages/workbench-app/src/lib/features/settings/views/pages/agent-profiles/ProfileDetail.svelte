@@ -1,7 +1,8 @@
 <!--
   One profile's inner page: Profile (label, ID, when to use, used as), then its
   Changes, each a row that opens its editor. Built-in profiles are read-only
-  with Customize; a project profile waits for review before it applies.
+  with Customize; a user or project profile changed outside Nerve waits for
+  review before it applies, and shows what it can do and its source.
 -->
 <script lang="ts">
 import {
@@ -40,8 +41,10 @@ import {
   LevelMenu,
   SettingsSection,
   TipBadge,
-  TrustDecisionActions,
 } from "$lib/presentation/settings";
+import ConfigurationReviewCallout from "$lib/presentation/configuration-review/ConfigurationReviewCallout.svelte";
+import ItemReviewSections from "../review/ItemReviewSections.svelte";
+import { useItemReview } from "../review/item-review.svelte";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import {
   skillOverrideKind,
@@ -51,7 +54,6 @@ import { visibleAccounts } from "../accounts/accounts-view";
 import ConfigurationRepairDialog from "../capabilities/ConfigurationRepairDialog.svelte";
 import { accountOptions, toolRows } from "../tools/tool-settings";
 import ProfileChangeDialog from "./ProfileChangeDialog.svelte";
-import ProfileTrustReviewDialog from "./ProfileTrustReviewDialog.svelte";
 import {
   addableChanges,
   changeRows,
@@ -107,7 +109,9 @@ const entry = $derived(row.entry);
 const definition = $derived(entry.definition);
 const readOnly = $derived(row.origin === "builtin");
 const untrusted = $derived(
-  row.origin === "project" && entry.trustState !== "trusted",
+  row.origin !== "builtin" &&
+    entry.trustState !== undefined &&
+    entry.trustState !== "trusted",
 );
 const busy = $derived(!!store.busy);
 const error = $derived(store.errors[row.id]);
@@ -120,6 +124,17 @@ const copy = $derived(
   row.replacedBy ? store.find(profileRowId("project", row.name)) : undefined,
 );
 const parentLabel = $derived(kind === "subagent" ? "Sub-Agents" : "Agents");
+const reviewTarget = $derived(
+  row.origin === "builtin" || (row.origin === "project" && !projectId)
+    ? undefined
+    : {
+        kind: "agent-profile" as const,
+        scope: row.origin,
+        ...(projectId ? { projectId } : {}),
+        id: row.name,
+      },
+);
+const itemReview = useItemReview(() => reviewTarget);
 
 $effect(() => {
   if (projectId) void permissionRuleSetCatalog.ensure(projectId);
@@ -248,7 +263,6 @@ async function add(item: AddChangeItem) {
 }
 
 let deleteOpen = $state(false);
-let reviewOpen = $state(false);
 let repairOpen = $state(false);
 const repairReplacement = $derived(
   definition ?? {
@@ -277,9 +291,6 @@ async function duplicate() {
 }
 async function remove() {
   if (await store.remove(row)) onBack();
-}
-async function decide(trusted: boolean) {
-  if (await store.trust(row, trusted)) reviewOpen = false;
 }
 </script>
 
@@ -345,9 +356,13 @@ async function decide(trusted: boolean) {
           <FileText aria-hidden="true" />Open file
         </Button>
       {/if}
-      {#if row.origin === "project" && definition && entry.trustState === "trusted"}
-        <Button size="sm" variant="outline" onclick={() => (reviewOpen = true)}>
-          <ShieldCheck aria-hidden="true" />Review trust
+      {#if itemReview.current && definition && !untrusted}
+        <Button
+          size="sm"
+          variant="outline"
+          onclick={() => itemReview.current?.trust()}
+        >
+          <ShieldCheck aria-hidden="true" />Review
         </Button>
       {/if}
       {#if !readOnly && entry.local}
@@ -382,25 +397,16 @@ async function decide(trusted: boolean) {
     {/snippet}
   </Callout>
 {/if}
-{#if untrusted}
-  {@const declined = entry.trustState === "declined"}
-  <Callout
-    layout="block"
-    tone={declined ? "neutral" : "warning"}
-    title={declined ? "You declined this profile" : "Waiting for your review"}
-    text={declined
-      ? "Nerve doesn't use it until you review and trust it."
-      : "This profile comes from this project's files. Nerve uses it only after you trust these exact contents."}
-  >
-    {#snippet actions()}
-      <TrustDecisionActions
-        state={entry.trustState}
-        {busy}
-        onTrust={() => (reviewOpen = true)}
-        onDecline={() => swallow(() => decide(false))}
-      />
-    {/snippet}
-  </Callout>
+{#if untrusted && entry.trustState}
+  <ConfigurationReviewCallout
+    state={entry.trustState}
+    effect="Nerve doesn't offer or use it"
+    changedSinceDecision={itemReview.current?.review?.changedSinceDecision}
+    busy={busy || itemReview.current?.busy}
+    error={itemReview.current?.error}
+    onTrust={() => itemReview.current?.trust()}
+    onDecline={() => void itemReview.current?.decline()}
+  />
 {:else if row.replacedBy}
   <Callout
     layout="block"
@@ -638,6 +644,13 @@ async function decide(trusted: boolean) {
       {/each}
     {/if}
   </SettingsSection>
+  {#if reviewTarget && itemReview.current}
+    <ItemReviewSections
+      target={reviewTarget}
+      item={itemReview.current}
+      onOpenSource={onOpenFile}
+    />
+  {/if}
 {:else}
   <PageEmptyState
     variant="card"
@@ -671,17 +684,6 @@ async function decide(trusted: boolean) {
         confirmLabel: "Delete profile",
       }}
   onConfirm={remove}
-/>
-<ProfileTrustReviewDialog
-  bind:open={reviewOpen}
-  profile={entry}
-  lines={rows.map((change) => ({
-    label: change.label,
-    value: changeValueText(change, textDeps),
-  }))}
-  {busy}
-  {error}
-  onDecide={(trusted) => swallow(() => decide(trusted))}
 />
 {#if repairOpen}
   <ConfigurationRepairDialog

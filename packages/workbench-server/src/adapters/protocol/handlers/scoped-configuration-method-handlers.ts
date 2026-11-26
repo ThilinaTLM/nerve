@@ -1,27 +1,10 @@
-import {
-  toTrustedDigest,
-  type TrustedResource,
-} from "@nervekit/contracts/core";
 import { createConfigurationReload } from "../../../core-host/configuration/configuration-reload.js";
-import { readFile } from "node:fs/promises";
-import {
-  agentPreferencesSchema,
-  profileDefinitionSchema,
-  type ScopedTrustRequest,
-  type ScopedConfigurationTarget,
-} from "@nervekit/contracts/agent-configuration";
-import { withFileMutation } from "../../../infrastructure/storage-bootstrap/file-mutations.js";
-import {
-  digestBytes,
-  ScopeConflictError,
-} from "../../../infrastructure/configuration/scoped-store/scoped-document-store.js";
+import type { ScopedConfigurationTarget } from "@nervekit/contracts/agent-configuration";
 import {
   configurationTargetPath,
   createScopedRepair,
 } from "../../../infrastructure/configuration/agent-configuration/scoped-repair.js";
 import { diagnostic } from "../../../infrastructure/configuration/agent-configuration/document-adapters.js";
-import { projectAgentDocumentValue } from "../../../infrastructure/configuration/agent-configuration/project-chains/scoped-migrations.js";
-import { profileDocumentValue } from "../../../infrastructure/configuration/agent-configuration/project-chains/profile-migrations.js";
 import { mutationFailure } from "../../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import { defineWorkbenchMethodHandlersFor } from "../method-handler-registry.js";
 import type { ServerAdapterContexts } from "../../contexts.js";
@@ -51,65 +34,6 @@ function failure(
       ),
     ],
   };
-}
-async function trust(state: Context, input: ScopedTrustRequest) {
-  const service = state.agentConfiguration;
-  const file = configurationTargetPath(service, input.target);
-  try {
-    let decided: TrustedResource | undefined;
-    await withFileMutation(file, async () => {
-      const bytes = await readFile(file);
-      if (digestBytes(bytes) !== input.expectedDigest)
-        throw new ScopeConflictError();
-      if (input.trusted) {
-        const parsed: unknown = JSON.parse(bytes.toString("utf8"));
-        if (input.target.document === "agent") {
-          // Project agent files carry their own chain version.
-          if (input.target.scope.scope === "project")
-            projectAgentDocumentValue(parsed);
-          else agentPreferencesSchema.parse(parsed);
-        } else if (
-          // Project profiles are stored as versioned documents; user profiles are bare definitions.
-          (input.target.scope.scope === "project"
-            ? profileDocumentValue(parsed)
-            : profileDefinitionSchema.parse(parsed)
-          ).name !== input.target.name
-        )
-          throw new Error("Profile name differs from filename");
-      }
-      decided = state.conversationCore.trust.decide({
-        kind:
-          input.target.document === "agent"
-            ? "project_capabilities"
-            : "agent_profile",
-        projectId: input.target.scope.projectId,
-        name:
-          input.target.document === "agent"
-            ? "Agent configuration"
-            : input.target.name,
-        resourceKey: file,
-        contentDigest: toTrustedDigest(input.expectedDigest),
-        status: input.trusted ? "trusted" : "rejected",
-      });
-    });
-    service.invalidateResources();
-    state.admissionPolicy.invalidate();
-    if (input.target.document === "agent")
-      await service.reload(input.target.scope);
-    else await service.profiles.reload(input.target.scope, input.target.name);
-    await state.conversationCore.retryConfigurationBlocked();
-    await state.conversationCore.reconcilePlanReviews();
-    return {
-      status: "saved" as const,
-      digest: input.expectedDigest,
-      trustState: state.conversationCore.trust.trustState(
-        decided,
-        toTrustedDigest(input.expectedDigest),
-      ),
-    };
-  } catch (error) {
-    return failure(state, input.target, error);
-  }
 }
 export const scopedConfigurationMethodHandlers = define({
   "agentConfiguration.reload": async (state, input) => ({
@@ -186,8 +110,6 @@ export const scopedConfigurationMethodHandlers = define({
       );
     }
   },
-  "agentProfiles.trust": trust,
-  "agentConfiguration.trust": trust,
   "agentConfiguration.repairPreview": async (state, input) => {
     try {
       return {

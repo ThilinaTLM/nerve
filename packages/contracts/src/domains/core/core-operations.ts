@@ -7,11 +7,6 @@ import {
 import { projectSchema } from "./project.js";
 import { CONVERSATION_TITLE_MAX_LENGTH } from "./conversation-title.js";
 import {
-  trustedResourceSchema,
-  trustedResourceKindSchema,
-  trustDecisionSchema,
-} from "./trusted-resource.js";
-import {
   conversationConfigSchema,
   conversationSnapshotSchema,
   conversationSummarySchema,
@@ -120,21 +115,6 @@ export const coreOperationSchemas = {
   },
   "project.delete": {
     params: z.object({ projectId: z.string() }),
-    result: done,
-  },
-  "trust.list": {
-    params: z.object({
-      projectId: z.string().nullable(),
-      kind: trustedResourceKindSchema.optional(),
-    }),
-    result: z.array(trustedResourceSchema),
-  },
-  "trust.decide": {
-    params: trustDecisionSchema,
-    result: trustedResourceSchema,
-  },
-  "trust.delete": {
-    params: z.object({ trustedResourceId: z.string() }),
     result: done,
   },
   "conversation.create": {

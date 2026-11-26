@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ProjectMigrationService } from "../../../infrastructure/configuration/project-migration/project-migration.js";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
@@ -252,6 +253,21 @@ export async function productionAdmissionFixture(
       },
     }),
   );
+  // The files above stand for the user's own approved configuration.
+  for (const [kind, file] of [
+    ["agent_profile", join(paths.agentProfilesPath, "worker.json")],
+    ["capabilities", join(paths.configPath, "agent.json")],
+  ] as const)
+    runtime.core.trust.decide({
+      kind,
+      projectId: null,
+      resourceKey: file,
+      name: null,
+      contentDigest: `sha256:${createHash("sha256")
+        .update(await readFile(file))
+        .digest("hex")}`,
+      status: "trusted",
+    });
   await runtime.agentConfiguration.reload({ scope: "user" });
   const defaults = await runtime.agentConfiguration.loadCreation({
     scope: "user",

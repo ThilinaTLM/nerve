@@ -1,4 +1,5 @@
 import { isActivityRunning, type Activity } from "@nervekit/contracts/activity";
+import type { ConversationSummary } from "@nervekit/contracts/core";
 
 export type NotificationKind =
   | "attention"
@@ -52,6 +53,8 @@ export type NeedsYouInput = {
   projectId?: string;
   projectName?: string;
   at: string;
+  /** What the conversation waits for, when it waits for input. */
+  pendingInput?: NonNullable<ConversationSummary["pendingInput"]>["kind"];
 };
 
 export type NotificationInput = {

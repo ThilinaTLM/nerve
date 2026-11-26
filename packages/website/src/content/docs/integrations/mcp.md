@@ -75,9 +75,9 @@ OAuth sign-in for MCP servers isn't supported. Pass a token in `headers` instead
 
 ## Review and trust
 
-An MCP server can start a program or send data to a URL, so an entry doesn't connect until you trust that exact entry. The same three states apply as for other project files: **Needs review**, **Trusted**, and **Declined**. The review lists the command or URL, every variable and secret the entry references, and where each value goes. Changing an entry in an editor asks again; saving it in Settings keeps it trusted.
+An MCP server can start a program or send data to a URL, so an entry doesn't connect until you trust that exact entry. The same three states apply as for other configuration, in both scopes: **Needs review**, **Trusted**, and **Declined**. The review lists the command or URL, every variable and secret the entry references, and where each value goes. Changing an entry in an editor asks again; saving it in Settings keeps it trusted.
 
-Servers waiting for review appear in the notification bell and as a count beside **MCP servers** in Settings. Until you decide, scripts that name the server fail with `FORBIDDEN`. See [Settings at a glance](/guides/settings/#project-files-you-review).
+Servers waiting for review appear in the bell's **Needs your review** list and as a count beside **MCP servers** in Settings. Until you decide, scripts that name the server fail with `FORBIDDEN`. See [Settings at a glance](/guides/settings/#items-you-review).
 
 ## Turn servers on and off
 

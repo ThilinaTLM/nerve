@@ -29,7 +29,7 @@ function memoryTrust() {
     },
   } as unknown as CoreStorage;
   const carry = projectMigrationTrust(() => storage, {
-    "prompt-suggestions": "project_capabilities",
+    "prompt-suggestions": "capabilities",
   });
   const trust: ProjectSuggestionFileTrust = {
     state: (_projectId, path, digest) => {
@@ -45,7 +45,7 @@ function memoryTrust() {
     decide: ({ projectId, path, digest, trusted }) =>
       rows.set(path, {
         id: `trust_${rows.size}`,
-        kind: "project_capabilities",
+        kind: "capabilities",
         projectId,
         resourceKey: path,
         name: null,

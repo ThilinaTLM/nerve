@@ -2,12 +2,7 @@ import type { TrustedResourceService } from "@nervekit/conversation-core";
 import { toTrustedDigest } from "@nervekit/contracts/core";
 import { extensionGrantSnapshotSchema } from "@nervekit/contracts/extensions";
 import { hashExtensionContent } from "./content-hash.js";
-import {
-  buildConsent,
-  grantSnapshot,
-  newGrants,
-  isEmptyGrant,
-} from "./consent-summary.js";
+import { buildConsent, grantSnapshot } from "./consent-summary.js";
 import type {
   ExtensionTrustGate,
   ExtensionTrustVerdict,
@@ -39,10 +34,9 @@ export function projectIdOfDirectory(
  *
  * - Nothing runs before consent; a missing or unreadable decision needs review and a `rejected` one
  *   is declined, whatever the content.
- * - A project extension is pending again on any change of its content.
- * - A user extension keeps consent through a code-only change; a change that adds anything to
- *   its grants (network, accounts, models, frame, namespaces and operations, tools, UI) is pending
- *   again, with the new grants as the review. Removed grants narrow the stored snapshot.
+ * - An extension of either scope is pending again on any change of its content made outside Nerve:
+ *   changed code can use every access already granted. The review lists what is new against the
+ *   stored grants, and says so when the code changed with no new access.
  */
 export class ExtensionConsentRepository implements ExtensionTrustGate {
   constructor(private readonly sources: ExtensionConsentSources) {}
@@ -60,29 +54,10 @@ export class ExtensionConsentRepository implements ExtensionTrustGate {
       .trustState(record, toTrustedDigest(contentHash));
     if (state === "trusted") return "trusted";
     const approved = record?.status === "trusted" ? record : undefined;
-    const grants = grantSnapshot(candidate.manifest);
     // An extension row holds an extension snapshot; a row of another kind has none to compare.
     const approvedGrants = extensionGrantSnapshotSchema.safeParse(
       approved?.grants,
     ).data;
-    if (
-      scope &&
-      approvedGrants &&
-      candidate.source === "user" &&
-      isEmptyGrant(newGrants(approvedGrants, grants))
-    ) {
-      // Code-only change (or fewer grants): consent stands, and is narrowed to what is granted now.
-      this.sources.trust().decide({
-        kind: "extension",
-        projectId: scope.projectId,
-        resourceKey: candidate.folder,
-        name: candidate.id,
-        contentDigest: toTrustedDigest(contentHash),
-        status: "trusted",
-        grants,
-      });
-      return "trusted";
-    }
     return {
       decision: "pending",
       consent: buildConsent({
@@ -113,21 +88,6 @@ export class ExtensionConsentRepository implements ExtensionTrustGate {
       grants: grantSnapshot(candidate.manifest),
     });
     return true;
-  }
-
-  /** Keeps the row as `rejected`, so Settings can still show the decision. */
-  async revoke(key: InstalledExtensionKey): Promise<void> {
-    const scope = this.#scope(key);
-    const record = scope ? this.#find(scope.projectId, key.folder) : undefined;
-    if (!scope || !record) return;
-    this.sources.trust().decide({
-      kind: "extension",
-      projectId: scope.projectId,
-      resourceKey: key.folder,
-      name: key.id,
-      contentDigest: record.contentDigest,
-      status: "rejected",
-    });
   }
 
   #find(projectId: string | null, folder: string) {

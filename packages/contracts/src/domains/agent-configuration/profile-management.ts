@@ -94,29 +94,6 @@ export const scopedConfigurationTargetSchema = z.union([
     name: profileDefinitionSchema.shape.name,
   }),
 ]);
-export const scopedTrustRequestSchema = z.strictObject({
-  target: z.union([
-    z.strictObject({
-      document: z.literal("agent"),
-      scope: preferenceScopeSchema.options[1],
-    }),
-    z.strictObject({
-      document: z.literal("profile"),
-      scope: preferenceScopeSchema.options[1],
-      name: profileDefinitionSchema.shape.name,
-    }),
-  ]),
-  expectedDigest: z.string().min(1),
-  trusted: z.boolean(),
-});
-export const scopedTrustResultSchema = z.union([
-  z.strictObject({
-    status: z.literal("saved"),
-    digest: z.string(),
-    trustState: trustStateSchema,
-  }),
-  configurationMutationFailureSchema,
-]);
 export const repairPreviewRequestSchema = z.strictObject({
   target: scopedConfigurationTargetSchema,
   replacement: z.unknown(),
@@ -214,24 +191,6 @@ export const scopedProfileOperationDefinitions = [
     "operation.agentProfiles.reset",
   ),
   defineOperation(
-    "agentProfiles.trust",
-    scopedTrustRequestSchema,
-    scopedTrustResultSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.agentProfiles.trust",
-  ),
-  defineOperation(
-    "agentConfiguration.trust",
-    scopedTrustRequestSchema,
-    scopedTrustResultSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.agentConfiguration.trust",
-  ),
-  defineOperation(
     "agentConfiguration.repairPreview",
     repairPreviewRequestSchema,
     repairPreviewResultSchema,
@@ -254,7 +213,6 @@ export type ProfileCatalogEntry = z.infer<typeof profileCatalogEntrySchema>;
 export type ScopedConfigurationTarget = z.infer<
   typeof scopedConfigurationTargetSchema
 >;
-export type ScopedTrustRequest = z.infer<typeof scopedTrustRequestSchema>;
 export type RepairPreviewRequest = z.infer<typeof repairPreviewRequestSchema>;
 export type RepairApplyRequest = z.infer<typeof repairApplyRequestSchema>;
 export type RepairPreview = z.infer<typeof repairPreviewSchema>;
@@ -278,7 +236,6 @@ export type DeleteScopedProfileRequest = z.infer<
   typeof deleteScopedProfileRequestSchema
 >;
 export type ProfileMutationResult = z.infer<typeof profileMutationResultSchema>;
-export type ScopedTrustResult = z.infer<typeof scopedTrustResultSchema>;
 export type RepairPreviewResult = z.infer<typeof repairPreviewResultSchema>;
 export type RepairApplyResult = z.infer<typeof repairApplyResultSchema>;
 

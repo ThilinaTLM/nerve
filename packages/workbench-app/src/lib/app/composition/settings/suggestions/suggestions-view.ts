@@ -72,8 +72,8 @@ export type TrustBadge = {
   variant: "neutral" | "success" | "warning";
 };
 
-/** The decision on a suggestion's script; undefined when it has none to decide. */
-export function scriptTrustState(
+/** The decision on a suggestion file; undefined when it has none to decide. */
+export function suggestionTrustState(
   status: PromptSuggestionStatus,
 ): TrustState | undefined {
   if (!status.requiresTrust) return undefined;
@@ -89,9 +89,9 @@ export function scriptTrustState(
   }
 }
 
-/** The script badge of a suggestion row: the shared decision states, or "No JS". */
+/** The badge of a suggestion row: the shared decision states, or "No JS" for one that needs none. */
 export function trustBadge(status: PromptSuggestionStatus): TrustBadge {
-  const state = scriptTrustState(status);
+  const state = suggestionTrustState(status);
   if (!state)
     return {
       text: "No JS",
@@ -101,10 +101,11 @@ export function trustBadge(status: PromptSuggestionStatus): TrustBadge {
   const tips: Record<TrustState, string> = {
     needs_review:
       status.status === "stale"
-        ? "Its script changed since you decided. It waits for your review."
-        : "Its script waits for your review.",
-    trusted: "You trusted its script to decide when it shows.",
-    declined: "You declined its script, so the suggestion never shows.",
+        ? "Changed outside Nerve's settings since you decided. Not shown until you review it."
+        : "Not shown until you review and trust it.",
+    trusted:
+      "You trusted this exact file. Edits made in Nerve keep it trusted; any other change asks again.",
+    declined: "You declined it, so the suggestion never shows.",
   };
   return {
     text: TRUST_STATE_LABELS[state],
@@ -113,8 +114,8 @@ export function trustBadge(status: PromptSuggestionStatus): TrustBadge {
   };
 }
 
-/** A script that was never reviewed (or changed since): the row asks for a review and has no switches. */
-export function awaitsScriptReview(status: PromptSuggestionStatus): boolean {
+/** A file that was never reviewed (or changed since): the row asks for a review and has no switches. */
+export function awaitsReview(status: PromptSuggestionStatus): boolean {
   return (
     status.requiresTrust &&
     (status.status === "needs_review" || status.status === "stale")

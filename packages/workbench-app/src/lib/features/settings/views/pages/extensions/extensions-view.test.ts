@@ -716,15 +716,15 @@ describe("installed extensions", () => {
     assert.equal(installedStateBadge("invalid")?.variant, "destructive");
   });
 
-  it("explains pending consent and surfaces the first error", () => {
+  it("explains a pending review and surfaces the first error", () => {
     const consent = { update: true, contentHash: "h", items: [], text: "" };
     assert.match(
       installedProblem(entry({ state: "pending_consent", consent })) ?? "",
-      /Changed since you allowed it/,
+      /Changed outside Nerve/,
     );
     assert.match(
       installedProblem(entry({ state: "pending_consent" })) ?? "",
-      /Nothing runs until you allow it/,
+      /Waiting for your review/,
     );
     assert.equal(
       installedProblem(
