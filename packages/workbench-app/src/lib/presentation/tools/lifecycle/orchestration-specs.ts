@@ -21,7 +21,7 @@ const subagentPrompt = spec({
   name: "subagent_prompt",
   argumentRegion: "persistent",
   completedView: "subagent",
-  present: (source, stage) => {
+  present: (source) => {
     const assignments = source.objectArraySources("assignments", Infinity);
     return argumentPresentation({
       primaryArg: textArg(
@@ -39,10 +39,10 @@ const subagentPrompt = spec({
                 detail: item.string("profile"),
                 body: item.string("prompt"),
                 agentName: item.string("name"),
-                status: {
-                  tone: "neutral",
-                  label: stage === "drafting" ? "Drafting" : "Pending",
-                },
+                // The row still streaming keeps the pulsing placeholder dot.
+                status: item.complete
+                  ? { tone: "neutral", label: "Pending" }
+                  : undefined,
               })),
               context:
                 source.string("context") !== undefined

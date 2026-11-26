@@ -52,10 +52,36 @@ describe("subagent_prompt result", () => {
       },
       result,
     );
-    assert.equal(assignments.length, 2);
+    assert.equal(assignments.length, 3);
     assert.equal(assignments[0].disposition, "created");
     assert.equal(assignments[1].profile, "developer");
     assert.equal(assignments[1].queuedState, "running");
+    assert.equal(assignments[2].name, "");
+  });
+
+  it("fills entries a bounded preview lost from the result, in order", () => {
+    const details = {
+      assignments: ["a", "b", "c", "d"].map((name) => ({
+        name,
+        profile: "developer",
+        disposition: "created",
+      })),
+    };
+    const assignments = subagentAssignments(
+      {
+        assignments: [
+          { name: "a", profile: "developer", prompt: "do a" },
+          { name: "b", profile: "developer", prompt: "do b" },
+          { name: "", profile: "", prompt: "" },
+        ],
+      },
+      undefined,
+      details,
+    );
+    assert.deepEqual(
+      assignments.map((item) => [item.name, item.profile, item.disposition]),
+      ["a", "b", "c", "d"].map((name) => [name, "developer", "created"]),
+    );
   });
 
   it("keeps assignments while the call is unsettled or failed", () => {

@@ -7,6 +7,10 @@ import {
   EXTENSION_PREVIEW_ITEMS,
 } from "./extension-tool-transcript-preview.js";
 import {
+  SUBAGENT_PROMPT_MAX_ASSIGNMENTS,
+  subagentPromptArgsPreview,
+} from "./subagent-tool-transcript-preview.js";
+import {
   firstLines,
   lastLines,
   MAX_PREVIEW_CHARS,
@@ -353,6 +357,18 @@ const EXTENSION_PUBLIC_PREVIEW_LIMITS: PublicPreviewLimits = {
   maxEntries: 512,
 };
 
+/**
+ * Every assignment row and its result line survive the public pass: prompts
+ * and context are bounded per text up front, so the shared budget never runs
+ * out before a later assignment's name.
+ */
+const SUBAGENT_PROMPT_PREVIEW_LIMITS: PublicPreviewLimits = {
+  maxTextBytes: 16 * 1024,
+  maxDepth: MAX_PUBLIC_PREVIEW_DEPTH,
+  maxItems: SUBAGENT_PROMPT_MAX_ASSIGNMENTS,
+  maxEntries: 256,
+};
+
 type PublicPreviewState = PublicPreviewLimits & {
   textBytes: number;
   entries: number;
@@ -666,7 +682,19 @@ export function buildUserProjection(
       direction = "tail";
       break;
     }
-    case "subagent_prompt":
+    case "subagent_prompt": {
+      const prompt = subagentPromptArgsPreview(argsRecord);
+      argsPreview = prompt.value;
+      const output = firstLines(outputText(resultRecord));
+      resultPreview = {
+        details: resultRecord.details,
+        ...withTextContent(resultRecord, output.value),
+      };
+      ({ hidden, noun } = textOverflowStats([...prompt.texts, output]));
+      direction = "head";
+      limits = SUBAGENT_PROMPT_PREVIEW_LIMITS;
+      break;
+    }
     case "subagent_status":
     case "subagent_stop": {
       const output = firstLines(outputText(resultRecord));
