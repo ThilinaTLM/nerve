@@ -73,7 +73,7 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
     {
       step: { id: "0007-user-configuration-trust" },
       checksum:
-        "b5d1f78a41af9ccbacb9ce9b4cf7ba9c50d587338d5b7691b0f40178c75f9a44",
+        "a6ff05c2cf99fe7abff2d03bcfd6355100f1a90b386368d62eb3d70f9fb0b261",
       stage: "draft",
       rerunOnChange: true,
     },

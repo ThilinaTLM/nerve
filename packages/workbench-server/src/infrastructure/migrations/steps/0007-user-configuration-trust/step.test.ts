@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -13,7 +13,8 @@ const digest = (text: string) =>
   `sha256:${createHash("sha256").update(text).digest("hex")}`;
 
 function setup() {
-  const root = mkdtempSync(join(tmpdir(), "nerve-0007-"));
+  // The skill loader reports real paths (macOS tmpdir is a symlink under /private).
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "nerve-0007-")));
   process.env.HOME = join(root, "os-home");
   mkdirSync(join(root, "nerve"));
   const paths = storagePaths(join(root, "nerve"));
