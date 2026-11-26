@@ -1,4 +1,5 @@
 <script lang="ts">
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
@@ -42,12 +43,8 @@ let {
 let filter = $state("");
 
 const matches = $derived.by(() => {
-  const needle = filter.trim().toLowerCase();
-  if (needle.length === 0) return runs;
   return runs.filter((entry) =>
-    `${launchRunLabel(entry).text} ${entry.run.command}`
-      .toLowerCase()
-      .includes(needle),
+    matchesTerms(filter, launchRunLabel(entry).text, entry.run.command),
   );
 });
 

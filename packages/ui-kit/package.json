@@ -19,6 +19,7 @@
     "./styles/base.css": "./src/styles/base.css",
     "./styles/animation.css": "./src/styles/animation.css",
     "./styles/components.css": "./src/styles/components.css",
+    "./styles/theme-resolver": "./src/styles/theme-resolver.mjs",
     "./utils": "./src/lib/utils.ts",
     "./icons/*": "./src/lib/icons/*.svelte",
     "./browser/*": "./src/lib/browser/*.ts",
@@ -74,6 +75,7 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
+    "@nervekit/test-kit": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "7.1.2",
     "@testing-library/svelte": "5.4.2",
     "@testing-library/user-event": "14.6.8",

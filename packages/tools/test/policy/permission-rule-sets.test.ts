@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { realpathSync } from "node:fs";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -21,6 +21,7 @@ import {
   permissionMetadataForTool,
   toolManifest,
 } from "../../src/catalog/index.js";
+import { removeTree } from "@nervekit/test-kit";
 
 const roots = {
   project: "/workspace",
@@ -577,7 +578,7 @@ test("existing symlinks are canonicalized to external targets", async () => {
       },
     ]);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -611,7 +612,7 @@ test("non-existent leaf under a symlinked directory is classified outside the ro
       },
     ]);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 

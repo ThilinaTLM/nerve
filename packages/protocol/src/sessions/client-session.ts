@@ -308,10 +308,7 @@ export class ProtocolClientSession {
   request<M extends OperationName>(
     method: M,
     params: OperationParams<M>,
-    options: Pick<
-      ProtocolRequestData,
-      "idempotencyKey" | "timeoutMs" | "expect"
-    > &
+    options: Pick<ProtocolRequestData, "timeoutMs" | "expect"> &
       Partial<
         Pick<
           MessageFactoryOptions,
@@ -435,7 +432,6 @@ export class ProtocolClientSession {
       ),
     );
     this.#startHeartbeat(welcome.heartbeat);
-    await this.#rpc.retryPending();
     await this.#options.onReady?.(welcome);
   }
 

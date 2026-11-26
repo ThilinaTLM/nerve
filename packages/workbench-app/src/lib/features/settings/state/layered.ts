@@ -1,3 +1,4 @@
+import type { Layer } from "@nervekit/contracts/core";
 /**
  * Layer semantics of the unified settings: a value is chosen by the project,
  * else by the user, else it is the built-in default. An absent layer inherits.
@@ -11,7 +12,7 @@ export type Layered<T> = {
 };
 
 export type LayerChoices<T> = Pick<Layered<T>, "user" | "project">;
-export type SettingLayer = "user" | "project";
+export type SettingLayer = Layer;
 
 /** What applies for the user, ignoring any project. */
 export function userEffective<T>(value: Layered<T>): T {

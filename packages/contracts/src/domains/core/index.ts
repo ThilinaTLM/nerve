@@ -236,3 +236,5 @@ export type {
   AttentionInputKind,
   AttentionKind,
 } from "./attention.js";
+export { layerSchema, sourceSchema, conversationScopeSchema } from "./scope.js";
+export type { Layer, Source, ConversationScope } from "./scope.js";

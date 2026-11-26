@@ -1,3 +1,5 @@
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
+
 /** Layout and filtering rules for the composer's capabilities popover.
  * Tools and skills share a body height; search depends on the active list. */
 
@@ -27,9 +29,5 @@ export function capabilityBodyHeight(
 export function filterCapabilityRows<
   T extends { label: string; searchText?: string },
 >(rows: T[], query: string): T[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return rows;
-  return rows.filter((row) =>
-    `${row.label} ${row.searchText ?? ""}`.toLowerCase().includes(needle),
-  );
+  return rows.filter((row) => matchesTerms(query, row.label, row.searchText));
 }

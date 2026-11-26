@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import {
   mkdir,
   mkdtemp,
   readFile,
-  rm,
   stat,
   symlink,
   writeFile,
@@ -143,10 +143,7 @@ describe("filesystem application service", () => {
         /symbolic link/,
       );
     } finally {
-      await Promise.all([
-        rm(root, { recursive: true, force: true }),
-        rm(outside, { recursive: true, force: true }),
-      ]);
+      await Promise.all([removeTree(root), removeTree(outside)]);
     }
   });
 
@@ -194,7 +191,7 @@ describe("filesystem application service", () => {
         ["src/nested.ts"],
       );
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -221,7 +218,7 @@ describe("filesystem application service", () => {
         /cursor/i,
       );
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -268,10 +265,7 @@ describe("filesystem application service", () => {
       assert.equal(entries["outside-link"]?.kind, "other");
       assert.equal(entries["broken-link"]?.kind, "other");
     } finally {
-      await Promise.all([
-        rm(root, { recursive: true, force: true }),
-        rm(outside, { recursive: true, force: true }),
-      ]);
+      await Promise.all([removeTree(root), removeTree(outside)]);
     }
   });
 
@@ -299,7 +293,7 @@ describe("filesystem application service", () => {
       assert.equal(result.type, "text");
       assert.equal(result.editable, true);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -316,7 +310,7 @@ describe("filesystem application service", () => {
       assert.equal(result.editable, true);
       assert.equal(result.text, markup);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -434,10 +428,7 @@ describe("filesystem application service", () => {
         /escapes the project/i,
       );
     } finally {
-      await Promise.all([
-        rm(root, { recursive: true, force: true }),
-        rm(outside, { recursive: true, force: true }),
-      ]);
+      await Promise.all([removeTree(root), removeTree(outside)]);
     }
   });
 });
@@ -473,7 +464,7 @@ describe("attachment uploads", () => {
       );
       assert.equal((await stat(empty.path)).size, 0);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -511,7 +502,7 @@ describe("attachment uploads", () => {
           assert.equal((await stat(file.path)).mode & 0o777, 0o600);
       }
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -544,7 +535,7 @@ describe("attachment uploads", () => {
       assert.equal(await readFile(first.path, "utf8"), "original");
       assert.equal(await readFile(`${stem}-100.txt`, "utf8"), "existing");
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -568,7 +559,7 @@ describe("attachment uploads", () => {
           /20 MiB/.test(error.message),
       );
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 });

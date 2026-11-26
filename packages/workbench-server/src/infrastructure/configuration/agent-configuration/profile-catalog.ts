@@ -11,7 +11,7 @@ import {
   profileDocumentValue,
 } from "./project-chains/profile-migrations.js";
 import { readConfigurationDigest } from "./configuration-bytes.js";
-import { readFile, readdir, unlink } from "node:fs/promises";
+import { readdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import {
   profileDefinitionSchema,
@@ -26,11 +26,12 @@ import {
   ScopeConflictError,
   ScopeUnavailableError,
 } from "../scoped-store/scoped-document-store.js";
-import { withFileMutation } from "../../storage-bootstrap/file-mutations.js";
 import {
+  withFileMutation,
   errorCode,
   synchronizeDirectory,
-} from "../scoped-store/durable-write.js";
+} from "../../storage-bootstrap/file-mutations.js";
+import { readJsonFile } from "../../storage-bootstrap/json.js";
 import {
   AgentConfigurationPaths,
   diagnostic,
@@ -588,9 +589,7 @@ export class AgentProfileCatalog {
         // Invalid content must go through confirmed repair with backup/receipt,
         // not an ordinary catalog delete that would discard its original bytes.
         try {
-          profileDefinitionSchema.parse(
-            JSON.parse(await readFile(file, "utf8")),
-          );
+          await readJsonFile(file, profileDefinitionSchema);
         } catch {
           throw new ScopeUnavailableError();
         }

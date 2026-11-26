@@ -12,6 +12,7 @@ import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { scrollEdges } from "@nervekit/ui-kit/components/composites/scroll-region";
 import { SearchInput } from "@nervekit/ui-kit/components/composites/search-input";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
@@ -621,13 +622,14 @@ const lineClass = (current: boolean) =>
             <div
               id={`history-item-${row.itemId}`}
               data-history-item={row.itemId}
-              class={[
-                "flex cursor-pointer gap-1.5 rounded-md pr-2",
-                selected ? "bg-selected" : "hover:bg-hover",
-                query.trim().length >= 2 &&
-                  !matches.has(row.itemId) &&
-                  "opacity-50",
-              ]}
+              class={selectRowVariants({ selected }).base({
+                class: [
+                  "flex cursor-pointer gap-1.5 pr-2",
+                  query.trim().length >= 2 &&
+                    !matches.has(row.itemId) &&
+                    "opacity-50",
+                ],
+              })}
               role="option"
               aria-selected={selected}
               tabindex="-1"

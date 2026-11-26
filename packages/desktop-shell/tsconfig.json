@@ -8,6 +8,9 @@
   },
   "references": [
     {
+      "path": "../primitives"
+    },
+    {
       "path": "../contracts"
     },
     {

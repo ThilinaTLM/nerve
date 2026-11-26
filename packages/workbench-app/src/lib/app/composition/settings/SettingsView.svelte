@@ -30,7 +30,7 @@ type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
 type SettingsChange = (
   patch: UpdateSettingsRequest,
-  options?: { immediate?: boolean; debounceMs?: number },
+  options?: { immediate?: boolean },
 ) => void;
 
 type Props = {

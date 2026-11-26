@@ -70,6 +70,9 @@ export async function rotateLocalToken(home: string): Promise<string> {
   const paths = storagePaths(home);
   const token = generateLocalToken();
   await mkdir(dirname(paths.localTokenPath), { recursive: true, mode: 0o700 });
-  await atomicWriteFile(paths.localTokenPath, `${token}\n`, { mode: 0o600 });
+  await atomicWriteFile(paths.localTokenPath, `${token}\n`, {
+    mode: 0o600,
+    durability: "directory",
+  });
   return token;
 }

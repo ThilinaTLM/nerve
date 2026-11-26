@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, toNamespacedPath } from "node:path";
 import { test } from "node:test";
@@ -9,6 +9,7 @@ import type {
 } from "@nervekit/native";
 import { NativeGitReadBackend } from "../../src/git/read/native-backend.js";
 import { inGitLane } from "../../src/git/git-operation-context.js";
+import { removeTree } from "@nervekit/test-kit";
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 const light = (): NativeGitProjectSnapshot => ({
   headOid: "status-head",
@@ -57,7 +58,7 @@ async function fixture() {
     root,
     a,
     b,
-    cleanup: () => rm(root, { recursive: true, force: true }),
+    cleanup: () => removeTree(root),
   };
 }
 

@@ -10,7 +10,7 @@ import {
   createService,
   servicePortsForRecords,
 } from "./launch-service-fixture.js";
-import { flushMicrotasks, waitFor } from "../../support/wait-for.js";
+import { flush, waitFor } from "@nervekit/test-kit";
 
 function fixture(
   options: {
@@ -175,7 +175,7 @@ test("a pruned launch makes its delayed timeout watcher exit quietly", async () 
   assert.deepEqual(await service.prune(), ["launch_contract"]);
 
   releaseTimeout();
-  await flushMicrotasks();
+  await flush();
   assert.deepEqual(diagnostics, []);
 });
 
@@ -267,7 +267,7 @@ test("readiness timeout records failure without pretending process exit", async 
     readyPattern: "ready",
     readyTimeoutMs: 10,
   });
-  await flushMicrotasks();
+  await flush();
   assert.equal(records.get("launch_contract")?.status, "running");
   assert.equal(records.get("launch_contract")?.readiness.outcome, "timeout");
   assert.equal(
@@ -431,7 +431,7 @@ test("rejected transitions do not break per-launch serialization", async () => {
   const service = createService(ports);
   await service.start({ cwd: "/workspace", command: "sleep 60" });
   const failedCancel = service.cancel("launch_contract");
-  await flushMicrotasks();
+  await flush();
   const exit = callbacks?.onExit?.({
     exitCode: 0,
     exitedAt: "2026-07-11T00:00:01.000Z",

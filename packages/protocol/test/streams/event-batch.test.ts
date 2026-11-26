@@ -6,18 +6,8 @@ import {
   chunkEvents,
   estimateProtocolMessageBytes,
 } from "../../src/streams/event-batch.js";
+import { event } from "../support/events.js";
 
-const event = (
-  seq: number,
-  data: Record<string, unknown> = {},
-): EventEnvelope =>
-  ({
-    seq,
-    id: `evt_${seq}`,
-    ts: "2026-07-18T00:00:00.000Z",
-    type: "project.created",
-    data,
-  }) as EventEnvelope;
 const shape = (chunks: EventEnvelope[][]) =>
   chunks.map((c) => c.map((e) => e.seq));
 

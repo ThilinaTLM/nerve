@@ -1,6 +1,6 @@
-import { mkdir, open, rename, rm } from "node:fs/promises";
+import { mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { atomicWriteFile } from "../../infrastructure/storage-bootstrap/file-mutations.js";
 
 const maxBytes = 256 * 1024;
 const maxEntries = 1000;
@@ -66,18 +66,10 @@ export class CompletionUsageStore {
       }
       const directory = join(this.home, "cache");
       await mkdir(directory, { recursive: true });
-      const temporary = `${this.path}.${randomUUID()}.tmp`;
-      try {
-        const file = await open(temporary, "wx", 0o600);
-        try {
-          await file.writeFile(json);
-        } finally {
-          await file.close();
-        }
-        await rename(temporary, this.path);
-      } finally {
-        await rm(temporary, { force: true });
-      }
+      await atomicWriteFile(this.path, json, {
+        mode: 0o600,
+        durability: "none",
+      });
     });
     // Usage is optional: a read-only/unavailable home must not break selection.
     this.tail = task.catch(() => undefined);

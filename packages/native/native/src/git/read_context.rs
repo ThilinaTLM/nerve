@@ -4,27 +4,20 @@ use crate::core::cancellation::CancellationToken;
 use std::cell::Cell;
 
 pub(super) struct ReadContext<'a> {
-    token: Option<&'a CancellationToken>,
-    remaining: Cell<Option<usize>>,
+    token: &'a CancellationToken,
+    remaining: Cell<usize>,
     walked: Cell<usize>,
 }
 impl<'a> ReadContext<'a> {
-    pub(super) fn legacy() -> Self {
-        Self {
-            token: None,
-            walked: Cell::new(0),
-            remaining: Cell::new(None),
-        }
-    }
     pub(super) fn bounded(token: &'a CancellationToken) -> Self {
         Self {
-            token: Some(token),
+            token,
             walked: Cell::new(0),
-            remaining: Cell::new(Some(16 * 1024 * 1024)),
+            remaining: Cell::new(16 * 1024 * 1024),
         }
     }
     pub(super) fn check(&self) -> Result<(), GitReadError> {
-        if self.token.is_some_and(CancellationToken::is_cancelled) {
+        if self.token.is_cancelled() {
             return Err(GitReadError::new(
                 ErrorKind::Cancelled,
                 "Git metadata read cancelled",
@@ -34,29 +27,25 @@ impl<'a> ReadContext<'a> {
     }
     pub(super) fn walk_step(&self) -> Result<(), GitReadError> {
         self.check()?;
-        if self.token.is_some() {
-            let count = self.walked.get() + 1;
-            if count > 1_000_000 {
-                return Err(GitReadError::new(
-                    ErrorKind::LimitExceeded,
-                    "Git metadata revision walk exceeds one million commits",
-                ));
-            }
-            self.walked.set(count);
+        let count = self.walked.get() + 1;
+        if count > 1_000_000 {
+            return Err(GitReadError::new(
+                ErrorKind::LimitExceeded,
+                "Git metadata revision walk exceeds one million commits",
+            ));
         }
+        self.walked.set(count);
         Ok(())
     }
     pub(super) fn account(&self, bytes: usize) -> Result<(), GitReadError> {
         self.check()?;
-        if let Some(remaining) = self.remaining.get() {
-            let remaining = remaining.checked_sub(bytes).ok_or_else(|| {
-                GitReadError::new(
-                    ErrorKind::LimitExceeded,
-                    "Git metadata result exceeds 16 MiB accounting limit",
-                )
-            })?;
-            self.remaining.set(Some(remaining));
-        }
+        let remaining = self.remaining.get().checked_sub(bytes).ok_or_else(|| {
+            GitReadError::new(
+                ErrorKind::LimitExceeded,
+                "Git metadata result exceeds 16 MiB accounting limit",
+            )
+        })?;
+        self.remaining.set(remaining);
         Ok(())
     }
 }
@@ -76,7 +65,6 @@ mod tests {
         token.cancel();
         assert_eq!(context.account(0).unwrap_err().kind, ErrorKind::Cancelled);
         assert_eq!(context.walk_step().unwrap_err().kind, ErrorKind::Cancelled);
-        ReadContext::legacy().account(usize::MAX).unwrap();
     }
     #[test]
     fn revision_walk_budget_is_aggregate_and_never_truncates() {

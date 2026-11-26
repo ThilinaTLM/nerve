@@ -1,8 +1,9 @@
 import type { SearchQuery } from "@nervekit/native";
 // Requires the native owner's rebuilt documentIds API; do not rebuild from here.
+import { removeTree } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSearchIndex, type SearchResult } from "@nervekit/native";
@@ -163,6 +164,6 @@ void test("native-filtered context beyond64 really matches; both reads share rev
     assert.equal(builds, 1);
   } finally {
     await service.dispose();
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   }
 });

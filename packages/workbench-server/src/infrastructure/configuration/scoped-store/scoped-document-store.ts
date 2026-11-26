@@ -4,12 +4,10 @@ import path from "node:path";
 import {
   atomicReplaceFile,
   withFileMutation,
-} from "../../storage-bootstrap/file-mutations.js";
-import {
   errorCode,
   synchronizeDirectory,
   type DirectoryDurability,
-} from "./durable-write.js";
+} from "../../storage-bootstrap/file-mutations.js";
 
 export type SourceDigest = string | "missing";
 export interface SchemaDocument {

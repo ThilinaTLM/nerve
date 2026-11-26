@@ -9,7 +9,6 @@ import {
   mergeCompletionRemoteSnapshots,
   type CompletionSourcePorts,
 } from "../../../src/domains/completions/completion-source-providers.js";
-import { candidateFromPath } from "../../../src/domains/completions/file-completion-candidates.js";
 
 function setup() {
   const settings: LeadSettingsOverrides = {
@@ -82,7 +81,9 @@ function setup() {
       definitions: [],
     }),
     children: () => [],
-    discover: async () => [candidateFromPath("src/session.ts", "file")],
+    discover: async () => [
+      { relativePath: "src/session.ts", kind: "file" as const },
+    ],
   };
   const providers = () => createCompletionProviders(ports);
   const load = async (id: string) => {

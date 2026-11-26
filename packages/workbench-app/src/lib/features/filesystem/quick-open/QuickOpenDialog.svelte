@@ -2,10 +2,10 @@
 import FileSearch from "@lucide/svelte/icons/file-search";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { createListNavigation } from "@nervekit/ui-kit/components/composites/popover-panel";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import * as Dialog from "@nervekit/ui-kit/components/ui/dialog";
 import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { cn } from "@nervekit/ui-kit/utils";
 import { MaterialFileIcon } from "$lib/presentation/files";
 import { quickOpenPathParts } from "./quick-open-query";
 
@@ -126,10 +126,10 @@ function keydown(event: KeyboardEvent): void {
           role="option"
           tabindex="-1"
           aria-selected={active}
-          class={cn(
-            "flex h-control min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 text-ui hover:bg-hover",
-            active && "bg-selected hover:bg-selected",
-          )}
+          class={selectRowVariants({ selected: active }).base({
+            class:
+              "flex h-control min-w-0 cursor-pointer items-center gap-2 px-2",
+          })}
           onclick={(event) => onChoose(item, { reveal: event.altKey })}
         >
           <MaterialFileIcon name={parts.name} kind="file" />

@@ -1,7 +1,7 @@
 import { extname } from "node:path";
 import { image } from "@nervekit/native";
+import { artifactNameOf } from "@nervekit/extension-api/host";
 import {
-  artifactNameOf,
   parseHandle,
   readAuthorizations,
   readFileRef,

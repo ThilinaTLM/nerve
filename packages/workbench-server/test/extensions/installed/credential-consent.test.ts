@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -34,7 +35,7 @@ before(async () => {
   root = await mkdtemp(join(tmpdir(), "credential-consent-"));
 });
 after(async () => {
-  await rm(root, { recursive: true, force: true });
+  await removeTree(root);
 });
 
 type Json = Record<string, unknown>;

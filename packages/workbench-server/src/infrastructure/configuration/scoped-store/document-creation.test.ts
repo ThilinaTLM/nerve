@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -12,7 +13,7 @@ import {
 
 void test("digest-only definitions never acquire revision metadata and protect exact bytes", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "digest-store-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const file = path.join(root, "profile.json");
   const store = new ScopedDocumentStore({
     resolvePath: () => file,
@@ -57,7 +58,7 @@ void test("digest-only definitions never acquire revision metadata and protect e
 
 void test("explicit required-document creation is revision one and never overwrites an existing target", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "required-create-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const file = path.join(root, "agent.json");
   const store = new ScopedDocumentStore<string, RevisionedDocument>({
     resolvePath: () => file,

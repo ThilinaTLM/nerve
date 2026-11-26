@@ -1,18 +1,4 @@
-export type NativeGitErrorCategory =
-  | "not_repository"
-  | "not_found"
-  | "unsupported"
-  | "invalid_input"
-  | "io"
-  | "corrupt"
-  | "limit_exceeded"
-  | "cancelled"
-  | "internal";
-
-export interface NativeGitErrorDetail {
-  category: NativeGitErrorCategory;
-  message: string;
-}
+import type { NativeErrorDetail } from "../core/error.js";
 
 export interface NativeGitRepositoryInfo {
   gitDir: string;
@@ -22,15 +8,25 @@ export interface NativeGitRepositoryInfo {
 
 export interface NativeGitRepositoryInfoResult {
   repository?: NativeGitRepositoryInfo;
-  error?: NativeGitErrorDetail;
+  error?: NativeErrorDetail;
 }
 
+/**
+ * Bounded, cancellable full snapshot. Limits fail explicitly rather than
+ * truncate; results are also capped at 16 MiB (metadata) and 8 MiB (status),
+ * and external clean/process filters are rejected as `isolation_required`.
+ */
 export interface NativeGitSnapshotOptions {
   includeIgnored?: boolean;
+  /** Default 10. */
   recentCommitLimit?: number;
+  /** Default 20,000 (the project status limit). */
   statusLimit?: number;
+  /** Default 100,000. */
   refLimit?: number;
+  /** Default 1,000. */
   stashLimit?: number;
+  signal?: AbortSignal;
 }
 
 export interface NativeGitReference {
@@ -88,7 +84,7 @@ export interface NativeGitSnapshot {
 
 export interface NativeGitSnapshotResult {
   snapshot?: NativeGitSnapshot;
-  error?: NativeGitErrorDetail;
+  error?: NativeErrorDetail;
 }
 
 export interface NativeGitAncestry {
@@ -99,7 +95,7 @@ export interface NativeGitAncestry {
 
 export interface NativeGitAncestryResult {
   ancestry?: NativeGitAncestry;
-  error?: NativeGitErrorDetail;
+  error?: NativeErrorDetail;
 }
 
 export type NativeGitDocumentSource = {
@@ -121,17 +117,17 @@ export type NativeGitFileDiff = {
 
 export interface NativeGitFileDiffResult {
   diff?: NativeGitFileDiff;
-  error?: NativeGitErrorDetail;
+  error?: NativeErrorDetail;
 }
 
 export interface NativeGitRevisionResult {
   oid?: string;
-  error?: NativeGitErrorDetail;
+  error?: NativeErrorDetail;
 }
 
 export interface NativeGitCountResult {
   count?: number;
-  error?: NativeGitErrorDetail;
+  error?: NativeErrorDetail;
 }
 
 /** Full metadata without status, index traversal, filters or worktree scanning. */

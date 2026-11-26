@@ -1,8 +1,9 @@
 // From packages/workbench-server:
 // NERVE_STORAGE_BENCHMARK=1 pnpm exec tsx test/benchmarks/storage-usage.benchmark.ts
 // Synthetic temporary trees only. No Nerve home, database, or file contents are read.
+import { removeTree } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { monitorEventLoopDelay, performance } from "node:perf_hooks";
@@ -191,8 +192,8 @@ try {
         summary,
       }),
     );
-    await rm(path, { recursive: true, force: true });
+    await removeTree(path);
   }
 } finally {
-  await rm(root, { recursive: true, force: true });
+  await removeTree(root);
 }

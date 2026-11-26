@@ -1,4 +1,5 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
+import { readJsonFile } from "../../infrastructure/storage-bootstrap/json.js";
 import { join } from "node:path";
 import { permissionRuleSetSchema } from "@nervekit/contracts/permissions";
 import { builtInPermissionRuleSets } from "@nervekit/tools/policy";
@@ -17,8 +18,9 @@ export async function listPermissionRuleSets(home: string) {
       .filter((file) => file.endsWith(".json"))
       .map(async (file) => {
         try {
-          return permissionRuleSetSchema.parse(
-            JSON.parse(await readFile(join(directory, file), "utf8")),
+          return await readJsonFile(
+            join(directory, file),
+            permissionRuleSetSchema,
           );
         } catch {
           // Isolate malformed or unreadable custom files, just like execution's

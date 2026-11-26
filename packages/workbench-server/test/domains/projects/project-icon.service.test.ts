@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,9 +28,7 @@ function png(label: string): Buffer {
 }
 
 afterEach(async () => {
-  await Promise.all(
-    roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
-  );
+  await Promise.all(roots.splice(0).map((root) => removeTree(root)));
 });
 
 async function projectDirectory(name: string): Promise<string> {

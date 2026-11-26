@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +19,7 @@ import { inspectNerveHome } from "./state-layout.js";
 
 void test("admission distinguishes invalid metadata, unknown layout and recognized old ledgers without writes", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-admission-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   await writeFile(join(home, "unknown"), "preserve me");
   await assert.rejects(
     readMigrationHome(storagePaths(home)),
@@ -74,7 +75,7 @@ void test("admission distinguishes invalid metadata, unknown layout and recogniz
 
 void test("supported manifest versions and invalid ledger diagnostics", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-manifest-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   for (const version of [1, 2]) {
     await writeFile(
       join(home, "manifest.json"),

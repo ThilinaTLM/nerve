@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it } from "node:test";
 import { GitService } from "../../src/git/git-service.js";
+import { removeTree } from "@nervekit/test-kit";
 
 const execFileAsync = promisify(execFile);
 const git = async (cwd: string, ...args: string[]) =>
@@ -59,7 +60,7 @@ describe("Git worktree discovery summaries", () => {
       );
       assert.equal(basename(result.repos[1]?.absDir ?? ""), "feat");
     } finally {
-      await rm(base, { recursive: true, force: true });
+      await removeTree(base);
     }
   });
 });

@@ -1,4 +1,4 @@
-import type { GitDiffArea } from "@nervekit/contracts/git";
+import type { GitChangeArea } from "@nervekit/contracts/git";
 import { diffViewKey } from "$lib/domain/navigation/view-keys";
 import { getGitFileDiff } from "$lib/features/git/api/git.api";
 import {
@@ -24,7 +24,7 @@ export function encodeDiffTabId(input: {
   projectId: string;
   repo: string;
   path: string;
-  area: GitDiffArea;
+  area: GitChangeArea;
 }): string {
   return `${input.projectId}:${encodeURIComponent(input.repo)}:${input.area}:${encodeURIComponent(input.path)}`;
 }
@@ -66,7 +66,7 @@ export async function openDiffPane(input: {
   repo: string;
   path: string;
   renamedFrom?: string;
-  area: GitDiffArea;
+  area: GitChangeArea;
 }): Promise<void> {
   if (input.projectId !== workspaceState.selectedProjectId) {
     const { selectProject } =

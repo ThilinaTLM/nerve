@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { GitCommandError, runGitCommand } from "../../src/git/git-command.js";
+import { removeTree } from "@nervekit/test-kit";
 
 describe("Rust-hosted Git command execution", () => {
   it("captures successful UTF-8 output", async () => {
@@ -31,7 +32,7 @@ describe("Rust-hosted Git command execution", () => {
         },
       );
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await removeTree(dir);
     }
   });
 

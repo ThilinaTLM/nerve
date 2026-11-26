@@ -721,7 +721,7 @@ pub(super) fn status(
     })
 }
 
-fn apply_item(
+pub(super) fn apply_item(
     files: &mut BTreeMap<String, FileStatus>,
     path: String,
     item: gix::status::Item,
@@ -793,7 +793,7 @@ fn apply_item(
     }
     Ok(())
 }
-fn path_text(path: &gix::bstr::BStr) -> Result<String, GitReadError> {
+pub(super) fn path_text(path: &gix::bstr::BStr) -> Result<String, GitReadError> {
     use gix::bstr::ByteSlice;
     path.to_str()
         .map(ToOwned::to_owned)
@@ -1087,6 +1087,7 @@ mod tests {
                 include_ignored: true,
                 ..Default::default()
             },
+            &crate::core::cancellation::CancellationToken::default(),
         )
         .unwrap();
         let results = snapshots(found.repositories, true, token).unwrap();
@@ -1157,6 +1158,7 @@ mod tests {
             let legacy = super::super::read_snapshot(
                 path.to_str().unwrap(),
                 super::super::SnapshotOptions::default(),
+                &crate::core::cancellation::CancellationToken::default(),
             )
             .unwrap();
             let digest = |files: &[FileStatus]| {
@@ -1333,6 +1335,7 @@ mod tests {
         let legacy = super::super::read_snapshot(
             path.to_str().unwrap(),
             super::super::SnapshotOptions::default(),
+            &crate::core::cancellation::CancellationToken::default(),
         )
         .unwrap();
         let digest = |files: &[FileStatus]| {
@@ -1507,6 +1510,7 @@ mod tests {
         let detailed = super::super::read_snapshot(
             path.to_str().unwrap(),
             super::super::SnapshotOptions::default(),
+            &crate::core::cancellation::CancellationToken::default(),
         )
         .unwrap();
         let light = snapshot(

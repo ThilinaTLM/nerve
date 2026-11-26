@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import {
   mkdtemp,
   mkdir,
@@ -31,7 +32,7 @@ const type: ProjectConfigurationType<z.infer<typeof schema>> = {
 };
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const root = await mkdtemp(join(tmpdir(), "project-migration-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const context = { projectId: "proj_test", directory: join(root, "project") };
   const home = join(root, "home");
   const path = join(context.directory, ".nerve", type.path);

@@ -8,7 +8,7 @@ sidebar:
 Protocol v1 extends through shared contracts, not ad-hoc frames.
 
 1. Add an operation or event schema in `packages/contracts`.
-2. Register catalog target/source roles, required capability, idempotency policy, event delivery, coalescing, scope, and bounds.
+2. Register catalog target/source roles, required capability, event delivery, coalescing, scope, and bounds.
 3. Add typed handlers or reducers and focused tests.
 4. Advertise and negotiate the required capability.
 

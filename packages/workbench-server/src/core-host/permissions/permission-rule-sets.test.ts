@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -8,7 +9,7 @@ import { listPermissionRuleSets } from "./permission-rule-sets.js";
 
 void test("rule set listing isolates malformed, invalid and unreadable files", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "permission-list-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const directory = join(home, "config", "rule-sets");
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, "syntax.json"), "{");

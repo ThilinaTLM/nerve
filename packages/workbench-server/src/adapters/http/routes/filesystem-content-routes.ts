@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import {
-  ATTACHMENT_MAX_BYTES,
+  ATTACHMENT_UPLOAD_MAX_BYTES,
   FILESYSTEM_PROJECT_UPLOAD_MAX_TOTAL_BYTES,
 } from "@nervekit/contracts/filesystem";
 import { ApplicationError } from "../../../core/application-error.js";
@@ -49,7 +49,7 @@ export function createFilesystemContentRoutes(
   app.post(
     "/filesystem/attachment",
     bodyLimit({
-      maxSize: Math.ceil(ATTACHMENT_MAX_BYTES / 3) * 4 + 8192,
+      maxSize: Math.ceil(ATTACHMENT_UPLOAD_MAX_BYTES / 3) * 4 + 8192,
       onError: (c) =>
         c.json(
           {

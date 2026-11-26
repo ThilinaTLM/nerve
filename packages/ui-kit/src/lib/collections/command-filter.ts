@@ -1,3 +1,5 @@
+import { matchesTerms } from "./match-terms.js";
+
 /** One row of a command-style popover list: a quick filter over a flat list
  * split into labelled groups (e.g. "Tools", "Anthropic"). */
 export type CommandItem = {
@@ -20,15 +22,10 @@ export function filterCommandItems<Item extends CommandItem>(
   items: readonly Item[],
   query: string,
 ): CommandGroup<Item>[] {
-  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const groups = new Map<string, Item[]>();
   for (const item of items) {
-    if (terms.length > 0) {
-      const haystack = [item.label, item.group, ...(item.keywords ?? [])]
-        .join("\n")
-        .toLowerCase();
-      if (!terms.every((term) => haystack.includes(term))) continue;
-    }
+    if (!matchesTerms(query, item.label, item.group, ...(item.keywords ?? [])))
+      continue;
     const rows = groups.get(item.group);
     if (rows) rows.push(item);
     else groups.set(item.group, [item]);

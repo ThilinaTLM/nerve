@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -17,7 +18,7 @@ const profile = {
 };
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const root = await mkdtemp(path.join(os.tmpdir(), "profile-catalog-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const paths = new AgentConfigurationPaths({
     home: path.join(root, "home"),
     projectDirectory: () => path.join(root, "project"),

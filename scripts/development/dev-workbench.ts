@@ -33,6 +33,8 @@ try {
     "pnpm",
     [
       "--filter",
+      "@nervekit/primitives",
+      "--filter",
       "@nervekit/contracts",
       "--filter",
       "@nervekit/protocol",

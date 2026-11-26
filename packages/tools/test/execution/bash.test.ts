@@ -3,6 +3,7 @@ import { chmod, readFile } from "node:fs/promises";
 import { delimiter, dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import type { ProjectShellLaunchContext } from "@nervekit/contracts/tools";
+import { waitFor, waitForProcessExit } from "@nervekit/test-kit";
 import { executeBash } from "../../src/execution/shell/bash.js";
 import { formatProjectShellFailure } from "../../src/execution/shell/launch-diagnostics.js";
 import {
@@ -33,29 +34,11 @@ describe("bash executor", () => {
     }
   });
 
-  async function waitForFile(path: string): Promise<string> {
-    const deadline = Date.now() + 2_000;
-    while (Date.now() < deadline) {
-      const value = await readFile(path, "utf8").catch(() => undefined);
-      if (value) return value;
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-    throw new Error(`Timed out waiting for ${path}`);
-  }
-
-  async function waitForProcessExit(pid: number): Promise<void> {
-    const deadline = Date.now() + 2_000;
-    while (Date.now() < deadline) {
-      try {
-        process.kill(pid, 0);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-    throw new Error(`Process ${pid} survived abort`);
-  }
+  const waitForFile = (path: string) =>
+    waitFor(() => readFile(path, "utf8").catch(() => undefined), {
+      timeoutMs: 2_000,
+      message: `file ${path}`,
+    });
 
   it("uses non-interactive pager-safe environment defaults", async () => {
     const project = await createTempProject();
@@ -368,7 +351,7 @@ describe("bash executor", () => {
     assert.match(result.content ?? "", /^exit 0(?: · [\d.]+s)?\nline 0\n/);
     assert.match(
       result.content ?? "",
-      /line 599\n\[Showing lines 1-\d+ and \d+-600 of 600; [\d.]+KB omitted\. Full output: .*nerve-bash-.*\]$/,
+      /line 599\n\[Showing lines 1-\d+ and \d+-600 of 600; [\d.]+ KB omitted\. Full output: .*nerve-bash-.*\]$/,
     );
 
     const details = result.details as {

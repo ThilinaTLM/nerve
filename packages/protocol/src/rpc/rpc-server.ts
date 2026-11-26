@@ -1,4 +1,3 @@
-import type { OperationIdempotency } from "@nervekit/contracts/operations";
 import {
   operationDefinition,
   type OperationName,
@@ -22,7 +21,6 @@ export type OperationHandlerRegistry = {
 
 export interface RpcDispatcherOptions {
   readonly handlers: Partial<OperationHandlerRegistry>;
-  readonly idempotency?: IdempotencyStorePort;
   readonly acceptedCapabilities?: readonly string[] | (() => readonly string[]);
   readonly sessionContext?: boolean;
   /** Validate results of `trustedResult` operations. Defaults to true. */
@@ -30,26 +28,9 @@ export interface RpcDispatcherOptions {
   readonly translateError?: (error: unknown) => ProtocolErrorData;
 }
 
-export type IdempotencyOutcome =
+type RpcOutcome =
   | { readonly status: "success"; readonly result: unknown }
   | { readonly status: "error"; readonly error: ProtocolErrorData };
-
-export interface IdempotencyStorePort {
-  execute(
-    scope: string,
-    key: string,
-    method: string,
-    params: unknown,
-    operation: () => Promise<IdempotencyOutcome>,
-  ): Promise<IdempotencyExecution>;
-}
-
-export type IdempotencyExecution =
-  | {
-      readonly status: "executed" | "replayed";
-      readonly outcome: IdempotencyOutcome;
-    }
-  | { readonly status: "conflict" };
 
 export type RpcDispatchResult =
   | { readonly ok: true; readonly result: unknown }
@@ -64,7 +45,7 @@ export class RpcDispatcher {
     const parsedRequest = protocolRequestDataSchema.safeParse(request.data);
     if (!parsedRequest.success)
       return failure("VALIDATION_FAILED", "Invalid request data");
-    const { method, params, idempotencyKey } = parsedRequest.data;
+    const { method, params } = parsedRequest.data;
     const operation = operationDefinition(method);
     if (
       operation.invocationScope === "session" &&
@@ -98,21 +79,6 @@ export class RpcDispatcher {
         `Operation ${method} requires capability ${operation.requiredCapability}`,
       );
     }
-    if (operation.idempotency === "none" && idempotencyKey) {
-      return failure(
-        "VALIDATION_FAILED",
-        `Operation ${method} does not accept an idempotency key`,
-      );
-    }
-    if (
-      (operation.idempotency as OperationIdempotency) === "required" &&
-      !idempotencyKey
-    ) {
-      return failure(
-        "VALIDATION_FAILED",
-        `Operation ${method} requires an idempotency key`,
-      );
-    }
     let validatedParams: unknown;
     try {
       validatedParams = operation.paramsSchema.parse(params);
@@ -123,7 +89,7 @@ export class RpcDispatcher {
       );
     }
 
-    const invoke = async (): Promise<IdempotencyOutcome> => {
+    const invoke = async (): Promise<RpcOutcome> => {
       try {
         const handler = this.options.handlers[method] as
           | OperationHandler<typeof method>
@@ -161,26 +127,7 @@ export class RpcDispatcher {
         };
       }
     };
-    let outcome: IdempotencyOutcome;
-    if (idempotencyKey && this.options.idempotency) {
-      const scope = `${request.source.role}:${request.source.id ?? request.source.instanceId ?? "anonymous"}`;
-      const execution = await this.options.idempotency.execute(
-        scope,
-        idempotencyKey,
-        method,
-        validatedParams,
-        invoke,
-      );
-      if (execution.status === "conflict") {
-        return failure(
-          "IDEMPOTENCY_CONFLICT",
-          "Idempotency key was already used for different parameters",
-        );
-      }
-      outcome = execution.outcome;
-    } else {
-      outcome = await invoke();
-    }
+    const outcome = await invoke();
     return outcome.status === "success"
       ? { ok: true, result: outcome.result }
       : { ok: false, error: outcome.error };

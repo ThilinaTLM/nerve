@@ -1,4 +1,5 @@
 <script lang="ts">
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import FolderOpen from "@lucide/svelte/icons/folder-open";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
@@ -26,13 +27,8 @@ let query = $state("");
 const items = $derived(workspaceSelectors.projectSwitcherItems);
 const homeDir = $derived(workspaceSelectors.status?.storage.userHome);
 const filtered = $derived.by(() => {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return items;
-  return items.filter(
-    (item) =>
-      item.label.toLowerCase().includes(needle) ||
-      item.project.name.toLowerCase().includes(needle) ||
-      item.project.directory.toLowerCase().includes(needle),
+  return items.filter((item) =>
+    matchesTerms(query, item.label, item.project.name, item.project.directory),
   );
 });
 const groups = $derived(

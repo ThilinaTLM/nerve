@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createFakeClock, flush } from "../polling/fake-clock";
+import { createManualTimerCore, flush } from "@nervekit/test-kit";
 import { startPwaUpdateScheduler } from "./pwa-update-scheduler";
 
 function schedulerHarness(
@@ -8,12 +8,12 @@ function schedulerHarness(
 ) {
   const windowTarget = new EventTarget();
   const documentTarget = new EventTarget();
-  const fake = createFakeClock();
+  const fake = createManualTimerCore();
   let visible = true;
 
   const stop = startPwaUpdateScheduler({
     checkForUpdate,
-    clock: fake.clock,
+    clock: fake,
     window: {
       addEventListener: windowTarget.addEventListener.bind(windowTarget),
       removeEventListener: windowTarget.removeEventListener.bind(windowTarget),

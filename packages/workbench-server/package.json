@@ -13,6 +13,10 @@
   "homepage": "https://github.com/ThilinaTLM/nerve#readme",
   "files": [
     "dist/**",
+    "!dist/**/*.test.*",
+    "!dist/**/test-support.*",
+    "!dist/**/corruption-suite.*",
+    "!dist/**/production-admission-fixture.*",
     "LICENSE",
     "NOTICE"
   ],
@@ -24,6 +28,10 @@
     "./network": {
       "types": "./dist/infrastructure/network/index.d.ts",
       "import": "./dist/infrastructure/network/index.js"
+    },
+    "./diagnostics": {
+      "types": "./dist/infrastructure/diagnostics/index.d.ts",
+      "import": "./dist/infrastructure/diagnostics/index.js"
     },
     "./main": {
       "types": "./dist/main.d.ts",
@@ -49,11 +57,11 @@
     "@nervekit/extensions": "workspace:*",
     "@nervekit/harness": "workspace:*",
     "@nervekit/native": "workspace:*",
+    "@nervekit/primitives": "workspace:*",
     "@nervekit/protocol": "workspace:*",
     "@nervekit/tools": "workspace:*",
     "@peculiar/x509": "^2.2.0",
     "@simplewebauthn/server": "^14.0.3",
-    "fdir": "6.5.0",
     "hono": "4.13.16",
     "parse5": "8.0.0",
     "reflect-metadata": "^0.2.2",
@@ -63,6 +71,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@nervekit/test-kit": "workspace:*",
     "@types/node": "24.10.1",
     "@types/web-push": "^3.6.4",
     "@types/ws": "8.18.1",

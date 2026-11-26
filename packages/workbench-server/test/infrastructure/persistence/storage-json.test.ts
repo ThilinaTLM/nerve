@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { appendFile, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -18,9 +19,7 @@ const roots: string[] = [];
 const recordSchema = z.object({ index: z.number(), text: z.string() });
 
 after(async () => {
-  await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
-  );
+  await Promise.all(roots.map((root) => removeTree(root)));
 });
 
 async function tempPath(): Promise<string> {

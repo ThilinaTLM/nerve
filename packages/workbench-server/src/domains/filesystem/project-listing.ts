@@ -1,15 +1,13 @@
-import type { Dirent, Stats } from "node:fs";
-import { readdir, realpath, stat } from "node:fs/promises";
+import type { Stats } from "node:fs";
+import { realpath, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { isPathInside } from "@nervekit/tools/execution";
 import {
   type FilesystemProjectEntry,
   filesystemProjectEntriesQuerySchema,
 } from "@nervekit/contracts/filesystem";
 import { parseProjectRelativePath } from "@nervekit/contracts/paths";
-import { loadNativeFiles } from "./native-files.js";
-
-const isInside = isPathInside;
+import { isPathInside as isInside } from "@nervekit/tools/execution";
+import { nativeFiles } from "./native-files.js";
 
 export async function mapBatched<T, U>(
   values: T[],
@@ -102,45 +100,6 @@ function decodeProjectEntryCursor(
   }
 }
 
-async function classifyProjectEntry(
-  root: string,
-  directory: string,
-  relativeDirectory: string,
-  entry: Dirent,
-): Promise<FilesystemProjectEntry> {
-  const path = relativeDirectory
-    ? `${relativeDirectory}/${entry.name}`
-    : entry.name;
-  if (!entry.isSymbolicLink()) {
-    return {
-      name: entry.name,
-      path,
-      kind: entry.isDirectory()
-        ? "directory"
-        : entry.isFile()
-          ? "file"
-          : "other",
-      symlink: false,
-    };
-  }
-
-  let kind: FilesystemProjectEntry["kind"] = "other";
-  try {
-    const target = await realpath(join(directory, entry.name));
-    if (isInside(root, target)) {
-      const info = await stat(target);
-      kind = info.isDirectory()
-        ? "directory"
-        : info.isFile()
-          ? "file"
-          : "other";
-    }
-  } catch {
-    // Broken and inaccessible links stay visible as non-browsable entries.
-  }
-  return { name: entry.name, path, kind, symlink: true };
-}
-
 type ListingCacheEntry = {
   /** mtimes of the project-level ignore files the `ignored` flags depend on. */
   ignoreStamp: string;
@@ -162,13 +121,21 @@ export function clearProjectListingCache(): void {
 }
 
 /**
+ * Project-level ignore sources the native walker honors (`native/src/core/ignore_rules.rs`).
+ * Deliberately not harness `IGNORE_FILE_NAMES`: skills also honor `.fdignore` (fd convention,
+ * documented), which the native listing ignores, while `.git/info/exclude` is repo-relative
+ * and meaningless for a skills directory.
+ */
+const NATIVE_IGNORE_SOURCES = [".gitignore", ".ignore", ".git/info/exclude"];
+
+/**
  * Editing an ignore file does not change any directory mtime, so cached
  * `ignored` flags are also keyed by the project-level ignore files. Nested
  * `.gitignore` files are covered by the cache's maximum age.
  */
 async function ignoreFilesStamp(root: string): Promise<string> {
   const stamps = await Promise.all(
-    [".gitignore", ".ignore", ".git/info/exclude"].map(async (name) => {
+    NATIVE_IGNORE_SOURCES.map(async (name) => {
       try {
         return String((await stat(join(root, name))).mtimeMs);
       } catch {
@@ -181,8 +148,7 @@ async function ignoreFilesStamp(root: string): Promise<string> {
 
 /**
  * Full sorted listing of one directory, cached per directory and validated by
- * its mtime so paging does not re-read it. Native (ignore-aware) when
- * available, Node `readdir` otherwise.
+ * its mtime so paging does not re-read it. Listed by the native (ignore-aware) addon.
  */
 async function sortedDirectoryEntries(
   root: string,
@@ -210,34 +176,17 @@ async function sortedDirectoryEntries(
     listingCache.set(key, cached);
     return cached.entries;
   }
-  const files = await loadNativeFiles();
-  let entries: FilesystemProjectEntry[];
-  if (files) {
-    entries = (
-      await files.listDirectory(root, relativeDirectory, {
-        includeHidden: true,
-      })
-    ).map(({ name, path, kind, symlink, ignored }) => ({
-      name,
-      path,
-      kind,
-      symlink,
-      ignored,
-    }));
-  } else {
-    entries = await mapBatched(
-      await readdir(resolvedDirectory, { withFileTypes: true }),
-      32,
-      (entry) =>
-        classifyProjectEntry(root, resolvedDirectory, relativeDirectory, entry),
-    );
-    entries.sort((left, right) =>
-      compareProjectEntryKeys(
-        projectEntrySortKey(left),
-        projectEntrySortKey(right),
-      ),
-    );
-  }
+  const entries: FilesystemProjectEntry[] = (
+    await nativeFiles().listDirectory(root, relativeDirectory, {
+      includeHidden: true,
+    })
+  ).map(({ name, path, kind, symlink, ignored }) => ({
+    name,
+    path,
+    kind,
+    symlink,
+    ignored,
+  }));
   listingCache.set(key, {
     ignoreStamp,
     mtimeMs: info.mtimeMs,

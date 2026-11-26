@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { GitRepositoryMetadataCache } from "../../src/git/git-repository-metadata.js";
@@ -13,6 +13,7 @@ import {
   currentGitCommandOptions,
   inGitLane,
 } from "../../src/git/git-operation-context.js";
+import { removeTree } from "@nervekit/test-kit";
 
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 function metadata(): GitReadMetadataSnapshot {
@@ -85,7 +86,7 @@ void test("workflow metadata cancellation cannot poison an independent shared ca
     for (const release of releases) release();
     await cancelled;
     await cache.close();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -142,7 +143,7 @@ void test(
       proceed();
       await cache.close();
       await Promise.allSettled([workflow, shared]);
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   },
 );

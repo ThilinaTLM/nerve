@@ -1,13 +1,14 @@
 // Synthetic unified whole-service benchmark; no workspace or user data.
+import { removeTree } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import type { SearchIndex } from "@nervekit/native";
-import type { FileCompletionEntry } from "../../src/domains/completions/file-completion-candidates.js";
+import type { FileCompletionEntry } from "../../src/domains/filesystem/project-path-index.js";
 import { UnifiedCompletionService } from "../../src/domains/completions/unified-completion-service.js";
 import {
   syntheticProviders,
@@ -246,7 +247,7 @@ async function child(count: number) {
     loop.disable();
     clearInterval(timer);
     await dispose?.();
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   }
 }
 

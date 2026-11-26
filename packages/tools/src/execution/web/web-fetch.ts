@@ -19,7 +19,7 @@ import {
   type HostResolver,
 } from "../network/network-policy.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
-import { formatByteSize } from "../output/truncate.js";
+import { formatByteSize } from "../output/format-bytes.js";
 
 const MAX_RESPONSE_BYTES = HTML_CONVERSION_MAX_INPUT_BYTES;
 const MAX_REDIRECTS = 5;

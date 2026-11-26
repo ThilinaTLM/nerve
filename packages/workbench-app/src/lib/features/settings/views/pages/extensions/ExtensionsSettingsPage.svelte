@@ -9,6 +9,7 @@ import {
   PageEmptyState,
   PageItem,
 } from "@nervekit/ui-kit/components/composites/page";
+import { isProjectLocked } from "$lib/application/agent-configuration/project-lock";
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import { visibleAccounts } from "../accounts/accounts-view";
 import Blocks from "@lucide/svelte/icons/blocks";
@@ -156,9 +157,7 @@ const registered = $derived(
   ),
 );
 /** The project's extension settings file is not trusted: its column is locked. */
-const locked = $derived(
-  layered && (projectExt.view?.file.trustState ?? "trusted") !== "trusted",
-);
+const locked = $derived(layered && isProjectLocked(projectExt.view?.file));
 const busy = $derived(extensions.saving || !view);
 const open = $derived(
   itemId

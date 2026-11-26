@@ -1,3 +1,4 @@
+import { SerialQueue } from "@nervekit/primitives";
 import { filterConversationLogs } from "./filter-conversation-logs.js";
 import { mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -62,7 +63,7 @@ const sensitiveKeyPattern =
 export class ApplicationLogger {
   #seq = 0;
   #buffer: ApplicationLogRecord[] = [];
-  #appendTail: Promise<void> = Promise.resolve();
+  #writes = new SerialQueue();
 
   private readonly root: ApplicationLogger;
   private readonly dataDir: string;
@@ -319,12 +320,7 @@ export class ApplicationLogger {
   }
 
   private serializeWrite<T>(operation: () => Promise<T>): Promise<T> {
-    const queued = this.#appendTail.catch(() => undefined).then(operation);
-    this.#appendTail = queued.then(
-      () => undefined,
-      () => undefined,
-    );
-    return queued;
+    return this.#writes.run(operation);
   }
 
   private async appendDirect(record: ApplicationLogRecord): Promise<void> {
@@ -340,7 +336,7 @@ export class ApplicationLogger {
    */
   async flush(): Promise<void> {
     if (this.root !== this) return this.root.flush();
-    await this.#appendTail;
+    await this.#writes.idle();
   }
 
   private async readRecentLogs(): Promise<ApplicationLogRecord[]> {

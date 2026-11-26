@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { z } from "zod";
-import * as git from "../../../contracts/src/domains/git/git.ts";
-import * as background from "../../../contracts/src/domains/git/git-background.ts";
+import * as git from "@nervekit/contracts/git";
 import {
   DEMO_GITHUB_METHODS,
   DEMO_GITHUB_PR_NUMBERS,
@@ -27,12 +26,9 @@ test("synthetic GitHub reads satisfy the current product contracts", () => {
     "github.pr.list": [projectParams, git.githubPrListResponseSchema],
     "github.pr.cached.list": [
       projectParams,
-      background.githubPrCachedListResponseSchema,
+      git.githubPrCachedListResponseSchema,
     ],
-    "github.issue.list": [
-      projectParams,
-      background.githubIssueListResponseSchema,
-    ],
+    "github.issue.list": [projectParams, git.githubIssueListResponseSchema],
     "github.pr.initial.get": [detail, git.githubPrInitialSchema],
     "github.pr.core.get": [detail, git.githubPrCoreSchema],
     "github.pr.conversation.get": [detail, git.githubPrConversationSchema],

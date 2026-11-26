@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import fs, { mkdtemp, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import fs, { mkdtemp } from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,9 +19,7 @@ import { ProviderCatalogStore } from "../../../src/domains/providers/provider-ca
 
 const roots: string[] = [];
 after(async () => {
-  await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
-  );
+  await Promise.all(roots.map((root) => removeTree(root)));
 });
 
 async function createStorage(): Promise<InitializedStorage> {

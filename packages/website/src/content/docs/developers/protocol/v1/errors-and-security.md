@@ -14,7 +14,6 @@ Security requirements:
 - authenticate at the transport boundary and authorize each operation, target, and requested stream set;
 - validate every envelope, operation parameter/result, sequenced event, and notification with contract schemas;
 - cap messages, batches, buffers, stream reads, timeouts, metadata, and errors;
-- require catalog idempotency policy and keys before retrying mutations;
 - use loopback by default for local services; remote binding is explicit and authenticated;
 - redact structured logs and diagnostics;
 - keep secrets in host stores or protected launch files, never snapshots or events;

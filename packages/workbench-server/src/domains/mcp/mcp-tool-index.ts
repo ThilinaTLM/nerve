@@ -1,6 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { atomicWriteFile } from "../../infrastructure/storage-bootstrap/file-mutations.js";
 import type { McpTool } from "@nervekit/tools/quick-script";
 
 /**
@@ -35,16 +36,9 @@ export class McpToolIndex {
 
   async set(key: string, tools: McpTool[]): Promise<void> {
     this.memory.set(key, tools);
-    await mkdir(this.cacheDirectory, { recursive: true });
-    const target = this.file(key);
-    const temporary = `${target}.${randomUUID()}.tmp`;
-    try {
-      await writeFile(temporary, JSON.stringify(tools));
-      await rename(temporary, target);
-    } catch (error) {
-      await rm(temporary, { force: true });
-      throw error;
-    }
+    await atomicWriteFile(this.file(key), JSON.stringify(tools), {
+      durability: "none",
+    });
   }
 
   async delete(key: string): Promise<void> {

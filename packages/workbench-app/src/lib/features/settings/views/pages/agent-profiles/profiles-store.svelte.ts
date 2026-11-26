@@ -4,7 +4,8 @@ import {
   type PreferenceScope,
   type ProfileDefinition,
 } from "@nervekit/contracts/agent-configuration";
-import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import { LayeredAgentState } from "$lib/application/agent-configuration/layered-agent-state.svelte";
+import type { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import {
@@ -49,8 +50,8 @@ export class ProfilesStore {
   busy = $state<string>();
   errors = $state<Record<string, string>>({});
   projectId = $state<string>();
-  readonly userEditor = new ScopedAgentState();
-  readonly projectEditor = new ScopedAgentState();
+  /** The two layers' launch settings; the page connects them. */
+  readonly agent = new LayeredAgentState(() => ({ projectId: this.projectId }));
   private request = 0;
 
   get loaded(): boolean {
@@ -59,12 +60,7 @@ export class ProfilesStore {
 
   /** The project's agent.json is not trusted: its launch switches are locked. */
   get launchLocked(): boolean {
-    const document = this.projectEditor.document;
-    return (
-      !!this.projectId &&
-      document?.status === "available" &&
-      (document.trustState ?? "trusted") !== "trusted"
-    );
+    return this.agent.locked;
   }
 
   rows(kind?: ProfileKind) {
@@ -98,7 +94,7 @@ export class ProfilesStore {
   }
 
   editorOf(origin: ProfileOrigin): ScopedAgentState {
-    return origin === "project" ? this.projectEditor : this.userEditor;
+    return this.agent.editor(origin === "project" ? "project" : "user");
   }
 
   async load(projectId: string | undefined): Promise<void> {
@@ -307,9 +303,9 @@ export class ProfilesStore {
     const builtinDefault = row.entry.definition?.enabled ?? true;
     const value: Layered<boolean> = {
       builtinDefault,
-      user: this.userEditor.overrides.subagents?.[row.name]?.enabled,
+      user: this.agent.user.overrides.subagents?.[row.name]?.enabled,
       project: this.projectId
-        ? this.projectEditor.overrides.subagents?.[row.name]?.enabled
+        ? this.agent.project.overrides.subagents?.[row.name]?.enabled
         : undefined,
     };
     const user = value.user ?? builtinDefault;
@@ -331,8 +327,8 @@ export class ProfilesStore {
       value: this.launch(row).value,
       layer,
       next,
-      writeUser: write(this.userEditor),
-      writeProject: write(this.projectEditor),
+      writeUser: write(this.agent.user),
+      writeProject: write(this.agent.project),
     });
   }
 
@@ -350,8 +346,8 @@ export class ProfilesStore {
       definition?.recommendations?.reasoningLevel;
     return (
       [
-        ["user", this.userEditor],
-        ...(this.projectId ? [["project", this.projectEditor] as const] : []),
+        ["user", this.agent.user],
+        ...(this.projectId ? [["project", this.agent.project] as const] : []),
       ] as const
     ).flatMap(([layer, editor]) => {
       const own = editor.overrides.subagents?.[row.name];

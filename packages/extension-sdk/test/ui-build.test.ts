@@ -4,7 +4,6 @@ import {
   mkdtemp,
   readdir,
   readFile,
-  rm,
   stat,
   writeFile,
 } from "node:fs/promises";
@@ -15,13 +14,14 @@ import { buildExtension } from "../src/build.ts";
 import { initExtension, type ExtensionKind } from "../src/init.ts";
 import { ExtensionProjectError } from "../src/problems.ts";
 import { extractThemeBlocks } from "../src/ui-build.ts";
+import { removeTree } from "@nervekit/test-kit";
 
 async function withTemp<T>(run: (root: string) => Promise<T>): Promise<T> {
   const root = await mkdtemp(join(tmpdir(), "nerve-sdk-ui-"));
   try {
     return await run(root);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 }
 

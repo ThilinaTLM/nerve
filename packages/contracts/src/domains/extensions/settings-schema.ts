@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { conversationScopeSchema, sourceSchema } from "../core/scope.js";
 import type {
   AccountAuth,
   AccountField as ApiAccountField,
@@ -13,7 +14,7 @@ import type {
 import { loopbackRedirectPathSchema } from "../auth/loopback.js";
 
 /** Where a settings entry can live. Profiles act at conversation scope. */
-export const extensionScopeSchema = z.enum(["user", "project", "conversation"]);
+export const extensionScopeSchema = conversationScopeSchema;
 export type ExtensionScope = z.infer<typeof extensionScopeSchema>;
 
 export const extensionIdSchema = z
@@ -464,7 +465,7 @@ export const extensionMetadataSchema = z.strictObject({
   description: z.string(),
   icon: extensionIconSchema,
   /** Where the extension comes from; the Extensions page groups by it. */
-  source: z.enum(["builtin", "user", "project"]),
+  source: sourceSchema,
   settingsVersion: z.number().int().positive(),
   /** Default of the implicit `enabled` switch. */
   enabledByDefault: z.boolean(),

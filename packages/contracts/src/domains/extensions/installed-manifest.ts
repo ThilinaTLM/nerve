@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { bridgeThemeKindSchema } from "./theme-file.js";
 import { extensionUiLimits } from "./limits.js";
 import type { ExtensionDefinitionData } from "@nervekit/extension-api/host";
 import {
@@ -216,7 +217,7 @@ const themeSchema = z
   .strictObject({
     id: uiContributionIdSchema,
     label: uiLabelSchema,
-    kind: z.enum(["light", "dark"]),
+    kind: bridgeThemeKindSchema,
     file: z.string(),
   })
   .refine((theme) => theme.file === themeFilePath(theme.id), {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { launchDefinitionRunPolicySchema } from "../launch-definitions/launch-definition.js";
 
 export const launchStatusSchema = z.enum([
   "starting",
@@ -146,9 +147,11 @@ export const launchRecordSchema = z.object({
 });
 export type LaunchRecord = z.infer<typeof launchRecordSchema>;
 
+export const launchSignalSchema = z.enum(["SIGTERM", "SIGINT", "SIGKILL"]);
+
 export const startLaunchRequestSchema = z.object({
   definitionId: z.string().startsWith("launchdef_").optional(),
-  definitionRunPolicy: z.enum(["single", "concurrent"]).optional(),
+  definitionRunPolicy: launchDefinitionRunPolicySchema.optional(),
   name: z.string().min(1).optional(),
   displayName: z.string().min(1).optional(),
   groupId: z.string().startsWith("launchgrp_").optional(),
@@ -166,7 +169,7 @@ export const startLaunchRequestSchema = z.object({
 export type StartLaunchRequest = z.infer<typeof startLaunchRequestSchema>;
 
 export const cancelLaunchRequestSchema = z.object({
-  signal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),
+  signal: launchSignalSchema.optional(),
   timeoutMs: z.number().int().positive().max(30_000).optional(),
   reason: z.string().min(1).optional(),
 });

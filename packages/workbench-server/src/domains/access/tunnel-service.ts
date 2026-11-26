@@ -1,3 +1,4 @@
+import { SerialQueue } from "@nervekit/primitives";
 import type { TunnelProblem, TunnelStatus } from "@nervekit/contracts/access";
 import type { TunnelSettings } from "@nervekit/contracts/settings";
 import {
@@ -61,7 +62,7 @@ export class TunnelService {
     enabled: false,
     httpsPort: 443,
   };
-  #queue: Promise<void> = Promise.resolve();
+  #queue = new SerialQueue();
 
   constructor(private readonly deps: TunnelServiceDeps) {}
 
@@ -115,9 +116,7 @@ export class TunnelService {
   }
 
   #serialize(task: () => Promise<void>): Promise<void> {
-    const next = this.#queue.then(task, task);
-    this.#queue = next.catch(() => undefined);
-    return next;
+    return this.#queue.run(task);
   }
 
   #set(status: TunnelStatus): void {

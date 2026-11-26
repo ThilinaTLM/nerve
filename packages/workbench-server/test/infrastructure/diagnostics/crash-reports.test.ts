@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import {
   lstat,
   mkdir,
   mkdtemp,
   readFile,
-  rm,
   symlink,
   utimes,
   writeFile,
@@ -15,9 +15,7 @@ import { after, describe, it } from "node:test";
 import { pruneCrashReports } from "../../../src/infrastructure/diagnostics/index.js";
 
 const roots: string[] = [];
-after(async () =>
-  Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))),
-);
+after(async () => Promise.all(roots.map((root) => removeTree(root))));
 
 async function home(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "nerve-crash-retention-"));

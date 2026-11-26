@@ -1,3 +1,4 @@
+import { createDebouncedTask } from "@nervekit/primitives";
 import {
   getApplicationConfiguration,
   getAuthProviders,
@@ -37,11 +38,10 @@ import {
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 export type SettingsSaveOptions = {
   immediate?: boolean;
-  debounceMs?: number;
 };
 
 let pendingSettingsPatch: UpdateSettingsRequest | undefined;
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
+const settingsSave = createDebouncedTask(() => void flushSettingsSave(), 600);
 let saveInFlight = false;
 let savedServerSettingsSinceLoad = false;
 let skillsRequestId = 0;
@@ -270,14 +270,8 @@ function patchTouchesServer(patch: UpdateSettingsRequest | undefined): boolean {
   );
 }
 
-function clearSaveTimer() {
-  if (!saveTimer) return;
-  clearTimeout(saveTimer);
-  saveTimer = undefined;
-}
-
 export function hasPendingSettingsSave(): boolean {
-  return Boolean(pendingSettingsPatch || saveTimer || saveInFlight);
+  return Boolean(pendingSettingsPatch || settingsSave.pending || saveInFlight);
 }
 
 export function queueSettingsSave(
@@ -287,21 +281,12 @@ export function queueSettingsSave(
   pendingSettingsPatch = mergeSettingsPatch(pendingSettingsPatch, patch);
   settingsState.settingsSaveStatus = "dirty";
   settingsState.settingsMessage = "Unsaved changes";
-  clearSaveTimer();
-
-  if (options.immediate) {
-    void flushSettingsSave();
-    return;
-  }
-
-  saveTimer = setTimeout(
-    () => void flushSettingsSave(),
-    options.debounceMs ?? 600,
-  );
+  if (options.immediate) void flushSettingsSave();
+  else settingsSave.schedule();
 }
 
 export async function flushSettingsSave() {
-  clearSaveTimer();
+  settingsSave.cancel();
   if (saveInFlight || !pendingSettingsPatch) return;
 
   const patch = pendingSettingsPatch;

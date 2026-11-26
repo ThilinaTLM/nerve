@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -13,7 +14,7 @@ import { LaunchDefinitionOperations } from "./launch-definition-operations.js";
 
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const directory = await mkdtemp(join(tmpdir(), "launch-operations-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  t.after(() => removeTree(directory));
   const project = { id: "proj_one", directory } as Project;
   const service = new LaunchDefinitionService(
     new LaunchDefinitionRepository(

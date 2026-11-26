@@ -1,3 +1,4 @@
+import type { Layer } from "@nervekit/contracts/core";
 /** Where a group of settings items comes from. Lists order groups Project, User, other sources, Built-in. */
 export type SettingsOrigin =
   | { kind: "project" }
@@ -7,7 +8,7 @@ export type SettingsOrigin =
   | { kind: "extension"; name: string };
 
 /** The layer a switch, value or action applies to. */
-export type SettingsLayer = "user" | "project";
+export type SettingsLayer = Layer;
 
 export const USER_COLUMN_TIP =
   "Your setting. Applies in every project unless the project sets its own.";

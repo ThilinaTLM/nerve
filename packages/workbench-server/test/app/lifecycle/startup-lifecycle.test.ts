@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -199,7 +200,7 @@ describe("server startup lifecycle", () => {
         "upgrading",
       );
     } finally {
-      await rm(home, { recursive: true, force: true });
+      await removeTree(home);
     }
   });
 
@@ -286,7 +287,7 @@ describe("local token before migration", () => {
       const second = await ensureLocalToken(home);
       assert.deepEqual(second, first);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -310,7 +311,7 @@ describe("local token before migration", () => {
       assert.equal(!unsupported.ok && unsupported.code, "HOME_UNSUPPORTED");
       await assert.rejects(stat(join(foreign, "secrets")));
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 });

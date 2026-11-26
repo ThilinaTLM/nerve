@@ -7,11 +7,7 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Eye from "@lucide/svelte/icons/eye";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import X from "@lucide/svelte/icons/x";
-import type {
-  GitDiffArea,
-  GitFileChange,
-  GitStashArea,
-} from "@nervekit/contracts/git";
+import type { GitChangeArea, GitFileChange } from "@nervekit/contracts/git";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { ScrollArea } from "@nervekit/ui-kit/components/ui/scroll-area";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -57,7 +53,7 @@ type Props = {
   collapsedFolders: ReadonlySet<string>;
   selectedRepo: string;
   capabilities: GitPanelCapabilities;
-  onOpenDiff: (repo: string, file: GitFileChange, area: GitDiffArea) => void;
+  onOpenDiff: (repo: string, file: GitFileChange, area: GitChangeArea) => void;
   onMutateFile: (
     repo: string,
     file: GitFileChange,
@@ -65,18 +61,18 @@ type Props = {
   ) => void;
   onMutateScope: (
     repo: string,
-    area: GitStashArea,
+    area: GitChangeArea,
     action: ScopedFileMutation["action"],
     path?: string,
   ) => void;
-  onCreateStash: (repo: string, area: GitStashArea, path?: string) => void;
+  onCreateStash: (repo: string, area: GitChangeArea, path?: string) => void;
   onFolderExpansionChange: (
     repo: string,
     key: string,
     expanded: boolean,
   ) => void;
   onRequestDiscard: (file: GitFileChange) => void;
-  onRequestDiscardScope: (area: GitStashArea, path?: string) => void;
+  onRequestDiscardScope: (area: GitChangeArea, path?: string) => void;
 };
 
 let {
@@ -126,7 +122,7 @@ const unstagedExpandedIds = $derived(
 function scopeBusy(
   mutation: ScopedFileMutation | undefined,
   action: ScopedFileMutation["action"],
-  area: GitStashArea,
+  area: GitChangeArea,
   path?: string,
 ): boolean {
   return (
@@ -136,7 +132,7 @@ function scopeBusy(
   );
 }
 
-function stashScopeBusy(area: GitStashArea, path?: string): boolean {
+function stashScopeBusy(area: GitChangeArea, path?: string): boolean {
   return (
     stashMutation?.action === "create" &&
     stashMutation.area === area &&
@@ -144,7 +140,7 @@ function stashScopeBusy(area: GitStashArea, path?: string): boolean {
   );
 }
 
-function scopeMenu(area: GitStashArea, path?: string): ContextMenuItem[] {
+function scopeMenu(area: GitChangeArea, path?: string): ContextMenuItem[] {
   const stageAction = area === "staged" ? "unstage" : "stage";
   return [
     {
@@ -170,7 +166,7 @@ function scopeMenu(area: GitStashArea, path?: string): ContextMenuItem[] {
   ];
 }
 
-function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
+function fileMenu(area: GitChangeArea, file: GitFileChange): ContextMenuItem[] {
   const stageAction = area === "staged" ? "unstage" : "stage";
   return [
     {
@@ -202,7 +198,7 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
 }
 </script>
 
-{#snippet groupActions(area: GitStashArea)}
+{#snippet groupActions(area: GitChangeArea)}
   {@const stageAction = area === "staged" ? "unstage" : "stage"}
   <PanelToolbarButton
     icon={area === "staged" ? ArrowDownToLine : ArrowUpFromLine}
@@ -242,7 +238,7 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
   />
 {/snippet}
 
-{#snippet folderActions(area: GitStashArea, path: string)}
+{#snippet folderActions(area: GitChangeArea, path: string)}
   {@const stageAction = area === "staged" ? "unstage" : "stage"}
   <PanelToolbarButton
     icon={area === "staged" ? ArrowDownToLine : ArrowUpFromLine}
@@ -282,7 +278,7 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
   />
 {/snippet}
 
-{#snippet fileActions(area: GitStashArea, file: GitFileChange)}
+{#snippet fileActions(area: GitChangeArea, file: GitFileChange)}
   {@const stageAction = area === "staged" ? "unstage" : "stage"}
   {@const busy = fileMutation?.path === file.path}
   <PanelToolbarButton
@@ -326,7 +322,7 @@ function fileMenu(area: GitStashArea, file: GitFileChange): ContextMenuItem[] {
 {#snippet changeGroup(
   title: string,
   files: GitFileChange[],
-  area: GitStashArea,
+  area: GitChangeArea,
   expanded: boolean,
   onToggle: () => void,
 )}

@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
-import {
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -24,7 +18,7 @@ import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/path
 
 void test("invalid documents use defaults without overwriting sources and reject targeted saves", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-config-defaults-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const paths = storagePaths(home);
   await initializeHomeConfiguration(paths);
   await writeFile(paths.providersConfigPath, "{ broken");
@@ -53,7 +47,7 @@ void test("invalid documents use defaults without overwriting sources and reject
 
 void test("explicit reset quarantines original bytes and writes defaults; reload reads repairs", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-config-reset-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const paths = storagePaths(home);
   await initializeHomeConfiguration(paths);
   await writeFile(paths.providersConfigPath, "{ broken");
@@ -99,7 +93,7 @@ void test("explicit reset quarantines original bytes and writes defaults; reload
 
 void test("all four preserved documents can be invalid without blocking configuration reads", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-config-six-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const paths = storagePaths(home);
   await initializeHomeConfiguration(paths);
   const ids = ["daemon", "ui", "permissions", "providers"] as const;

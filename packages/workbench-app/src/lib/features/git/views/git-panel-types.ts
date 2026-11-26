@@ -3,14 +3,13 @@ import type { GitPrFilterConfig, GitPrQuickFilter } from "../pr-filters";
 import type { GitPullRequestsOverview } from "../state/pr-panel-sources.svelte";
 import type {
   GitBranchSummary,
-  GitDiffArea,
+  GitChangeArea,
   GitFileChange,
   GithubPr,
   GithubPrHeadsResponse,
   GithubStatusResponse,
   GitRepoSummary,
   GitProjectReadError,
-  GitStashArea,
   GitStashEntry,
 } from "@nervekit/contracts/git";
 
@@ -24,14 +23,14 @@ export type FileMutation = {
 
 export type ScopedFileMutation = {
   readonly action: "stage" | "unstage" | "discard";
-  readonly area: GitStashArea;
+  readonly area: GitChangeArea;
   readonly path?: string;
 };
 
 export type StashMutation =
   | {
       readonly action: "create";
-      readonly area: GitStashArea;
+      readonly area: GitChangeArea;
       readonly path?: string;
     }
   | {
@@ -196,7 +195,7 @@ export interface GitPanelActions {
   readonly openDiff: (
     repository: string,
     file: GitFileChange,
-    area: GitDiffArea,
+    area: GitChangeArea,
   ) => void | Promise<void>;
   readonly mutateFile: (
     repository: string,
@@ -205,13 +204,13 @@ export interface GitPanelActions {
   ) => void | Promise<void>;
   readonly mutateFileScope: (
     repository: string,
-    area: GitStashArea,
+    area: GitChangeArea,
     action: ScopedFileMutation["action"],
     path?: string,
   ) => void | Promise<void>;
   readonly createStash: (
     repository: string,
-    area: GitStashArea,
+    area: GitChangeArea,
     path?: string,
   ) => void | Promise<void>;
   readonly setChangeTreeFolderExpanded: (

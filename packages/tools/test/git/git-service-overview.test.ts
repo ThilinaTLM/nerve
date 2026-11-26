@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { GitOverviewObservation } from "../../src/git/git-observability.js";
 import { GitService } from "../../src/git/git-service.js";
+import { removeTree } from "@nervekit/test-kit";
 
 describe("GitService overview snapshots", () => {
   it("coalesces whole overview demand and derives metadata without an extra status snapshot", async (context) => {
@@ -87,7 +88,7 @@ describe("GitService overview snapshots", () => {
     service.resolveRepoDir = () => root;
     context.after(async () => {
       await service.closeRemoteCaches();
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     });
     service.runGit = async (_cwd, args) => {
       calls.push(args);

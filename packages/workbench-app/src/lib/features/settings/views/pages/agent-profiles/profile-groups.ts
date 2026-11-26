@@ -1,7 +1,8 @@
+import type { Source } from "@nervekit/contracts/core";
 import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
 import { profileBelongsTo, type ProfileKind } from "./profile-kind";
 
-export type ProfileOrigin = "project" | "user" | "builtin";
+export type ProfileOrigin = Source;
 
 /** One list row: a profile as defined in one origin. */
 export type ProfileRow = {

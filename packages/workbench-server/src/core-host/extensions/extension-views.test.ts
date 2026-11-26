@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -18,7 +19,7 @@ import {
 
 void test("the user view lists every built-in extension with sources, availability and read-only entries", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "extension-views-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const paths = new AgentConfigurationPaths({
     home,
     projectDirectory: () => undefined,
@@ -94,7 +95,7 @@ void test("the user view lists every built-in extension with sources, availabili
 
 void test("a fresh home's view survives JSON and parses: unset fields have no value", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "extension-views-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const paths = new AgentConfigurationPaths({
     home,
     projectDirectory: () => undefined,

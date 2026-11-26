@@ -1,3 +1,4 @@
+import { sleep } from "@nervekit/primitives";
 import type { ChildProcess } from "node:child_process";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -34,9 +35,7 @@ export async function captureDiagnosticReport(
     | { path: string; size: number; mtimeMs: number; stable: number }
     | undefined;
   while (Date.now() - startedAt < DAEMON_DIAGNOSTIC_TIMEOUT_MS) {
-    await new Promise((resolve) =>
-      setTimeout(resolve, DAEMON_DIAGNOSTIC_POLL_INTERVAL_MS),
-    );
+    await sleep(DAEMON_DIAGNOSTIC_POLL_INTERVAL_MS);
     const names = await readdir(directory).catch(() => []);
     const name = names.find(
       (value) =>

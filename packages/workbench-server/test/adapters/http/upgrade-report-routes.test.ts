@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -24,7 +25,7 @@ const report = (step: string) => ({
 
 test("lists unseen reports, ignores malformed ones, and dismisses", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "upgrade-reports-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const dir = join(home, "migrations", "reports");
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, "0001-a.json"), JSON.stringify(report("0001-a")));

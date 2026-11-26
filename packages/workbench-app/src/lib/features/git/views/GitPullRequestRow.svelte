@@ -21,7 +21,9 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { ItemSurface } from "@nervekit/ui-kit/components/composites/item-surface";
-import { checksTone, formatCompactAge, stateTone } from "./pr-pane-helpers";
+import { toneTextClass } from "@nervekit/ui-kit/display/status";
+import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
+import { checksTone, stateTone } from "./pr-pane-helpers";
 import {
   checksBreakdown,
   checksRunning,
@@ -61,17 +63,8 @@ const StateIcon = $derived(
         : GitPullRequest,
 );
 /* The state icon carries the tone, so the row needs no extra state badge. */
-const stateClass = $derived(
-  {
-    success: "text-success",
-    destructive: "text-destructive",
-    brand: "text-primary",
-    neutral: "text-muted-foreground",
-    warning: "text-warning",
-    info: "text-info",
-  }[stateTone(pr)] ?? "text-muted-foreground",
-);
-const age = $derived(formatCompactAge(pr.updatedAt));
+const stateClass = $derived(toneTextClass[stateTone(pr)]);
+const age = $derived(relativeTimeLabel(pr.updatedAt));
 
 async function copy(text: string) {
   try {

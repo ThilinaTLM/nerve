@@ -1,5 +1,5 @@
 import { adfToMarkdown } from "./adf-markdown.js";
-import { closeMatches } from "../shared/args.js";
+import { closeMatches } from "@nervekit/extension-api/host";
 
 /** Standard Jira fields the SDK flattens. Everything else is a custom field keyed by name. */
 const STANDARD_FIELD_IDS = [

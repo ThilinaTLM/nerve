@@ -1,6 +1,9 @@
 <script lang="ts">
 import type { Component } from "svelte";
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import {
+  toneTextClass,
+  type StatusTone,
+} from "@nervekit/ui-kit/display/status";
 import Bell from "@lucide/svelte/icons/bell";
 import BellDot from "@lucide/svelte/icons/bell-dot";
 import BellRing from "@lucide/svelte/icons/bell-ring";
@@ -50,15 +53,6 @@ const spin = $derived(
   !waitingForUser && (pulse || (!glyph && tone === "info")),
 );
 
-const colorClass: Record<StatusTone, string> = {
-  info: "text-info",
-  success: "text-success",
-  warning: "text-warning",
-  destructive: "text-destructive",
-  neutral: "text-muted-foreground",
-  brand: "text-primary",
-};
-
 const terminalIcon = {
   info: Circle,
   success: CircleCheck,
@@ -104,7 +98,7 @@ const visualKey = $derived(
       {#if spin}
         <Spinner
           style={`width:${size}px;height:${size}px`}
-          class={cn("block", colorClass[tone])}
+          class={cn("block", toneTextClass[tone])}
           aria-hidden={label ? undefined : "true"}
           aria-label={label}
         />
@@ -112,7 +106,7 @@ const visualKey = $derived(
         <Icon
           {size}
           strokeWidth={2.2}
-          class={cn("block", colorClass[tone])}
+          class={cn("block", toneTextClass[tone])}
           aria-hidden={label ? undefined : "true"}
           aria-label={label}
         />

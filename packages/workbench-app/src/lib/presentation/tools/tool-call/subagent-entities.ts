@@ -4,6 +4,7 @@ import {
   subagentStopResultDetailsSchema,
 } from "@nervekit/contracts/tools";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import { subagentLiveState } from "../views/subagent-live";
 import { formatDuration } from "../views/tool-presentation-helpers";
 import { parseToolView } from "../views/tool-result-parser";
@@ -82,13 +83,10 @@ export function textStateTone(state: string): StatusTone {
 export function activeAgo(iso: string, now = Date.now()): string | undefined {
   const then = Date.parse(iso);
   if (Number.isNaN(then)) return undefined;
-  const seconds = Math.max(0, Math.round((now - then) / 1000));
+  const seconds = Math.max(0, Math.floor((now - then) / 1000));
+  // Seconds count up live; past a minute it reads like every other age.
   if (seconds < 60) return `active ${seconds}s ago`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `active ${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `active ${hours}h ago`;
-  return `active ${Math.round(hours / 24)}d ago`;
+  return `active ${relativeTimeLabel(iso, { style: "long", now })}`;
 }
 
 export function promptEntities(

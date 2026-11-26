@@ -1,6 +1,6 @@
 import { restoredLaunchEntryExists } from "$lib/domain/workspace/launch-entry-identity";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
-import type { GitDiffArea } from "@nervekit/contracts/git";
+import type { GitChangeArea } from "@nervekit/contracts/git";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import type { LaunchRecord } from "$lib/api";
 import type { ConversationSummary } from "@nervekit/contracts/core";
@@ -217,7 +217,7 @@ type StoredTab = CenterTabIdentity & {
   repo?: string;
   number?: number;
   renamedFrom?: string;
-  area?: GitDiffArea;
+  area?: GitChangeArea;
   locator?: MermaidBlockLocator;
   source?: string;
   sourceKey?: string;

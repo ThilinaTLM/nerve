@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { describe, it } from "node:test";
 import { GitService } from "../../src/git/git-service.js";
+import { removeTree } from "@nervekit/test-kit";
 
 type FileStatus = Awaited<
   ReturnType<GitService["projectFileStatus"]>
@@ -113,7 +114,7 @@ describe("GitService project file status", () => {
         ],
       );
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -137,7 +138,7 @@ describe("GitService project file status", () => {
       assert.equal(result.files[0]?.repo, "packages/app");
       assert.equal(result.files[0]?.path, "packages/app/src/index.ts");
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 });
@@ -203,7 +204,7 @@ void it("shares discovery/batch results between listing and status and exposes p
     assert.equal(batches, 2);
     await service.closeRemoteCaches();
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -241,7 +242,7 @@ void it("uncertain invalidation during metadata summarization returns explicitly
   } finally {
     release();
     await service.closeRemoteCaches();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -278,6 +279,6 @@ void it("rejects an older listing even when invalidation arrives during metadata
     await service.closeRemoteCaches();
   } finally {
     release();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });

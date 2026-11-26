@@ -7,7 +7,7 @@ import type {
 import { ProjectionBudgetLedger } from "./budget-ledger.js";
 import { savedFileNotice } from "./candidate-artifacts.js";
 import { continuationText } from "./candidate-continuation.js";
-import { formatByteSize } from "../execution/output/truncate.js";
+import { formatByteSize } from "../execution/output/format-bytes.js";
 import {
   blocksFit,
   measureBlocks,

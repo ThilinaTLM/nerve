@@ -1,3 +1,4 @@
+import { KeyedSerialQueue } from "@nervekit/primitives";
 import {
   type PreparedShellProcess,
   stopProcessTree,
@@ -165,7 +166,7 @@ export class LaunchService {
     string,
     NonNullable<LaunchStartInput["onOutput"]>
   >();
-  private readonly transitions = new Map<string, Promise<unknown>>();
+  private readonly transitions = new KeyedSerialQueue<string>();
   private readonly terminalFailures = new Map<
     string,
     { readonly exit: LaunchProcessExit; readonly error: unknown }
@@ -636,24 +637,11 @@ export class LaunchService {
     });
   }
 
-  private async serializeLaunch<T>(
+  private serializeLaunch<T>(
     id: string,
     operation: () => Promise<T>,
   ): Promise<T> {
-    const previous = (this.transitions.get(id) ?? Promise.resolve()).catch(
-      () => undefined,
-    );
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => (release = resolve));
-    const queued = previous.then(() => gate);
-    this.transitions.set(id, queued);
-    await previous;
-    try {
-      return await operation();
-    } finally {
-      release();
-      if (this.transitions.get(id) === queued) this.transitions.delete(id);
-    }
+    return this.transitions.run(id, operation);
   }
 
   private async save(launch: LaunchRecord): Promise<void> {

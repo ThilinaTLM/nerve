@@ -2,16 +2,10 @@ import {
   prepareShellProcess,
   resolveProcessShell,
 } from "../../../src/infrastructure/process-host/shell-process.js";
+import { removeTree } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import {
-  chmod,
-  mkdir,
-  mkdtemp,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { describe, it } from "node:test";
@@ -85,7 +79,7 @@ describe("launch supervisor", () => {
       assert.deepEqual(JSON.parse(output), { NERVE_TASK_MANAGER: "nvm" });
       assert.equal(process.env.NERVE_TASK_MANAGER, undefined);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -111,7 +105,7 @@ describe("launch supervisor", () => {
       );
       assert.deepEqual(JSON.parse(output), { NERVE_TASK_MANAGER: "direnv" });
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -186,6 +180,6 @@ it("spawns the admitted invocation without rediscovering shell, project manager 
   } finally {
     if (previous === undefined) delete process.env.NERVE_PREPARED_LAUNCH_PROBE;
     else process.env.NERVE_PREPARED_LAUNCH_PROBE = previous;
-    await rm(cwd, { recursive: true, force: true });
+    await removeTree(cwd);
   }
 });

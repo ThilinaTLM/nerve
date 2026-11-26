@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,7 +26,7 @@ const baselineIds = [
 
 async function temporaryHome(t: TestContext): Promise<string> {
   const home = await mkdtemp(join(tmpdir(), "nerve-migrations-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   return home;
 }
 

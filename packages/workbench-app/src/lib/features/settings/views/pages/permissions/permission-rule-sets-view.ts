@@ -1,3 +1,4 @@
+import type { Layer } from "@nervekit/contracts/core";
 import {
   permissionOverlayForOriginSchema,
   permissionRuleSchema,
@@ -15,7 +16,7 @@ export function isDefaultEligible(ruleSet: PermissionRuleSetSummary): boolean {
   return ruleSet.enabled && ruleSet.available;
 }
 
-export type OverrideScope = "user" | "project";
+export type OverrideScope = Layer;
 
 export function overridesFor(
   configuration: PermissionPolicyConfiguration,

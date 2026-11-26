@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
-import {
-  mkdtemp,
-  mkdir,
-  writeFile,
-  symlink,
-  rm,
-  truncate,
-} from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, writeFile, symlink, truncate } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -14,7 +8,7 @@ import { HtmlPreviewService } from "../../../src/domains/filesystem/html-preview
 
 async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
   const root = await mkdtemp(join(tmpdir(), "html-preview-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   await mkdir(join(root, "pages"));
   await writeFile(join(root, "pages/demo.htm"), "saved");
   await writeFile(join(root, "shared.css"), "body { color: red }");
@@ -123,7 +117,7 @@ test("reads parent assets with explicit MIME, CORS and bounded content; rejects 
 test("rejects symlink escapes and invalid document/approval inputs", async (t) => {
   const { service, input, root } = await fixture(t);
   const outside = await mkdtemp(join(tmpdir(), "html-preview-outside-"));
-  t.after(() => rm(outside, { recursive: true, force: true }));
+  t.after(() => removeTree(outside));
   await writeFile(join(outside, "secret.css"), "secret");
   await writeFile(join(outside, "secret.html"), "secret");
   await symlink(outside, join(root, "escape"));

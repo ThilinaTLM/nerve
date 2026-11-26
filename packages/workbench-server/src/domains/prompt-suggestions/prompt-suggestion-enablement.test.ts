@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -62,7 +63,7 @@ function memoryTrust() {
 
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const home = await mkdtemp(join(tmpdir(), "suggestion-enablement-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const config = join(home, "config");
   const dir = join(home, "project");
   await mkdir(config, { recursive: true });

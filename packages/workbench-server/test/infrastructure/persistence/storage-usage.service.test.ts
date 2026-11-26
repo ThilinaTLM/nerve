@@ -1,21 +1,19 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
+import {
+  makeTempDir,
+  removeTree,
+  type CleanupContext,
+} from "@nervekit/test-kit";
 import { basename, join } from "node:path";
-import { after, describe, it, mock } from "node:test";
+import { describe, it, mock } from "node:test";
 import { StorageUsageService } from "../../../src/domains/storage/storage-usage.service.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
-const roots: string[] = [];
-after(async () =>
-  Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))),
-);
-
-async function fixtureHome(): Promise<string> {
-  const home = await mkdtemp(join(tmpdir(), "nerve-usage-"));
-  roots.push(home);
+async function fixtureHome(t: CleanupContext): Promise<string> {
+  const home = await makeTempDir(t, "nerve-usage-");
   const write = async (relative: string, bytes: number) => {
     const path = join(home, relative);
     await mkdir(join(path, ".."), { recursive: true });
@@ -51,7 +49,7 @@ async function fixtureHome(): Promise<string> {
 
   const external = join(home, "..", `${basename(home)}-external`);
   await writeFile(external, "x".repeat(100));
-  roots.push(external);
+  t.after(() => removeTree(external));
   await symlink(external, join(home, "unknown-link"));
   await symlink(external, join(home, "cache", "cache-link"));
   return home;
@@ -72,8 +70,8 @@ function targetBytes(
 }
 
 describe("StorageUsageService", () => {
-  it("classifies readable v1 home files exactly once", async () => {
-    const home = await fixtureHome();
+  it("classifies readable v1 home files exactly once", async (t) => {
+    const home = await fixtureHome(t);
     const service = new StorageUsageService({
       paths: storagePaths(home),
       getSource: () => ({
@@ -129,8 +127,8 @@ describe("StorageUsageService", () => {
     assert.equal(targetBytes(usage, "tmp"), 19);
   });
 
-  it("shares concurrent refreshes, caches results, and bypasses cache on force", async () => {
-    const home = await fixtureHome();
+  it("shares concurrent refreshes, caches results, and bypasses cache on force", async (t) => {
+    const home = await fixtureHome(t);
     let reads = 0;
     const service = new StorageUsageService({
       paths: storagePaths(home),
@@ -157,8 +155,8 @@ describe("StorageUsageService", () => {
   it(
     "does not cache an invalidated scan or clear a newer in-flight refresh",
     { timeout: 5_000 },
-    async () => {
-      const home = await fixtureHome();
+    async (t) => {
+      const home = await fixtureHome(t);
       const paths = storagePaths(home);
       const service = new StorageUsageService({
         paths,
@@ -213,8 +211,8 @@ describe("StorageUsageService", () => {
     },
   );
 
-  it("expires cached usage after fifteen seconds", async () => {
-    const home = await fixtureHome();
+  it("expires cached usage after fifteen seconds", async (t) => {
+    const home = await fixtureHome(t);
     const service = new StorageUsageService({
       paths: storagePaths(home),
       getSource: () => ({ listConversations: () => [] }),
@@ -232,8 +230,8 @@ describe("StorageUsageService", () => {
     }
   });
 
-  it("retries after a rejected refresh instead of retaining a rejected promise", async () => {
-    const home = await fixtureHome();
+  it("retries after a rejected refresh instead of retaining a rejected promise", async (t) => {
+    const home = await fixtureHome(t);
     let fail = true;
     const service = new StorageUsageService({
       paths: storagePaths(home),
@@ -247,9 +245,8 @@ describe("StorageUsageService", () => {
     assert.equal((await service.computeUsage()).totalBytes, 402);
   });
 
-  it("returns a stable empty response for an empty home", async () => {
-    const home = await mkdtemp(join(tmpdir(), "nerve-usage-empty-"));
-    roots.push(home);
+  it("returns a stable empty response for an empty home", async (t) => {
+    const home = await makeTempDir(t, "nerve-usage-empty-");
     const usage = await new StorageUsageService({
       paths: storagePaths(home),
       getSource: () => ({ listConversations: () => [] }),

@@ -1,4 +1,5 @@
 import { ProjectMigrationService } from "../../infrastructure/configuration/project-migration/project-migration.js";
+import { removeTree } from "@nervekit/test-kit";
 import { projectPermissionsConfiguration } from "./project-permission-migrations.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -156,6 +157,6 @@ void test("admission reads live selection, keeps the loaded policy over an inval
     if (blocked.kind === "blocked")
       assert.equal(blocked.request.diagnostics[0].path, path);
   } finally {
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   }
 });

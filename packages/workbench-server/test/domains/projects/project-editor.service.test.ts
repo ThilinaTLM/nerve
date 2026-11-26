@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -88,7 +89,7 @@ describe("ProjectEditorService", () => {
       assert.equal(launches[0]?.options.windowsHide, true);
       assert.equal(launches[0]?.options.stdio, "ignore");
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -136,6 +137,6 @@ void it("reports asynchronous launch errors without unref", async () => {
     );
     assert.equal(unrefCalled, false);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });

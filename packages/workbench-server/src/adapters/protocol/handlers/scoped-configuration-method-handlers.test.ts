@@ -1,14 +1,8 @@
 import type { z } from "zod";
+import { removeTree } from "@nervekit/test-kit";
 import { TrustedResourceService } from "@nervekit/conversation-core";
 import assert from "node:assert/strict";
-import {
-  mkdtemp,
-  mkdir,
-  readFile,
-  writeFile,
-  rm,
-  stat,
-} from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { type TestContext } from "node:test";
@@ -141,7 +135,7 @@ async function fixture(t: TestContext) {
   }
   t.after(async () => {
     await service.flushSummaries();
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   });
   /** The user's decision on a project file, as `configuration.decide` records it. */
   const decide = (

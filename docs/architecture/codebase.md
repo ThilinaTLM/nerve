@@ -5,6 +5,8 @@ Nerve separates the reusable agent engine from the workbench that hosts it. The 
 ```mermaid
 flowchart TB
   subgraph Foundation
+    primitives
+    test-kit
     extension-api
     contracts
     protocol
@@ -19,6 +21,12 @@ flowchart TB
     workbench-server --> desktop-shell
     workbench-app
   end
+  primitives -.-> tools
+  primitives -.-> conversation-core
+  primitives -.-> protocol
+  primitives -.-> workbench-server
+  primitives -.-> workbench-app
+  test-kit -.->|dev only| tools
   extension-api --> contracts
   extension-api --> tools
   extension-api --> extensions
@@ -37,6 +45,8 @@ Arrows mean “is consumed by.” The diagram highlights key direct dependencies
 
 | Package             | Layer      | One-line responsibility                                                                                                                                                                                                                                                              |
 | ------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `primitives`        | Foundation | Dependency-free runtime helpers for browser and Node: serial queues (`SerialQueue`, `KeyedSerialQueue`), `singleFlight`, abortable `sleep` and `createDebouncedTask`. Allowed everywhere; use them instead of hand-rolled promise chains, dedupe maps and timer pairs.               |
+| `test-kit`          | Foundation | Private, Node-only test support: `makeTempDir`, `waitFor`, `flush`, `waitForProcessExit`, `createManualTimerCore`, `stubFetch`. A devDependency used from tests only; the boundary check rejects it in `dependencies` and in non-test source.                                        |
 | `extension-api`     | Foundation | The extension contract: manifest and `ctx` types, `define*` helpers and a fake context for tests. No dependencies.                                                                                                                                                                   |
 | `contracts`         | Foundation | Transport-neutral domain schemas and policy contracts.                                                                                                                                                                                                                               |
 | `protocol`          | Foundation | Sessions, remote procedure calls, replay and transport lifecycle.                                                                                                                                                                                                                    |

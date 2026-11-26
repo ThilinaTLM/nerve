@@ -216,12 +216,13 @@ export const gitFileActionRequestSchema = z.object({
 });
 export type GitFileActionRequest = z.infer<typeof gitFileActionRequestSchema>;
 
-export const gitStashAreaSchema = z.enum(["staged", "unstaged"]);
-export type GitStashArea = z.infer<typeof gitStashAreaSchema>;
+/** Which side of the index a stash or file diff targets. */
+export const gitChangeAreaSchema = z.enum(["staged", "unstaged"]);
+export type GitChangeArea = z.infer<typeof gitChangeAreaSchema>;
 
 export const gitStashCreateRequestSchema = z.object({
   repo: z.string().default("."),
-  area: gitStashAreaSchema,
+  area: gitChangeAreaSchema,
   paths: z.array(z.string().min(1)).max(10_000).optional(),
 });
 export type GitStashCreateRequest = z.infer<typeof gitStashCreateRequestSchema>;
@@ -233,18 +234,15 @@ export const gitStashTargetRequestSchema = z.object({
 });
 export type GitStashTargetRequest = z.infer<typeof gitStashTargetRequestSchema>;
 
-export const gitDiffAreaSchema = z.enum(["staged", "unstaged"]);
-export type GitDiffArea = z.infer<typeof gitDiffAreaSchema>;
-
 export const gitFileDiffRequestSchema = gitFileActionRequestSchema.extend({
-  area: gitDiffAreaSchema,
+  area: gitChangeAreaSchema,
 });
 export type GitFileDiffRequest = z.infer<typeof gitFileDiffRequestSchema>;
 
 const gitFileDiffMetadataSchema = z.object({
   path: z.string(),
   renamedFrom: z.string().optional(),
-  area: gitDiffAreaSchema,
+  area: gitChangeAreaSchema,
 });
 
 export const gitFileDiffResponseSchema = z.discriminatedUnion("binary", [

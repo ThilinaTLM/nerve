@@ -78,6 +78,7 @@
   },
   "devDependencies": {
     "@nervekit/contracts": "workspace:*",
+    "@nervekit/test-kit": "workspace:*",
     "@types/node": "24.10.1",
     "svelte2tsx": "0.7.63",
     "tsx": "4.22.4"

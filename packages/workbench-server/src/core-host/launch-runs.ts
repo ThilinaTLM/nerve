@@ -1,4 +1,5 @@
 import { prepareShellProcess } from "../infrastructure/process-host/shell-process.js";
+import { sleep as defaultSleep } from "@nervekit/primitives";
 import {
   projectProcessOutput,
   projectProcessOutputPage,
@@ -261,9 +262,7 @@ export class LaunchRuns {
     signal: AbortSignal | undefined,
   ): Promise<boolean> {
     const now = this.options.now ?? Date.now;
-    const sleep =
-      this.options.sleep ??
-      ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
+    const sleep = this.options.sleep ?? ((ms: number) => defaultSleep(ms));
     const deadline = now() + PORT_WAIT_MS;
     while (now() < deadline) {
       signal?.throwIfAborted();

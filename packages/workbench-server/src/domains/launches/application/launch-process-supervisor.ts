@@ -1,3 +1,4 @@
+import { sleep } from "@nervekit/primitives";
 import {
   splitLiveOutputChunks,
   type ToolExecutionOutputUpdate,
@@ -225,8 +226,7 @@ export class LaunchProcessSupervisor {
     id: string,
     timeoutMs: number,
   ): Promise<void> {
-    await (this.options.timers?.sleep(timeoutMs) ??
-      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)));
+    await (this.options.timers?.sleep(timeoutMs) ?? sleep(timeoutMs));
     const launch = await this.options.transitionIfPresent(
       id,
       async (current) => {

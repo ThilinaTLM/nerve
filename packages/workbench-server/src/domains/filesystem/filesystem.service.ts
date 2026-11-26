@@ -25,7 +25,7 @@ import { createInterface } from "node:readline";
 import { isPathInside, resolveNativePath } from "@nervekit/tools/execution";
 import {
   attachmentUploadRequestSchema,
-  ATTACHMENT_MAX_BYTES,
+  ATTACHMENT_UPLOAD_MAX_BYTES,
   type FilesystemProjectEntry,
   type FilesystemSignal,
   filesystemFileQuerySchema,
@@ -123,7 +123,7 @@ export async function saveAttachment(input: unknown, storageHome: string) {
     input !== null &&
     "dataBase64" in input &&
     typeof input.dataBase64 === "string" &&
-    input.dataBase64.length > Math.ceil(ATTACHMENT_MAX_BYTES / 3) * 4
+    input.dataBase64.length > Math.ceil(ATTACHMENT_UPLOAD_MAX_BYTES / 3) * 4
   )
     throw new ApplicationError(
       413,
@@ -142,7 +142,7 @@ export async function saveAttachment(input: unknown, storageHome: string) {
   const decodedLength =
     (encoded.length / 4) * 3 -
     (encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0);
-  if (decodedLength > ATTACHMENT_MAX_BYTES)
+  if (decodedLength > ATTACHMENT_UPLOAD_MAX_BYTES)
     throw new ApplicationError(
       413,
       "ATTACHMENT_TOO_LARGE",

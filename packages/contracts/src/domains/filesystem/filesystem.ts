@@ -341,7 +341,7 @@ export type FilesystemFileSaveRequest = z.infer<
   typeof filesystemFileSaveRequestSchema
 >;
 
-export const ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
+export const ATTACHMENT_UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 
 export const attachmentUploadRequestSchema = z.object({
   name: z.string().max(1024).optional(),
@@ -349,7 +349,7 @@ export const attachmentUploadRequestSchema = z.object({
   dataBase64: z
     .string()
     .max(
-      Math.ceil(ATTACHMENT_MAX_BYTES / 3) * 4,
+      Math.ceil(ATTACHMENT_UPLOAD_MAX_BYTES / 3) * 4,
       "Attachments must be 20 MiB or smaller.",
     ),
 });

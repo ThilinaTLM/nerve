@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, mkdir, open, realpath, lstat } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { synchronizeDirectory } from "../scoped-store/durable-write.js";
+import { synchronizeDirectory } from "../../storage-bootstrap/file-mutations.js";
 import type { ProjectConfigurationContext } from "./project-migration.js";
 export const digest = (value: string | Buffer) =>
   createHash("sha256").update(value).digest("hex");

@@ -1,3 +1,4 @@
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import type { ModelInfo } from "@nervekit/contracts/models";
 import {
   modelDisplayName,
@@ -84,12 +85,12 @@ export function filterModelCatalog(
   provider = "all",
   capabilities: ReadonlySet<ModelCapability> = new Set(),
 ): ModelCatalogEntry[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle && provider === "all" && capabilities.size === 0) return entries;
+  if (!query.trim() && provider === "all" && capabilities.size === 0)
+    return entries;
   return entries.filter(
     (entry) =>
       (provider === "all" || entry.model.provider === provider) &&
-      (!needle || entry.searchText.includes(needle)) &&
+      matchesTerms(query, entry.searchText) &&
       [...capabilities].every((capability) =>
         modelHasCapability(entry.model, capability),
       ),

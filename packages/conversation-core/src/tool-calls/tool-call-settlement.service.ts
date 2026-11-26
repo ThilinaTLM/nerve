@@ -1,5 +1,6 @@
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import { createId } from "@nervekit/contracts";
+import { singleFlight } from "@nervekit/primitives";
 import type { ToolCall, ToolCallOutcome } from "@nervekit/contracts/core";
 import type { ToolExecutionResultPayload } from "@nervekit/contracts/tools";
 import type { ToolCallServiceOptions } from "./tool-call-types.js";
@@ -43,15 +44,9 @@ export class ToolCallSettlement {
     claim: string | null = null,
   ): Promise<void> {
     if (this.closed) return;
-    const active = this.settlements.get(call.id);
-    if (active) return active;
-    const task = this.persistSettlement(call, outcome, result, claim);
-    this.settlements.set(call.id, task);
-    try {
-      await task;
-    } finally {
-      this.settlements.delete(call.id);
-    }
+    await singleFlight(this.settlements, call.id, () =>
+      this.persistSettlement(call, outcome, result, claim),
+    );
   }
 
   private async persistSettlement(

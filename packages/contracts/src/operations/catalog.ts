@@ -9,11 +9,7 @@ import { extensionUiOperationDefinitions } from "../domains/extensions/extension
 import { backgroundJobsOperationDefinitions } from "../domains/background-jobs/background-jobs-operations.js";
 import { mcpOperationDefinitions } from "../domains/mcp/mcp-operations.js";
 import { z } from "zod";
-export type {
-  OperationDefinition,
-  OperationIdempotency,
-  OperationKind,
-} from "./definition.js";
+export type { OperationDefinition, OperationKind } from "./definition.js";
 import { authOperationDefinitions } from "../domains/auth/operations.js";
 import { completionsOperationDefinitions } from "../domains/completions/operations.js";
 import { filesystemOperationDefinitions } from "../domains/filesystem/operations.js";
@@ -81,11 +77,6 @@ export const operationKindSchema = z.enum([
   "read",
   "mutation",
   "accepted_async",
-]);
-export const operationIdempotencySchema = z.enum([
-  "none",
-  "recommended",
-  "required",
 ]);
 
 const definitionMap = new Map<OperationName, CatalogOperationDefinition>(

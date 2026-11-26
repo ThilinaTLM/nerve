@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { test } from "node:test";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BackgroundProcess } from "@nervekit/conversation-core";
@@ -178,10 +179,7 @@ void test("bash host validates turn settings, project cwd and untimed background
       process.launch,
     );
   } finally {
-    await Promise.all([
-      rm(project, { recursive: true, force: true }),
-      rm(outside, { recursive: true, force: true }),
-    ]);
+    await Promise.all([removeTree(project), removeTree(outside)]);
   }
 });
 
@@ -254,6 +252,6 @@ void test("prepared dispatch owns normalized arguments and the non-secret execut
       account,
     );
   } finally {
-    await rm(cwd, { recursive: true, force: true });
+    await removeTree(cwd);
   }
 });

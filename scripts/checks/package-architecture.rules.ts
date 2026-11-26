@@ -1,3 +1,14 @@
+/** Dependency-free foundation packages any package may depend on. */
+export const UNIVERSAL_DEPENDENCIES: readonly string[] = [
+  "@nervekit/primitives",
+];
+
+/**
+ * Test support any package may use, but only from `devDependencies` and only
+ * in test files; production code and published manifests never reference it.
+ */
+export const DEV_ONLY_DEPENDENCIES: readonly string[] = ["@nervekit/test-kit"];
+
 /**
  * Allowed internal dependency edges between workspace packages (policy data).
  * The package inventory itself (names, directories, actual dependencies) is
@@ -9,6 +20,10 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
   string,
   readonly string[]
 > = new Map([
+  // Leaves with no @nervekit dependencies. Every package may also use
+  // UNIVERSAL_DEPENDENCIES and (as a devDependency) DEV_ONLY_DEPENDENCIES below.
+  ["@nervekit/primitives", []],
+  ["@nervekit/test-kit", []],
   ["@nervekit/extension-api", []],
   ["@nervekit/contracts", ["@nervekit/extension-api"]],
   ["@nervekit/native", []],
@@ -33,7 +48,7 @@ export const ALLOWED_INTERNAL_DEPENDENCIES: ReadonlyMap<
     "@nervekit/extension-sdk",
     ["@nervekit/extension-api", "@nervekit/ui-kit", "@nervekit/contracts"],
   ],
-  ["@nervekit/website", []],
+  ["@nervekit/website", ["@nervekit/contracts"]],
   [
     "@nervekit/workbench-server",
     [

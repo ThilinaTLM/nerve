@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -16,7 +17,7 @@ before(async () => {
   home = await mkdtemp(join(tmpdir(), "extension-store-"));
 });
 after(async () => {
-  await rm(home, { recursive: true, force: true });
+  await removeTree(home);
 });
 
 function setup() {

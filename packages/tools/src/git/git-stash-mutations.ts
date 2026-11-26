@@ -1,6 +1,6 @@
 import type {
   GitMutationResponse,
-  GitStashArea,
+  GitChangeArea,
 } from "@nervekit/contracts/git";
 import type { GitMutationContext } from "./git-mutation-context.js";
 import { inGitLane } from "./git-operation-context.js";
@@ -14,7 +14,7 @@ export async function createStash(
   ctx: GitMutationContext,
   projectId: string,
   relativePath: string,
-  area: GitStashArea,
+  area: GitChangeArea,
   paths?: readonly string[],
 ): Promise<GitMutationResponse> {
   return inGitLane(

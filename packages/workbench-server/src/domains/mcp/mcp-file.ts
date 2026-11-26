@@ -96,5 +96,7 @@ export async function writeMcpDocument(
     ...(document.schema ? { $schema: document.schema } : {}),
     mcpServers: document.servers,
   };
-  await atomicWriteFile(path, `${JSON.stringify(body, null, 2)}\n`);
+  await atomicWriteFile(path, `${JSON.stringify(body, null, 2)}\n`, {
+    durability: "directory",
+  });
 }

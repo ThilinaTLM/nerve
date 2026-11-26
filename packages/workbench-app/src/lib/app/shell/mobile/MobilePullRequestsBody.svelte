@@ -11,13 +11,13 @@ import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as Sheet from "@nervekit/ui-kit/components/ui/sheet";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import { MobileListRow, MobileSection } from "$lib/presentation/shell";
 import {
   activeGitPrFilterCount,
   applyGitPrFilterDraft,
   checksRunning,
+  checksTone,
   createGitPrFilterDraft,
   defaultGitPrFilterConfig,
   gitPrFilterConfigsEqual,
@@ -78,19 +78,6 @@ function resetFilters() {
   filtersOpen = false;
 }
 
-function tone(pr: GithubPr): StatusTone {
-  switch (pr.checks.status) {
-    case "passing":
-      return "success";
-    case "failing":
-      return "destructive";
-    case "pending":
-      return "warning";
-    default:
-      return "neutral";
-  }
-}
-
 function detail(pr: GithubPr): string {
   const parts = [`#${pr.number}`];
   if (pr.author) parts.push(pr.author);
@@ -111,7 +98,7 @@ function open(pr: GithubPr) {
     title={pr.title}
     detail={detail(pr)}
     meta={relativeTimeLabel(pr.updatedAt)}
-    tone={tone(pr)}
+    tone={checksTone(pr.checks)}
     pulse={checksRunning(pr.checks)}
     onclick={() => open(pr)}
   />

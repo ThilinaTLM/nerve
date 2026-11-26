@@ -22,7 +22,12 @@ fn metadata_matches_all_detailed_fields_with_requested_history_and_stashes() {
     write(f.path.join("tracked.txt"), "stash change\n");
     f.git(&["stash", "push", "-qm", "synthetic stash"]);
     write(f.path.join(".git/MERGE_HEAD"), "synthetic marker\n");
-    let full = read_snapshot(f.path(), SnapshotOptions::default()).unwrap();
+    let full = read_snapshot(
+        f.path(),
+        SnapshotOptions::default(),
+        &CancellationToken::default(),
+    )
+    .unwrap();
     let metadata = read_metadata(
         f.path(),
         MetadataOptions {
@@ -92,8 +97,10 @@ fn metadata_defaults_skip_status_history_and_stash_work_and_preserve_zero_status
             f.path(),
             SnapshotOptions {
                 status_limit: 0,
+                stash_limit: 0,
                 ..Default::default()
-            }
+            },
+            &CancellationToken::default()
         )
         .unwrap_err()
         .kind,

@@ -84,34 +84,20 @@ export async function cancelOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
 export async function saveAccount(
   request: SaveAccountRequest,
 ): Promise<AccountView> {
-  return (
-    await protocolRequest("accounts.save", request, {
-      idempotencyKey: crypto.randomUUID(),
-    })
-  ).result.account;
+  return (await protocolRequest("accounts.save", request)).result.account;
 }
 
 /** Starts the sign-in of an account; the prompts are answered through the OAuth flow calls. */
 export async function startAccountSignIn(
   ref: AccountRef,
 ): Promise<OAuthFlowInfo> {
-  return (
-    await protocolRequest("accounts.signIn", ref, {
-      idempotencyKey: crypto.randomUUID(),
-    })
-  ).result.flow;
+  return (await protocolRequest("accounts.signIn", ref)).result.flow;
 }
 
 export async function deleteAccount(ref: AccountRef): Promise<void> {
-  await protocolRequest("accounts.delete", ref, {
-    idempotencyKey: crypto.randomUUID(),
-  });
+  await protocolRequest("accounts.delete", ref);
 }
 
 export async function testAccount(ref: AccountRef): Promise<AccountHealth> {
-  return (
-    await protocolRequest("accounts.test", ref, {
-      idempotencyKey: crypto.randomUUID(),
-    })
-  ).result.health;
+  return (await protocolRequest("accounts.test", ref)).result.health;
 }

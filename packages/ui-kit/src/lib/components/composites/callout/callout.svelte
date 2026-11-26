@@ -5,7 +5,10 @@ Message box with a tone, an optional icon and title, and actions. Put longer con
 
 <script lang="ts">
 import type { Component, Snippet } from "svelte";
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import {
+  toneTextClass,
+  type StatusTone,
+} from "@nervekit/ui-kit/display/status";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {
@@ -42,14 +45,6 @@ const toneClasses: Record<StatusTone, string> = {
   warning: "border-warning-strong bg-warning-subtle",
   destructive: "border-destructive-strong bg-destructive-subtle",
 };
-const iconClasses: Record<StatusTone, string> = {
-  neutral: "text-muted-foreground",
-  brand: "text-primary",
-  info: "text-info",
-  success: "text-success",
-  warning: "text-warning",
-  destructive: "text-destructive",
-};
 const layoutClasses = {
   block: "rounded-md border px-2.5 py-2",
   strip: "border-b px-2 py-1.5",
@@ -67,7 +62,7 @@ const layoutClasses = {
 >
   {#if Icon}
     <Icon
-      class={cn("size-3.5 shrink-0 mt-0.5", iconClasses[tone])}
+      class={cn("size-3.5 shrink-0 mt-0.5", toneTextClass[tone])}
       aria-hidden="true"
     />
   {/if}

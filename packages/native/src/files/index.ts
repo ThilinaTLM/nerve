@@ -4,6 +4,10 @@ import type {
   ContentSearchOptions,
   ContentSearchResult,
   DirectoryEntry,
+  FindFilesOptions,
+  FindFilesResult,
+  GrepOptions,
+  GrepResult,
   ListDirectoryOptions,
   PathIndex,
   PathIndexKind,
@@ -31,6 +35,8 @@ export function isAvailable(): boolean {
       "closeFilePathIndex",
       "searchFileContent",
       "cancelFileContentSearch",
+      "grepFiles",
+      "findProjectFiles",
     ] as const
   ).every((name) => typeof files[name] === "function");
 }
@@ -132,4 +138,66 @@ export async function searchContent(
   } finally {
     signal?.removeEventListener("abort", onAbort);
   }
+}
+
+/** The search ran past `timeoutMs`; nothing partial is returned. */
+export class SearchTimeoutError extends Error {
+  constructor(readonly timeoutMs: number | undefined) {
+    super(`Search timed out${timeoutMs ? ` after ${timeoutMs}ms` : ""}.`);
+    this.name = "SearchTimeoutError";
+  }
+}
+
+async function cancellable<T>(
+  signal: AbortSignal | undefined,
+  timeoutMs: number | undefined,
+  run: (cancelId: number) => Promise<T>,
+): Promise<T> {
+  signal?.throwIfAborted();
+  const cancelId = nextCancelId++;
+  const onAbort = (): void => files.cancelFileContentSearch?.(cancelId);
+  signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    const result = await run(cancelId);
+    signal?.throwIfAborted();
+    return result;
+  } catch (error) {
+    signal?.throwIfAborted();
+    if (error instanceof Error && error.message === "timeout")
+      throw new SearchTimeoutError(timeoutMs);
+    throw error;
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+/**
+ * Line search for the agent tools. Deterministic: files in path order, exactly
+ * `limit` matches (plus context, plus trailing context of the last one), exact totals.
+ * Hidden files are searched; ignore files apply with or without a Git repository;
+ * binary files are skipped when found by the walk but read when named in `roots`.
+ * Paths are relative to `displayRoot`, which must contain every root.
+ */
+export async function grep(
+  displayRoot: string,
+  roots: string[],
+  options: GrepOptions,
+): Promise<GrepResult> {
+  const search = required("grepFiles");
+  const { signal, ...request } = options;
+  return cancellable(signal, request.timeoutMs, (cancelId) =>
+    search(displayRoot, roots, { ...request, cancelId }),
+  );
+}
+
+/** Glob search over regular files below `root`, in path order with an exact total. */
+export async function findFiles(
+  root: string,
+  options: FindFilesOptions,
+): Promise<FindFilesResult> {
+  const find = required("findProjectFiles");
+  const { signal, ...request } = options;
+  return cancellable(signal, request.timeoutMs, (cancelId) =>
+    find(root, { ...request, cancelId }),
+  );
 }

@@ -72,5 +72,6 @@ export function writeDevicesFile(
 ): Promise<void> {
   return atomicWriteFile(path, `${JSON.stringify(file, null, 2)}\n`, {
     mode: 0o600,
+    durability: "directory",
   });
 }

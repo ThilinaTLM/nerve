@@ -14,6 +14,7 @@
 
 - Prefer clean, simple architecture over compatibility layers and workaround shims.
 - Shared API/event/policy/storage schemas belong in `packages/contracts`; session/RPC/replay/transport lifecycle mechanics in `packages/protocol`. Both stay transport-neutral (protocol's concrete adapters live in `src/adapters/`).
+- Before writing a serial queue, dedupe map, debounce/sleep, temp dir, wait loop, fake timers or fetch stub, use `@nervekit/primitives` (production code) or `@nervekit/test-kit` (tests, devDependency). See `docs/architecture/codebase.md`.
 
 **Agent-facing content**
 

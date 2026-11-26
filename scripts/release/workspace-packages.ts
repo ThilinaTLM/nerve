@@ -22,6 +22,7 @@ export const versionLockedPackages = [
   "extension-api",
   "ui-kit",
   "extension-sdk",
+  "primitives",
   "contracts",
   "native",
   "protocol",
@@ -37,6 +38,7 @@ export const versionLockedPackages = [
 /** The npm-published @nervekit packages bundled into the desktop tarball. */
 export const bundledPackages = [
   ["@nervekit/extension-api", "extension-api"],
+  ["@nervekit/primitives", "primitives"],
   ["@nervekit/contracts", "contracts"],
   ["@nervekit/native", "native"],
   ["@nervekit/protocol", "protocol"],

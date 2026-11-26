@@ -23,10 +23,10 @@ import {
 import { removedElements } from "./lossy.js";
 import { partialWriteFailure } from "./partial-write.js";
 import {
-  artifactNameFor,
-  MAX_ATTACHMENT_BYTES,
+  MAX_STREAMED_FILE_BYTES,
   mediaTypeFor,
-} from "../shared/files.js";
+} from "@nervekit/extension-api/host";
+import { artifactNameFor } from "../shared/files.js";
 import { imageSize } from "../shared/image-size.js";
 import { codedError } from "../shared/errors.js";
 import { nonEmptyString, optionalText } from "../shared/args.js";
@@ -220,7 +220,7 @@ async function existingReferenced(
         connection,
         item.downloadLink,
       ).catch(() => undefined);
-      if (bytes && bytes.byteLength <= MAX_ATTACHMENT_BYTES) {
+      if (bytes && bytes.byteLength <= MAX_STREAMED_FILE_BYTES) {
         size = imageSize(bytes);
       }
     }
@@ -621,7 +621,7 @@ export const confluencePageWriteMethods: PathedMethod<ConfluenceSession>[] = [
           const bytes = item.downloadLink
             ? await confluenceDownload(connection, item.downloadLink)
             : undefined;
-          if (!bytes || bytes.byteLength > MAX_ATTACHMENT_BYTES) {
+          if (!bytes || bytes.byteLength > MAX_STREAMED_FILE_BYTES) {
             skipped.push(item.title);
             continue;
           }

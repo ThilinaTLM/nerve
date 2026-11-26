@@ -14,14 +14,16 @@ import {
   type AccountKind,
 } from "@nervekit/contracts/extensions";
 import { ExtensionError } from "@nervekit/extension-api";
+import {
+  MAX_STREAMED_FILE_BYTES,
+  mediaTypeFor,
+} from "@nervekit/extension-api/host";
 import { isolatedHtmlToMarkdown, resolveToolPath } from "../execution/index.js";
 import {
   artifactTempPath,
   commitArtifact,
   freshArtifactName,
-  MAX_ATTACHMENT_BYTES,
   MAX_FILE_BYTES,
-  mediaTypeFor,
   parseHandle,
   readFileRef,
   statFileRef,
@@ -260,7 +262,7 @@ export class ExtensionRuntime {
         const ref = await readWorkspaceOrArtifact(handle);
         const size = await statFileRef(
           ref,
-          MAX_ATTACHMENT_BYTES,
+          MAX_STREAMED_FILE_BYTES,
           "Split or compress it.",
         );
         return { path: ref.path, size };
@@ -344,7 +346,7 @@ export class ExtensionRuntime {
           // Size up to the transfer limit (uploads stream); dimensions only for files the host reads.
           const bytes = await statFileRef(
             ref,
-            MAX_ATTACHMENT_BYTES,
+            MAX_STREAMED_FILE_BYTES,
             "Split or compress it.",
           );
           const mediaType = mediaTypeFor(ref.path);

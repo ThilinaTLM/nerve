@@ -48,17 +48,6 @@ export function pythonProcessPolicy(
   };
 }
 
-export function searchProcessPolicy(): ManagedProcessResourcePolicy {
-  return {
-    enforcement: managedProcessEnforcement(),
-    memoryBytes: GIB,
-    maxCpuCores: 2,
-    maxProcesses: 32,
-    wallTimeMs: 30_000,
-    output: output(64 * MIB),
-  };
-}
-
 export function gitProcessPolicy(): ManagedProcessResourcePolicy {
   return {
     enforcement: managedProcessEnforcement(),

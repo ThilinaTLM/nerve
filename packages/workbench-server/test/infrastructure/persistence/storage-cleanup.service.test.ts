@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
-import {
-  access,
-  mkdir,
-  mkdtemp,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { access, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -20,7 +14,7 @@ import type {
 
 async function fixture(t: import("node:test").TestContext) {
   const home = await mkdtemp(join(tmpdir(), "nerve-cleanup-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const paths = storagePaths(home);
   const updates: MaintenanceProgressPatch[] = [];
   let cancelled = false;

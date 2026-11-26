@@ -6,7 +6,7 @@ import { describe, it, type TestContext } from "node:test";
 import { executePython } from "../../src/execution/python/python.js";
 import { resolvePythonRuntime } from "../../src/execution/python/runtime.js";
 import type { PythonRuntime } from "../../src/index.js";
-import { waitFor } from "../support/wait-for.js";
+import { waitFor, waitForProcessExit } from "@nervekit/test-kit";
 import { createTempProject } from "../support/project-fixtures.js";
 
 async function runtimeOrSkip(
@@ -31,20 +31,6 @@ const waitForFile = (path: string) =>
     timeoutMs: 2_000,
     message: `file ${path}`,
   });
-
-const waitForProcessExit = (pid: number) =>
-  waitFor(
-    () => {
-      try {
-        process.kill(pid, 0);
-        return false;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ESRCH") return true;
-        throw error;
-      }
-    },
-    { timeoutMs: 2_000, message: `process ${pid} to exit after abort` },
-  );
 
 describe("python executor", () => {
   it("rejects missing, empty, or conflicting source inputs", async (t) => {
@@ -172,7 +158,7 @@ describe("python executor", () => {
     assert.match(content, /^exit 0(?: · [\d.]+s)?\npy 0 y+\n/);
     assert.match(
       content,
-      /py 1499 y+\n\[Showing lines 1-\d+ and \d+-1500 of 1500; [\d.]+KB omitted\. Full output: [^\n]+\]$/,
+      /py 1499 y+\n\[Showing lines 1-\d+ and \d+-1500 of 1500; [\d.]+ KB omitted\. Full output: [^\n]+\]$/,
     );
     assert.ok(Buffer.byteLength(content) <= 8_000);
     const details = result.details as {

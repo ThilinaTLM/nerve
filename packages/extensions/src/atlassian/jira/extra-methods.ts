@@ -11,9 +11,9 @@ import { adfToMarkdown } from "./adf-markdown.js";
 import { markdownToAdf } from "./markdown-adf.js";
 import {
   artifactNameOf,
-  artifactNameFor,
-  MAX_ATTACHMENT_BYTES,
-} from "../shared/files.js";
+  MAX_STREAMED_FILE_BYTES,
+} from "@nervekit/extension-api/host";
+import { artifactNameFor } from "../shared/files.js";
 import type { BinaryNaming } from "../shared/raw-request.js";
 import { codedError, hasStatus } from "../shared/errors.js";
 import { noteChange } from "./report.js";
@@ -77,7 +77,10 @@ export const jiraExtraMethods: PathedMethod<JiraSession>[] = [
         parse: jsonObject,
         path: `/attachment/${pathSegment(id)}`,
       });
-      if (typeof meta.size === "number" && meta.size > MAX_ATTACHMENT_BYTES) {
+      if (
+        typeof meta.size === "number" &&
+        meta.size > MAX_STREAMED_FILE_BYTES
+      ) {
         throw attachmentTooLarge(id, meta.size);
       }
       const filename = artifactNameFor(

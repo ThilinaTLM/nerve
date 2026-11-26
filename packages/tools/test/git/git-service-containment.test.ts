@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -8,6 +8,7 @@ import {
   inGitCreationLane,
   inGitLane,
 } from "../../src/git/git-operation-context.js";
+import { removeTree } from "@nervekit/test-kit";
 
 test("containment rejects symlink escapes including not-yet-created clone destinations", async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "nerve-contain-")));
@@ -28,7 +29,7 @@ test("containment rejects symlink escapes including not-yet-created clone destin
       join(project, "inside", "new-clone"),
     );
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -68,7 +69,7 @@ test("clone reservation uses real parent and blocks normal reads after .git appe
     assert.equal(read, true);
   } finally {
     release();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -93,6 +94,6 @@ void test("clone keeps a remote beginning with '-' behind -- and validates contr
       /Invalid clone remote/,
     );
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });

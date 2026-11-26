@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { test } from "node:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveProcessShell, spawnShellProcess } from "./shell-process.js";
@@ -30,7 +31,7 @@ void test("login shells retain project environment activation", async () => {
     ]);
     assert.equal(invocation.env.GIT_TERMINAL_PROMPT, "0");
   } finally {
-    await rm(cwd, { recursive: true, force: true });
+    await removeTree(cwd);
   }
 });
 
@@ -115,6 +116,6 @@ void test("native synchronous spawn failures retain their cause and launch conte
       },
     );
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });

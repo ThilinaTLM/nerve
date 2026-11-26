@@ -33,7 +33,7 @@ let {
   project?: Project;
   onSettingsChange?: (
     patch: UpdateSettingsRequest,
-    options?: { immediate?: boolean; debounceMs?: number },
+    options?: { immediate?: boolean },
   ) => void;
 } = $props();
 

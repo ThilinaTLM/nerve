@@ -81,10 +81,7 @@ export class ProtocolClientConnection {
   request<M extends OperationName>(
     method: M,
     params: OperationParams<M>,
-    options: Pick<
-      ProtocolRequestData,
-      "idempotencyKey" | "timeoutMs" | "expect"
-    > &
+    options: Pick<ProtocolRequestData, "timeoutMs" | "expect"> &
       Partial<
         Pick<
           import("../messages/message-factory.js").MessageFactoryOptions,

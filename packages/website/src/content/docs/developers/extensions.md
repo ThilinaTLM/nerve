@@ -12,7 +12,7 @@ sidebar:
 3. Add server handler, authorization, routing, and persistence behavior.
 4. Add UI client/reducer behavior.
 5. Negotiate capability where needed.
-6. Test schema rejection, role/routing, idempotency/retry, replay/recovery, and security boundaries.
+6. Test schema rejection, role/routing, replay/recovery, and security boundaries.
 
 Protocol v1 does not accept aliases, raw/private frames, or breaking changes disguised as optional fields. Additive evolution must preserve strict parsing and negotiated behavior.
 

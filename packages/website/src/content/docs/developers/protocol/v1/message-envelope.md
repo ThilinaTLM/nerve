@@ -27,7 +27,7 @@ type NerveMessage<T> = {
 
 Unknown top-level fields are rejected. IDs, kinds, metadata, and error details are bounded. Secret-like metadata keys are rejected.
 
-`request` carries `{ method, params, idempotencyKey?, timeoutMs?, expect? }`; `response` and `error` reply through `replyTo`. Operations are parsed with the contract catalog.
+`request` carries `{ method, params, timeoutMs?, expect? }`; `response` and `error` reply through `replyTo`. Operations are parsed with the contract catalog.
 
 Sequenced delivery uses `event.batch`; each contained envelope is `{ id, seq, type, ts, data }`. Ephemeral delivery uses `event.notify`; each notification is `{ id, type, ts, data }` and deliberately has no sequence.
 

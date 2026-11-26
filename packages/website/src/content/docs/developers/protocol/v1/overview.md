@@ -9,7 +9,7 @@ sidebar:
 
 Wire roles reserved by the schema are `workbench_server`, `ui`, `desktop_shell`, and `cli`. The currently implemented session is `ui` ↔ `workbench_server`; the other roles express valid identities/targets rather than active product clients. A peer is `{ role, id?, name?, instanceId? }`; every message has explicit `source` and `target`.
 
-The operation catalog declares the allowed target roles for every method. The workbench server validates the catalog method, parameters, target, idempotency key, timeout, and lineage before dispatch.
+The operation catalog declares the allowed target roles for every method. The workbench server validates the catalog method, parameters, target, timeout, and lineage before dispatch.
 
 ## Link and streams
 
@@ -30,7 +30,6 @@ Each stream has one sequence owner and a dense positive sequence. Conversation e
 - snapshot recovery when a cursor is ahead or older than retention;
 - reducer completion before cursor advancement;
 - bounded outgoing buffers; unsafe overflow closes with `resync_required`;
-- operation-catalog idempotency and retry restrictions;
 - the same typed handlers for HTTP and WebSocket where both are exposed.
 
 Configuration, secrets, OAuth callbacks, binary transfer, and large file/log bodies remain intentional HTTP or out-of-band surfaces.

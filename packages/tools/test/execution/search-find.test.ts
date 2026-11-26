@@ -1,54 +1,38 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, unlink } from "node:fs/promises";
+import { unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, it, type TestContext } from "node:test";
+import { describe, it } from "node:test";
 import { executeFind } from "../../src/execution/filesystem/find.js";
 import { executeGrep } from "../../src/execution/filesystem/search.js";
-import { executeFindWithBackend } from "../../src/execution/filesystem/find.js";
-import { executeGrepWithBackend } from "../../src/execution/filesystem/search.js";
-import {
-  createTempProject,
-  withPath,
-  writeExecutable,
-} from "../support/project-fixtures.js";
+import { createTempProject } from "../support/project-fixtures.js";
 import { createSearchFindFixture } from "../search-find-fixtures.js";
-
-function requireExecutableFixtures(t: TestContext): boolean {
-  if (process.platform !== "win32") return true;
-  t.skip("Executable fixture scripts use POSIX shebangs.");
-  return false;
-}
 
 describe("find and grep executors", () => {
   it("reports authoritative totals beyond the producer's visible limit", async () => {
     const project = await createTempProject();
     await project.write("a.txt", "needle\nneedle\n");
     await project.write("b.txt", "needle\n");
-    for (const backend of ["node"] as const) {
-      const result = await executeGrepWithBackend(
-        { pattern: "needle", limit: 1 },
-        { cwd: project.root },
-        backend,
-      );
-      assert.equal(result.matches?.length, 1);
-      assert.equal(result.details?.totalMatches, 3);
-      assert.equal(result.details?.totalFiles, 2);
-    }
-    const result = await executeFindWithBackend(
+    const grep = await executeGrep(
+      { pattern: "needle", limit: 1 },
+      { cwd: project.root },
+    );
+    assert.equal(grep.matches?.length, 1);
+    assert.equal(grep.details?.totalMatches, 3);
+    assert.equal(grep.details?.totalFiles, 2);
+    const find = await executeFind(
       { pattern: "*.txt", limit: 1 },
       { cwd: project.root },
-      "node",
     );
-    assert.equal(result.entries?.length, 1);
-    assert.equal(result.details?.totalEntries, 2);
+    assert.deepEqual(find.entries, [{ path: "a.txt", kind: "file" }]);
+    assert.equal(find.details?.totalEntries, 2);
   });
+
   it("points a cut grep line at a copyable read call", async () => {
     const project = await createTempProject();
     await project.write("a.min.js", `ok\n${"x".repeat(600)}needle\n`);
-    const result = await executeGrepWithBackend(
+    const result = await executeGrep(
       { pattern: "needle" },
       { cwd: project.root },
-      "node",
     );
     // Line 2 starts at byte 3; the first 500 characters were shown.
     assert.match(
@@ -56,223 +40,107 @@ describe("find and grep executors", () => {
       /1 line cut to 500 chars\. Next: read \{"path":"a\.min\.js","byteOffset":503\}$/,
     );
   });
-  it("falls back to Node find implementation and skips dependency/control directories", async () => {
+
+  it("honors ignore files, hidden files and file-only semantics in find", async () => {
     const project = await createTempProject();
-    const bin = join(project.root, "empty-bin");
-    await mkdir(bin);
+    await project.write(".gitignore", "node_modules/\n");
     await project.write("a.txt", "a");
     await project.write("b.txt", "b");
+    await project.write(".hidden/c.txt", "c");
     await project.write("node_modules/ignored.txt", "ignored");
     await project.write(".git/ignored.txt", "ignored");
-
-    await withPath(bin, async () => {
-      const result = await executeFind(
-        { path: ".", pattern: "*.txt", limit: 10 },
-        { cwd: project.root },
-      );
-      assert.deepEqual(result.entries, [
-        { path: "a.txt", kind: "file" },
-        { path: "b.txt", kind: "file" },
-      ]);
-
-      const limited = await executeFind(
-        { path: ".", pattern: "*.txt", limit: 1 },
-        { cwd: project.root },
-      );
-      assert.equal(limited.entries?.length, 1);
-    });
-  });
-
-  it("uses fd fast path with file-only semantics", async (t) => {
-    if (!requireExecutableFixtures(t)) return;
-    const project = await createTempProject();
-    const bin = join(project.root, "bin");
-    await mkdir(bin);
-    await writeExecutable(
-      bin,
-      "fd",
-      `
-const root = process.argv.at(-1);
-const fileOnly = process.argv.includes("--type") && process.argv.includes("file");
-console.log(root + "/src/main.ts");
-console.log(root + "/src/other.ts");
-if (!fileOnly) console.log(root + "/src");
-`,
+    const result = await executeFind(
+      { path: ".", pattern: "*.txt", limit: 10 },
+      { cwd: project.root },
     );
-
-    await withPath(bin, async () => {
-      const result = await executeFind(
-        { path: ".", pattern: "*.ts", limit: 10 },
-        { cwd: project.root },
-      );
-      assert.deepEqual(result.entries, [
-        { path: "src/main.ts", kind: "file" },
-        { path: "src/other.ts", kind: "file" },
-      ]);
-      const limited = await executeFind(
-        { path: ".", pattern: "*.ts", limit: 1 },
-        { cwd: project.root },
-      );
-      assert.equal(limited.entries?.length, 1);
-      assert.equal(limited.details?.totalEntries, 2);
-    });
+    assert.deepEqual(result.entries, [
+      { path: ".hidden/c.txt", kind: "file" },
+      { path: "a.txt", kind: "file" },
+      { path: "b.txt", kind: "file" },
+    ]);
   });
 
-  it("falls back to Node grep with regex, literal, ignore-case, glob, and limit behavior", async () => {
+  it("supports regex, literal, ignore-case, glob, and limit behavior", async () => {
     const project = await createTempProject();
-    const bin = join(project.root, "empty-bin");
-    await mkdir(bin);
     await project.write("alpha.txt", "Needle here\nsecond needle\n");
     await project.write("beta.md", "needle in markdown\n");
     await project.write("gamma.txt", "literal a+b\n");
-
-    await withPath(bin, async () => {
-      const regex = await executeGrep(
-        {
-          path: ".",
-          pattern: "needle",
-          ignoreCase: true,
-          glob: "*.txt",
-          limit: 1,
-        },
-        { cwd: project.root },
-      );
-      assert.deepEqual(regex.matches, [
-        { path: "alpha.txt", line: 1, text: "Needle here" },
-      ]);
-
-      const literal = await executeGrep(
-        { path: ".", pattern: "a+b", literal: true, glob: "*.txt" },
-        { cwd: project.root },
-      );
-      assert.deepEqual(literal.matches, [
-        { path: "gamma.txt", line: 1, text: "literal a+b" },
-      ]);
-    });
+    const regex = await executeGrep(
+      {
+        path: ".",
+        pattern: "needle",
+        ignoreCase: true,
+        glob: "*.txt",
+        limit: 1,
+      },
+      { cwd: project.root },
+    );
+    assert.deepEqual(regex.matches, [
+      { path: "alpha.txt", line: 1, text: "Needle here" },
+    ]);
+    const literal = await executeGrep(
+      { path: ".", pattern: "a+b", literal: true, glob: "*.txt" },
+      { cwd: project.root },
+    );
+    assert.deepEqual(literal.matches, [
+      { path: "gamma.txt", line: 1, text: "literal a+b" },
+    ]);
+    await assert.rejects(
+      executeGrep({ pattern: "a(" }, { cwd: project.root }),
+      /Invalid grep pattern: Unclosed group/,
+    );
   });
 
-  it("parses rg fast-path output into relative matches", async (t) => {
-    if (!requireExecutableFixtures(t)) return;
+  it("shows context around the last returned match and none beyond it", async () => {
     const project = await createTempProject();
-    const bin = join(project.root, "bin");
-    await mkdir(bin);
-    await writeExecutable(
-      bin,
-      "rg",
-      `
-const root = process.argv.at(-1);
-const emit = (type, path, line, text) => console.log(JSON.stringify({
-  type,
-  data: { path: { text: path }, lines: { text: text + "\\n" }, line_number: line }
-}));
-emit("context", root + "/src/file.ts", 1, "context before");
-emit("match", root + "/src/file.ts", 2, "needle here");
-emit("context", root + "/src/file.ts", 3, "context after");
-emit("match", root + "/other.ts", 4, "another needle");
-`,
+    await project.write("a.txt", "1\nneedle\n3\nneedle\n5\n6\n");
+    await project.write("b.txt", "needle\n");
+    const result = await executeGrep(
+      { pattern: "needle", context: 1, limit: 1 },
+      { cwd: project.root },
     );
-
-    await withPath(bin, async () => {
-      const result = await executeGrep(
-        { path: ".", pattern: "needle", context: 1, limit: 1 },
-        { cwd: project.root },
-      );
-      assert.deepEqual(result.matches, [
-        { path: "src/file.ts", line: 2, text: "needle here" },
-      ]);
-      assert.equal(result.details?.totalMatches, 2);
-      assert.equal(result.details?.totalFiles, 2);
-      assert.match(result.content ?? "", /src\/file\.ts-1- context before/);
-      assert.match(result.content ?? "", /src\/file\.ts-3- context after/);
-    });
+    assert.deepEqual(result.matches, [
+      { path: "a.txt", line: 2, text: "needle" },
+    ]);
+    assert.equal(result.details?.totalMatches, 3);
+    assert.equal(result.details?.totalFiles, 2);
+    assert.equal(
+      result.content?.split("\n").slice(0, 3).join("\n"),
+      "a.txt-1- 1\na.txt:2: needle\na.txt-3- 3",
+    );
+    assert.doesNotMatch(result.content ?? "", /b\.txt/);
   });
 
-  it("bounds high-volume ripgrep output at the requested global limit", async (t) => {
-    if (!requireExecutableFixtures(t)) return;
+  it("rejects with an abort error when the signal is already aborted", async () => {
     const project = await createTempProject();
-    const bin = join(project.root, "bin");
-    await mkdir(bin);
-    await writeExecutable(
-      bin,
-      "rg",
-      `
-const root = process.argv.at(-1);
-for (let line = 1; line <= 100000; line += 1) {
-  console.log(JSON.stringify({
-    type: "match",
-    data: { path: { text: root + "/huge.log" }, lines: { text: "needle " + line + "\\n" }, line_number: line }
-  }));
-}
-`,
-    );
-
-    await withPath(bin, async () => {
-      const result = await executeGrep(
-        { path: ".", pattern: "needle", limit: 3 },
-        { cwd: project.root },
-      );
-      assert.equal(result.matches?.length, 3);
-      assert.equal(result.details?.totalMatches, 100000);
-      assert.equal(result.details?.totalFiles, 1);
-      assert.deepEqual(
-        result.matches?.map((match) => match.line),
-        [1, 2, 3],
-      );
-    });
-  });
-
-  it("aborts ripgrep and waits for child-process cleanup", async (t) => {
-    if (!requireExecutableFixtures(t)) return;
-    const project = await createTempProject();
-    const bin = join(project.root, "bin");
-    await mkdir(bin);
-    const marker = join(project.root, "rg-signal.txt");
-    await writeExecutable(
-      bin,
-      "rg",
-      `
-const fs = require("node:fs");
-// Install the handler before announcing readiness so an abort that lands
-// immediately after the marker appears can never hit the default SIGTERM
-// disposition (the source of a macOS CI race).
-process.on("SIGTERM", () => {
-  fs.appendFileSync(${JSON.stringify(marker)}, "\\nstopped");
-  process.exit(0);
-});
-setInterval(() => {}, 1000);
-fs.writeFileSync(${JSON.stringify(marker)}, "started");
-`,
-    );
+    await project.write("a.txt", "needle\n");
     const controller = new AbortController();
-    const pending = withPath(bin, () =>
+    controller.abort();
+    await assert.rejects(
       executeGrep(
-        { path: ".", pattern: "needle" },
+        { pattern: "needle" },
         { cwd: project.root, signal: controller.signal },
       ),
+      /aborted/,
     );
-    for (;;) {
-      const started = await readFile(marker, "utf8").catch(() => undefined);
-      if (started === "started") break;
-      await new Promise((resolve) => setImmediate(resolve));
-    }
-    controller.abort();
-    await assert.rejects(pending, /aborted/);
-    assert.equal(await readFile(marker, "utf8"), "started\nstopped");
+    await assert.rejects(
+      executeFind(
+        { pattern: "*" },
+        { cwd: project.root, signal: controller.signal },
+      ),
+      /aborted/,
+    );
   });
 
-  it("freezes Node fixture semantics", async () => {
+  it("fixture semantics", async () => {
     const project = await createTempProject();
     const fixture = await createSearchFindFixture(project.root, 3);
-    const grep = await executeGrepWithBackend(
-      fixture.grepCases[0]!.args,
-      { cwd: fixture.root },
-      "node",
-    );
-    const find = await executeFindWithBackend(
-      fixture.findCases[0]!.args,
-      { cwd: fixture.root },
-      "node",
-    );
+    const grep = await executeGrep(fixture.grepCases[0]!.args, {
+      cwd: fixture.root,
+    });
+    const find = await executeFind(fixture.findCases[0]!.args, {
+      cwd: fixture.root,
+    });
 
     assert.deepEqual(grep.matches?.map((match) => match.path).sort(), [
       ".hidden.ts",
@@ -288,10 +156,9 @@ fs.writeFileSync(${JSON.stringify(marker)}, "started");
   it("handles fixture encoding, symlinks, multiple roots, and disappearing files", async () => {
     const project = await createTempProject();
     const fixture = await createSearchFindFixture(project.root, 1);
-    const edge = await executeGrepWithBackend(
+    const edge = await executeGrep(
       { path: "edge", pattern: "needle", literal: true },
       { cwd: fixture.root },
-      "node",
     );
     assert.equal(
       edge.matches?.some((match) => match.path === "binary.bin"),
@@ -302,14 +169,13 @@ fs.writeFileSync(${JSON.stringify(marker)}, "started");
       false,
     );
 
-    const multiple = await executeGrepWithBackend(
+    const multiple = await executeGrep(
       {
         paths: ["small/src/alpha.ts", "small/src/beta.ts"],
         pattern: "needle",
         ignoreCase: true,
       },
       { cwd: fixture.root },
-      "node",
     );
     assert.deepEqual(multiple.matches?.map((match) => match.path).sort(), [
       "alpha.ts",
@@ -317,10 +183,9 @@ fs.writeFileSync(${JSON.stringify(marker)}, "started");
     ]);
 
     await unlink(join(fixture.root, "edge", "disappearing.txt"));
-    const afterRace = await executeGrepWithBackend(
+    const afterRace = await executeGrep(
       { path: "edge", pattern: "needle", literal: true },
       { cwd: fixture.root },
-      "node",
     );
     assert.equal(
       afterRace.matches?.some((match) => match.path === "disappearing.txt"),

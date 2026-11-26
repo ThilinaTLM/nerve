@@ -13,4 +13,4 @@ export { buildUserProjection } from "./user-projection/tool-user-projection.js";
 
 export * from "./process-footer.js";
 export * from "./process-output.js";
-export { formatByteSize } from "../execution/output/truncate.js";
+export { formatByteSize } from "../execution/output/format-bytes.js";

@@ -1,4 +1,4 @@
-import { ATTACHMENT_MAX_BYTES } from "@nervekit/contracts/filesystem";
+import { ATTACHMENT_UPLOAD_MAX_BYTES } from "@nervekit/contracts/filesystem";
 import type {
   HtmlPreviewCreateRequest,
   HtmlPreviewCreateResponse,
@@ -47,7 +47,7 @@ export function revokeHtmlPreview(id: string): Promise<void> {
 }
 
 export async function uploadAttachment(file: File): Promise<string> {
-  if (file.size > ATTACHMENT_MAX_BYTES)
+  if (file.size > ATTACHMENT_UPLOAD_MAX_BYTES)
     throw new Error("Attachments must be 20 MiB or smaller.");
   const response = await apiPost<AttachmentUploadResponse>(
     "/api/filesystem/attachment",

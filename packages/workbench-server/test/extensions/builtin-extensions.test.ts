@@ -1,6 +1,7 @@
 import { executeQuickScript } from "./registry.js";
+import { removeTree } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -55,7 +56,7 @@ before(async () => {
 });
 after(async () => {
   server.close();
-  await rm(root, { recursive: true, force: true });
+  await removeTree(root);
 });
 
 async function run(

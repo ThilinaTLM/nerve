@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -96,6 +97,6 @@ void test("mcp.json is reported per scope: servers waiting for approval, rejecte
       "Settings → MCP servers, project column",
     );
   } finally {
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   }
 });

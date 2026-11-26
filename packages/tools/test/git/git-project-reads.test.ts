@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import { GitService } from "../../src/git/git-service.js";
+import { removeTree } from "@nervekit/test-kit";
 
 const exec = promisify(execFile);
 
@@ -118,6 +119,6 @@ void test("actual project APIs share discovery/light batch across listing and ig
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });

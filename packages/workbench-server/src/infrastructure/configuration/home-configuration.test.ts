@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { test } from "node:test";
 import { mkdtemp, writeFile, readFile, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -36,6 +37,6 @@ void test("preserved home configuration neither reads nor recreates retired harn
     await initializeHomeConfiguration(paths);
     await assert.rejects(access(join(paths.configPath, "harness.json")));
   } finally {
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   }
 });

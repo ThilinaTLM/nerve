@@ -1,5 +1,7 @@
 import type {
   ContentSearchResult,
+  FindFilesResult,
+  GrepResult,
   DirectoryEntry,
   PathIndexResult,
 } from "./contracts.js";
@@ -20,6 +22,25 @@ export interface NativeContentSearchRequest {
   maxPreviewChars?: number;
   timeoutMs?: number;
   /** Caller-chosen id so `cancelFileContentSearch` can stop the walk cooperatively. */
+  cancelId?: number;
+}
+
+export interface NativeGrepRequest {
+  pattern: string;
+  literal?: boolean;
+  ignoreCase?: boolean;
+  glob?: string;
+  context?: number;
+  limit: number;
+  maxLineBytes?: number;
+  timeoutMs?: number;
+  cancelId?: number;
+}
+
+export interface NativeFindRequest {
+  pattern: string;
+  limit: number;
+  timeoutMs?: number;
   cancelId?: number;
 }
 
@@ -51,4 +72,13 @@ export interface NativeFilesBinding {
     request: NativeContentSearchRequest,
   ): Promise<ContentSearchResult>;
   cancelFileContentSearch?(cancelId: number): void;
+  grepFiles?(
+    displayRoot: string,
+    roots: string[],
+    request: NativeGrepRequest,
+  ): Promise<GrepResult>;
+  findProjectFiles?(
+    root: string,
+    request: NativeFindRequest,
+  ): Promise<FindFilesResult>;
 }

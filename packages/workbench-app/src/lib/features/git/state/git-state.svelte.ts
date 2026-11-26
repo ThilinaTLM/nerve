@@ -1,5 +1,8 @@
 import type { PrResourceState } from "./pr-resource-loader";
-import type { GitDiffArea, GitFileDiffResponse } from "@nervekit/contracts/git";
+import type {
+  GitChangeArea,
+  GitFileDiffResponse,
+} from "@nervekit/contracts/git";
 import type {
   GithubPr,
   GithubPrChecksResponse,
@@ -43,7 +46,7 @@ export type DiffViewState = {
   repo: string;
   path: string;
   renamedFrom?: string;
-  area: GitDiffArea;
+  area: GitChangeArea;
   data?: GitFileDiffResponse;
   wrapLines: boolean;
   loading: boolean;

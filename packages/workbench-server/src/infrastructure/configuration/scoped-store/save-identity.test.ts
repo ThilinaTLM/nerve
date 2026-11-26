@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -15,7 +16,7 @@ interface Document {
 
 void test("revision and digest are independently required, including across store instances", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "save-identity-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const file = path.join(root, "agent.json");
   const make = () =>
     new ScopedDocumentStore<string, Document>({
@@ -55,7 +56,7 @@ void test("revision and digest are independently required, including across stor
 
 void test("persisted scope blocks while directory durability is pending, before acknowledgement", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "publish-pending-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   let release!: () => void;
   let reached!: () => void;
   const pending = new Promise<void>((resolve) => {

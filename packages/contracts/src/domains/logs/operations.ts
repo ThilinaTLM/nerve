@@ -10,7 +10,6 @@ export const logsOperationDefinitions = [
     applicationLogPruneRequestSchema,
     applicationLogPruneResponseSchema,
     "mutation",
-    "recommended",
     ["workbench_server"] as const,
     "operation.applicationLog.prune",
   ),

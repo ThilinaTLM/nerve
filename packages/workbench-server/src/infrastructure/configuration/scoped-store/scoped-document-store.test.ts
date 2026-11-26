@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -50,7 +51,7 @@ async function fixture(
   overrides: Partial<ScopedDocumentOptions<Scope, Doc>> = {},
 ) {
   const root = await mkdtemp(path.join(os.tmpdir(), "scoped-store-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   let resolutions = 0;
   const options: ScopedDocumentOptions<Scope, Doc> = {
     resolvePath: (scope) => {

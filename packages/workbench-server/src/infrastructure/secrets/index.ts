@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { SerialQueue } from "@nervekit/primitives";
 import { atomicWriteFile } from "../storage-bootstrap/file-mutations.js";
 import { pathExists } from "../storage-bootstrap/json.js";
 import { storagePaths } from "../storage-bootstrap/paths.js";
@@ -26,7 +27,10 @@ export async function loadMasterKey(home: string): Promise<Buffer> {
   if (!(await pathExists(path))) {
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     const key = randomBytes(32);
-    await atomicWriteFile(path, key.toString("base64"), { mode: 0o600 });
+    await atomicWriteFile(path, key.toString("base64"), {
+      mode: 0o600,
+      durability: "directory",
+    });
     await chmod(path, 0o600).catch(() => undefined);
     return key;
   }
@@ -36,7 +40,7 @@ export async function loadMasterKey(home: string): Promise<Buffer> {
 }
 
 export class EncryptedFileSecretProvider implements SecretProvider {
-  private writeTail: Promise<void> = Promise.resolve();
+  private readonly writes = new SerialQueue();
 
   constructor(private readonly home: string) {}
 
@@ -155,13 +159,12 @@ export class EncryptedFileSecretProvider implements SecretProvider {
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     await atomicWriteFile(path, `${JSON.stringify(payload, null, 2)}\n`, {
       mode: 0o600,
+      durability: "directory",
     });
     await chmod(path, 0o600).catch(() => undefined);
   }
 
   private serialized(operation: () => Promise<void>): Promise<void> {
-    const result = this.writeTail.then(operation, operation);
-    this.writeTail = result.catch(() => undefined);
-    return result;
+    return this.writes.run(operation);
   }
 }

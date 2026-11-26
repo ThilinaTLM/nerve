@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +9,7 @@ import {
   projectAgentResult,
 } from "../../src/result-projection/index.js";
 import { executeWebFetch } from "../../src/execution/web/web-fetch.js";
+import { removeTree } from "@nervekit/test-kit";
 
 let root = "";
 let baseUrl = "";
@@ -33,7 +34,7 @@ before(async () => {
 
 after(async () => {
   await closeServer?.();
-  await rm(root, { recursive: true, force: true });
+  await removeTree(root);
 });
 
 describe("web fetch semantic result", () => {

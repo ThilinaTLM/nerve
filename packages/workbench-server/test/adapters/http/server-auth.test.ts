@@ -1,5 +1,6 @@
 import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 import assert from "node:assert/strict";
+import { makeTempDir } from "@nervekit/test-kit";
 import {
   createCipheriv,
   createPublicKey,
@@ -7,10 +8,7 @@ import {
   publicEncrypt,
   randomBytes,
 } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, describe, it } from "node:test";
+import { describe, it } from "node:test";
 import type {
   CredentialKeyResponse,
   EncryptedSecretEnvelope,
@@ -19,20 +17,6 @@ import { shutdownServerRuntime } from "../../../src/app/runtime/server-runtime.j
 import { withPeer } from "../../support/peer-address.js";
 import { createApp } from "../../../src/app/server.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
-
-const roots: string[] = [];
-
-after(async () => {
-  await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
-  );
-});
-
-async function tempHome(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "nerve-server-auth-"));
-  roots.push(root);
-  return root;
-}
 
 /** Mirrors the browser `encryptApiKey` hybrid envelope, on the Node side. */
 function encryptApiKey(
@@ -70,8 +54,10 @@ function encryptApiKey(
 }
 
 describe("server credential route auth", () => {
-  it("lets an authenticated UI session manage credentials and rejects anonymous requests", async () => {
-    const storage = await initializeStorage(await tempHome());
+  it("lets an authenticated UI session manage credentials and rejects anonymous requests", async (t) => {
+    const storage = await initializeStorage(
+      await makeTempDir(t, "nerve-server-auth-"),
+    );
     const { runtime: state } = createRuntimeFixture(storage, "127.0.0.1", 0);
     const app = withPeer(createApp(state));
     const cookie = `nerve_token=${storage.localToken}`;

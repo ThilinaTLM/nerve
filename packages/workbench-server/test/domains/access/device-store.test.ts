@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -11,9 +12,7 @@ import { DeviceStore } from "../../../src/domains/access/device-store.js";
 
 const DAY = 24 * 60 * 60_000;
 const roots: string[] = [];
-after(() =>
-  Promise.all(roots.map((r) => rm(r, { recursive: true, force: true }))),
-);
+after(() => Promise.all(roots.map((r) => removeTree(r))));
 
 async function fixture(start = 1_000_000) {
   const dir = await mkdtemp(join(tmpdir(), "nerve-device-store-"));

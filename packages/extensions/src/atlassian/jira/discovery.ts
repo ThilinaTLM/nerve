@@ -6,7 +6,7 @@ import {
   fieldMetaMap,
   listValues,
 } from "./field-values.js";
-import { closeMatches } from "../shared/args.js";
+import { closeMatches } from "@nervekit/extension-api/host";
 import { orWhenUnsupported } from "../shared/errors.js";
 import type { JiraSession } from "./session.js";
 

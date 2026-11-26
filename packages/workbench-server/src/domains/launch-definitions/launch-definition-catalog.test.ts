@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { unlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import {
@@ -6,7 +7,6 @@ import {
   mkdir,
   readFile,
   readdir,
-  rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -27,7 +27,7 @@ import { LaunchDefinitionService } from "./launch-definition.service.js";
 
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const root = await mkdtemp(join(tmpdir(), "launch-catalog-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const directory = join(root, "project");
   const home = join(root, "home");
   await mkdir(directory);

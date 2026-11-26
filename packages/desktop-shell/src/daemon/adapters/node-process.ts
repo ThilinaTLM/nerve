@@ -1,3 +1,4 @@
+import { sleep } from "@nervekit/primitives";
 import { access } from "node:fs/promises";
 import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -5,7 +6,7 @@ import { version as bundledDaemonVersion } from "@nervekit/workbench-server";
 import {
   serializeCrashError,
   writeCrashReportSync,
-} from "../../crash-reports.js";
+} from "@nervekit/workbench-server/diagnostics";
 import { desktopLog } from "../../logging.js";
 import { isReleaseMode } from "../../release-mode.js";
 import type {
@@ -35,8 +36,7 @@ export function createNodeDaemonPorts(
     },
     scheduler: {
       now: () => Date.now(),
-      delay: (ms) =>
-        new Promise((resolveDelay) => setTimeout(resolveDelay, ms)),
+      delay: (ms) => sleep(ms),
       every: (ms, callback) => {
         const timer = setInterval(callback, ms);
         timer.unref?.();

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { test } from "node:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -86,7 +87,7 @@ async function fixture() {
     trustProjectFile,
     userFile: join(home, "config", "permissions.json"),
     projectFile: join(project, ".nerve", "config", "permissions.json"),
-    cleanup: () => rm(root, { recursive: true, force: true }),
+    cleanup: () => removeTree(root),
   };
 }
 

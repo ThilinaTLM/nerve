@@ -12,4 +12,5 @@ export * from "./views/git-panel-controller";
 export * from "./views/git-panel-types";
 export * from "./pr-filters";
 export { checksRunning } from "./views/github-pr-checks";
+export { checksTone } from "./views/pr-pane-helpers";
 export { watchGitChanges } from "./state/git-store.svelte";

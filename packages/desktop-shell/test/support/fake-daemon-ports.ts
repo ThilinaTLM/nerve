@@ -1,3 +1,4 @@
+import { createManualTimerCore, flush } from "@nervekit/test-kit";
 import {
   DaemonAccessError,
   type DaemonChildHandle,
@@ -9,90 +10,44 @@ import type {
   HealthyDaemon,
 } from "../../src/daemon/contracts.ts";
 
-interface PendingDelay {
-  at: number;
-  resolve: () => void;
-}
-
-interface FakeInterval {
-  ms: number;
-  next: number;
-  callback: () => void;
-  cancelled: boolean;
-}
-
-/** Deterministic virtual-time scheduler. No real timers or delays. */
+/** Deterministic virtual-time scheduler over the shared manual timer core. */
 export class FakeScheduler {
-  time = 0;
-  private readonly delays: PendingDelay[] = [];
-  private readonly intervals: FakeInterval[] = [];
+  private readonly core = createManualTimerCore();
+  private active = 0;
+
+  get time(): number {
+    return this.core.now();
+  }
 
   now(): number {
-    return this.time;
+    return this.core.now();
   }
 
   delay(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-      this.delays.push({ at: this.time + ms, resolve });
-    });
+    return new Promise((resolve) => this.core.setTimeout(resolve, ms));
   }
 
   every(ms: number, callback: () => void): () => void {
-    const interval: FakeInterval = {
-      ms,
-      next: this.time + ms,
-      callback,
-      cancelled: false,
-    };
-    this.intervals.push(interval);
+    const handle = this.core.setInterval(callback, ms);
+    this.active += 1;
+    let cancelled = false;
     return () => {
-      interval.cancelled = true;
+      if (cancelled) return;
+      cancelled = true;
+      this.active -= 1;
+      this.core.clearInterval(handle);
     };
   }
 
   get activeIntervals(): number {
-    return this.intervals.filter((interval) => !interval.cancelled).length;
+    return this.active;
   }
 
   /** Advances virtual time, firing due delays/intervals in timestamp order. */
   async advance(ms: number): Promise<void> {
-    const target = this.time + ms;
-    for (;;) {
-      await drainMicrotasks();
-      const dueDelay = this.delays
-        .filter((delay) => delay.at <= target)
-        .sort((a, b) => a.at - b.at)[0];
-      const dueInterval = this.intervals
-        .filter((interval) => !interval.cancelled && interval.next <= target)
-        .sort((a, b) => a.next - b.next)[0];
-      const delayAt = dueDelay?.at ?? Number.POSITIVE_INFINITY;
-      const intervalAt = dueInterval?.next ?? Number.POSITIVE_INFINITY;
-      if (
-        delayAt === Number.POSITIVE_INFINITY &&
-        intervalAt === Number.POSITIVE_INFINITY
-      ) {
-        break;
-      }
-      if (delayAt <= intervalAt && dueDelay) {
-        this.time = Math.max(this.time, dueDelay.at);
-        this.delays.splice(this.delays.indexOf(dueDelay), 1);
-        dueDelay.resolve();
-      } else if (dueInterval) {
-        this.time = Math.max(this.time, dueInterval.next);
-        dueInterval.next += dueInterval.ms;
-        dueInterval.callback();
-      }
-    }
-    this.time = target;
-    await drainMicrotasks();
+    await flush();
+    await this.core.advance(ms);
   }
-}
-
-async function drainMicrotasks(): Promise<void> {
-  for (let i = 0; i < 20; i += 1) {
-    await Promise.resolve();
-  }
-  await new Promise((resolve) => setImmediate(resolve));
 }
 
 export class FakeChild {

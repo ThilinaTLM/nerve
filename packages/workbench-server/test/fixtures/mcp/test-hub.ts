@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TrustedResource } from "@nervekit/contracts/core";
@@ -136,7 +137,7 @@ export async function createTestMcp(
     run,
     async [Symbol.asyncDispose]() {
       await hub.close();
-      await rm(home, { recursive: true, force: true });
+      await removeTree(home);
     },
   };
 }

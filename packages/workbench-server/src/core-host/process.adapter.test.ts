@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { test } from "node:test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CoreProcessHost } from "./process.adapter.js";
@@ -41,7 +42,7 @@ void test("async bash cancellation sends SIGTERM then escalates after the launch
     assert.equal((await background.wait()).status, "cancelled");
   } finally {
     await background?.cancel();
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });
 
@@ -70,7 +71,7 @@ void test("start resolves current shell settings with their conversation identit
     );
     assert.equal(calls, 1);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });
 
@@ -164,7 +165,7 @@ void test("project launch diagnostics are drained before completion, bypass is e
       );
     }
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });
 
@@ -187,7 +188,7 @@ void test("an explicitly captured default shell never reloads conversation setti
       /captured/,
     );
   } finally {
-    await rm(cwd, { recursive: true, force: true });
+    await removeTree(cwd);
   }
 });
 
@@ -248,7 +249,7 @@ void test("admitted foreground/background processes never reselect shell, cwd, m
   } finally {
     if (before === undefined) delete process.env.NERVE_ADMISSION_PROBE;
     else process.env.NERVE_ADMISSION_PROBE = before;
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });
 
@@ -282,6 +283,6 @@ void test("bash completes when the shell exits even if a background child holds 
         // Already exited.
       }
     }
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });

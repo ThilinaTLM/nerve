@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -13,7 +14,7 @@ for (const kind of ["permissions", "capabilities"] as const)
   void test(`only exact same-file trusted bytes carry over; changed bindings and reset cannot grant trust (${kind})`, async (t) => {
     const approvalDigest = digest;
     const root = await mkdtemp(join(tmpdir(), "migration-trust-"));
-    t.after(() => rm(root, { recursive: true, force: true }));
+    t.after(() => removeTree(root));
     const path = join(root, "config.json");
     const target = path;
     const other = join(root, "other.json");
@@ -82,7 +83,7 @@ for (const kind of ["permissions", "capabilities"] as const)
 
 void test("a file created through Nerve is trusted unless the binding changed", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "migration-trust-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const path = join(root, "extensions.json");
   const output = Buffer.from("created bytes");
   let record: TrustedResource | undefined;

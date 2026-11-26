@@ -1,6 +1,6 @@
-import { constants } from "node:fs";
-import { access, lstat, readdir, stat } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { files } from "@nervekit/native";
+import { stat } from "node:fs/promises";
+import { dirname, isAbsolute, relative, sep } from "node:path";
 import {
   isErrnoException,
   pathNotFoundMessage,
@@ -105,80 +105,30 @@ function isInsideOrSame(parent: string, child: string): boolean {
   );
 }
 
-export async function walkFiles(
-  root: string,
-  path: string,
-  limit: number,
-  onFile: (absolutePath: string, relativePath: string) => Promise<void>,
-  shouldStop?: () => boolean,
-  nested = false,
-): Promise<void> {
-  if (shouldStop?.()) return;
-  const info = await (nested ? lstat(path) : stat(path)).catch(
-    (error: unknown) => {
-      if (nested && isTransientTraversalError(error)) return undefined;
-      throw error;
-    },
-  );
-  if (!info || (nested && info.isSymbolicLink())) return;
-  if (info.isDirectory()) {
-    const entries = await readdir(path, { withFileTypes: true }).catch(
-      (error: unknown) => {
-        if (nested && isTransientTraversalError(error)) return undefined;
-        throw error;
-      },
-    );
-    if (!entries) return;
-    for (const entry of entries) {
-      if (shouldStop?.()) return;
-      if (entry.name === "node_modules" || entry.name === ".git") continue;
-      await walkFiles(
-        root,
-        join(path, entry.name),
-        limit,
-        onFile,
-        shouldStop,
-        true,
+/**
+ * Maps a native search failure to the tool's error: the abort error, the
+ * timeout message, or a pattern/glob diagnostic the model can act on.
+ */
+export function searchError(
+  error: unknown,
+  tool: string,
+  timeoutMs: number,
+  signal: AbortSignal | undefined,
+): Error {
+  if (signal?.aborted) {
+    const aborted = new Error(`${tool} execution aborted.`);
+    aborted.name = "AbortError";
+    return aborted;
+  }
+  if (error instanceof files.SearchTimeoutError)
+    return new Error(`${tool} timed out after ${timeoutMs}ms.`);
+  if (error instanceof Error) {
+    const pattern = /^INVALID_SEARCH_PATTERN:(\d*):(.*)$/s.exec(error.message);
+    if (pattern)
+      return new Error(
+        `Invalid ${tool} pattern: ${pattern[2]}${pattern[1] ? ` (column ${pattern[1]})` : ""}.`,
       );
-    }
-    return;
+    return error;
   }
-  if (!info.isFile()) return;
-  const readable = await access(path, constants.R_OK)
-    .then(() => true)
-    .catch((error: unknown) => {
-      if (nested && isTransientTraversalError(error)) return false;
-      throw error;
-    });
-  if (readable) await onFile(path, relative(root, path));
-}
-
-function isTransientTraversalError(error: unknown): boolean {
-  return (
-    isErrnoException(error) &&
-    (error.code === "ENOENT" || error.code === "ENOTDIR")
-  );
-}
-
-export function globToRegExp(pattern: string): RegExp {
-  let output = "";
-  for (let index = 0; index < pattern.length; index += 1) {
-    const char = pattern[index];
-    const next = pattern[index + 1];
-    if (char === "*" && next === "*") {
-      output += ".*";
-      index += 1;
-      continue;
-    }
-    if (char === "*") {
-      output += "[^/]*";
-      continue;
-    }
-    if (char === "?") {
-      output += "[^/]";
-      continue;
-    }
-    output += char?.replace(/[.+^${}()|[\]\\]/g, "\\$&") ?? "";
-  }
-  return new RegExp(`^${output}$`);
+  return new Error(String(error));
 }

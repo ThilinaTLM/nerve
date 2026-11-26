@@ -1,5 +1,6 @@
 import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
+import { layerSchema } from "../core/scope.js";
 import { fileDiagnosticSchema } from "../configuration/diagnostic.js";
 
 export const PROMPT_SUGGESTION_NAME_MAX_LENGTH = 64;
@@ -126,7 +127,7 @@ export const updatePromptSuggestionEnabledRequestSchema = z
   .object({
     definitionKey: z.string().min(1),
     enabled: z.boolean().nullable(),
-    scope: z.enum(["user", "project"]).optional(),
+    scope: layerSchema.optional(),
     projectId: z.string().startsWith("proj_").optional(),
   })
   .refine((value) => (value.scope === "project") === Boolean(value.projectId), {
@@ -138,7 +139,7 @@ export type UpdatePromptSuggestionEnabledRequest = z.infer<
 
 export const createPromptSuggestionRequestSchema = z
   .object({
-    scope: z.enum(["user", "project"]),
+    scope: layerSchema,
     projectId: z.string().startsWith("proj_").optional(),
     name: promptSuggestionNameSchema,
     label: z.string().trim().min(1).max(PROMPT_SUGGESTION_LABEL_MAX_LENGTH),

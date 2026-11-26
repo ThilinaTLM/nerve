@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -19,7 +20,7 @@ import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/path
 
 void test("settings health is nonblocking and reset/reload refresh the runtime projection", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-settings-health-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const paths = storagePaths(home);
   const configuration = await initializeHomeConfiguration(paths);
   const storage: InitializedStorage = {

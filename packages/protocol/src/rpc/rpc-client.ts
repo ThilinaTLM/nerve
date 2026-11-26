@@ -38,7 +38,6 @@ export interface RpcClientOptions {
 type PendingRequest = {
   readonly method: OperationName;
   readonly message: NerveMessage<ProtocolRequestData>;
-  readonly retryable: boolean;
   readonly resolve: (value: unknown) => void;
   readonly reject: (error: unknown) => void;
   readonly timeout: unknown;
@@ -57,10 +56,7 @@ export class RpcClient {
   async request<M extends OperationName>(
     method: M,
     params: OperationParams<M>,
-    options: Pick<
-      ProtocolRequestData,
-      "idempotencyKey" | "timeoutMs" | "expect"
-    > &
+    options: Pick<ProtocolRequestData, "timeoutMs" | "expect"> &
       Partial<
         Pick<
           MessageFactoryOptions,
@@ -100,7 +96,6 @@ export class RpcClient {
       this.#pending.set(message.id, {
         method,
         message,
-        retryable: prepared.retryable,
         resolve: resolve as (value: unknown) => void,
         reject,
         timeout,
@@ -109,8 +104,7 @@ export class RpcClient {
     try {
       await this.#options.send(message);
     } catch (error) {
-      if (!this.#pending.get(message.id)?.retryable)
-        this.reject(message.id, error);
+      this.reject(message.id, error);
     }
     return response;
   }
@@ -158,20 +152,7 @@ export class RpcClient {
   }
 
   disconnect(error = new Error("RPC transport disconnected")): void {
-    for (const [id, pending] of this.#pending) {
-      if (!pending.retryable) this.reject(id, error);
-    }
-  }
-
-  async retryPending(): Promise<void> {
-    for (const pending of this.#pending.values()) {
-      if (!pending.retryable) continue;
-      try {
-        await this.#options.send(pending.message);
-      } catch {
-        // Keep idempotent requests pending for a later reconnect until timeout.
-      }
-    }
+    for (const id of [...this.#pending.keys()]) this.reject(id, error);
   }
 
   close(error = new Error("RPC client closed")): void {

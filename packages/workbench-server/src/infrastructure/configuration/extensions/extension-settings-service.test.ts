@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -28,7 +29,7 @@ const userOnly: ExtensionSettingsDefinition = {
 
 async function fixture(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "extension-settings-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const project = join(home, "project");
   const paths = new AgentConfigurationPaths({
     home,

@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it } from "node:test";
 import { GitService } from "../../src/git/git-service.js";
 import { listStashes, parseStashList } from "../../src/git/git-stash.js";
+import { removeTree } from "@nervekit/test-kit";
 
 const execFileAsync = promisify(execFile);
 
@@ -72,7 +73,7 @@ describe("Git stash workflow", () => {
       assert.equal(await git(root, "status", "--short"), "");
       assert.equal((await listStashes(instance, root)).length, 2);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -93,7 +94,7 @@ describe("Git stash workflow", () => {
       assert.equal(await git(root, "diff", "--cached", "--name-only"), "");
       assert.equal((await listStashes(instance, root)).length, 1);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -122,7 +123,7 @@ describe("Git stash workflow", () => {
       assert.equal((await listStashes(instance, root)).length, 1);
       assert.equal(await git(root, "status", "--short"), "M staged.txt");
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -154,7 +155,7 @@ describe("Git stash workflow", () => {
         "staged.txt",
       );
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -180,7 +181,7 @@ describe("Git stash workflow", () => {
       );
       assert.equal((await listStashes(instance, root)).length, 1);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 
@@ -220,7 +221,7 @@ describe("Git stash workflow", () => {
       await git(root, "branch", "--set-upstream-to=origin/main");
       assert.equal((await summary()).unpublishedCount, null);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   });
 });

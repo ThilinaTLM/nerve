@@ -8,7 +8,7 @@ import { describe, it } from "node:test";
 import {
   checkGitAncestry,
   countUnpublishedGitCommits,
-  NativeGitReadError,
+  NativeOperationError,
   readGitFileDiff,
   readGitRepositoryInfo,
   readGitSnapshot,
@@ -132,11 +132,29 @@ describe("native Git reads", () => {
     });
   });
 
+  it("cancels full snapshots through the shared bounded read path", async () => {
+    await withRepo(async (repo) => {
+      await assert.rejects(
+        readGitSnapshot(repo, { signal: AbortSignal.abort() }),
+        (error: unknown) =>
+          error instanceof NativeOperationError &&
+          error.category === "cancelled",
+      );
+      await writeFile(join(repo, "extra.txt"), "x");
+      await assert.rejects(
+        readGitSnapshot(repo, { statusLimit: 0 }),
+        (error: unknown) =>
+          error instanceof NativeOperationError &&
+          error.category === "limit_exceeded",
+      );
+    });
+  });
+
   it("classifies non-repositories without compatibility ambiguity", async () => {
     const dir = await mkdtemp(join(tmpdir(), "nerve-native-not-repo-"));
     try {
       await assert.rejects(readGitRepositoryInfo(dir), (error: unknown) => {
-        assert.ok(error instanceof NativeGitReadError);
+        assert.ok(error instanceof NativeOperationError);
         assert.equal(error.category, "not_repository");
         return true;
       });

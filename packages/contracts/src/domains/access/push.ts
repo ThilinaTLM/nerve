@@ -66,7 +66,6 @@ export const accessOperationDefinitions = [
     clientPresenceSchema,
     z.object({ ok: z.literal(true) }),
     "mutation",
-    "none",
     ["workbench_server"] as const,
     "operation.access.presence.report",
     { invocationScope: "session" },

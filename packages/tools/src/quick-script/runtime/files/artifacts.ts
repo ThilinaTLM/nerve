@@ -9,9 +9,16 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { dirname, extname, join } from "node:path";
+import { dirname, join } from "node:path";
+import {
+  ARTIFACT_PREFIX,
+  assertArtifactName,
+  isArtifactName,
+  mediaTypeFor,
+} from "@nervekit/extension-api/host";
 import { image } from "@nervekit/native";
 import { codedError } from "../errors.js";
+import { formatByteSize } from "../../../execution/output/format-bytes.js";
 import { resolveToolPath } from "../../../execution/index.js";
 import type {
   ArtifactReport,
@@ -27,71 +34,15 @@ import type {
 
 /** Files crossing the JSON bridge (`files.read`/`files.write` data), and the largest file read into the sandbox. */
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
-/** Attachment upload/download and raw binary downloads stream between disk and the network; they never enter memory or the sandbox. */
-export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
-
-export const ARTIFACT_PREFIX = "artifact:";
-// Unicode letters and digits, space, `_`, `.`, `-`; no separators, no leading dot or space, no trailing space.
-const ARTIFACT_NAME = /^[\p{L}\p{N}_][\p{L}\p{N} ._-]{0,127}$/u;
-
-const isArtifactName = (name: string): boolean =>
-  ARTIFACT_NAME.test(name) && !name.endsWith(" ");
-
-const MEDIA_TYPES: Record<string, string> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".svg": "image/svg+xml",
-  ".pdf": "application/pdf",
-  ".txt": "text/plain",
-  ".md": "text/markdown",
-  ".csv": "text/csv",
-  ".json": "application/json",
-  ".zip": "application/zip",
-  ".docx":
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".pptx":
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-};
-
-export function mediaTypeFor(filename: string): string {
-  return (
-    MEDIA_TYPES[extname(filename).toLowerCase()] ?? "application/octet-stream"
-  );
-}
 
 export type FileRef =
   | { kind: "artifact"; name: string; path: string; handle: string }
   | { kind: "workspace"; path: string; handle: string };
 
-const formatMb = (bytes: number): string =>
-  `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
-
 export function artifactDir(env: SdkEnvironment): string {
   const dir = env.context.conversationDir;
   if (!dir) throw new Error("Artifacts are not available in this context.");
   return join(dir, "quick-script");
-}
-
-export function assertArtifactName(name: unknown): string {
-  if (typeof name !== "string" || !isArtifactName(name)) {
-    throw new Error(
-      `Invalid artifact name ${JSON.stringify(name)}: use 1-128 letters, digits, spaces, '.', '_' or '-' (no folders, no leading dot).`,
-    );
-  }
-  return name;
-}
-
-/** `name` or `artifact:name` (a handle from another call) to the bare, validated name. */
-export function artifactNameOf(nameOrHandle: unknown): string {
-  return assertArtifactName(
-    typeof nameOrHandle === "string" && nameOrHandle.startsWith(ARTIFACT_PREFIX)
-      ? nameOrHandle.slice(ARTIFACT_PREFIX.length)
-      : nameOrHandle,
-  );
 }
 
 export function parseHandle(handle: unknown, env: SdkEnvironment): FileRef {
@@ -139,7 +90,7 @@ export async function statFileRef(
   if (!info.isFile()) throw new Error(`Not a regular file: ${ref.handle}`);
   if (info.size > maxBytes) {
     throw new Error(
-      `${ref.handle} is ${formatMb(info.size)}; the limit is ${formatMb(maxBytes)}. ${tooLargeHint}`,
+      `${ref.handle} is ${formatByteSize(info.size)}; the limit is ${formatByteSize(maxBytes)}. ${tooLargeHint}`,
     );
   }
   return info.size;

@@ -1,6 +1,10 @@
-import { withGitReadOperation } from "./read-operation.js";
+import {
+  assertBoundedPath,
+  fail,
+  unwrapNative,
+  withGitReadOperation,
+} from "./read-operation.js";
 import { binding } from "../binding/loader.js";
-import { normalizeNativeError } from "../core/error.js";
 import type {
   NativeGitDiscovery,
   NativeGitProjectBinding,
@@ -10,13 +14,6 @@ import type {
   NativeGitProjectSnapshotOptions,
 } from "./project-contracts.js";
 
-function fail(
-  category: "invalid_input" | "cancelled" | "internal",
-  message: string,
-): never {
-  throw normalizeNativeError({ category, message, retryable: false });
-}
-
 /** Internal injectable owner of admission and cancellation wiring (not a root export). */
 export function createGitProjectReader(port: NativeGitProjectBinding) {
   return {
@@ -24,19 +21,14 @@ export function createGitProjectReader(port: NativeGitProjectBinding) {
       root: string,
       options: NativeGitProjectReadOptions = {},
     ): Promise<NativeGitDiscovery> {
-      if (
-        typeof root !== "string" ||
-        !root ||
-        Buffer.byteLength(root) > 4096 ||
-        root.includes("\0")
-      )
-        fail("invalid_input", "Invalid project root");
+      assertBoundedPath(root, "Invalid project root");
       return withGitReadOperation(port, options.signal, async (handle) => {
         const result = await port.discoverGitRepositories(root, handle);
-        if (result.error) throw normalizeNativeError(result.error);
-        if (!result.discovery)
-          fail("internal", "Native Git discovery was empty");
-        return result.discovery;
+        return unwrapNative(
+          result.discovery,
+          result.error,
+          "Native Git discovery was empty",
+        );
       });
     },
     async readGitProjectSnapshots(
@@ -55,13 +47,7 @@ export function createGitProjectReader(port: NativeGitProjectBinding) {
           repository.gitDir,
           repository.commonDir,
         ]) {
-          if (
-            typeof path !== "string" ||
-            !path ||
-            Buffer.byteLength(path) > 4096 ||
-            path.includes("\0")
-          )
-            fail("invalid_input", "Invalid Git repository descriptor");
+          assertBoundedPath(path, "Invalid Git repository descriptor");
         }
       }
       return withGitReadOperation(port, options.signal, async (handle) => {
@@ -70,10 +56,11 @@ export function createGitProjectReader(port: NativeGitProjectBinding) {
           options.includeIgnored ?? false,
           handle,
         );
-        if (result.error) throw normalizeNativeError(result.error);
-        if (!result.repositories)
-          fail("internal", "Native Git project snapshots were empty");
-        return result.repositories;
+        return unwrapNative(
+          result.repositories,
+          result.error,
+          "Native Git project snapshots were empty",
+        );
       });
     },
   };

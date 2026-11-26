@@ -1,5 +1,6 @@
 import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
+import { sourceSchema } from "../core/scope.js";
 import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import {
   agentPreferencesSchema,
@@ -230,7 +231,7 @@ export const profileTransitionPreviewSchema = z.strictObject({
     z.strictObject({ pointer: z.string(), value: z.unknown() }),
   ),
   targetProfile: profileTargetSchema,
-  source: z.enum(["builtin", "user", "project"]),
+  source: sourceSchema,
   expectedRevision: agentMutationSchema.shape.expectedRevision,
   expectedDigest: agentMutationSchema.shape.expectedDigest,
   recommendations: leadSettingsOverridesSchema,

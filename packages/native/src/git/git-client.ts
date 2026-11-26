@@ -2,46 +2,43 @@ import { binding } from "../binding/loader.js";
 import type {
   NativeGitAncestry,
   NativeGitDocumentSource,
-  NativeGitErrorCategory,
-  NativeGitErrorDetail,
   NativeGitFileDiff,
   NativeGitRepositoryInfo,
   NativeGitSnapshot,
   NativeGitSnapshotOptions,
 } from "./contracts.js";
-
-export class NativeGitReadError extends Error {
-  constructor(
-    readonly category: NativeGitErrorCategory,
-    message: string,
-  ) {
-    super(message);
-    this.name = "NativeGitReadError";
-  }
-}
+import {
+  assertBoundedPath,
+  unwrapNative,
+  withGitReadOperation,
+} from "./read-operation.js";
 
 export async function readGitRepositoryInfo(
   path: string,
 ): Promise<NativeGitRepositoryInfo> {
   const result = await binding.readGitRepositoryInfo(path);
-  if (result.error) throw nativeGitError(result.error);
-  if (!result.repository)
-    throw new NativeGitReadError(
-      "internal",
-      "Native Git repository info was empty.",
-    );
-  return result.repository;
+  return unwrapNative(
+    result.repository,
+    result.error,
+    "Native Git repository info was empty.",
+  );
 }
 
+/** Bounded and cancellable through `options.signal`; see `NativeGitSnapshotOptions` for limits. */
 export async function readGitSnapshot(
   path: string,
-  options?: NativeGitSnapshotOptions,
+  options: NativeGitSnapshotOptions = {},
 ): Promise<NativeGitSnapshot> {
-  const result = await binding.readGitSnapshot(path, options);
-  if (result.error) throw nativeGitError(result.error);
-  if (!result.snapshot)
-    throw new NativeGitReadError("internal", "Native Git snapshot was empty.");
-  return result.snapshot;
+  assertBoundedPath(path, "Invalid Git snapshot path");
+  const { signal, ...native } = options;
+  return withGitReadOperation(binding, signal, async (handle) => {
+    const result = await binding.readGitSnapshot(path, native, handle);
+    return unwrapNative(
+      result.snapshot,
+      result.error,
+      "Native Git snapshot was empty.",
+    );
+  });
 }
 
 export async function checkGitAncestry(
@@ -50,10 +47,11 @@ export async function checkGitAncestry(
   descendant: string,
 ): Promise<NativeGitAncestry> {
   const result = await binding.checkGitAncestry(path, ancestor, descendant);
-  if (result.error) throw nativeGitError(result.error);
-  if (!result.ancestry)
-    throw new NativeGitReadError("internal", "Native Git ancestry was empty.");
-  return result.ancestry;
+  return unwrapNative(
+    result.ancestry,
+    result.error,
+    "Native Git ancestry was empty.",
+  );
 }
 
 export async function resolveGitRevision(
@@ -61,10 +59,11 @@ export async function resolveGitRevision(
   revision: string,
 ): Promise<string> {
   const result = await binding.resolveGitRevision(path, revision);
-  if (result.error) throw nativeGitError(result.error);
-  if (!result.oid)
-    throw new NativeGitReadError("internal", "Native Git revision was empty.");
-  return result.oid;
+  return unwrapNative(
+    result.oid,
+    result.error,
+    "Native Git revision was empty.",
+  );
 }
 
 /** Commits reachable from HEAD but from no `refs/remotes/<remote>/*` ref. */
@@ -73,10 +72,11 @@ export async function countUnpublishedGitCommits(
   remote: string,
 ): Promise<number> {
   const result = await binding.countUnpublishedGitCommits(path, remote);
-  if (result.error) throw nativeGitError(result.error);
-  if (result.count === undefined)
-    throw new NativeGitReadError("internal", "Native Git count was empty.");
-  return result.count;
+  return unwrapNative(
+    result.count,
+    result.error,
+    "Native Git count was empty.",
+  );
 }
 
 export async function readGitFileDiff(
@@ -85,16 +85,13 @@ export async function readGitFileDiff(
   modified: NativeGitDocumentSource,
 ): Promise<NativeGitFileDiff> {
   const result = await binding.readGitFileDiff(path, original, modified);
-  if (result.error) throw nativeGitError(result.error);
-  if (!result.diff)
-    throw new NativeGitReadError("internal", "Native Git file diff was empty.");
-  return result.diff;
+  return unwrapNative(
+    result.diff,
+    result.error,
+    "Native Git file diff was empty.",
+  );
 }
 
 export function validateGitBranchName(name: string): boolean {
   return binding.validateGitBranchName(name);
-}
-
-function nativeGitError(detail: NativeGitErrorDetail): NativeGitReadError {
-  return new NativeGitReadError(detail.category, detail.message);
 }

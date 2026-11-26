@@ -119,12 +119,6 @@ export function truncateLine(
   };
 }
 
-export function formatByteSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-}
-
 function truncateUtf8Bytes(input: string, maxBytes: number): string {
   if (maxBytes <= 0) return "";
   const bytes = Buffer.from(input, "utf8");

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { GitWorkflowError } from "../../src/git/git-errors.js";
 import { GitService } from "../../src/git/git-service.js";
+import { removeTree } from "@nervekit/test-kit";
 
 interface Fixture {
   root: string;
@@ -33,7 +34,7 @@ async function withFixture(run: (f: Fixture) => Promise<void>): Promise<void> {
     await git(work, "push", "-u", "origin", "main");
     await run({ root, work, service, git });
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 }
 

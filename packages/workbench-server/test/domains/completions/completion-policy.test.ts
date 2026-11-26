@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -145,7 +146,7 @@ test("usage is project scoped, serial, persisted, decayed, and corrupt-safe", as
       "invalid IDs do not write",
     );
   } finally {
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   }
 });
 
@@ -172,7 +173,7 @@ test("usage prunes count on write; unavailable home never breaks selection", asy
     await writeFile(join(home, "blocked"), "file");
     await new CompletionUsageStore(join(home, "blocked")).record("p", "new");
   } finally {
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   }
 });
 
@@ -230,7 +231,7 @@ test("usage enforces the encoded byte cap independently of count and preserves t
       true,
     );
   } finally {
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   }
 });
 
@@ -256,7 +257,7 @@ test("opaque traversal-looking usage IDs never choose a filesystem path", async 
       true,
     );
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 

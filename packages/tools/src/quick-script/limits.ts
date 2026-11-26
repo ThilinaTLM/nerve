@@ -1,13 +1,11 @@
-import {
-  MAX_ATTACHMENT_BYTES,
-  MAX_FILE_BYTES,
-} from "./runtime/files/artifacts.js";
+import { MAX_STREAMED_FILE_BYTES } from "@nervekit/extension-api/host";
+import { MAX_FILE_BYTES } from "./runtime/files/artifacts.js";
 
 /** Limits stated in docs and rules as `{{limit:<name>}}`; the values come from the code that enforces them (extensions declare theirs in the manifest). */
 const LIMIT_BYTES: Record<string, number> = {
   "files.read": MAX_FILE_BYTES,
   "files.write": MAX_FILE_BYTES,
-  attachments: MAX_ATTACHMENT_BYTES,
+  attachments: MAX_STREAMED_FILE_BYTES,
 };
 
 function formatBytes(bytes: number): string {

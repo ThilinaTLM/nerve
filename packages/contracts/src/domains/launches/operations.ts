@@ -4,6 +4,7 @@ import {
   launchLogQuerySchema,
   launchPortConflictListenerSchema,
   launchRecordSchema,
+  launchSignalSchema,
 } from "./launch.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
@@ -40,7 +41,7 @@ export const launchStartDefinitionResultSchema = z.discriminatedUnion(
 
 const launchLogsParamsSchema = launchIdParamsSchema.merge(launchLogQuerySchema);
 const launchCancelParamsSchema = launchIdParamsSchema.extend({
-  signal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),
+  signal: launchSignalSchema.optional(),
   timeoutMs: z.number().int().positive().max(30_000).optional(),
   reason: z.string().min(1).optional(),
 });
@@ -51,7 +52,6 @@ export const launchesOperationDefinitions = [
     emptyParamsSchema,
     z.object({ launches: z.array(launchRecordSchema) }),
     "read",
-    "none",
     ["workbench_server"] as const,
     "operation.launch.list",
   ),
@@ -60,7 +60,6 @@ export const launchesOperationDefinitions = [
     startLaunchRequestSchema,
     z.object({ launch: launchRecordSchema }),
     "mutation",
-    "recommended",
     ["workbench_server"] as const,
     "operation.launch.start",
   ),
@@ -69,7 +68,6 @@ export const launchesOperationDefinitions = [
     launchStartDefinitionParamsSchema,
     launchStartDefinitionResultSchema,
     "mutation",
-    "recommended",
     ["workbench_server"] as const,
     "operation.launch.startDefinition",
   ),
@@ -78,7 +76,6 @@ export const launchesOperationDefinitions = [
     launchIdParamsSchema,
     z.object({ launch: launchRecordSchema }),
     "read",
-    "none",
     ["workbench_server"] as const,
     "operation.launch.get",
   ),
@@ -87,7 +84,6 @@ export const launchesOperationDefinitions = [
     launchCancelParamsSchema,
     z.object({ launch: launchRecordSchema }),
     "mutation",
-    "recommended",
     ["workbench_server"] as const,
     "operation.launch.cancel",
   ),
@@ -96,7 +92,6 @@ export const launchesOperationDefinitions = [
     launchRestartParamsSchema,
     z.object({ launch: launchRecordSchema }),
     "mutation",
-    "recommended",
     ["workbench_server"] as const,
     "operation.launch.restart",
   ),
@@ -105,7 +100,6 @@ export const launchesOperationDefinitions = [
     emptyParamsSchema,
     z.object({ removed: z.array(launchIdSchema) }),
     "mutation",
-    "recommended",
     ["workbench_server"] as const,
     "operation.launch.prune",
   ),
@@ -114,7 +108,6 @@ export const launchesOperationDefinitions = [
     launchIdParamsSchema,
     z.object({ removed: z.literal(true) }),
     "mutation",
-    "recommended",
     ["workbench_server"] as const,
     "operation.launch.delete",
   ),
@@ -123,7 +116,6 @@ export const launchesOperationDefinitions = [
     launchLogsParamsSchema,
     launchLogQueryResponseSchema,
     "read",
-    "none",
     ["workbench_server"] as const,
     "operation.launch.logs",
   ),

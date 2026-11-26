@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -16,9 +17,7 @@ before(() => {
 after(async () => {
   if (originalWebDist === undefined) delete process.env.NERVE_WEB_DIST;
   else process.env.NERVE_WEB_DIST = originalWebDist;
-  await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
-  );
+  await Promise.all(roots.map((root) => removeTree(root)));
 });
 
 async function fixture() {

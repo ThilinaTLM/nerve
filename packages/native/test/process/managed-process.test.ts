@@ -15,7 +15,7 @@ import {
   terminateManagedTarget,
   terminateTcpListener,
 } from "../../src/index.js";
-import { waitFor } from "../support/wait-for.js";
+import { waitForProcessExit } from "@nervekit/test-kit";
 
 const node = process.execPath;
 
@@ -36,14 +36,6 @@ async function firstOutputNumber(
   return await new Promise((resolve, reject) => {
     stream.once("data", (chunk) => resolve(Number(String(chunk).trim())));
     stream.once("error", reject);
-  });
-}
-
-async function waitForProcessExit(pid: number): Promise<void> {
-  await waitFor(async () => !(await processIsAlive(pid)), {
-    timeoutMs: 1_500,
-    intervalMs: 20,
-    message: `descendant process ${pid} to exit`,
   });
 }
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -25,7 +26,7 @@ async function homeFor(
   },
 ): Promise<string> {
   const home = await mkdtemp(join(tmpdir(), "nerve-migration-startup-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   if (value !== null)
     await writeFile(join(home, "manifest.json"), JSON.stringify(value));
   return home;

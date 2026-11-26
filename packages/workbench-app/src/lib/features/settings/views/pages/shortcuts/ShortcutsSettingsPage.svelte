@@ -1,4 +1,5 @@
 <script lang="ts">
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import {
   PageEmptyState,
   PageItem,
@@ -37,16 +38,17 @@ const shortcutGroups = DEFAULT_SHORTCUTS.reduce<ShortcutGroup[]>(
 let query = $state("");
 
 const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return shortcutGroups;
+  if (!query.trim()) return shortcutGroups;
   return shortcutGroups
     .map((group) => ({
       category: group.category,
-      commands: group.commands.filter(
-        (command) =>
-          command.label.toLowerCase().includes(needle) ||
-          group.category.toLowerCase().includes(needle) ||
-          formatShortcut(command.defaultBinding).toLowerCase().includes(needle),
+      commands: group.commands.filter((command) =>
+        matchesTerms(
+          query,
+          command.label,
+          group.category,
+          formatShortcut(command.defaultBinding),
+        ),
       ),
     }))
     .filter((group) => group.commands.length > 0);

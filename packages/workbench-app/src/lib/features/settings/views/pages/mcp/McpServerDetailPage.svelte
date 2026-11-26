@@ -69,13 +69,8 @@ $effect(() => {
     projectId ? mcpTarget("project", projectId) : mcpTarget("user", undefined),
   );
 });
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive) return;
-  void projectId;
-  untrack(() => enablement.load());
-});
 $effect(() => list.observe());
-$effect(() => enablement.observe());
+enablement.connect();
 
 const row = $derived(
   wanted

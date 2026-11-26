@@ -114,7 +114,7 @@ void test("artifact names are safe and sizes are capped", async () => {
     Array(6).fill("rejected"),
   );
   assert.match(lines[6], /Invalid artifact name/);
-  assert.match(lines[7], /artifact:big\.bin is 21 MB; the limit is 20 MB/);
+  assert.match(lines[7], /artifact:big\.bin is 21.0 MB; the limit is 20.0 MB/);
   assert.match(lines[8], /data is 22020096 bytes; the limit is 20971520/);
   assert.deepEqual(await readdir(artifactDir), ["big.bin"]);
 });

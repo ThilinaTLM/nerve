@@ -35,7 +35,8 @@ export interface NativeGitBinding
   readGitRepositoryInfo(path: string): Promise<NativeGitRepositoryInfoResult>;
   readGitSnapshot(
     path: string,
-    options?: NativeGitSnapshotOptions,
+    options: Omit<NativeGitSnapshotOptions, "signal"> | undefined,
+    handle: number,
   ): Promise<NativeGitSnapshotResult>;
   checkGitAncestry(
     path: string,

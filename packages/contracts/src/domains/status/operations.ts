@@ -10,7 +10,6 @@ export const statusOperationDefinitions = [
     emptyParamsSchema,
     latestReleaseSchema,
     "read",
-    "none",
     ["workbench_server"] as const,
     "operation.status.latestRelease.get",
   ),

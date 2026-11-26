@@ -1,3 +1,5 @@
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
+import type { ConversationScope } from "@nervekit/contracts/core";
 import {
   skillOverrideKind,
   skillSourceOrder,
@@ -9,7 +11,7 @@ export type { AvailableSkill, SkillSource };
 export { skillOverrideKind, sortBySkillSource };
 
 /** Where an enable/disable decision is written. */
-export type SkillScope = "user" | "project" | "conversation";
+export type SkillScope = ConversationScope;
 
 /**
  * User settings are name-keyed and machine-wide, so they never govern
@@ -39,12 +41,9 @@ export function filterSkills(input: {
   entries: SkillEntry[];
   query?: string;
 }): SkillEntry[] {
-  const needle = (input.query ?? "").trim().toLowerCase();
-  if (!needle) return input.entries;
+  const query = input.query ?? "";
   return input.entries.filter((entry) =>
-    `${entry.skill.name} ${entry.skill.description}`
-      .toLowerCase()
-      .includes(needle),
+    matchesTerms(query, entry.skill.name, entry.skill.description),
   );
 }
 

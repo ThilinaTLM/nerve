@@ -1,3 +1,4 @@
+import { singleFlight } from "@nervekit/primitives";
 import { isSubagentTool } from "@nervekit/contracts/tools";
 import { createId } from "@nervekit/contracts";
 import {
@@ -274,21 +275,18 @@ export class ToolCallService {
 
   private startOne(id: string): Promise<void> {
     if (this.closed || this.stopping.has(id)) return Promise.resolve();
-    const active = this.workers.get(id);
-    if (active) return active;
-    const task = Promise.resolve()
-      .then(() => this.process(id))
-      .finally(() => {
-        this.workers.delete(id);
-        this.controllers.delete(id);
-        if (this.closed || !this.options.storage.toolCalls.get(id)) {
-          this.requestCaptures.delete(id);
-          this.unadvertised.delete(id);
-          this.presentedApprovals.delete(id);
-        }
-      });
-    this.workers.set(id, task);
-    return task;
+    return singleFlight(this.workers, id, () =>
+      Promise.resolve()
+        .then(() => this.process(id))
+        .finally(() => {
+          this.controllers.delete(id);
+          if (this.closed || !this.options.storage.toolCalls.get(id)) {
+            this.requestCaptures.delete(id);
+            this.unadvertised.delete(id);
+            this.presentedApprovals.delete(id);
+          }
+        }),
+    );
   }
 
   /**

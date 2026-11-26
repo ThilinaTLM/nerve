@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -14,9 +15,7 @@ import {
 } from "../../../src/domains/access/push-service.js";
 
 const roots: string[] = [];
-after(() =>
-  Promise.all(roots.map((r) => rm(r, { recursive: true, force: true }))),
-);
+after(() => Promise.all(roots.map((r) => removeTree(r))));
 
 const sub = (name: string): PushSubscriptionData => ({
   endpoint: `https://push.example/${name}`,

@@ -8,6 +8,17 @@ export type StatusTone =
   | "warning"
   | "destructive";
 
+/** Text colour for a tone: icons, glyphs and short status labels. `neutral`
+ * reads as secondary text and `brand` as the primary colour. */
+export const toneTextClass: Readonly<Record<StatusTone, string>> = {
+  neutral: "text-muted-foreground",
+  brand: "text-primary",
+  info: "text-info",
+  success: "text-success",
+  warning: "text-warning",
+  destructive: "text-destructive",
+};
+
 export function statusTone(status: string | undefined): StatusTone {
   if (status === "running" || status === "ready" || status === "starting") {
     return "info";

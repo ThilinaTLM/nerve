@@ -6,6 +6,7 @@ import type {
   Provider,
 } from "@earendil-works/pi-ai";
 import { describe, it } from "node:test";
+import { waitFor as waitForCondition } from "@nervekit/test-kit";
 import { SignInService } from "../../../src/domains/auth/sign-in-service.js";
 
 type Login = (interaction: AuthInteraction) => Promise<void>;
@@ -39,17 +40,8 @@ function harness(login: Login) {
   return { manager, published };
 }
 
-async function waitFor(
-  predicate: () => boolean,
-  message = "condition",
-): Promise<void> {
-  const timeout = Date.now() + 2_000;
-  while (!predicate()) {
-    if (Date.now() > timeout)
-      throw new Error(`Timed out waiting for ${message}`);
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-}
+const waitFor = (predicate: () => boolean, message = "condition") =>
+  waitForCondition(predicate, { timeoutMs: 2_000, intervalMs: 5, message });
 
 describe("SignInService", () => {
   it("maps and validates provider choices before completing", async () => {

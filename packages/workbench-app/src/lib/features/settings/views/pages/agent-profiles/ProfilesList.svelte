@@ -4,6 +4,7 @@
   launch switches; main agents are chosen, not switched.
 -->
 <script lang="ts">
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import { PageItem } from "@nervekit/ui-kit/components/composites/page";
 import Bot from "@lucide/svelte/icons/bot";
 import Copy from "@lucide/svelte/icons/copy";
@@ -54,14 +55,14 @@ const origins = $derived<ProfileOrigin[]>([
   "user",
   "builtin",
 ]);
-const needle = $derived(query.trim().toLowerCase());
 const shown = (origin: ProfileOrigin) =>
-  groups[origin].filter(
-    (row) =>
-      !needle ||
-      `${row.entry.definition?.label ?? ""} ${row.name} ${row.entry.definition?.whenToUse ?? ""}`
-        .toLowerCase()
-        .includes(needle),
+  groups[origin].filter((row) =>
+    matchesTerms(
+      query,
+      row.entry.definition?.label,
+      row.name,
+      row.entry.definition?.whenToUse,
+    ),
   );
 
 const waiting = (row: ProfileRow) =>
@@ -107,7 +108,7 @@ function review(row: ProfileRow): void {
     {projectName}
     layers={sub}
     locked={store.launchLocked}
-    emptyText={origin === "builtin" || needle
+    emptyText={origin === "builtin" || query.trim()
       ? undefined
       : "No profiles here yet"}
     emptyDescription="Duplicate a profile, or start a new one."

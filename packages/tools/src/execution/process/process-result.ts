@@ -18,8 +18,8 @@ import {
   textBoundaryDetails,
   textLimitSnapshot,
 } from "../output/output-budget.js";
+import { formatByteSize } from "../output/format-bytes.js";
 import {
-  formatByteSize,
   PROCESS_INLINE_MAX_BYTES,
   PROCESS_INLINE_MAX_LINES,
   PROCESS_PREVIEW_EDGE_LINES,

@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { sourceSchema } from "../core/scope.js";
 import { diagnosticSchema } from "../configuration/diagnostic.js";
 
 /** Where an extension comes from. Precedence: project, then user, then built-in. */
-export const extensionSourceSchema = z.enum(["builtin", "user", "project"]);
+export const extensionSourceSchema = sourceSchema;
 export type ExtensionSource = z.infer<typeof extensionSourceSchema>;
 
 /**

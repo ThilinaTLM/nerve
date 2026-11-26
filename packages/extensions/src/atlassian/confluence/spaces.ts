@@ -2,7 +2,7 @@ import { jsonObject } from "../shared/http.js";
 import { confluenceRequest } from "./client.js";
 import { valuesFromConfluenceList } from "./format.js";
 import { resolveSpaceId, SpaceNotFoundError } from "./space-resolution.js";
-import { closeMatches } from "../shared/args.js";
+import { closeMatches } from "@nervekit/extension-api/host";
 import type { ConfluenceSession } from "./session.js";
 
 const MAX_SPACE_PAGES = 10;

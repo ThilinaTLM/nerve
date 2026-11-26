@@ -11,6 +11,7 @@ import Info from "@lucide/svelte/icons/info";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import AtSign from "@lucide/svelte/icons/at-sign";
 import X from "@lucide/svelte/icons/x";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Kbd } from "@nervekit/ui-kit/components/ui/kbd";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
@@ -236,11 +237,13 @@ const listboxId = "composer-suggestions";
             aria-selected={isSelected}
             aria-disabled={row.state === "unavailable"}
             title={row.title}
-            class="flex h-7 w-full min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md px-2 text-left text-ui {isSelected
-              ? 'bg-muted text-foreground'
-              : 'hover:bg-hover'} {row.state === 'unavailable'
-              ? 'opacity-60'
-              : ''}"
+            class={selectRowVariants({ selected: isSelected }).base({
+              class: [
+                "flex h-control w-full min-w-0 shrink-0 cursor-default items-center gap-2 px-2 text-left",
+                isSelected && "text-foreground",
+                row.state === "unavailable" && "opacity-60",
+              ],
+            })}
             onmousemove={() => onhover(row.id)}
             onmousedown={(event) => {
               event.preventDefault();

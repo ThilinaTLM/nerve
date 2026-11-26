@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
+import { waitFor } from "@nervekit/test-kit";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -25,14 +26,6 @@ import {
 const LEAD = "conv_lead";
 type Step = AgentScriptedProviderStep;
 const profiles = ["explore", "developer", "waiter"];
-
-async function waitUntil(predicate: () => boolean) {
-  for (let attempt = 0; attempt < 400; attempt++) {
-    if (predicate()) return;
-    await delay(5);
-  }
-  throw new Error("Timed out waiting for core state");
-}
 
 /** One lead and its sub-agents, each model turn answered from a per-provider script queue. */
 async function fixture() {
@@ -239,10 +232,8 @@ async function fixture() {
       text: "go",
       source: "user",
     });
-    await waitUntil(() => responses().length > before);
-    await waitUntil(
-      () => core.getSnapshot(LEAD).conversation.status === "idle",
-    );
+    await waitFor(() => responses().length > before);
+    await waitFor(() => core.getSnapshot(LEAD).conversation.status === "idle");
     const response = responses()[before];
     return {
       toolCallId: response.toolCallId,
@@ -324,7 +315,7 @@ void test("creates a child from the profile, initializes it and assigns context 
     assert.deepEqual(f.initialized, [
       { parentId: LEAD, childId: created.id, profile: "explore" },
     ]);
-    await waitUntil(() => f.notices().length === 1);
+    await waitFor(() => f.notices().length === 1);
     assert.equal(
       f.notices()[0],
       'Sub-agent "a" (explore) completed.\nchild report',
@@ -353,7 +344,7 @@ void test("initialized children keep configuration and follow-ups do not resolve
     f.queue("child-explore", { type: "assistantText", text: "first" });
     const created = await f.lead("subagent_prompt", explore());
     assert.equal(created.outcome, "completed");
-    await waitUntil(f.idle("a"));
+    await waitFor(f.idle("a"));
     const id = f.child("a").id;
     const config = f.core.getSnapshot(id).config;
     f.host.resolveProfile = async () => {
@@ -371,7 +362,7 @@ void test("initialized children keep configuration and follow-ups do not resolve
       });
       assert.equal(result.outcome, "completed");
       assert.match(result.text, /follow-up queued/);
-      await waitUntil(f.idle("a"));
+      await waitFor(f.idle("a"));
       assert.deepEqual(f.core.getSnapshot(id).config, config);
     }
     assert.equal(resolutions, 1);
@@ -434,8 +425,8 @@ void test("follow-ups queue, resume stopped children and reject a profile mismat
   try {
     f.queue("child-explore", { type: "assistantText", text: "first" });
     await f.lead("subagent_prompt", explore());
-    await waitUntil(() => f.notices().length === 1);
-    await waitUntil(f.idle("a"));
+    await waitFor(() => f.notices().length === 1);
+    await waitFor(f.idle("a"));
     const id = f.child("a").id;
 
     f.queue("child-explore", { type: "assistantText", text: "second" });
@@ -443,9 +434,9 @@ void test("follow-ups queue, resume stopped children and reject a profile mismat
       assignments: [{ name: "A", profile: "explore", prompt: "again" }],
     });
     assert.equal(followUp.text, "A (explore): follow-up queued (idle)");
-    await waitUntil(() => f.notices().length === 2);
+    await waitFor(() => f.notices().length === 2);
     assert.match(f.notices()[1], /completed\.\nsecond$/);
-    await waitUntil(f.idle("a"));
+    await waitFor(f.idle("a"));
 
     const events = f.core.getEventsSince(id, 0).length;
     const mismatch = await f.lead("subagent_prompt", {
@@ -464,7 +455,7 @@ void test("follow-ups queue, resume stopped children and reject a profile mismat
     const resumed = await f.lead("subagent_prompt", explore("wake up"));
     assert.equal(resumed.text, "a (explore): follow-up queued (resumed)");
     assert.equal(f.core.getSnapshot(id).conversation.paused, false);
-    await waitUntil(() => f.notices().length === 3);
+    await waitFor(() => f.notices().length === 3);
     assert.match(f.notices()[2], /completed\.\nthird$/);
   } finally {
     await f.cleanup();
@@ -480,11 +471,11 @@ void test("notices follow the stop source: user notifies, lead tool and cascade 
     for (const name of ["b", "c", "d"]) {
       f.queue("child-explore", { type: "waitForAbort" });
       await f.lead("subagent_prompt", explore("work", name));
-      await waitUntil(running(name));
+      await waitFor(running(name));
     }
 
     await f.core.stop(f.child("b").id);
-    await waitUntil(() => f.notices().length === 1);
+    await waitFor(() => f.notices().length === 1);
     assert.match(
       f.notices()[0],
       /^Sub-agent "b" \(explore\) was stopped by the user\./,
@@ -529,7 +520,7 @@ void test("failed executions and waiting background commands are reported", asyn
         { name: "w", profile: "waiter", prompt: "p" },
       ],
     });
-    await waitUntil(() => f.notices().length === 2);
+    await waitFor(() => f.notices().length === 2);
     const all = f.notices().join("\n---\n");
     assert.match(all, /Sub-agent "f" \(explore\) failed: .*boom/);
     assert.match(
@@ -547,11 +538,11 @@ void test("long final responses are truncated and spilled to the report file", a
     const long = "x".repeat(SUBAGENT_REPORT_INLINE_BYTES + 4000);
     f.queue("child-explore", { type: "assistantText", text: long });
     await f.lead("subagent_prompt", explore());
-    await waitUntil(() => f.notices().length === 1);
+    await waitFor(() => f.notices().length === 1);
     const id = f.child("a").id;
     const notice = f.notices()[0];
     const match =
-      /\[Showing the first 50\.0KB of 53\.9KB; 3\.9KB omitted\. Full response: (.+)\]$/.exec(
+      /\[Showing the first 50\.0 KB of 53\.9 KB; 3\.9 KB omitted\. Full response: (.+)\]$/.exec(
         notice,
       );
     assert.ok(match);
@@ -561,7 +552,7 @@ void test("long final responses are truncated and spilled to the report file", a
     assert.ok(match[1].endsWith(".md") && existsSync(match[1]));
     assert.equal(readFileSync(match[1], "utf8"), long);
     assert.ok(notice.length < long.length);
-    await waitUntil(f.idle("a"));
+    await waitFor(f.idle("a"));
     // Status repeats the capped report whole, so the agent sees the same notice and path.
     const status = await f.lead("subagent_status", { name: "a" });
     assert.ok(status.text.endsWith(`Full response: ${match[1]}]`));
@@ -576,8 +567,8 @@ void test("status lists children and shows final responses or recent activity", 
   try {
     f.queue("child-explore", { type: "assistantText", text: "answer" });
     await f.lead("subagent_prompt", explore("quick", "e"));
-    await waitUntil(() => f.notices().length === 1);
-    await waitUntil(f.idle("e"));
+    await waitFor(() => f.notices().length === 1);
+    await waitFor(f.idle("e"));
     f.queue(
       "child-explore",
       {
@@ -590,7 +581,7 @@ void test("status lists children and shows final responses or recent activity", 
     );
     await f.lead("subagent_prompt", explore("long", "g"));
     const busy = f.child("g").id;
-    await waitUntil(() =>
+    await waitFor(() =>
       f.core
         .getEventsSince(busy, 0)
         .some((event) => event.type === "tool_call_response"),
@@ -655,7 +646,7 @@ void test("delegation details survive durable previews for create, follow-up, st
         agentId: f.child("a").id,
       },
     ]);
-    await waitUntil(f.idle("a"));
+    await waitFor(f.idle("a"));
     f.core.contextUsage = async () => ({
       tokens: 37,
       window: 100,
@@ -678,7 +669,7 @@ void test("delegation details survive durable previews for create, follow-up, st
       details(followUp.preview).assignments![0]!.disposition,
       "follow_up",
     );
-    await waitUntil(f.idle("a"));
+    await waitFor(f.idle("a"));
     const stopped = await f.lead("subagent_stop", { names: ["a", "unknown"] });
     assert.deepEqual(details(stopped.preview).results, [
       { name: "a", outcome: "already_idle" },
@@ -747,7 +738,7 @@ void test("failed stop attempts retain a per-name outcome and reason", async () 
   try {
     f.queue("child-explore", { type: "waitForAbort" });
     await f.lead("subagent_prompt", explore());
-    await waitUntil(
+    await waitFor(
       () =>
         f.core.getSnapshot(f.child("a").id).conversation.status === "running",
     );

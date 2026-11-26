@@ -1,3 +1,4 @@
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import {
   createDirectory,
   listDirectories,
@@ -87,10 +88,8 @@ export class FolderBrowser {
     return this.listing?.entries ?? [];
   });
   readonly entries = $derived.by<FolderEntry[]>(() => {
-    const query = this.filter.trim().toLowerCase();
-    if (!query) return this.allEntries;
     return this.allEntries.filter((entry) =>
-      entry.name.toLowerCase().includes(query),
+      matchesTerms(this.filter, entry.name),
     );
   });
   readonly selectedEntry = $derived(

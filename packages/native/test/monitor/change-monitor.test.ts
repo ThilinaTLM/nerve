@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import { ChangeMonitor, type ChangeNotice } from "../../src/index.js";
-import { waitFor } from "../support/wait-for.js";
+import { waitFor } from "@nervekit/test-kit";
 
 test("manual and filesystem triggers share a bounded monitor scope", async () => {
   const root = await mkdtemp(join(tmpdir(), "nerve-monitor-"));

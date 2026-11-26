@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { test } from "node:test";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { waitForOutputReadiness } from "./readiness.js";
@@ -51,6 +52,6 @@ void test("readiness matches combined stderr and does not stop a process on read
     );
     assert.equal(cancelled, false);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });
