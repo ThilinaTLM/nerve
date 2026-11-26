@@ -20,6 +20,21 @@ test("docs-only changes do not select package or platform work", () => {
   assert.equal(impact.full, false);
 });
 
+test("docs assets of any type and root docs select nothing in CI", () => {
+  for (const path of [
+    "docs/ui/diagram.png",
+    "docs/runbooks/data.json",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "LICENSE",
+    "NOTICE",
+  ]) {
+    const impact = classifyChanges([path], workspace);
+    assert.equal(impact.full, false, path);
+    assert.deepEqual(impact.packages, [], path);
+  }
+});
+
 test("website changes select only website validation", () => {
   const impact = classifyChanges(
     ["packages/website/src/pages/index.astro"],
@@ -167,7 +182,6 @@ test("frontend-only and docs-only changes select no native jobs", () => {
 test("root dependency and unknown script changes fail safe to full coverage", () => {
   for (const path of [
     "pnpm-lock.yaml",
-    "scripts/release/new-release-step.mjs",
     "scripts/new-root-script.ts",
     "scripts/build/new-build-step.mjs",
   ]) {
@@ -183,6 +197,100 @@ test("root dependency and unknown script changes fail safe to full coverage", ()
     ]);
     assert.equal(impact.nativeMatrix.length, 2);
     assert.ok(impact.packages.includes("@nervekit/ui-kit"));
+  }
+});
+
+const isNarrow = (paths: string[], rootManifest?: object) => {
+  const impact = classifyChanges(paths, workspace, { rootManifest });
+  return !impact.full && impact.packages.length === 0;
+};
+
+test("only ci.yml is a global workflow; other .github files are tooling", () => {
+  assert.equal(
+    classifyChanges([".github/workflows/ci.yml"], workspace).full,
+    true,
+  );
+  for (const path of [
+    ".github/workflows/codeql.yml",
+    ".github/workflows/release-cut.yml",
+    ".github/workflows/website-deploy.yml",
+    ".github/dependabot.yml",
+    ".github/FUNDING.yml",
+    "scripts/README.md",
+    "scripts/benchmarks/x.ts",
+    "scripts/bench/x.ts",
+    "scripts/release/pack-npm.ts",
+    "scripts/build/x.test.ts",
+    "scripts/build/skill-reference-assets.test.ts",
+    "scripts/build/extension-frame-css.test.ts",
+  ])
+    assert.equal(isNarrow([path]), true, path);
+  assert.equal(classifyChanges(["scripts/build/x.ts"], workspace).full, true);
+});
+
+test("special-owned build inputs and runtime markdown select their package", () => {
+  for (const path of [
+    "scripts/build/skill-reference-assets.ts",
+    "packages/workbench-server/src/builtin-skills/builtin/configure-nerve/SKILL.md",
+  ]) {
+    const impact = classifyChanges([path], workspace);
+    assert.equal(impact.full, false, path);
+    assert.ok(impact.packages.includes("@nervekit/workbench-server"), path);
+  }
+  const css = classifyChanges(["scripts/build/extension-frame.css"], workspace);
+  assert.equal(css.full, false);
+  assert.ok(css.packages.includes("@nervekit/ui-kit"));
+  assert.ok(css.packages.includes("@nervekit/workbench-server"));
+});
+
+test("root package.json is full only for semantic changes", () => {
+  const base = {
+    name: "x",
+    version: "1.0.0",
+    scripts: { lint: "a", build: "b" },
+  };
+  const delta = (after: object) => ({ before: base, after });
+  assert.equal(
+    isNarrow(["package.json"], delta({ ...base, version: "1.1.0" })),
+    true,
+  );
+  assert.equal(
+    isNarrow(
+      ["package.json"],
+      delta({ ...base, scripts: { ...base.scripts, lint: "c" } }),
+    ),
+    true,
+  );
+  assert.equal(
+    isNarrow(
+      ["package.json"],
+      delta({ ...base, scripts: { ...base.scripts, build: "c" } }),
+    ),
+    false,
+  );
+  assert.equal(
+    isNarrow(["package.json"], delta({ ...base, dependencies: { a: "1" } })),
+    false,
+  );
+  assert.equal(isNarrow(["package.json"]), false);
+});
+
+test("an all-zero or unreachable base falls back to full coverage", () => {
+  for (const base of ["0".repeat(40), "deadbeef".repeat(5)]) {
+    const result = spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(new URL("../ci.ts", import.meta.url)),
+        "--base",
+        base,
+        "--head",
+        "HEAD",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /using full coverage/);
+    assert.equal(JSON.parse(result.stdout).full, true);
   }
 });
 

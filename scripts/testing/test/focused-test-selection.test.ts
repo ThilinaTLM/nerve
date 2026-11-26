@@ -349,7 +349,7 @@ test("server options, skills lifecycle and native Cargo coverage survive selecti
   const server = f.select(["packages/workbench-server/test/server.test.ts"]);
   assert.equal(server.commands[0].args[0], "build:native");
   assert.equal(
-    server.commands.at(-1).args.includes("--test-concurrency=1"),
+    server.commands.at(-1).args.includes("--test-concurrency=4"),
     true,
   );
   assert.equal(

@@ -35,7 +35,7 @@
     "check": "tsc -b --pretty false",
     "dev": "tsx src/main.ts",
     "pretest": "tsx ../../scripts/build/copy-skills-assets.ts",
-    "test": "tsx --test --test-concurrency=1 \"test/**/*.test.ts\" \"src/{adapters,app,builtin-skills,core-host,domains}/**/*.test.ts\" \"src/infrastructure/{configuration,events,storage-bootstrap}/**/*.test.ts\" \"src/infrastructure/process-host/!(port-inspector).test.ts\"",
+    "test": "tsx --test --test-concurrency=4 \"test/**/*.test.ts\" \"src/{adapters,app,builtin-skills,core-host,domains}/**/*.test.ts\" \"src/infrastructure/{configuration,events,storage-bootstrap}/**/*.test.ts\" \"src/infrastructure/process-host/!(port-inspector).test.ts\"",
     "test:migrations": "tsx --test --test-concurrency=1 \"src/infrastructure/migrations/**/*.test.ts\" \"test/infrastructure/persistence/*.test.ts\"",
     "test:native": "tsx --test test/infrastructure/persistence/file-mutations.test.ts test/domains/launches/process-runtime-driver.test.ts src/infrastructure/process-host/port-inspector.test.ts test/domains/launches/launch-scope.test.ts test/domains/launches/launch-supervisor.test.ts"
   },

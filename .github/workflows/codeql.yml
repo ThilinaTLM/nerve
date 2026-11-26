@@ -19,9 +19,49 @@ permissions:
   contents: read
 
 jobs:
+  # Pull requests analyze the languages that change most. Pushes to main add
+  # Rust and Python only when the push changed them (each category keeps its
+  # last analysis otherwise); the weekly schedule analyzes everything.
+  languages:
+    name: CodeQL / Select languages
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.select.outputs.list }}
+
+    steps:
+      - name: Select languages
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          all='["javascript-typescript","actions","python","rust"]'
+          list='["javascript-typescript","actions"]'
+          if [ "${EVENT}" = "push" ]; then
+            # The compare API lists at most 300 files; an unavailable or
+            # truncated comparison analyzes everything.
+            if files="$(gh api "repos/${GH_REPO}/compare/${BEFORE}...${SHA}" --jq 'if (.files | length) >= 300 then error("truncated") else .files[].filename end' 2>/dev/null)"; then
+              extra=""
+              if grep -Eq '\.rs$|(^|/)Cargo\.(toml|lock)$' <<<"${files}"; then extra+=',"rust"'; fi
+              if grep -Eq '\.py$' <<<"${files}"; then extra+=',"python"'; fi
+              list="[\"javascript-typescript\",\"actions\"${extra}]"
+            else
+              list="${all}"
+            fi
+          elif [ "${EVENT}" != "pull_request" ]; then
+            list="${all}"
+          fi
+          echo "Languages: ${list}"
+          echo "list=${list}" >> "${GITHUB_OUTPUT}"
+
   analyze:
     name: CodeQL / Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    needs: languages
     timeout-minutes: 30
     permissions:
       security-events: write
@@ -30,9 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Pull requests analyze the languages that change most; main and the
-        # weekly schedule analyze everything.
-        language: ${{ fromJSON(github.event_name == 'pull_request' && '["javascript-typescript","actions"]' || '["javascript-typescript","actions","python","rust"]') }}
+        language: ${{ fromJSON(needs.languages.outputs.list) }}
 
     steps:
       - name: Check out repository

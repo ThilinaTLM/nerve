@@ -5,10 +5,15 @@
 import { appendFileSync } from "node:fs";
 import { parseCli } from "../cli/args.ts";
 import { defineCli } from "../cli/main.ts";
-import { readChangedPaths } from "../workspace/git.ts";
+import { execFileSync } from "node:child_process";
+import { readChangedPaths, readGitFile } from "../workspace/git.ts";
 import { loadWorkspace } from "../workspace/graph.ts";
 import { repoRoot } from "../workspace/repo.ts";
-import { classifyChanges, type CiImpact } from "./classify.ts";
+import {
+  classifyChanges,
+  type CiImpact,
+  type RootManifestDelta,
+} from "./classify.ts";
 
 /** Suites the native job of one OS runs (`[]` skips that OS's jobs). */
 const nativeSuites = (impact: CiImpact, osName: string): string[] =>
@@ -26,6 +31,32 @@ export function githubOutputs(impact: CiImpact): Record<string, string> {
     native_windows_suites: JSON.stringify(nativeSuites(impact, "Windows")),
     native_macos_suites: JSON.stringify(nativeSuites(impact, "macOS")),
   };
+}
+
+function parseManifest(text: string | null) {
+  if (text === null) return null;
+  const value = JSON.parse(text);
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value
+    : null;
+}
+
+/** Root `package.json` at the merge-base of `base` and `head`, and at `head`. */
+function loadRootManifests(base: string, head: string): RootManifestDelta {
+  try {
+    const mergeBase = execFileSync("git", ["merge-base", base, head], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    }).trim();
+    return {
+      before: parseManifest(readGitFile(repoRoot, mergeBase, "package.json")),
+      after: parseManifest(readGitFile(repoRoot, head, "package.json")),
+    };
+  } catch (error) {
+    return {
+      reason: `Cannot compare root manifests: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 function main(argv: string[]) {
@@ -51,7 +82,13 @@ function main(argv: string[]) {
     const paths = options.full
       ? []
       : readChangedPaths(repoRoot, options.base ?? "", options.head);
-    impact = classifyChanges(paths, workspace, { full: options.full });
+    const rootManifest = paths.includes("package.json")
+      ? loadRootManifests(options.base ?? "", options.head ?? "HEAD")
+      : undefined;
+    impact = classifyChanges(paths, workspace, {
+      full: options.full,
+      rootManifest,
+    });
   } catch (error) {
     console.error(
       `Could not determine affected CI scope; using full coverage: ${error instanceof Error ? error.message : String(error)}`,

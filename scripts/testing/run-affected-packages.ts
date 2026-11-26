@@ -29,6 +29,9 @@ export function pnpmArguments(command: string, packages: string[]): string[] {
   }
   return [
     ...packages.flatMap((packageName) => ["--filter", packageName]),
+    // Tests read built outputs, not each other: unsorted, a package never
+    // waits for an unrelated slow one in an earlier topological level.
+    ...(command === "test" ? ["--no-sort"] : []),
     "--if-present",
     command,
   ];

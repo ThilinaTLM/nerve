@@ -74,7 +74,7 @@ export const TEST_RUNNERS: ReadonlyMap<string, TestRunner> = new Map([
         "src/infrastructure/{configuration,events,storage-bootstrap}/**/*.test.ts",
         "src/infrastructure/process-host/!(port-inspector).test.ts",
       ],
-      { options: ["--test-concurrency=1"] },
+      { options: ["--test-concurrency=4"] },
     ),
   ],
 ]);

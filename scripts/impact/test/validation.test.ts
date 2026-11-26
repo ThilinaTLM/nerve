@@ -327,3 +327,8 @@ test("script and shared TypeScript changes request the scripts type-check", () =
       path,
     );
 });
+
+test("other .github files have no package impact", () => {
+  for (const path of [".github/dependabot.yml", ".github/workflows/codeql.yml"])
+    assert.equal(classifyValidationImpact([path]).packages.scope, "none", path);
+});
