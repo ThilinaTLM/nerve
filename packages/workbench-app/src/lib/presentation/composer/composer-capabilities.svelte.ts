@@ -1,13 +1,10 @@
-import Wrench from "@lucide/svelte/icons/wrench";
 import BookOpen from "@lucide/svelte/icons/book-open";
 import Users from "@lucide/svelte/icons/users";
 import Folder from "@lucide/svelte/icons/folder";
 import Globe from "@lucide/svelte/icons/globe";
 import User from "@lucide/svelte/icons/user";
-import Plug from "@lucide/svelte/icons/plug";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import type { Component } from "svelte";
-import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import {
   skillOverrideKind,
@@ -15,10 +12,6 @@ import {
   type AvailableSkill,
 } from "@nervekit/contracts/skills";
 import type { AgentEditorView } from "./agent-editor-view";
-import {
-  capabilityToolGroupsFor,
-  type CapabilityToolGroup,
-} from "./capability-tool-labels";
 import {
   capabilitySubagentCounts,
   capabilitySubagentEnabled,
@@ -29,21 +22,8 @@ import {
   editableToolOverrideResets,
 } from "./capability-tool-locks";
 
-export type CapabilityKind = "tools" | "skills" | "mcp" | "subagents";
-export type CapabilitySettingsPage =
-  | "tools"
-  | "skills"
-  | "mcp-servers"
-  | "sub-agents";
-
-/** An approved MCP server the conversation's project defines. */
-export type CapabilityMcpServer = {
-  name: string;
-  scope: "user" | "project";
-  description?: string;
-  /** Whether the settings layers below the conversation switch it on. */
-  enabled: boolean;
-};
+export type CapabilityKind = "skills" | "subagents";
+export type CapabilitySettingsPage = "skills" | "sub-agents";
 
 export type CapabilityRow = {
   key: string;
@@ -75,8 +55,6 @@ export type CapabilitySection = {
 export type ComposerCapabilityProps = {
   configuration?: AgentEditorView;
   skills?: AvailableSkill[];
-  /** Without servers the MCP list is not offered. */
-  mcpServers?: CapabilityMcpServer[];
   loading?: boolean;
   error?: string;
   disabled?: boolean;
@@ -84,7 +62,6 @@ export type ComposerCapabilityProps = {
   onReset?: () => void;
   onRefresh?: () => void;
   onOpenSettings?: (page: CapabilitySettingsPage) => void;
-  onConfigureTool?: (group: CapabilityToolGroup) => void;
   subagentProfiles?: CapabilitySubagentProfile[];
   subagentControlsEnabled?: boolean;
 };
@@ -101,16 +78,13 @@ const escape = (v: string) => v.replaceAll("~", "~0").replaceAll("/", "~1");
 export function capabilitySettingsPage(
   kind: CapabilityKind,
 ): CapabilitySettingsPage {
-  return kind === "subagents"
-    ? "sub-agents"
-    : kind === "mcp"
-      ? "mcp-servers"
-      : kind;
+  return kind === "subagents" ? "sub-agents" : kind;
 }
 
-/** Rows, counts and overrides for the conversation's tools, skills and
- * sub-agents. `close` runs before an action leaves the panel (configure a
- * tool, open settings) so the owning surface can dismiss itself. */
+/** Rows, counts and overrides for the conversation's skills and sub-agents.
+ * Override counts also cover tool and MCP overrides, which the composer does
+ * not edit but still resets. `close` runs before an action leaves the panel
+ * (open settings) so the owning surface can dismiss itself. */
 export class ComposerCapabilities {
   #props: () => ComposerCapabilityProps;
   #close: () => void;
@@ -148,32 +122,8 @@ export class ComposerCapabilities {
       this.overrideCounts.subagents,
   );
 
-  /** Cheap, row-free inputs: the trigger badges need counts while the panels
+  /** Cheap, row-free input: the trigger badges need counts while the panels
    * are closed, so row objects (locks, resets, closures) stay lazy. */
-  readonly #toolGroups = $derived(
-    capabilityToolGroupsFor(
-      Object.keys(
-        this.props.configuration?.resolution.settings.tools ?? {},
-      ) as CapabilityToolName[],
-    ).filter((g) => g.key !== "bash"),
-  );
-
-  #toolGroupEnabled(group: CapabilityToolGroup): boolean {
-    const tools = this.props.configuration?.resolution.settings.tools;
-    return group.names.every(
-      (name) =>
-        name === "bash" ||
-        (tools?.[name] &&
-          "enabled" in tools[name]! &&
-          tools[name]!.enabled === true),
-    );
-  }
-
-  readonly #toolCount = $derived.by(() => {
-    const groups = this.#toolGroups.filter((g) => g.key !== "subagents");
-    return `${groups.filter((g) => this.#toolGroupEnabled(g)).length}/${groups.length}`;
-  });
-
   readonly #skillCount = $derived.by(() => {
     const { configuration, skills = [] } = this.props;
     const settings = configuration?.resolution.settings.skills;
@@ -188,56 +138,32 @@ export class ComposerCapabilities {
     return `${enabled}/${skills.length}`;
   });
 
-  readonly #toolRows = $derived.by<CapabilityRow[]>(() => {
-    const { configuration, onPatch, onConfigureTool } = this.props;
-    return this.#toolGroups.map((group) => {
-      const locks = capabilityToolLocks(
-        group.names,
-        configuration?.resolution.provenance,
-      );
-      const resets = editableToolOverrideResets(
-        group.names,
-        configuration?.overrides,
-        configuration?.resolution.provenance,
-      );
-      const configurable =
-        !!onConfigureTool &&
-        group.names.some(
-          (name) => name !== "web_fetch" && name !== "subagents",
-        );
-      return {
-        key: group.key,
-        label: group.label,
-        group: "Built-in",
-        keywords: group.searchText ? [group.searchText] : undefined,
-        enabled: this.#toolGroupEnabled(group),
-        overridden: resets.length > 0,
-        lockedBy: locks.enabledBy,
-        configure: configurable
-          ? () => {
-              this.#close();
-              this.props.onConfigureTool?.(group);
-            }
-          : undefined,
-        toggle: (enabled) =>
-          onPatch?.({
-            tools: Object.fromEntries(
-              group.names.map((name) => [name, { enabled }]),
-            ),
-          }),
-        reset: () => onPatch?.({}, resets),
-      };
-    });
+  /** The delegation switch (the `subagents` tool), which gates every
+   * sub-agent launch. */
+  readonly delegationRow = $derived.by<CapabilityRow | undefined>(() => {
+    const { configuration, onPatch } = this.props;
+    const tools = configuration?.resolution.settings.tools;
+    if (!tools || !("subagents" in tools)) return undefined;
+    const names = ["subagents"];
+    const subagents = tools.subagents;
+    const resets = editableToolOverrideResets(
+      names,
+      configuration.overrides,
+      configuration.resolution.provenance,
+    );
+    return {
+      key: "subagents",
+      label: "Delegation",
+      group: "Built-in",
+      enabled:
+        !!subagents && "enabled" in subagents && subagents.enabled === true,
+      overridden: resets.length > 0,
+      lockedBy: capabilityToolLocks(names, configuration.resolution.provenance)
+        .enabledBy,
+      toggle: (enabled) => onPatch?.({ tools: { subagents: { enabled } } }),
+      reset: () => onPatch?.({}, resets),
+    };
   });
-
-  readonly toolRows = $derived(
-    this.#toolRows.filter((r) => r.key !== "subagents"),
-  );
-
-  /** The delegation switch, which gates every sub-agent launch. */
-  readonly delegationRow = $derived(
-    this.#toolRows.find((r) => r.key === "subagents"),
-  );
 
   readonly skillRows = $derived.by<CapabilityRow[]>(() => {
     const { configuration, skills = [], onPatch } = this.props;
@@ -269,44 +195,6 @@ export class ComposerCapabilities {
           provenance?.source === "requirement" ? provenance.profile : undefined,
         toggle: (enabled) =>
           onPatch?.({ skills: { [kind]: { [skill.name]: enabled } } }),
-        reset: () => onPatch?.({}, [`/overrides${pointer}`]),
-      };
-    });
-  });
-
-  #mcpEnabled(server: CapabilityMcpServer): boolean {
-    return (
-      this.props.configuration?.resolution.settings.mcpServers?.servers?.[
-        server.name
-      ] ?? server.enabled
-    );
-  }
-
-  readonly #mcpCount = $derived.by(() => {
-    const servers = this.props.mcpServers ?? [];
-    return `${servers.filter((server) => this.#mcpEnabled(server)).length}/${servers.length}`;
-  });
-
-  readonly mcpRows = $derived.by<CapabilityRow[]>(() => {
-    const { configuration, mcpServers = [], onPatch } = this.props;
-    return mcpServers.map((server) => {
-      const pointer = `/mcpServers/servers/${escape(server.name)}`;
-      const provenance = configuration?.resolution.provenance[pointer];
-      return {
-        key: `${server.scope}:${server.name}`,
-        label: server.name,
-        group: server.scope === "project" ? "Project" : "User",
-        detail: server.description,
-        keywords: server.description ? [server.description] : undefined,
-        enabled: this.#mcpEnabled(server),
-        overridden:
-          configuration?.overrides.mcpServers?.servers?.[server.name] !==
-            undefined && provenance?.source !== "requirement",
-        icon: server.scope === "project" ? Folder : User,
-        lockedBy:
-          provenance?.source === "requirement" ? provenance.profile : undefined,
-        toggle: (enabled) =>
-          onPatch?.({ mcpServers: { servers: { [server.name]: enabled } } }),
         reset: () => onPatch?.({}, [`/overrides${pointer}`]),
       };
     });
@@ -359,27 +247,11 @@ export class ComposerCapabilities {
       : undefined;
     return [
       {
-        kind: "tools",
-        title: "Tools",
-        icon: Wrench,
-        count: this.#toolCount,
-      },
-      {
         kind: "skills",
         title: "Skills",
         icon: BookOpen,
         count: this.#skillCount,
       },
-      ...(this.props.mcpServers?.length
-        ? [
-            {
-              kind: "mcp" as const,
-              title: "MCP servers",
-              icon: Plug,
-              count: this.#mcpCount,
-            },
-          ]
-        : []),
       {
         kind: "subagents",
         title: "Sub-agents",
@@ -390,13 +262,7 @@ export class ComposerCapabilities {
   });
 
   rows(kind: CapabilityKind): CapabilityRow[] {
-    return kind === "tools"
-      ? this.toolRows
-      : kind === "skills"
-        ? this.skillRows
-        : kind === "mcp"
-          ? this.mcpRows
-          : this.subagentRows;
+    return kind === "skills" ? this.skillRows : this.subagentRows;
   }
 
   rowDisabled(row: CapabilityRow): boolean {

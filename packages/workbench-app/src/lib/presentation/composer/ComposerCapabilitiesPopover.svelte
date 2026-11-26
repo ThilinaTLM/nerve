@@ -13,7 +13,7 @@ let props: ComposerCapabilityProps & {
 } = $props();
 
 let open = $state(false);
-let tab = $state<CapabilityKind>("tools");
+let tab = $state<CapabilityKind>("skills");
 const capabilities = new ComposerCapabilities(
   () => props,
   () => (open = false),

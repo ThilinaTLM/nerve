@@ -22,7 +22,7 @@ import type {
   ComposerCapabilities,
 } from "./composer-capabilities.svelte.js";
 
-/** One capability list (tools, skills or sub-agents), shared by the toolbar
+/** One capability list (skills or sub-agents), shared by the toolbar
  * capability popovers and the compact conversation-settings panel. Refreshes
  * the capabilities each time it opens. */
 let {
@@ -43,12 +43,8 @@ const section = $derived(
   capabilities.sections.find((candidate) => candidate.kind === kind)!,
 );
 const rows = $derived(capabilities.rows(kind));
-/** The section title inside a sentence: lowercase unless it holds an acronym (MCP). */
-const noun = $derived(
-  /[A-Z]/.test(section.title.slice(1))
-    ? section.title
-    : section.title.toLowerCase(),
-);
+/** The section title inside a sentence. */
+const noun = $derived(section.title.toLowerCase());
 
 onMount(() => capabilities.props.onRefresh?.());
 </script>
@@ -156,8 +152,8 @@ onMount(() => capabilities.props.onRefresh?.());
     <Button
       size="icon-sm"
       variant="ghost"
-      ariaLabel={`Open ${kind === "subagents" ? "sub-agent" : kind === "mcp" ? "MCP" : kind} settings`}
-      title={`Open ${kind === "subagents" ? "sub-agent" : kind === "mcp" ? "MCP" : kind} settings`}
+      ariaLabel={`Open ${kind === "subagents" ? "sub-agent" : kind} settings`}
+      title={`Open ${kind === "subagents" ? "sub-agent" : kind} settings`}
       onclick={() => capabilities.openSettings(kind)}
     >
       <Settings class="size-3.5" aria-hidden="true" />
@@ -180,10 +176,7 @@ onMount(() => capabilities.props.onRefresh?.());
     <PopoverBody>
       {#if inputs.subagentControlsEnabled}
         {#if capabilities.delegationRow}
-          {@render capabilityRow(
-            { ...capabilities.delegationRow, label: "Delegation" },
-            true,
-          )}
+          {@render capabilityRow(capabilities.delegationRow, true)}
         {:else}
           <p class="px-1.5 text-warning">Delegation is unavailable here.</p>
         {/if}
@@ -205,13 +198,9 @@ onMount(() => capabilities.props.onRefresh?.());
     isDisabled={(row) => capabilities.rowDisabled(row)}
     onChoose={(row) => capabilities.toggleRow(row)}
     empty={rows.length === 0
-      ? kind === "tools"
-        ? "No optional tools are available."
-        : kind === "skills"
-          ? "No skills are available for this project."
-          : kind === "mcp"
-            ? "No MCP servers are available for this project."
-            : "No sub-agent profiles are available."
+      ? kind === "skills"
+        ? "No skills are available for this project."
+        : "No sub-agent profiles are available."
       : `No ${noun} match.`}
   >
     {#snippet row(item)}

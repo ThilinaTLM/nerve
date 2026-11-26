@@ -5,7 +5,6 @@ import {
   filterCapabilityRows,
   showCapabilitySearch,
 } from "./capability-list";
-import { capabilityToolGroupsFor } from "./capability-tool-labels";
 
 describe("showCapabilitySearch", () => {
   it("stays hidden for a short active list, including the threshold", () => {
@@ -36,21 +35,6 @@ describe("capabilityBodyHeight", () => {
     assert.equal(capabilityBodyHeight(6, 2), "11rem");
     assert.equal(capabilityBodyHeight(7, 14), "16.25rem");
     assert.equal(capabilityBodyHeight(7, 120), capabilityBodyHeight(9, 9));
-  });
-});
-
-describe("tool groups", () => {
-  it("lists delegation and shell as their own groups", () => {
-    const groups = capabilityToolGroupsFor([
-      "subagents",
-      "web_search",
-      "web_fetch",
-      "bash",
-    ]);
-    assert.deepEqual(
-      groups.map((group) => group.key),
-      ["subagents", "web_search", "web_fetch", "bash"],
-    );
   });
 });
 
