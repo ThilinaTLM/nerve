@@ -34,7 +34,11 @@ async function service() {
           : {}),
       };
       hits.push(hit);
-      const answer = answers.get(hit.path)?.(hit) ?? { status: 404, json: {} };
+      const handler = answers.get(hit.path);
+      const answer =
+        typeof handler === "function"
+          ? handler(hit)
+          : { status: 404, json: {} };
       response.writeHead(answer.status ?? 200, {
         "content-type": "application/json",
       });
