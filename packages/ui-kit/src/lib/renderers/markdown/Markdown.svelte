@@ -885,7 +885,6 @@ $effect(() => () => {
   background: var(--hover);
 }
 
-
 .markdown :global(th) {
   position: sticky;
   top: 0;
