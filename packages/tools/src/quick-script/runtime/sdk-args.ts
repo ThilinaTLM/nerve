@@ -16,7 +16,10 @@ type MethodBody<P> = {
   risk: MethodRisk;
   signature: string;
   authorize?(parsed: P, env: SdkEnvironment): MethodAuthorization | undefined;
-  authorizeAlso?(parsed: P, env: SdkEnvironment): MethodAuthorization[];
+  authorizeAlso?(
+    parsed: P,
+    env: SdkEnvironment,
+  ): MethodAuthorization[] | Promise<MethodAuthorization[]>;
   /** Resource named by a 403; defaults to the authorization summary. */
   resource?(parsed: P): string;
   run(parsed: P, env: SdkEnvironment): Promise<unknown>;
@@ -56,9 +59,9 @@ function build<P>(
         declared && toNestedCheck(declared, operation, definition.risk);
       return {
         authorization,
-        additionalAuthorizations: definition
-          .authorizeAlso?.(parsed, env)
-          .map((also) => toNestedCheck(also, operation, definition.risk)),
+        additionalAuthorizations: (
+          await definition.authorizeAlso?.(parsed, env)
+        )?.map((also) => toNestedCheck(also, operation, definition.risk)),
         resource: definition.resource?.(parsed) ?? authorization?.summary ?? "",
         run: (env) => definition.run(parsed, env),
       };
@@ -92,7 +95,7 @@ export function defineMethod<P>(
   );
 }
 
-/** Positional exceptions (`files.*`, `request`), documented as such. */
+/** Positional exceptions (`request`, `sdk.search`), documented as such. */
 export function definePositionalMethod<P>(
   definition: MethodBody<P> & {
     maxArgs: number;

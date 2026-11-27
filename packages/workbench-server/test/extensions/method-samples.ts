@@ -5,15 +5,24 @@ export const SAMPLES: Record<string, unknown[][]> = {
   ...ATLASSIAN_SAMPLES,
   "imagegen.generate": [[{ prompt: "a red square" }]],
   "diagram.render": [[{ type: "mermaid", source: "graph TD; A-->B" }]],
-  "files.list": [[]],
-  "files.read": [["artifact:a.txt"], ["notes.txt"]],
-  "files.write": [
-    ["a.txt", { text: "x" }],
-    ["a.txt", { text: "x" }, { workspace: true }],
-  ],
+  "files.list": [["*.ts"], [{ glob: "src/**/*.ts", path: ".", limit: 10 }]],
+  "files.search": [["TODO"], [{ pattern: "a", literal: true, glob: "*.md" }]],
+  "files.read": [["notes.txt"], [{ path: "notes.txt", as: "bytes" }]],
+  "files.write": [[{ path: "notes.txt", data: { text: "x" } }]],
   "files.edit": [
-    ["artifact:a.txt", [{ oldText: "a", newText: "b" }]],
-    ["notes.txt", [{ oldText: "a", newText: "b" }]],
+    [{ edits: [{ path: "notes.txt", oldText: "a", newText: "b" }] }],
+    [
+      {
+        edits: [{ path: "notes.txt", insertAfter: "a", text: "b" }],
+        dryRun: true,
+      },
+    ],
+  ],
+  "artifacts.list": [[]],
+  "artifacts.read": [["a.txt"], [{ name: "artifact:a.txt", as: "bytes" }]],
+  "artifacts.write": [[{ name: "a.txt", data: { text: "x" } }]],
+  "artifacts.edit": [
+    [{ name: "a.txt", edits: [{ oldText: "a", newText: "b" }] }],
   ],
   "image.info": [[{ file: "a.png", ops: {} }]],
   "image.save": [[{ file: "a.png", ops: {}, name: "b.png" }]],

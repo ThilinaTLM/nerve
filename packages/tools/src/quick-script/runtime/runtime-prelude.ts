@@ -2,8 +2,8 @@ import { SANDBOX_GLOBALS } from "./sandbox-globals.js";
 
 /**
  * Trusted sandbox code around the generated SDK: error decoding, base64 for
- * binary data on the JSON bridge, `return` printing, and the positional
- * wrappers for `files.*` and the `image(handle)` chain. Pieces are spliced
+ * binary data on the JSON bridge, `return` printing, the bridge wrappers
+ * for `files.*` and `artifacts.*`, and the `image(handle)` chain. Pieces are spliced
  * around the generated product objects (see sdk.ts) inside one function scope.
  */
 
@@ -70,20 +70,26 @@ ${SANDBOX_GLOBALS}
 
 /** `guarded` are the namespace globals that fail with the valid names on a misspelled method; they come from the registry. */
 export const runtimeTail = (guarded: readonly string[]) => String.raw`
-  const filesRead = files.read;
-  const filesWrite = files.write;
-  files.read = async (handle, options) => {
-    const result = await filesRead(handle, options);
-    return typeof result === "string" ? result : b64decode(result.data);
+  // Bytes cross the JSON bridge as base64 and regexes as source + flags.
+  const fromBridge = (result) => typeof result === "string" ? result : b64decode(result.data);
+  const toBridge = (data, method) => {
+    if (typeof data === "string") return { text: data };
+    if (data instanceof ArrayBuffer) return { base64: b64encode(new Uint8Array(data)) };
+    if (ArrayBuffer.isView(data)) return { base64: b64encode(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)) };
+    throw new TypeError(method + ": data must be a string, Uint8Array or ArrayBuffer");
   };
-  files.write = (name, data, options) => {
-    let payload;
-    if (typeof data === "string") payload = { text: data };
-    else if (data instanceof ArrayBuffer) payload = { base64: b64encode(new Uint8Array(data)) };
-    else if (ArrayBuffer.isView(data)) payload = { base64: b64encode(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)) };
-    else throw new TypeError("files.write: data must be a string, Uint8Array or ArrayBuffer");
-    return filesWrite(name, payload, options);
-  };
+  const withOptions = (options, map) => options !== null && typeof options === "object" && !Array.isArray(options) ? map(options) : options;
+  const bridgeEdits = (edits) => Array.isArray(edits)
+    ? edits.map((edit) => edit && edit.pattern instanceof RegExp
+      ? { ...edit, pattern: edit.pattern.source, flags: edit.flags ?? edit.pattern.flags }
+      : edit)
+    : edits;
+  for (const [namespace, label] of [[files, "files"], [artifacts, "artifacts"]]) {
+    const read = namespace.read, write = namespace.write, edit = namespace.edit;
+    namespace.read = async (...args) => fromBridge(await read(...args));
+    namespace.write = (options, ...rest) => write(withOptions(options, (o) => ({ ...o, data: toBridge(o.data, label + ".write") })), ...rest);
+    namespace.edit = (options, ...rest) => edit(withOptions(options, (o) => ({ ...o, edits: bridgeEdits(o.edits) })), ...rest);
+  }
 
   // image(handle).resize(...).crop(...).png() | .jpeg(...) then .info() / .save(name); work happens host-side.
   const imageHost = globalThis.image;

@@ -6,7 +6,7 @@
 
 /**
  * Runs right after mammoth loads. Accepts a Uint8Array/ArrayBuffer directly
- * (what files.read returns) and, unless the caller passes `convertImage`,
+ * (what artifacts.read and files.read return) and, unless the caller passes `convertImage`,
  * replaces inlined data-URI images with a short `[image: type]` placeholder.
  */
 export const MAMMOTH_WRAPPER = String.raw`(() => {

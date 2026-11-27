@@ -38,6 +38,9 @@ const OTHER_NAMES: Record<string, string> = {
   "diagram.render": "one-job namespace",
   "extensions.reload": "re-reads files; changes nothing",
   "extensions.status": "state of the last load",
+  "artifacts.edit": "mirrors the edit tool",
+  "artifacts.read": "mirrors the read tool",
+  "artifacts.write": "mirrors the write tool",
   "files.edit": "mirrors the edit tool",
   "files.read": "mirrors the read tool",
   "files.write": "mirrors the write tool",
@@ -73,11 +76,8 @@ const SINGULAR_GROUPS: Record<string, string> = {
   "jira.adf": "a format, not a collection",
 };
 
-/** Methods with positional arguments; the description names them (`files.*`, `request`, `sdk.search`). */
+/** Methods with positional arguments; the description names them (`request`, `sdk.search`). */
 const POSITIONAL = new Set([
-  "files.read",
-  "files.write",
-  "files.edit",
   "jira.request",
   "confluence.request",
   "sdk.search",

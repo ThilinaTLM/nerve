@@ -51,15 +51,15 @@ void test("document libraries load only for scripts that mention them", () => {
   assert.doesNotMatch(pptx, /"docx"/);
 });
 
-void test("docx and pptx survive files.write -> files.read and read back through mammoth and pptxText", async () => {
+void test("docx and pptx survive artifacts.write -> artifacts.read and read back through mammoth and pptxText", async () => {
   const { run } = await setup();
   const result = await run(`
     const doc = new docx.Document({ sections: [{ children: [
       new docx.Paragraph({ text: "Quarterly report", heading: docx.HeadingLevel.HEADING_1 }),
       new docx.Paragraph({ children: [new docx.TextRun("Revenue grew — naïve café ✓")] }),
     ] }] });
-    const word = await files.write("report.docx", await docx.Packer.pack(doc, "uint8array"));
-    const wordBytes = await files.read(word, { as: "bytes" });
+    const word = await artifacts.write({ name: "report.docx", data: await docx.Packer.pack(doc, "uint8array") });
+    const wordBytes = await artifacts.read({ name: word, as: "bytes" });
     const html = await mammoth.convertToHtml(wordBytes);
     const raw = await mammoth.extractRawText(wordBytes);
     console.log(html.value);
@@ -70,8 +70,8 @@ void test("docx and pptx survive files.write -> files.read and read back through
     const second = deck.addSlide();
     second.addText("Second slide", { x: 1, y: 1, w: 6, h: 1 });
     second.addNotes("Speaker says hi");
-    const slides = await files.write("deck.pptx", await deck.write({ outputType: "uint8array" }));
-    console.log(JSON.stringify(await pptxText(await files.read(slides, { as: "bytes" }))));
+    const slides = await artifacts.write({ name: "deck.pptx", data: await deck.write({ outputType: "uint8array" }) });
+    console.log(JSON.stringify(await pptxText(await artifacts.read({ name: slides, as: "bytes" }))));
   `);
 
   const text = result.content ?? "";

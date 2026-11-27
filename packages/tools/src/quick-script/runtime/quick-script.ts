@@ -30,11 +30,15 @@ import {
   sdkMethodNames,
   wrapScript,
 } from "./sdk.js";
+import {
+  SCRIPT_MAX_SDK_CALLS,
+  SCRIPT_MEMORY_BYTES,
+  SCRIPT_OUTPUT_BYTES,
+} from "../limits.js";
 
 const DEFAULT_TIMEOUT_SECONDS = 120;
 /** How long calls aborted at the end of a run get to settle before the result is built. */
 const SETTLE_GRACE_MS = 3000;
-const MEMORY_LIMIT_BYTES = 256 * 1024 * 1024;
 const MAX_TIMEOUT_SECONDS = 600;
 export const MAX_CODE_CHARS = 100_000;
 
@@ -113,6 +117,9 @@ export async function executeQuickScript(
       typescript: true,
       preludes: preludesFor(code, registry),
       timeoutMs: clampTimeoutSeconds(args.timeout) * 1000,
+      memoryBytes: SCRIPT_MEMORY_BYTES,
+      maxHostCalls: SCRIPT_MAX_SDK_CALLS,
+      maxOutputBytes: SCRIPT_OUTPUT_BYTES,
       signal: stop.signal,
       // Timer waits are bounded by the script timeout, so they do not use up the host-call cap.
       uncountedHostMethods: [SLEEP_METHOD],
@@ -261,7 +268,7 @@ export async function executeQuickScript(
   const error =
     authFailure ??
     (memoryExceeded
-      ? `script exceeded the ${MEMORY_LIMIT_BYTES / (1024 * 1024)} MiB memory limit`
+      ? `script exceeded the ${SCRIPT_MEMORY_BYTES / (1024 * 1024)} MiB memory limit`
       : outcome.error
         ? scriptError(outcome.error, code)
         : undefined);

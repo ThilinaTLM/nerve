@@ -44,6 +44,8 @@ function brokerableDirectTool(toolName: string): boolean {
     toolName === "read" ||
     toolName === "write" ||
     toolName === "edit" ||
+    toolName === "find" ||
+    toolName === "grep" ||
     toolName === "web_fetch"
   );
 }

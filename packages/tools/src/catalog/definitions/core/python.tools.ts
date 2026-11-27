@@ -33,7 +33,7 @@ export const pythonToolDefinitions = [
     executor: executePython,
     label: "python_exec",
     description:
-      "Run Python from `code` or a script `path`; output is bounded. Save large outputs under `$NERVE_PYTHON_ARTIFACT_DIR`. Not for long-lived or interactive processes.",
+      "Run Python from `code` or a script `path`; output is bounded. Save large outputs under `$NERVE_PYTHON_ARTIFACT_DIR`. Not for long-lived or interactive processes; for multi-file or pattern edits use quick_script `files.edit`.",
     parameters: pythonParameters,
     executionMode: "sequential",
   },

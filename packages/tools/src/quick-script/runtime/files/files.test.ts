@@ -53,17 +53,17 @@ async function setup() {
   return { cwd, artifactDir, authorized, run };
 }
 
-void test("files.write/read/list round-trip text and bytes through artifacts without authorization", async () => {
+void test("artifacts.write/read/list round-trip text and bytes without authorization", async () => {
   const { artifactDir, authorized, run } = await setup();
   const result = await run(`
     const bytes = new Uint8Array(300).map((_, i) => i % 256);
-    const a = await files.write("data.bin", bytes);
-    const b = await files.write("note.txt", "héllo");
-    const c = await files.write("buf.bin", bytes.buffer);
-    const back = await files.read(a, { as: "bytes" });
+    const a = await artifacts.write({ name: "data.bin", data: bytes });
+    const b = await artifacts.write({ name: "note.txt", data: "héllo" });
+    const c = await artifacts.write({ name: "buf.bin", data: bytes.buffer });
+    const back = await artifacts.read({ name: a, as: "bytes" });
     console.log(a, b, c, back.constructor.name, back.length, back.every((v, i) => v === i % 256));
-    console.log(await files.read("artifact:note.txt"));
-    return await files.list();
+    console.log(await artifacts.read("note.txt"));
+    return await artifacts.list();
   `);
   const lines = (result.content ?? "").split("\n");
   assert.equal(
@@ -97,13 +97,13 @@ void test("artifact names are safe and sizes are capped", async () => {
   await writeFile(join(artifactDir, "big.bin"), Buffer.alloc(21 * 1024 * 1024));
   const result = await run(`
     for (const name of ["../escape.txt", "a/b.txt", ".hidden", "", " lead.txt", "x".repeat(200)]) {
-      try { await files.write(name, "x"); console.log("written", name); }
+      try { await artifacts.write({ name, data: "x" }); console.log("written", name); }
       catch (e) { console.log("rejected", JSON.stringify(name).slice(0, 20)); }
     }
     for (const attempt of [
-      () => files.read("artifact:../x"),
-      () => files.read("artifact:big.bin", { as: "bytes" }),
-      () => files.write("huge.txt", "a".repeat(21 * 1024 * 1024)),
+      () => artifacts.read("artifact:../x"),
+      () => artifacts.read({ name: "big.bin", as: "bytes" }),
+      () => artifacts.write({ name: "huge.txt", data: "a".repeat(21 * 1024 * 1024) }),
     ]) {
       try { await attempt(); console.log("no error"); } catch (e) { console.log(e.message.slice(0, 70)); }
     }
@@ -119,16 +119,19 @@ void test("artifact names are safe and sizes are capped", async () => {
   assert.deepEqual(await readdir(artifactDir), ["big.bin"]);
 });
 
-void test("workspace files are authorized as read/write; escaping names cannot reach artifacts", async () => {
+void test("workspace files are authorized as read/write and named relative to the cwd", async () => {
   const { cwd, authorized, run } = await setup();
   await writeFile(join(cwd, "in.txt"), "workspace text");
   const result = await run(`
     console.log(await files.read("in.txt"));
-    console.log(await files.write("out/report.txt", "done", { workspace: true }));
+    console.log(await files.write({ path: "out/report.txt", data: "done" }));
+    try { await files.read("artifact:x.txt"); } catch (e) { console.log(e.message); }
   `);
   const lines = (result.content ?? "").split("\n");
   assert.equal(lines[0], "workspace text");
-  assert.equal(lines[1], join(cwd, "out/report.txt"));
+  assert.equal(lines[1], "out/report.txt");
+  assert.match(lines[2], /artifact:x\.txt is an artifact; use artifacts\.\*/);
+  assert.match(result.content ?? "", /Created: file out\/report\.txt/);
   assert.equal(await readFile(join(cwd, "out/report.txt"), "utf8"), "done");
   assert.deepEqual(authorized, [
     { toolName: "read", args: { path: join(cwd, "in.txt") } },
@@ -140,10 +143,10 @@ void test("workspace files are authorized as read/write; escaping names cannot r
   assert.doesNotMatch(result.content ?? "", /Artifacts:/);
 });
 
-void test("files.* needs an artifact folder", async () => {
+void test("artifacts.* needs an artifact folder", async () => {
   const result = await executeQuickScript(
     {
-      code: `try { await files.list(); } catch (e) { console.log(e.message); }`,
+      code: `try { await artifacts.list(); } catch (e) { console.log(e.message); }`,
     },
     { cwd: process.cwd(), registry },
   );
@@ -201,8 +204,8 @@ void test("XLSX and Papa work in the sandbox and load only for scripts that ment
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{ a: 1, b: "x" }, { a: 2, b: "y" }]), "Data");
     const out = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
-    const handle = await files.write("table.xlsx", out);
-    const bytes = await files.read(handle, { as: "bytes" });
+    const handle = await artifacts.write({ name: "table.xlsx", data: out });
+    const bytes = await artifacts.read({ name: handle, as: "bytes" });
     const back = XLSX.read(bytes, { type: "array" });
     console.log(JSON.stringify(XLSX.utils.sheet_to_json(back.Sheets.Data)));
     const csv = Papa.unparse([{ a: 1, b: "x,y" }]);
@@ -216,63 +219,60 @@ void test("XLSX and Papa work in the sandbox and load only for scripts that ment
   assert.match(plain.content ?? "", /^object\nexit 0(?: · \S+)?$/);
 });
 
-void test("files.write accepts a name or an artifact handle and keeps Unicode names", async () => {
+void test("artifacts.write accepts a name or an artifact handle and keeps Unicode names", async () => {
   const { artifactDir, run } = await setup();
   const result = await run(`
-    const a = await files.write("artifact:a.txt", "one");
-    const b = await files.write("résumé 日本.md", "two");
-    console.log(a, b, await files.read(b));
-    try { await files.write("artifact:x.txt", "y", { workspace: true }); } catch (e) { console.log(e.message); }
-    try { await files.read("artifact:nope.txt"); } catch (e) { console.log(e.message); }
-    try { await files.read("artifact:nope.txt"); } catch (e) { console.log(e.code); }
+    const a = await artifacts.write({ name: "artifact:a.txt", data: "one" });
+    const b = await artifacts.write({ name: "résumé 日本.md", data: "two" });
+    console.log(a, b, await artifacts.read(b));
+    try { await artifacts.write({ name: "out/x.txt", data: "y" }); } catch (e) { console.log(e.message); }
+    try { await artifacts.read("nope.txt"); } catch (e) { console.log(e.message); }
+    try { await artifacts.read("nope.txt"); } catch (e) { console.log(e.code); }
   `);
   const lines = (result.content ?? "").split("\n");
   assert.equal(lines[0], "artifact:a.txt artifact:résumé 日本.md two");
-  assert.match(lines[1], /is an artifact handle/);
+  assert.match(lines[1], /For a workspace file use files\.\* instead/);
   assert.equal(
     lines[2],
-    'artifact "nope.txt" not found; files.list() shows: a.txt, résumé 日本.md',
+    'artifact "nope.txt" not found; artifacts.list() shows: a.txt, résumé 日本.md',
   );
+  assert.equal(lines[3], "NOT_FOUND");
   assert.deepEqual((await readdir(artifactDir)).sort(), [
     "a.txt",
     "résumé 日本.md",
   ]);
 });
 
-void test("files.edit applies exact unique edits atomically to artifacts and authorizes workspace paths as edit", async () => {
-  const { cwd, artifactDir, authorized, run } = await setup();
-  await writeFile(join(cwd, "src.txt"), "alpha beta");
+void test("artifacts.edit applies edits in order without authorization; a mismatch changes nothing", async () => {
+  const { artifactDir, authorized, run } = await setup();
   const result = await run(`
-    await files.write("doc.md", "one two two\\nthree");
-    console.log(await files.edit("artifact:doc.md", [{ oldText: "one", newText: "1" }, { oldText: "three", newText: "3" }]));
-    for (const edits of [[{ oldText: "two", newText: "2" }], [{ oldText: "zzz", newText: "2" }, { oldText: "1", newText: "x" }]]) {
-      try { await files.edit("artifact:doc.md", edits); } catch (e) { console.log(e.message.split("\\n")[0]); }
+    await artifacts.write({ name: "doc.md", data: "one two two two\\nthree" });
+    const done = await artifacts.edit({ name: "doc.md", edits: [{ oldText: "one", newText: "1" }, { oldText: "1 two", newText: "x" }] });
+    console.log(JSON.stringify(done.files));
+    for (const edits of [[{ oldText: "two", newText: "2" }], [{ oldText: "three", newText: "3" }, { oldText: "zzz", newText: "2" }]]) {
+      try { await artifacts.edit({ name: "doc.md", edits }); } catch (e) { console.log(e.message.split("\\n")[0]); }
     }
-    try { await files.edit("artifact:missing.md", [{ oldText: "a", newText: "b" }]); } catch (e) { console.log(e.message); }
-    console.log(await files.read("artifact:doc.md"));
-    console.log(await files.edit("src.txt", [{ oldText: "beta", newText: "gamma" }]));
+    try { await artifacts.edit({ name: "missing.md", edits: [{ oldText: "a", newText: "b" }] }); } catch (e) { console.log(e.message); }
   `);
   const lines = (result.content ?? "").split("\n");
-  assert.equal(lines[0], "artifact:doc.md");
-  assert.match(lines[1], /matched 2 times/);
-  assert.match(lines[2], /edits\[0\]\.oldText was not found/);
+  assert.deepEqual(JSON.parse(lines[0]), [
+    {
+      path: "artifact:doc.md",
+      changed: true,
+      edits: [
+        { index: 0, matches: 1 },
+        { index: 1, matches: 1 },
+      ],
+    },
+  ]);
+  assert.match(lines[1], /edits\[0\]\.oldText matched 2 times/);
+  assert.match(lines[2], /edits\[1\]\.oldText was not found/);
   assert.match(lines[3], /^artifact "missing.md" not found/);
-  assert.equal(lines[4], "1 two two");
-  assert.equal(lines[5], "3");
-  assert.equal(lines[6], join(cwd, "src.txt"));
   assert.equal(
     await readFile(join(artifactDir, "doc.md"), "utf8"),
-    "1 two two\n3",
+    "x two two\nthree",
   );
-  assert.equal(await readFile(join(cwd, "src.txt"), "utf8"), "alpha gamma");
-  assert.deepEqual(
-    authorized.map((r) => r.toolName),
-    ["edit"],
-  );
-  assert.match(
-    result.content ?? "",
-    /Artifacts: artifact:doc\.md \(\d+ B\) in /,
-  );
+  assert.deepEqual(authorized, []);
 });
 
 void test("errors never show host paths", async () => {

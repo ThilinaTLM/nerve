@@ -165,7 +165,7 @@ void test("docs: index with whenToRead, one topic, unknown topic", async () => {
     await call("sdk.docs", "jira"),
     /- jira\/workflows: before creating or updating issues/,
   );
-  assert.match(await call("sdk.docs", "files/handles"), /20 MiB/);
+  assert.match(await call("sdk.docs", "artifacts/handles"), /20 MiB/);
   assert.match(await call("sdk.docs"), /- diagram\/render:/);
   assert.doesNotMatch(await call("sdk.docs"), /confluence\/writing/);
   await assert.rejects(

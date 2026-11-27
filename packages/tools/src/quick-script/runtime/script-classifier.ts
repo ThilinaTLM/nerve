@@ -8,11 +8,9 @@ import type { QuickScriptRegistry } from "../registry.js";
 import {
   callArguments,
   callTargets,
-  editsWorkspace,
   literalValue,
   NOT_LITERAL,
   scanOptionsValue,
-  writesWorkspace,
 } from "./script-literals.js";
 import { sdkGlobals } from "./sdk-globals.js";
 import { createSdkEnvironment, findSdkMethod } from "./sdk.js";
@@ -42,7 +40,7 @@ export type QuickScriptClassification = {
   /**
    * Every call with an effect is one of `calls`: nothing unanalysable (aliasing,
    * `eval`, a computed request method) and nothing checked as a direct tool
-   * (`web.*`, workspace `files.*`, `image`). Only then may operation rules admit
+   * (`web.*`, `files.*`, `image`). Only then may operation rules admit
    * the script.
    */
   admissible: boolean;
@@ -69,9 +67,6 @@ export function summarizeScannedCalls(
   }
   return [...byOperation.values()];
 }
-
-/** Methods whose risk depends on a literal argument. */
-const ARGUMENT_DEPENDENT = new Set(["files.write", "files.edit"]);
 
 /** Ways to reach an SDK global or run code without naming it. */
 const ESCAPES = new Set([
@@ -243,16 +238,6 @@ async function classifyTokens(
     }
     const args = callArguments(tokens, j);
     const targets = callTargets(args);
-    if (ARGUMENT_DEPENDENT.has(name)) {
-      if (name === "files.write") {
-        if (writesWorkspace(args))
-          record(`${name} (workspace)`, "workspace_write", targets);
-      } else if (name === "files.edit") {
-        if (editsWorkspace(args))
-          record(`${name} (workspace)`, "workspace_write", targets);
-      }
-      continue;
-    }
     const methodRisk = quickScriptRiskOfMethod(method.risk);
     if (method.risk === "none") record(name, methodRisk, targets, "none");
     else if (DIRECT_PRODUCTS.has(method.product) || method.directTool)
