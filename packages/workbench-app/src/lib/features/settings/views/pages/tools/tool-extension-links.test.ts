@@ -154,7 +154,7 @@ describe("tool rows backed by extensions", () => {
     });
     assert.equal(
       toolExtensionState("quick_script", [ok], accounts)?.summary,
-      "files, image, diagram",
+      "files, artifacts, image, diagram",
     );
     const broken = extension("atlassian", {
       availability: {
