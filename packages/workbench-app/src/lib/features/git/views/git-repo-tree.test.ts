@@ -137,6 +137,8 @@ test("branch names keep the start and the last ten characters", () => {
     head: "hotfix/1.4.2-abc",
     tail: "",
   });
+  // A short head would be narrower than its min width and leave a gap.
+  assert.equal(splitBranchName("chore/pi-ai-1.6.1").tail, "");
   const long = splitBranchName(
     "feature/NRV-2481-add-oauth-token-refresh-for-mobile-clients",
   );

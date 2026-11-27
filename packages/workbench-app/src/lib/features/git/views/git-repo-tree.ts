@@ -154,7 +154,8 @@ export function collapsedSummary(
 
 // ---- Branch names --------------------------------------------------------------
 
-const KEEP_LEADING = 6;
+/** The head must stay wider than its CSS `min-w-[6ch]`, or the gap shows. */
+const KEEP_LEADING = 12;
 const KEEP_TRAILING = 10;
 
 /**
