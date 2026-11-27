@@ -10,6 +10,7 @@ import * as api from "@nervekit/extension-api";
 import { createContext, runInContext } from "node:vm";
 import { buildExtension } from "../src/build.ts";
 import { ExtensionProjectError } from "../src/problems.ts";
+import { removeTree } from "@nervekit/test-kit";
 
 const examples = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -57,7 +58,7 @@ async function loadProvider(id: string, now?: number): Promise<Provider> {
     return (sandbox as { __nerveCredentialProvider: Provider })
       .__nerveCredentialProvider;
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 }
 
@@ -218,7 +219,7 @@ async function inTemp<T>(run: (root: string) => Promise<T>): Promise<T> {
   try {
     return await run(root);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 }
 

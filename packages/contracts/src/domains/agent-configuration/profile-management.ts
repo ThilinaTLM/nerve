@@ -1,5 +1,6 @@
 import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
+import { sourceSchema } from "../core/scope.js";
 import { defineOperation } from "../../operations/definition.js";
 import {
   profileDefinitionSchema,
@@ -15,7 +16,7 @@ import {
 
 export const profileCatalogEntrySchema = z.strictObject({
   name: profileDefinitionSchema.shape.name,
-  source: z.enum(["builtin", "user", "project"]),
+  source: sourceSchema,
   path: z.string(),
   digest: z.string().min(1),
   definition: profileDefinitionSchema.nullable(),
@@ -141,7 +142,6 @@ export const scopedProfileOperationDefinitions = [
     reloadConfigurationRequestSchema,
     reloadConfigurationResultSchema,
     "mutation",
-    "none",
     host,
     "operation.agentConfiguration.reload",
   ),
@@ -150,7 +150,6 @@ export const scopedProfileOperationDefinitions = [
     listScopedProfilesRequestSchema,
     listScopedProfilesResultSchema,
     "read",
-    "none",
     host,
     "operation.agentProfiles.list",
   ),
@@ -159,7 +158,6 @@ export const scopedProfileOperationDefinitions = [
     readScopedProfileRequestSchema,
     readScopedProfileResultSchema,
     "read",
-    "none",
     host,
     "operation.agentProfiles.read",
   ),
@@ -168,7 +166,6 @@ export const scopedProfileOperationDefinitions = [
     saveScopedProfileRequestSchema,
     profileMutationResultSchema,
     "mutation",
-    "none",
     host,
     "operation.agentProfiles.save",
   ),
@@ -177,7 +174,6 @@ export const scopedProfileOperationDefinitions = [
     deleteScopedProfileRequestSchema,
     profileMutationResultSchema,
     "mutation",
-    "none",
     host,
     "operation.agentProfiles.delete",
   ),
@@ -186,7 +182,6 @@ export const scopedProfileOperationDefinitions = [
     deleteScopedProfileRequestSchema,
     profileMutationResultSchema,
     "mutation",
-    "none",
     host,
     "operation.agentProfiles.reset",
   ),
@@ -195,7 +190,6 @@ export const scopedProfileOperationDefinitions = [
     repairPreviewRequestSchema,
     repairPreviewResultSchema,
     "read",
-    "none",
     host,
     "operation.agentConfiguration.repairPreview",
   ),
@@ -204,7 +198,6 @@ export const scopedProfileOperationDefinitions = [
     repairApplyRequestSchema,
     repairApplyResultSchema,
     "mutation",
-    "none",
     host,
     "operation.agentConfiguration.repairApply",
   ),

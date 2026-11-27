@@ -1,6 +1,10 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ALLOWED_INTERNAL_DEPENDENCIES } from "./package-architecture.rules.ts";
+import {
+  ALLOWED_INTERNAL_DEPENDENCIES,
+  DEV_ONLY_DEPENDENCIES,
+  UNIVERSAL_DEPENDENCIES,
+} from "./package-architecture.rules.ts";
 import { defineRule, type Fail, type SourceInventory } from "./policy.ts";
 import {
   analyzeImports,
@@ -71,7 +75,19 @@ export function checkPackageBoundaries(
           `packages/${directory}/package.json`,
           `expected package name ${expectedName}, found ${manifest.name}`,
         );
-      const allowed = ALLOWED_INTERNAL_DEPENDENCIES.get(expectedName) ?? [];
+      const allowed = allowedDependencies(expectedName);
+      for (const dependency of DEV_ONLY_DEPENDENCIES) {
+        for (const section of [
+          "dependencies",
+          "peerDependencies",
+          "optionalDependencies",
+        ])
+          if (manifest[section]?.[dependency])
+            fail(
+              `packages/${directory}/package.json`,
+              `${dependency} is test support: declare it in devDependencies only`,
+            );
+      }
       const declared = {
         ...manifest.dependencies,
         ...manifest.devDependencies,
@@ -108,7 +124,7 @@ export function checkPackageBoundaries(
     )) {
       const packageName = packageNameForFile(file);
       if (!packageName) continue;
-      const allowed = ALLOWED_INTERNAL_DEPENDENCIES.get(packageName) ?? [];
+      const allowed = allowedDependencies(packageName);
       const imports = analyzeImports(read(file), file);
       if (
         imports.nonLiteralDynamicImports.length > 0 &&
@@ -121,7 +137,22 @@ export function checkPackageBoundaries(
           const dependency = nervePackageName(specifier);
           if (dependency !== packageName && !allowed.includes(dependency))
             fail(file, `${packageName} may not import ${specifier}`);
+          else if (
+            DEV_ONLY_DEPENDENCIES.includes(dependency) &&
+            dependency !== packageName &&
+            !isTestFile(file)
+          )
+            fail(
+              file,
+              `${specifier} is test support: import it from tests only`,
+            );
         }
+        if (
+          packageName === "@nervekit/primitives" &&
+          file.startsWith("packages/primitives/src/") &&
+          /^(node:|(fs|path|os|child_process|crypto)(\/|$))/.test(specifier)
+        )
+          fail(file, `primitives must run in browsers and Node: ${specifier}`);
         if (packageName === "@nervekit/ui-kit" && specifier.startsWith("$lib"))
           fail(file, "ui-kit may not import app $lib modules");
         if (
@@ -181,6 +212,21 @@ export function checkPackageBoundaries(
           );
       }
     }
+  }
+
+  function allowedDependencies(packageName: string) {
+    return [
+      ...(ALLOWED_INTERNAL_DEPENDENCIES.get(packageName) ?? []),
+      ...UNIVERSAL_DEPENDENCIES,
+      ...DEV_ONLY_DEPENDENCIES,
+    ];
+  }
+
+  function isTestFile(file: string) {
+    return (
+      /\.test\.(?:ts|mts|cts|tsx)$/.test(file) ||
+      /^packages\/[^/]+\/test\//.test(file)
+    );
   }
 
   function packageNameForFile(file: string) {

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import {
   mkdir,
   mkdtemp,
   readFile,
   readlink,
-  rm,
   stat,
   symlink,
   writeFile,
@@ -42,7 +42,6 @@ async function rejects(promise: Promise<unknown>, code: string) {
 }
 
 beforeEach(async () => {
-  setNativeFilesForTesting(undefined);
   clearProjectListingCache();
   const base = await mkdtemp(join(tmpdir(), "nerve-entries-"));
   root = join(base, "project");
@@ -58,7 +57,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   setNativeFilesForTesting(null);
-  await rm(join(root, ".."), { recursive: true, force: true });
+  await removeTree(join(root, ".."));
 });
 
 describe("move", () => {

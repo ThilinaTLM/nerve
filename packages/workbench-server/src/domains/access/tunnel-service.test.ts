@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { waitFor } from "@nervekit/test-kit";
 import type { TunnelStatus } from "@nervekit/contracts/access";
 import type {
   ServeOutcome,
@@ -369,12 +370,6 @@ void describe("TunnelService", () => {
   });
 
   void describe("while active", () => {
-    async function waitFor(check: () => boolean) {
-      for (let i = 0; i < 200 && !check(); i += 1)
-        await new Promise((resolve) => setTimeout(resolve, 5));
-      assert.equal(check(), true);
-    }
-
     void it("closes when Funnel appears on our target", async () => {
       const { cli, state } = fakeCli({});
       const h = harness(cli, { driftIntervalMs: 5 });

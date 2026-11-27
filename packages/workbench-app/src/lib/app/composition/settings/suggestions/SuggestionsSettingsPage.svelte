@@ -1,4 +1,5 @@
 <script lang="ts">
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import {
   PageEmptyState,
   PageHeader,
@@ -150,15 +151,10 @@ $effect(() => {
 function sourceStatuses(
   source: PromptSuggestionSourceKind,
 ): PromptSuggestionStatus[] {
-  const needle = query.trim().toLowerCase();
   return statuses
     .filter((status) => status.sourceKind === source)
-    .filter(
-      (status) =>
-        !needle ||
-        status.label.toLowerCase().includes(needle) ||
-        status.name.toLowerCase().includes(needle) ||
-        (status.description ?? "").toLowerCase().includes(needle),
+    .filter((status) =>
+      matchesTerms(query, status.label, status.name, status.description),
     )
     .toSorted(
       (left, right) =>

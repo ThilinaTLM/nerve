@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -8,6 +8,7 @@ import { after, before, test } from "node:test";
 import { executeQuickScript } from "../quick-script.js";
 import { createQuickScriptRegistry } from "../../registry.js";
 import type { QuickScriptNestedRequest } from "../../../execution/index.js";
+import { removeTree } from "@nervekit/test-kit";
 
 const registry = createQuickScriptRegistry([]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 255, 128, 13, 10]);
@@ -40,7 +41,7 @@ before(async () => {
 });
 after(async () => {
   server.close();
-  await rm(root, { recursive: true, force: true });
+  await removeTree(root);
 });
 
 async function run(code: string, allowPrivateNetwork = true) {

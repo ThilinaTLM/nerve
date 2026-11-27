@@ -1,28 +1,12 @@
 import assert from "node:assert/strict";
+import { makeTempDir } from "@nervekit/test-kit";
 import { X509Certificate } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, describe, it } from "node:test";
+import { describe, it } from "node:test";
 import { ensureMobileHttpsTlsMaterial } from "../../../src/infrastructure/tls/lan-certificate.js";
 
-const roots: string[] = [];
-
-after(async () => {
-  await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
-  );
-});
-
-async function tempHome(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "nerve-lan-cert-"));
-  roots.push(root);
-  return root;
-}
-
 describe("mobile HTTPS LAN certificate material", () => {
-  it("creates a reusable local CA and a server certificate with LAN SANs", async () => {
-    const home = await tempHome();
+  it("creates a reusable local CA and a server certificate with LAN SANs", async (t) => {
+    const home = await makeTempDir(t, "nerve-lan-cert-");
     const first = await ensureMobileHttpsTlsMaterial(home, ["192.168.1.42"]);
     const second = await ensureMobileHttpsTlsMaterial(home, ["192.168.1.42"]);
 
@@ -37,8 +21,8 @@ describe("mobile HTTPS LAN certificate material", () => {
     assert.match(cert.subjectAltName ?? "", /IP Address:127\.0\.0\.1/);
   });
 
-  it("reuses the leaf server certificate across restarts with the same hosts", async () => {
-    const home = await tempHome();
+  it("reuses the leaf server certificate across restarts with the same hosts", async (t) => {
+    const home = await makeTempDir(t, "nerve-lan-cert-");
     const first = await ensureMobileHttpsTlsMaterial(home, ["192.168.1.42"]);
     const second = await ensureMobileHttpsTlsMaterial(home, ["192.168.1.42"]);
 
@@ -47,8 +31,8 @@ describe("mobile HTTPS LAN certificate material", () => {
     assert.equal(first.caCertPem, second.caCertPem);
   });
 
-  it("rotates the leaf certificate when hosts change but keeps the CA stable", async () => {
-    const home = await tempHome();
+  it("rotates the leaf certificate when hosts change but keeps the CA stable", async (t) => {
+    const home = await makeTempDir(t, "nerve-lan-cert-");
     const first = await ensureMobileHttpsTlsMaterial(home, ["192.168.1.42"]);
     const second = await ensureMobileHttpsTlsMaterial(home, [
       "192.168.1.42",

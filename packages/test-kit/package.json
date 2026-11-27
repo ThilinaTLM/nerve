@@ -1,0 +1,28 @@
+{
+  "name": "@nervekit/test-kit",
+  "version": "0.42.0",
+  "private": true,
+  "description": "Shared Node test support: temp dirs, wait loops, manual timers and fetch stubs. Used as a devDependency only.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check": "tsc -b --pretty false",
+    "test": "tsx --test \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsx": "4.22.4",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

@@ -1,3 +1,5 @@
+import type { Layer } from "@nervekit/contracts/core";
+import type { McpTransport } from "@nervekit/contracts/mcp";
 /**
  * What a script may do with the MCP (Model Context Protocol) servers configured in the user's and
  * the project's `mcp.json`: list them, list and call their tools, and list and read their resources. The host
@@ -24,9 +26,9 @@ export type McpServerState =
 export type McpServerSummary = {
   name: string;
   description?: string;
-  transport: "stdio" | "http";
+  transport: McpTransport;
   /** Where the entry is defined: the user's mcp.json or the project's. */
-  scope: "user" | "project";
+  scope: Layer;
   state: McpServerState;
   error?: string;
   /**

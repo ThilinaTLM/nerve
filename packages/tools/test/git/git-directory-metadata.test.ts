@@ -18,6 +18,7 @@ import {
   canonicalGitIdentity,
   GIT_DIRECTORY_METADATA_MAX_BYTES,
 } from "../../src/git/git-operation-lanes.js";
+import { removeTree } from "@nervekit/test-kit";
 const exec = promisify(execFile);
 
 void test("Git marker and commondir reads reject empty/oversized/nonregular metadata", async () => {
@@ -42,7 +43,7 @@ void test("Git marker and commondir reads reject empty/oversized/nonregular meta
     await writeFile(join(invalid, ".git"), Buffer.from([0xff, 0xfe, 0xfd]));
     await assert.rejects(canonicalGitIdentity(invalid));
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 void test("the byte boundary is enforced without changing actual canonical I/O paths", async () => {
@@ -81,7 +82,7 @@ void test("the byte boundary is enforced without changing actual canonical I/O p
       "malformed nearest metadata must not fall back to an ancestor repository",
     );
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 void test(
@@ -97,7 +98,7 @@ void test(
       await symlink("/dev/zero", join(root, ".git", "commondir"));
       await assert.rejects(canonicalGitIdentity(root), /regular/);
     } finally {
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   },
 );
@@ -135,7 +136,7 @@ void test(
     } finally {
       clearTimeout(timer);
       await rescue;
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     }
   },
 );

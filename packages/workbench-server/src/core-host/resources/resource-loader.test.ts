@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -27,7 +28,7 @@ async function fixture() {
     projectDir,
     nested,
     write,
-    cleanup: () => rm(root, { recursive: true, force: true }),
+    cleanup: () => removeTree(root),
   };
 }
 

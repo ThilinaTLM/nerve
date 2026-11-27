@@ -21,6 +21,7 @@ import {
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/composites/virtual-list";
 import type { TimelineItem } from "../state/timeline";
+import { scrollEdges } from "@nervekit/ui-kit/components/composites/scroll-region";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import ConversationSignal from "../conversations/ConversationSignal.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
@@ -347,9 +348,9 @@ let canScrollUp = $state(false);
 let canScrollDown = $state(false);
 
 function updateScrollShadows(viewport: HTMLElement) {
-  canScrollUp = viewport.scrollTop > 2;
-  canScrollDown =
-    viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 2;
+  const edges = scrollEdges(viewport);
+  canScrollUp = edges.top;
+  canScrollDown = edges.bottom;
 }
 
 $effect(() => {

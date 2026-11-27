@@ -1,6 +1,7 @@
 // `configuration.check` for extensions reads the folders on disk, so a fix shows before a reload.
+import { removeTree } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,7 +10,7 @@ import { createTestCatalog, writeExtension } from "./fixtures.js";
 
 void test("check reports the folder on disk: a broken manifest, then a fix that still needs a reload", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-ext-check-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const root = join(home, "agent", "extensions");
   await writeExtension(root, { id: "probe" }, (manifest) => {
     manifest.unexpected = true;

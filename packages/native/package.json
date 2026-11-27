@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@napi-rs/cli": "3.8.6",
+    "@nervekit/test-kit": "workspace:*",
     "@types/node": "24.10.1",
     "tsx": "4.22.4",
     "typescript": "5.9.3"

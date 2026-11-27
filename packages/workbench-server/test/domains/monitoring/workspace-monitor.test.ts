@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -90,7 +91,7 @@ test("unions project demand and removes the scope after the final owner", async 
     assert.deepEqual(native.removed, ["project:proj_one"]);
   } finally {
     await monitor.close();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -138,7 +139,7 @@ test("one owner can clear one resource without releasing its other resources", a
     ]);
   } finally {
     await monitor.close();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -160,7 +161,7 @@ test("reference-counts repository demand across owners", async () => {
     assert.deepEqual(native.removed, ['git:["proj_one","."]']);
   } finally {
     await monitor.close();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -184,7 +185,7 @@ test("refreshing an unmonitored project reports inactive without a native refres
     assert.equal(native.refreshRequests, 1);
   } finally {
     await monitor.close();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -288,7 +289,7 @@ void test("native notices publish cause hints and callback options without chang
     assert.equal(published[1]?.data.refreshCause, undefined);
   } finally {
     await monitor.close();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -334,6 +335,6 @@ test("tree-capable monitors watch the project recursively and feed changed paths
     ]);
   } finally {
     await monitor.close();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });

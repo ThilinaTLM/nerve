@@ -1,4 +1,4 @@
-import type { GitStashArea, GitStashEntry } from "@nervekit/contracts/git";
+import type { GitChangeArea, GitStashEntry } from "@nervekit/contracts/git";
 import { GitWorkflowError } from "./git-errors.js";
 import type { GitService } from "./git-service.js";
 
@@ -40,7 +40,7 @@ export async function listStashes(
 }
 
 export function stashCreateArgs(
-  area: GitStashArea,
+  area: GitChangeArea,
   paths?: readonly string[],
 ): string[] {
   const args =
@@ -55,7 +55,7 @@ export function stashCreateArgs(
 export async function createAreaStash(
   service: GitCommandRunner,
   repoDir: string,
-  area: GitStashArea,
+  area: GitChangeArea,
   paths?: readonly string[],
 ): Promise<void> {
   if (area === "unstaged") {

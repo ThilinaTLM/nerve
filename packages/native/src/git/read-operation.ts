@@ -1,11 +1,43 @@
-import { NativeOperationError, normalizeNativeError } from "../core/error.js";
+import {
+  NativeOperationError,
+  normalizeNativeError,
+  type NativeErrorDetail,
+} from "../core/error.js";
 import type { NativeGitProjectBinding } from "./project-contracts.js";
 export type GitReadOperationPort = Pick<
   NativeGitProjectBinding,
   "createGitReadOperation" | "cancelGitReadOperation" | "closeGitReadOperation"
 >;
-function fail(category: "cancelled" | "internal", message: string): never {
+export function fail(
+  category: "invalid_input" | "cancelled" | "internal",
+  message: string,
+): never {
   throw normalizeNativeError({ category, message, retryable: false });
+}
+
+/** Rejects non-strings, empty, NUL-containing and over-4096-byte paths before N-API copies them. */
+export function assertBoundedPath(
+  path: unknown,
+  message: string,
+): asserts path is string {
+  if (
+    typeof path !== "string" ||
+    !path ||
+    Buffer.byteLength(path) > 4096 ||
+    path.includes("\0")
+  )
+    fail("invalid_input", message);
+}
+
+/** Unwraps the native `{ value?, error? }` envelope into one error taxonomy. */
+export function unwrapNative<T>(
+  value: T | undefined,
+  error: NativeErrorDetail | undefined,
+  emptyMessage: string,
+): T {
+  if (error) throw normalizeNativeError(error);
+  if (value === undefined) fail("internal", emptyMessage);
+  return value;
 }
 export async function withGitReadOperation<T>(
   port: GitReadOperationPort,

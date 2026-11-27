@@ -6,7 +6,6 @@ import {
   type PeerDescriptor,
 } from "@nervekit/contracts/wire";
 import {
-  type OperationDefinitionFor,
   type OperationName,
   type OperationParams,
   type OperationResult,
@@ -32,7 +31,6 @@ export class ProtocolRequestError extends Error {
 }
 
 export interface ProtocolRequestOptions {
-  readonly idempotencyKey?: string;
   readonly timeoutMs?: number;
   readonly apiPath?: string;
   readonly sourceName?: string;
@@ -42,26 +40,11 @@ export interface ProtocolRequestOptions {
   readonly credentials?: RequestCredentials;
 }
 
-type ProtocolRequestOptionsFor<M extends OperationName> =
-  OperationDefinitionFor<M>["idempotency"] extends "required"
-    ? ProtocolRequestOptions & { readonly idempotencyKey: string }
-    : OperationDefinitionFor<M>["idempotency"] extends "none"
-      ? Omit<ProtocolRequestOptions, "idempotencyKey"> & {
-          readonly idempotencyKey?: never;
-        }
-      : ProtocolRequestOptions;
-
-type ProtocolRequestArguments<M extends OperationName> =
-  OperationDefinitionFor<M>["idempotency"] extends "required"
-    ? [options: ProtocolRequestOptionsFor<M>]
-    : [options?: ProtocolRequestOptionsFor<M>];
-
 export async function protocolRequest<M extends OperationName>(
   method: M,
   params: OperationParams<M>,
-  ...requestOptions: ProtocolRequestArguments<M>
+  options: ProtocolRequestOptions = {},
 ): Promise<{ result: OperationResult<M>; cursor?: SnapshotCursor }> {
-  const options: ProtocolRequestOptions = requestOptions[0] ?? {};
   const source: PeerDescriptor = {
     role: "ui",
     id: options.source?.id ?? protocolClientId(),
@@ -72,7 +55,6 @@ export async function protocolRequest<M extends OperationName>(
   const target = options.target ?? { role: "workbench_server" };
   const prepared = prepareOperationRequest(method, params, {
     target,
-    idempotencyKey: options.idempotencyKey,
     timeoutMs: options.timeoutMs,
   });
   if (!prepared.ok) {

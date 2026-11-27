@@ -6,7 +6,6 @@ import {
   symlink,
   mkdir,
   readFile,
-  rm,
   utimes,
   writeFile,
 } from "node:fs/promises";
@@ -15,13 +14,13 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 import { initializeManagedProcessHost } from "@nervekit/native";
+import { removeTree, waitFor } from "@nervekit/test-kit";
 import { GitService } from "../../src/git/git-service.js";
 import { NativeGitReadBackend } from "../../src/git/read/native-backend.js";
 import { createGitIsolatedReader } from "../../src/git/read/git-isolated-reader.js";
 import { inGitLane } from "../../src/git/git-operation-context.js";
 const exec = promisify(execFile);
 const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
-const delay = () => new Promise<void>((resolve) => setTimeout(resolve, 10));
 async function markers(path: string): Promise<number[]> {
   try {
     return (await readFile(path, "utf8"))
@@ -52,14 +51,17 @@ async function alive(pid: number): Promise<boolean> {
     return false;
   }
 }
-async function waitForFilter(marker: string, previous = 0): Promise<number> {
-  for (let attempt = 0; attempt < 400; attempt++) {
-    const pids = await markers(marker);
-    if (pids.length > previous) return pids.at(-1)!;
-    await delay();
-  }
-  assert.fail("public backend never reached selected filter helper");
-}
+const waitForFilter = (marker: string, previous = 0): Promise<number> =>
+  waitFor(
+    async () => {
+      const pids = await markers(marker);
+      return pids.length > previous ? pids.at(-1) : undefined;
+    },
+    {
+      timeoutMs: 4_000,
+      message: "public backend to reach the selected filter helper",
+    },
+  );
 async function fixture(
   run: (f: {
     service: GitService;
@@ -191,7 +193,7 @@ async function fixture(
     for (const key of Object.keys(process.env))
       if (key.startsWith("GIT_")) delete process.env[key];
     Object.assign(process.env, environment);
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 }
 

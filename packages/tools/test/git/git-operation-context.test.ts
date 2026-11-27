@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -9,6 +9,7 @@ import {
   withGitNetworkPermit,
 } from "../../src/git/git-operation-context.js";
 import { gitOperationLanes } from "../../src/git/git-operation-lanes.js";
+import { removeTree } from "@nervekit/test-kit";
 function gate() {
   let release!: () => void;
   const promise = new Promise<void>((resolve) => {
@@ -47,7 +48,7 @@ void test("whole workflows reenter through aliases without releasing their lane 
     assert.deepEqual(order, ["fetch", "pull", "push", "competing-status"]);
   } finally {
     hold.release();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 void test("independent read admissions cancel queued waits without retaining unrelated keys", async () => {
@@ -110,7 +111,7 @@ void test("callbacks from a finished workflow cannot reuse its released lane", a
   } finally {
     trigger.release();
     hold.release();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -151,6 +152,6 @@ void test("HTTP-only network requests and nested CLI workflows share cap four wi
     await Promise.all([...holders, fourth]);
   } finally {
     hold.release();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });

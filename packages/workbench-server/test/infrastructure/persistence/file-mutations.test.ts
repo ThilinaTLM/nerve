@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rename, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { makeTempDir } from "@nervekit/test-kit";
 import {
   atomicWriteFile,
   retryRename,
@@ -11,10 +11,6 @@ import {
 
 function codedError(code: string): NodeJS.ErrnoException {
   return Object.assign(new Error(code), { code });
-}
-
-async function tempRoot(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "nerve-file-mutations-"));
 }
 
 describe("file mutations", () => {
@@ -76,27 +72,23 @@ describe("file mutations", () => {
     assert.deepEqual(delays, [10, 20, 40, 80, 160, 320, 640]);
   });
 
-  it("cleans temporary files after failed and successful replacement", async () => {
-    const root = await tempRoot();
+  it("cleans temporary files after failed and successful replacement", async (t) => {
+    const root = await makeTempDir(t, "nerve-file-mutations-");
     const target = join(root, "state.json");
-    try {
-      await assert.rejects(
-        atomicWriteFile(target, "failed", {
-          rename: async () => {
-            throw codedError("EXDEV");
-          },
-          delay: async () => undefined,
-        }),
-        { code: "EXDEV" },
-      );
-      assert.deepEqual(await readdir(root), []);
+    await assert.rejects(
+      atomicWriteFile(target, "failed", {
+        rename: async () => {
+          throw codedError("EXDEV");
+        },
+        delay: async () => undefined,
+      }),
+      { code: "EXDEV" },
+    );
+    assert.deepEqual(await readdir(root), []);
 
-      await atomicWriteFile(target, "ready");
-      assert.equal(await readFile(target, "utf8"), "ready");
-      assert.deepEqual(await readdir(root), ["state.json"]);
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+    await atomicWriteFile(target, "ready");
+    assert.equal(await readFile(target, "utf8"), "ready");
+    assert.deepEqual(await readdir(root), ["state.json"]);
   });
 
   it("serializes mutations to the same normalized target", async () => {
@@ -124,19 +116,15 @@ describe("file mutations", () => {
     assert.deepEqual(order, ["first:start", "first:end", "second"]);
   });
 
-  it("closes the temporary handle before rename", async () => {
-    const root = await tempRoot();
+  it("closes the temporary handle before rename", async (t) => {
+    const root = await makeTempDir(t, "nerve-file-mutations-");
     const target = join(root, "closed-before-rename.txt");
-    try {
-      await atomicWriteFile(target, "contents", {
-        rename: async (source, destination) => {
-          assert.equal(await readFile(source, "utf8"), "contents");
-          await rename(source, destination);
-        },
-      });
-      assert.equal(await readFile(target, "utf8"), "contents");
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+    await atomicWriteFile(target, "contents", {
+      rename: async (source, destination) => {
+        assert.equal(await readFile(source, "utf8"), "contents");
+        await rename(source, destination);
+      },
+    });
+    assert.equal(await readFile(target, "utf8"), "contents");
   });
 });

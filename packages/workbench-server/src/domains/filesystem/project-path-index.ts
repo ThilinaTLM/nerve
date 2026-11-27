@@ -4,64 +4,34 @@ import {
   filesystemProjectContentSearchRequestSchema,
   filesystemProjectPathSearchRequestSchema,
   type FilesystemProjectContentSearchResponse,
-  type FilesystemProjectPathMatch,
   type FilesystemProjectPathSearchResponse,
 } from "@nervekit/contracts/filesystem";
 import { ApplicationError } from "../../core/application-error.js";
-import {
-  discoverEntries,
-  type FileCompletionEntry,
-} from "../completions/file-completion-candidates.js";
-import { loadNativeFiles, type NativePathIndex } from "./native-files.js";
+import { nativeFiles, type NativePathIndex } from "./native-files.js";
+
+export type FileCompletionEntry = {
+  relativePath: string;
+  kind: "file" | "directory";
+};
 
 type ProjectDirectoryResolver = (projectId: string) => string;
 
 const defaultPathLimit = 50;
 const indexIdleMs = 10 * 60_000;
 const nativeStaleMs = 30_000;
-const fallbackStaleMs = 30_000;
 const nativeIndexMaxEntries = 500_000;
 
 type ProjectIndex = {
   root: string;
-  native?: NativePathIndex;
+  native: NativePathIndex;
   builtAt: number;
   lastUsed: number;
   idleTimer?: NodeJS.Timeout;
-  fallback?: Promise<FileCompletionEntry[]>;
 };
 
-/** Subsequence fuzzy scorer used when the native index is unavailable. */
-export function fuzzyScorePath(
-  path: string,
-  query: string,
-): { score: number; positions: number[] } | undefined {
-  const haystack = path.toLowerCase();
-  const needle = query.toLowerCase().replaceAll("\\", "/");
-  if (!needle) return { score: 0, positions: [] };
-  const nameStart = path.lastIndexOf("/") + 1;
-  const positions: number[] = [];
-  let from = 0;
-  let score = 0;
-  let previous = -2;
-  for (const char of needle) {
-    const index = haystack.indexOf(char, from);
-    if (index < 0) return undefined;
-    positions.push(index);
-    score += 1;
-    if (index === previous + 1) score += 4;
-    if (index === 0 || "/-_. ".includes(haystack[index - 1] ?? "")) score += 3;
-    if (index >= nameStart) score += 2;
-    previous = index;
-    from = index + 1;
-  }
-  if (haystack.slice(nameStart).includes(needle)) score += 20;
-  return { score: score - path.length / 100, positions };
-}
-
 /**
- * One path index per project, created lazily on first use. Native when
- * available (ignore-aware, incremental), otherwise the bounded Node walk.
+ * One path index per project, created lazily on first use. Backed by the native
+ * addon (ignore-aware, incremental).
  */
 export class ProjectPathIndexes {
   readonly #indexes = new Map<string, ProjectIndex>();
@@ -74,10 +44,9 @@ export class ProjectPathIndexes {
       index = undefined;
     }
     if (!index) {
-      const files = await loadNativeFiles();
       index = {
         root,
-        native: files?.createPathIndex(root, {
+        native: nativeFiles().createPathIndex(root, {
           maxEntries: nativeIndexMaxEntries,
         }),
         builtAt: Date.now(),
@@ -92,22 +61,10 @@ export class ProjectPathIndexes {
     return index;
   }
 
-  async #fallbackEntries(index: ProjectIndex): Promise<FileCompletionEntry[]> {
-    if (!index.fallback || Date.now() - index.builtAt > fallbackStaleMs) {
-      index.builtAt = Date.now();
-      index.fallback = discoverEntries(index.root);
-    }
-    return index.fallback;
-  }
-
   /** Monitor hook: project-relative paths changed (empty = unknown, rebuild). */
   notifyChanged(projectId: string, changedPaths: string[] = []): void {
     const index = this.#indexes.get(projectId);
     if (!index) return;
-    if (!index.native) {
-      index.fallback = undefined;
-      return;
-    }
     index.builtAt = Date.now();
     void (
       changedPaths.length > 0
@@ -142,32 +99,15 @@ export class ProjectPathIndexes {
       request.projectId,
       getProjectDirectory(request.projectId),
     );
-    if (index.native) {
-      if (Date.now() - index.builtAt > nativeStaleMs) {
-        // Safety net for missed change notifications; serve current results.
-        index.builtAt = Date.now();
-        void index.native.rebuild().catch(() => undefined);
-      }
-      return index.native.search(request.query, {
-        limit,
-        kinds: request.kinds,
-      });
+    if (Date.now() - index.builtAt > nativeStaleMs) {
+      // Safety net for missed change notifications; serve current results.
+      index.builtAt = Date.now();
+      void index.native.rebuild().catch(() => undefined);
     }
-    const entries = await this.#fallbackEntries(index);
-    const kinds = request.kinds ? new Set(request.kinds) : undefined;
-    const matches: FilesystemProjectPathMatch[] = [];
-    for (const entry of entries) {
-      if (kinds && !kinds.has(entry.kind)) continue;
-      const scored = fuzzyScorePath(entry.relativePath, request.query);
-      if (scored)
-        matches.push({
-          path: entry.relativePath,
-          kind: entry.kind,
-          ...scored,
-        });
-    }
-    matches.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
-    return { matches: matches.slice(0, limit), incomplete: false };
+    return index.native.search(request.query, {
+      limit,
+      kinds: request.kinds,
+    });
   }
 
   /** Every indexed entry, for composer `@` completions (one shared index). */
@@ -176,17 +116,13 @@ export class ProjectPathIndexes {
     directory: string,
   ): Promise<FileCompletionEntry[]> {
     const index = await this.#get(projectId, directory);
-    if (index.native) {
-      const result = await index.native.search("", {
-        limit: nativeIndexMaxEntries,
-      });
-      if (result.matches.length > 0)
-        return result.matches.map((match) => ({
-          relativePath: match.path,
-          kind: match.kind,
-        }));
-    }
-    return this.#fallbackEntries(index);
+    const result = await index.native.search("", {
+      limit: nativeIndexMaxEntries,
+    });
+    return result.matches.map((match) => ({
+      relativePath: match.path,
+      kind: match.kind,
+    }));
   }
 }
 
@@ -197,16 +133,9 @@ export async function searchProjectContent(
   getProjectDirectory: ProjectDirectoryResolver,
 ): Promise<FilesystemProjectContentSearchResponse> {
   const request = filesystemProjectContentSearchRequestSchema.parse(input);
-  const files = await loadNativeFiles();
-  if (!files)
-    throw new ApplicationError(
-      501,
-      "CONTENT_SEARCH_UNSUPPORTED",
-      "Content search requires the native addon, which is unavailable.",
-    );
   const root = await realpath(resolve(getProjectDirectory(request.projectId)));
   try {
-    return await files.searchContent(root, {
+    return await nativeFiles().searchContent(root, {
       query: request.query,
       regex: request.regex,
       caseSensitive: request.caseSensitive,

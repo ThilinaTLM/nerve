@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sourceSchema } from "../core/scope.js";
 import { diagnosticSchema } from "./diagnostic.js";
 
 export const configurationResourceKindSchema = z.enum([
@@ -44,7 +45,7 @@ export const configurationResourceSchema = z.strictObject({
     })
     .optional(),
   /** For `shadowed`: the scope of the resource that wins. */
-  shadowedBy: z.enum(["builtin", "user", "project"]).optional(),
+  shadowedBy: sourceSchema.optional(),
   /** The file on disk is invalid, so the version loaded before the edit stays in force. */
   previousVersionActive: z.literal(true).optional(),
   diagnostics: z.array(diagnosticSchema),

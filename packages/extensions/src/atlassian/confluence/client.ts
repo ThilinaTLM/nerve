@@ -1,6 +1,6 @@
 import type { ArtifactRef, FormPart } from "@nervekit/extension-api";
 import { ExtensionError } from "@nervekit/extension-api";
-import { MAX_ATTACHMENT_BYTES } from "../shared/files.js";
+import { MAX_STREAMED_FILE_BYTES } from "@nervekit/extension-api/host";
 import {
   rawRequestUrl,
   sendRaw,
@@ -188,7 +188,7 @@ export async function confluenceDownloadToArtifact(
     connection,
     downloadLink,
     { response: "artifact", artifact: { name: options.name } },
-    options.maxBytes ?? MAX_ATTACHMENT_BYTES,
+    options.maxBytes ?? MAX_STREAMED_FILE_BYTES,
   );
   return response.body as ArtifactRef;
 }

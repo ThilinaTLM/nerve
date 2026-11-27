@@ -1823,6 +1823,7 @@ name = "nerve-native"
 version = "0.42.0"
 dependencies = [
  "gix",
+ "globset",
  "grep-matcher",
  "grep-regex",
  "grep-searcher",

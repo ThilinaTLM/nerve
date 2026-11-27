@@ -11,7 +11,7 @@ import {
   type ColorMode,
   type ColorTheme,
   type Oklch,
-} from "./theme-resolver.mjs";
+} from "@nervekit/ui-kit/styles/theme-resolver";
 // The readability rules live next to the theme file contract: the host applies the same ones to
 // extension themes when it loads them.
 import {
@@ -27,16 +27,21 @@ import {
   subtleSurfaceAlpha,
   themeRuleProblemsOf,
   type LinearRgb,
-} from "../../../contracts/src/domains/extensions/theme-rules.js";
-import { themeTokenNames } from "../../../contracts/src/domains/extensions/theme-file.js";
+  themeTokenNames,
+} from "@nervekit/contracts/extensions";
 
+// Lives in the app, the one package that sees both the theme rules (contracts)
+// and the built-in themes (ui-kit, which must not depend on contracts).
 const themeCss = readFileSync(
-  fileURLToPath(new URL("./theme.css", import.meta.url)),
+  fileURLToPath(import.meta.resolve("@nervekit/ui-kit/styles/theme.css")),
   "utf8",
 );
 const badgeSource = readFileSync(
   fileURLToPath(
-    new URL("../lib/components/ui/badge/badge.svelte", import.meta.url),
+    new URL(
+      "./badge.svelte",
+      import.meta.resolve("@nervekit/ui-kit/components/ui/badge"),
+    ),
   ),
   "utf8",
 );

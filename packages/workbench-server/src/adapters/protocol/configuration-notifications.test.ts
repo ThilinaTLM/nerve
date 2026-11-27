@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -21,7 +22,7 @@ void test("every configuration notification from profile and agent publication p
   });
   t.after(async () => {
     await service.flushSummaries();
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   });
   const notices: { type: string; data: unknown }[] = [];
   const stop = subscribeConfigurationNotifications(service, (type, data) => {

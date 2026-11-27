@@ -5,10 +5,10 @@ import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type { GitBranchSummary } from "@nervekit/contracts/git";
 import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
+import { selectRowVariants } from "@nervekit/ui-kit/components/composites/select-row";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { cn } from "@nervekit/ui-kit/utils";
 import {
   canDeleteBranch,
   type GitBranchDialogRow,
@@ -51,10 +51,10 @@ const showActions = $derived(!branch.current && !busy && !elsewhere);
 
 <div
   role="listitem"
-  class={cn(
-    "relative flex h-8 min-w-0 items-center gap-2 rounded-md px-1.5 hover:bg-hover focus-within:bg-hover",
-    branch.current && "bg-selected hover:bg-selected",
-  )}
+  class={selectRowVariants({ selected: branch.current }).base({
+    class:
+      "relative flex h-8 min-w-0 items-center gap-2 px-1.5 focus-within:bg-hover",
+  })}
 >
   <button
     type="button"

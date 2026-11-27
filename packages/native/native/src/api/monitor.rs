@@ -46,7 +46,12 @@ mod tests {
     use crate::git::test_support::{Fixture, write};
     use crate::git::{SnapshotOptions, read_snapshot};
     fn legacy_fingerprint(path: &Path) -> u64 {
-        let snapshot = read_snapshot(path.to_str().unwrap(), SnapshotOptions::default()).unwrap();
+        let snapshot = read_snapshot(
+            path.to_str().unwrap(),
+            SnapshotOptions::default(),
+            &crate::core::cancellation::CancellationToken::default(),
+        )
+        .unwrap();
         assert!(!snapshot.recent_commits.is_empty());
         let mut hasher = DefaultHasher::new();
         format!("{snapshot:?}").hash(&mut hasher);

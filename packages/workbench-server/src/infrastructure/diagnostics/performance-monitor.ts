@@ -59,16 +59,17 @@ type DaemonPerformanceMonitorOptions = {
 
 export type DaemonPerformanceMonitor = { stop: () => void };
 
-async function appendJsonLine(path: string, line: string): Promise<void> {
+/** Appends one pre-serialized JSONL line, creating the directory. Shared with desktop-shell. */
+export async function appendLogLine(path: string, line: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await appendFile(path, line, "utf8");
 }
 
 const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
-function performanceLogFilename(
+export function performanceLogFilename(
   sessionId: string | undefined,
-  source: "daemon",
+  source: "daemon" | "desktop",
   now: Date,
   pid: number,
 ): string {
@@ -110,7 +111,7 @@ export function installDaemonPerformanceMonitor(
       nodePerformance.eventLoopUtilization(current, previous));
   const eventLoopDelay =
     options.eventLoopDelay ?? monitorEventLoopDelay({ resolution: 20 });
-  const append = options.append ?? appendJsonLine;
+  const append = options.append ?? appendLogLine;
   const createInterval = options.setInterval ?? setInterval;
   const destroyInterval = options.clearInterval ?? clearInterval;
   const path = join(

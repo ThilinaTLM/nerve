@@ -2,12 +2,12 @@ import type { TextLimitSnapshotPayload } from "@nervekit/contracts/tools";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
-  formatByteSize,
   PROCESS_PREVIEW_MAX_LINE_CHARS,
   type TruncationDirection,
   truncateHead,
   truncateLine,
 } from "./truncate.js";
+import { formatByteSize } from "./format-bytes.js";
 
 export const MODEL_TOOL_RESULT_MAX_BYTES = 24_000;
 export const MODEL_TEXT_MAX_LINES = 200;

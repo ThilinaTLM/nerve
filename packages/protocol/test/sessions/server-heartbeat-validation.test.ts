@@ -5,30 +5,14 @@ import {
   type NerveMessage,
   type ProtocolV1Message,
 } from "@nervekit/contracts/wire";
-import { createMessageFactory, type ProtocolTimers } from "../../src/index.js";
+import { createMessageFactory } from "../../src/index.js";
 import { ProtocolServerSession } from "../../src/server.js";
-
-class FakeTimers implements ProtocolTimers {
-  readonly intervals: Array<() => void> = [];
-  readonly timeouts: Array<() => void> = [];
-  setTimeout(callback: () => void): unknown {
-    this.timeouts.push(callback);
-    return callback;
-  }
-  clearTimeout(): void {}
-  setInterval(callback: () => void): unknown {
-    this.intervals.push(callback);
-    return callback;
-  }
-  clearInterval(): void {}
-  tickIntervals(): void {
-    this.intervals.forEach((callback) => callback());
-  }
-}
+import { createFakeClock } from "../support/fake-clock.js";
 
 describe("server heartbeat validation", () => {
   it("finalizes a handshake timeout even if the socket has already disconnected", async () => {
-    const timers = new FakeTimers();
+    const fake = createFakeClock(0, { intervals: true });
+    const timers = fake.timers;
     const serverMessages = createMessageFactory({
       source: { role: "workbench_server", id: "server_test" },
       target: { role: "ui", id: "ui_test" },
@@ -63,12 +47,12 @@ describe("server heartbeat validation", () => {
     );
     assert.equal(server.state, "awaiting_ready");
     disconnected = true;
-    timers.timeouts[0]();
-    await new Promise((resolve) => setImmediate(resolve));
+    await fake.advance(100);
     assert.equal(server.state, "closed");
   });
   it("accepts a heartbeat that overtakes the ready frame", async () => {
-    const timers = new FakeTimers();
+    const fake = createFakeClock(0, { intervals: true });
+    const timers = fake.timers;
     const serverMessages = createMessageFactory({
       source: { role: "workbench_server", id: "server_test" },
       target: { role: "ui", id: "ui_test" },
@@ -114,7 +98,8 @@ describe("server heartbeat validation", () => {
   });
   it("does not let invalid peers refresh an established session", async () => {
     let now = 0;
-    const timers = new FakeTimers();
+    const fake = createFakeClock(0, { intervals: true });
+    const timers = fake.timers;
     const outbound: ProtocolV1Message[] = [];
     const serverMessages = createMessageFactory({
       source: { role: "workbench_server", id: "server_test" },
@@ -172,8 +157,7 @@ describe("server heartbeat validation", () => {
     );
 
     now = 101;
-    timers.tickIntervals();
-    await new Promise((resolve) => setImmediate(resolve));
+    await fake.advance(100);
     assert.equal(server.state, "closed");
   });
 });

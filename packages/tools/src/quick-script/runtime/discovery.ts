@@ -14,7 +14,8 @@ import {
   parseSignature,
   typePool,
 } from "./sdk-dts.js";
-import { closeMatches, definePositionalMethod } from "./sdk-args.js";
+import { closeMatches } from "@nervekit/extension-api/host";
+import { definePositionalMethod } from "./sdk-args.js";
 import type { SdkEnvironment, SdkMethod } from "./sdk-types.js";
 import { join } from "node:path";
 

@@ -1,6 +1,7 @@
 import { executeQuickScript } from "./registry.js";
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { test } from "node:test";
+import { stubFetch, type FetchHandler } from "@nervekit/test-kit";
 import { quickScriptResultDetailsSchema } from "@nervekit/contracts/tools";
 import { ToolExecutionError } from "@nervekit/tools/execution";
 import {
@@ -11,11 +12,6 @@ import {
 } from "@nervekit/tools/quick-script/testing";
 import { type Nested, nestedName } from "@nervekit/tools/quick-script/testing";
 import { atlassianPorts, mockedNetwork } from "./atlassian-context.js";
-
-const originalFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
 
 type Authorization = Nested;
 
@@ -46,10 +42,10 @@ function rawIssue(n: number) {
     },
   };
 }
-void test("paginates search to the limit, resolves field names, and authorizes before HTTP", async () => {
+void test("paginates search to the limit, resolves field names, and authorizes before HTTP", async (t) => {
   const events: string[] = [];
   const bodies: Array<Record<string, unknown>> = [];
-  globalThis.fetch = async (input, init) => {
+  stubFetch(t, async (input, init) => {
     const url = new URL(String(input));
     events.push(`fetch ${url.pathname}`);
     if (url.pathname.endsWith("/field")) {
@@ -66,7 +62,7 @@ void test("paginates search to the limit, resolves field names, and authorizes b
           issues: [rawIssue(1), rawIssue(2)],
           nextPageToken: "page2",
         });
-  };
+  });
   const authorized: Authorization[] = [];
   const result = await executeQuickScript(
     {
@@ -107,12 +103,12 @@ void test("paginates search to the limit, resolves field names, and authorizes b
     true,
   );
 });
-void test("surfaces a denial as a catchable HostError and records it as denied", async () => {
+void test("surfaces a denial as a catchable HostError and records it as denied", async (t) => {
   const events: string[] = [];
-  globalThis.fetch = async () => {
+  stubFetch(t, async () => {
     events.push("fetch");
     return Response.json({});
-  };
+  });
   const result = await executeQuickScript(
     {
       code: `
@@ -135,12 +131,12 @@ void test("surfaces a denial as a catchable HostError and records it as denied",
   assert.equal(details.hostCalls[0].summary, "NER-1");
   assert.match(result.content ?? "", /1 denied/);
 });
-void test("fails closed without authorizeNested", async () => {
+void test("fails closed without authorizeNested", async (t) => {
   let fetched = false;
-  globalThis.fetch = async () => {
+  stubFetch(t, async () => {
     fetched = true;
     return Response.json({});
-  };
+  });
   const context = {
     ...makeContext({ events: [] }),
     authorizeNested: undefined,
@@ -296,16 +292,17 @@ void test("the artifacts footer names the folder once so Read/Edit can open them
   );
 });
 
-const hangingFetch: typeof fetch = (_input, init) =>
+const hangingFetch: FetchHandler = (_input, init) =>
   new Promise<Response>((_resolve, reject) => {
     init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
   });
 
-void test("the footer counts failed calls per method group and stays unchanged when all succeed", async () => {
-  globalThis.fetch = async (input) =>
+void test("the footer counts failed calls per method group and stays unchanged when all succeed", async (t) => {
+  stubFetch(t, async (input) =>
     String(input).includes("NER-2")
       ? Response.json({ errorMessages: ["gone"] }, { status: 404 })
-      : Response.json(rawIssue(1));
+      : Response.json(rawIssue(1)),
+  );
   const result = await executeQuickScript(
     {
       code: `
@@ -324,7 +321,7 @@ void test("the footer counts failed calls per method group and stays unchanged w
   // A failed read is only counted, not listed.
   assert.doesNotMatch(result.content ?? "", /Failed:/);
 
-  globalThis.fetch = async () => Response.json(rawIssue(1));
+  stubFetch(t, async () => Response.json(rawIssue(1)));
   const ok = await executeQuickScript(
     { code: `await jira.issues.get("NER-1");` },
     makeContext({ events: [] }),
@@ -336,9 +333,10 @@ void test("the footer counts failed calls per method group and stays unchanged w
   assert.doesNotMatch(ok.content ?? "", /Still running|Failed:/);
 });
 
-void test("a failed write the script caught is named with its error", async () => {
-  globalThis.fetch = async () =>
-    Response.json({ errorMessages: ["Issue does not exist"] }, { status: 404 });
+void test("a failed write the script caught is named with its error", async (t) => {
+  stubFetch(t, async () =>
+    Response.json({ errorMessages: ["Issue does not exist"] }, { status: 404 }),
+  );
   const result = await executeQuickScript(
     {
       code: `try { await jira.issues.update({ key: "NER-404", fields: { summary: "x" } }); } catch {}`,
@@ -352,8 +350,8 @@ void test("a failed write the script caught is named with its error", async () =
   assert.ok(lines.indexOf(failed!) < lines.length - 1);
 });
 
-void test("a write that is not awaited is reported as still running with unknown outcome, and recorded as aborted", async () => {
-  globalThis.fetch = hangingFetch;
+void test("a write that is not awaited is reported as still running with unknown outcome, and recorded as aborted", async (t) => {
+  stubFetch(t, hangingFetch);
   const result = await executeQuickScript(
     {
       code: `jira.issues.update({ key: "NER-5", fields: { summary: "x" } }).catch(() => {}); jira.issues.get("NER-6").catch(() => {});`,
@@ -371,8 +369,8 @@ void test("a write that is not awaited is reported as still running with unknown
   assert.match(details.hostCalls[0].error ?? "", /aborted/);
 });
 
-void test("a call still running at timeout is listed without the await hint", async () => {
-  globalThis.fetch = hangingFetch;
+void test("a call still running at timeout is listed without the await hint", async (t) => {
+  stubFetch(t, hangingFetch);
   const result = await executeQuickScript(
     {
       code: `await jira.issues.update({ key: "NER-5", fields: { summary: "x" } });`,

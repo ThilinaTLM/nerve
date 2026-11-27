@@ -1,6 +1,7 @@
 import { executeQuickScript } from "./registry.js";
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { test } from "node:test";
+import { stubFetch } from "@nervekit/test-kit";
 import {
   QUICK_SCRIPT_CALLS_STREAM,
   quickScriptLiveCallSchema,
@@ -8,11 +9,6 @@ import {
 } from "@nervekit/contracts/tools";
 import type { Nested } from "@nervekit/tools/quick-script/testing";
 import { atlassianPorts, mockedNetwork } from "./atlassian-context.js";
-
-const originalFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
 
 function context(authorized: Nested[] = []) {
   return {
@@ -67,9 +63,9 @@ void test("error line numbers match the script and only script frames are shown"
   assert.equal((result.content ?? "").match(/script\.ts/g)?.length, 1);
 });
 
-void test("atlassian.defaults() returns configured products once per run", async () => {
+void test("atlassian.defaults() returns configured products once per run", async (t) => {
   let requests = 0;
-  globalThis.fetch = async (input: RequestInfo | URL) => {
+  stubFetch(t, async (input: RequestInfo | URL) => {
     requests += 1;
     const url = String(input);
     const body = url.includes("/myself")
@@ -78,7 +74,7 @@ void test("atlassian.defaults() returns configured products once per run", async
     return new Response(JSON.stringify(body), {
       headers: { "content-type": "application/json" },
     });
-  };
+  });
   const authorized: Nested[] = [];
   const result = await run(
     `const a = await atlassian.defaults(); await atlassian.defaults(); return a;`,
@@ -96,11 +92,14 @@ void test("atlassian.defaults() returns configured products once per run", async
   assert.match(result.content ?? "", /"name":"Ann C"/);
 });
 
-void test("atlassian.defaults() omits an unconfigured product", async () => {
-  globalThis.fetch = async () =>
-    new Response(JSON.stringify({ accountId: "j1", displayName: "Ann" }), {
-      headers: { "content-type": "application/json" },
-    });
+void test("atlassian.defaults() omits an unconfigured product", async (t) => {
+  stubFetch(
+    t,
+    async () =>
+      new Response(JSON.stringify({ accountId: "j1", displayName: "Ann" }), {
+        headers: { "content-type": "application/json" },
+      }),
+  );
   const result = await run(`return await atlassian.defaults();`, {
     ...context(),
     extensionPorts: atlassianPorts({ products: { confluence: false } }),
@@ -127,12 +126,12 @@ void test("a script runs without integrations; an absent product names the setti
   );
 });
 
-void test("a 401 stops the whole script with one message and no further requests", async () => {
+void test("a 401 stops the whole script with one message and no further requests", async (t) => {
   let fetches = 0;
-  globalThis.fetch = async () => {
+  stubFetch(t, async () => {
     fetches++;
     return new Response("{}", { status: 401 });
-  };
+  });
   const result = await run(
     `try { await jira.issues.get("A-1"); } catch (e) { console.log("caught", e.message); }
      await jira.issues.get("A-2");
@@ -151,15 +150,15 @@ void test("a 401 stops the whole script with one message and no further requests
   assert.equal(details.hostCalls[0].outcome, "failed");
 });
 
-void test("SDK calls stream as started/finished events and the result lists them in call order", async () => {
+void test("SDK calls stream as started/finished events and the result lists them in call order", async (t) => {
   // The first call answers last, so the calls finish in reverse order.
-  globalThis.fetch = async (input: RequestInfo | URL) => {
+  stubFetch(t, async (input: RequestInfo | URL) => {
     const key = /issue\/([A-Z]+-\d+)/.exec(String(input))?.[1] ?? "";
     await new Promise((resolve) => setTimeout(resolve, key === "A-1" ? 60 : 1));
     return new Response(JSON.stringify({ key, fields: {} }), {
       headers: { "content-type": "application/json" },
     });
-  };
+  });
   const updates: { stream: string; chunk: string }[] = [];
   const result = await run(
     `await Promise.all([jira.issues.get("A-1"), jira.issues.get("A-2")]);`,
@@ -190,8 +189,8 @@ void test("SDK calls stream as started/finished events and the result lists them
   assert.match(events[0]?.summary ?? "", /A-1/);
 });
 
-void test("a 403 is a catchable HostError with code FORBIDDEN naming the resource", async () => {
-  globalThis.fetch = async () => new Response("{}", { status: 403 });
+void test("a 403 is a catchable HostError with code FORBIDDEN naming the resource", async (t) => {
+  stubFetch(t, async () => new Response("{}", { status: 403 }));
   const result = await run(
     `try { await jira.projects.get({ key: "APP" }); } catch (e) { console.log(e.name, e.code, e.message); }
      console.log("continued");`,
@@ -228,12 +227,13 @@ void test("prepare and validation failures carry the BAD_REQUEST code", async ()
   assert.match(result.content ?? "", /^BAD_REQUEST\nBAD_REQUEST\n/);
 });
 
-void test("an unknown Jira field lists close matches", async () => {
-  globalThis.fetch = async () =>
+void test("an unknown Jira field lists close matches", async (t) => {
+  stubFetch(t, async () =>
     Response.json([
       { id: "customfield_10016", name: "Story Points", custom: true },
       { id: "customfield_10020", name: "Sprint", custom: true },
-    ]);
+    ]),
+  );
   const result = await run(
     `try { await jira.issues.search({ jql: "project = A", fields: ["Story Point"] }); } catch (e) { console.log(e.message); }`,
   );
@@ -243,8 +243,8 @@ void test("an unknown Jira field lists close matches", async () => {
   );
 });
 
-void test("an unknown space key lists close matches", async () => {
-  globalThis.fetch = async (input) => {
+void test("an unknown space key lists close matches", async (t) => {
+  stubFetch(t, async (input) => {
     const url = new URL(String(input));
     // The key lookup (keys=...) finds nothing; the listing has close keys.
     return Response.json({
@@ -255,7 +255,7 @@ void test("an unknown space key lists close matches", async () => {
             { id: "2", key: "HR", name: "People" },
           ],
     });
-  };
+  });
   const result = await run(
     `try { await confluence.pages.create({ space: "ENGINEERNG", title: "T", body: "x" }); } catch (e) { console.log(e.message); }`,
   );
@@ -265,12 +265,12 @@ void test("an unknown space key lists close matches", async () => {
   );
 });
 
-void test("request() is authorized by method and rejects URLs outside the product's REST bases", async () => {
+void test("request() is authorized by method and rejects URLs outside the product's REST bases", async (t) => {
   const calls: Array<{ url: string; method: string }> = [];
-  globalThis.fetch = async (input, init) => {
+  stubFetch(t, async (input, init) => {
     calls.push({ url: String(input), method: init?.method ?? "GET" });
     return Response.json({ ok: true });
-  };
+  });
   const authorized: Nested[] = [];
   const result = await run(
     `const attempts = [
@@ -341,14 +341,15 @@ void test("request() is authorized by method and rejects URLs outside the produc
   ]);
 });
 
-void test("request() returns text for non-JSON and refuses oversized responses", async () => {
+void test("request() returns text for non-JSON and refuses oversized responses", async (t) => {
   let mode: "text" | "big" = "text";
-  globalThis.fetch = async () =>
+  stubFetch(t, async () =>
     mode === "text"
       ? new Response("plain body", {
           headers: { "content-type": "text/plain" },
         })
-      : new Response(new Uint8Array(6 * 1024 * 1024));
+      : new Response(new Uint8Array(6 * 1024 * 1024)),
+  );
   const text = await run(
     `return await jira.request("GET", "/rest/api/3/serverInfo");`,
   );
@@ -360,10 +361,10 @@ void test("request() returns text for non-JSON and refuses oversized responses",
   assert.match(big.content ?? "", /Response is larger than 5 MB/);
 });
 
-void test("cancelling aborts the in-flight host request and the run settles cancelled", async () => {
+void test("cancelling aborts the in-flight host request and the run settles cancelled", async (t) => {
   const controller = new AbortController();
   let requestSignal: AbortSignal | undefined;
-  globalThis.fetch = (_input, init) => {
+  stubFetch(t, (_input, init) => {
     requestSignal = init?.signal ?? undefined;
     setTimeout(() => controller.abort(), 20);
     return new Promise<Response>((_resolve, reject) => {
@@ -371,7 +372,7 @@ void test("cancelling aborts the in-flight host request and the run settles canc
         reject(init.signal?.reason),
       );
     });
-  };
+  });
   const result = await executeQuickScript(
     { code: `await jira.issues.get("A-1");` },
     { ...context(), signal: controller.signal },
@@ -380,9 +381,9 @@ void test("cancelling aborts the in-flight host request and the run settles canc
   assert.equal(result.exitCode, 130);
 });
 
-void test("a 401 aborts the other in-flight host requests", async () => {
+void test("a 401 aborts the other in-flight host requests", async (t) => {
   const signals: AbortSignal[] = [];
-  globalThis.fetch = (_input, init) => {
+  stubFetch(t, (_input, init) => {
     if (signals.push(init!.signal!) === 1) {
       return new Promise<Response>((_resolve, reject) => {
         init!.signal!.addEventListener("abort", () =>
@@ -391,7 +392,7 @@ void test("a 401 aborts the other in-flight host requests", async () => {
       });
     }
     return Promise.resolve(new Response("{}", { status: 401 }));
-  };
+  });
   const result = await run(
     `await Promise.allSettled([jira.issues.get("A-1"), jira.issues.get("A-2")]);`,
   );
@@ -435,14 +436,14 @@ void test("a misspelled SDK method lists the valid names with a BAD_REQUEST code
   );
 });
 
-void test("request() with an undefined body on GET sends no body", async () => {
+void test("request() with an undefined body on GET sends no body", async (t) => {
   let init: RequestInit | undefined;
-  globalThis.fetch = async (_input, requestInit) => {
+  stubFetch(t, async (_input, requestInit) => {
     init = requestInit;
     return new Response("{}", {
       headers: { "content-type": "application/json" },
     });
-  };
+  });
   const result = await run(
     `await jira.request("GET", "/rest/api/3/search/jql", undefined, { jql: "x" });
      await confluence.request("GET", "/wiki/api/v2/spaces", null, { limit: 1 });`,
@@ -455,16 +456,16 @@ void test("request() with an undefined body on GET sends no body", async () => {
   );
 });
 
-void test("a host call still running when the script times out is aborted and does not touch the result", async () => {
+void test("a host call still running when the script times out is aborted and does not touch the result", async (t) => {
   let requestSignal: AbortSignal | undefined;
-  globalThis.fetch = (_input, init) => {
+  stubFetch(t, (_input, init) => {
     requestSignal = init?.signal ?? undefined;
     return new Promise<Response>((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () =>
         reject(init.signal?.reason),
       );
     });
-  };
+  });
   const result = await executeQuickScript(
     { code: `await jira.issues.get("A-1");`, timeout: 1 },
     context(),
@@ -479,8 +480,8 @@ void test("a host call still running when the script times out is aborted and do
   );
 });
 
-void test("Raw footer lines come only from request(), not from typed destructive methods", async () => {
-  globalThis.fetch = async () => new Response(null, { status: 204 });
+void test("Raw footer lines come only from request(), not from typed destructive methods", async (t) => {
+  stubFetch(t, async () => new Response(null, { status: 204 }));
   const result = await run(
     `await jira.issues.delete("A-1"); await jira.request("DELETE", "/rest/api/3/issue/A-2");`,
   );

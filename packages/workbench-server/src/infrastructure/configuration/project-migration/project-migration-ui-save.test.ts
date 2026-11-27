@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -53,7 +54,7 @@ async function fixture(
   state: "trusted" | "rejected" | "none",
 ) {
   const root = await mkdtemp(join(tmpdir(), "ui-save-trust-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const context = { projectId: "proj_test", directory: join(root, "project") };
   const file = join(context.directory, ".nerve", subject.type.path);
   const kind = projectConfigurationTrustKinds[subject.type.id];

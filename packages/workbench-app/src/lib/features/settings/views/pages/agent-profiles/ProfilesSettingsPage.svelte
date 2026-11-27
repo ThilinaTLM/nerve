@@ -10,7 +10,6 @@ import {
   onWorkbenchReconnect,
 } from "$lib/application/events/workbench-event-bus";
 import { onConfigurationDecision } from "$lib/application/configuration-review/configuration-review-queue.svelte";
-import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { modelDisplayName, modelKey } from "$lib/presentation/utils/model";
 import ProfileDetail from "./ProfileDetail.svelte";
 import ProfilesList from "./ProfilesList.svelte";
@@ -53,16 +52,7 @@ $effect(() => {
   void store.load(projectId);
   if (projectId) void permissionRuleSetCatalog.ensure(projectId);
 });
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive) return;
-  void store.userEditor.load({ scope: "user" });
-});
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive || !projectId) return;
-  void store.projectEditor.load({ scope: "project", projectId });
-});
-$effect(() => store.userEditor.observe());
-$effect(() => store.projectEditor.observe());
+store.agent.connect();
 $effect(() => {
   const refresh = () => void store.reload();
   const stopEvents = onAnyEvent((event) => {

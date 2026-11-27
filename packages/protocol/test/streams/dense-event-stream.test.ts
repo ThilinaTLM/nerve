@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { EventEnvelope } from "@nervekit/contracts/events";
 import {
   applyEventBatch,
   buildEventBatch,
@@ -8,15 +7,7 @@ import {
   createClientEventStreamState,
   markProcessed,
 } from "../../src/streams/index.js";
-
-const ts = "2026-07-18T00:00:00.000Z";
-const event = (seq: number): EventEnvelope => ({
-  seq,
-  id: `evt_${seq}`,
-  ts,
-  type: "project.created",
-  data: {},
-});
+import { event } from "../support/events.js";
 
 describe("dense event stream", () => {
   it("builds and chunks only consecutive runs", () => {

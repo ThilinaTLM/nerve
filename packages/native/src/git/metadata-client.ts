@@ -1,10 +1,14 @@
 import { binding } from "../binding/loader.js";
-import { normalizeNativeError } from "../core/error.js";
 import type {
   NativeGitMetadataSnapshot,
   NativeGitMetadataSnapshotOptions,
 } from "./contracts.js";
-import { withGitReadOperation } from "./read-operation.js";
+import {
+  assertBoundedPath,
+  fail,
+  unwrapNative,
+  withGitReadOperation,
+} from "./read-operation.js";
 import type { NativeGitMetadataBinding } from "./binding.js";
 /** Injectable lifecycle owner; not a package-root export. */
 export function createGitMetadataReader(port: NativeGitMetadataBinding) {
@@ -12,17 +16,7 @@ export function createGitMetadataReader(port: NativeGitMetadataBinding) {
     path: string,
     options: NativeGitMetadataSnapshotOptions = {},
   ): Promise<NativeGitMetadataSnapshot> {
-    if (
-      typeof path !== "string" ||
-      !path ||
-      Buffer.byteLength(path) > 4096 ||
-      path.includes("\0")
-    )
-      throw normalizeNativeError({
-        category: "invalid_input",
-        message: "Invalid Git metadata path",
-        retryable: false,
-      });
+    assertBoundedPath(path, "Invalid Git metadata path");
     const selected: Omit<NativeGitMetadataSnapshotOptions, "signal"> = {};
     for (const key of [
       "refLimit",
@@ -32,24 +26,17 @@ export function createGitMetadataReader(port: NativeGitMetadataBinding) {
       const value = options[key];
       if (value !== undefined) {
         if (!Number.isInteger(value) || value < 0 || value > 0xffffffff)
-          throw normalizeNativeError({
-            category: "invalid_input",
-            message: "Invalid Git metadata count limit",
-            retryable: false,
-          });
+          fail("invalid_input", "Invalid Git metadata count limit");
         selected[key] = value;
       }
     }
     return withGitReadOperation(port, options.signal, async (handle) => {
       const result = await port.readGitMetadataSnapshot(path, selected, handle);
-      if (result.error) throw normalizeNativeError(result.error);
-      if (!result.snapshot)
-        throw normalizeNativeError({
-          category: "internal",
-          message: "Native Git metadata was empty",
-          retryable: false,
-        });
-      return result.snapshot;
+      return unwrapNative(
+        result.snapshot,
+        result.error,
+        "Native Git metadata was empty",
+      );
     });
   };
 }

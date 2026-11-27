@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -8,7 +9,7 @@ import { suggestionConfiguration } from "./prompt-suggestion-migrations.js";
 import { loadPromptSuggestionDefinitions } from "./prompt-suggestion-loader.js";
 void test("suggestions load per file: healthy, older, absent version, invalid and newer; confirmed reset quarantines only that file", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "suggestion-chain-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const context = { projectId: "p", directory: join(home, "project") };
   const dir = join(context.directory, ".nerve/suggestions");
   await mkdir(dir, { recursive: true });

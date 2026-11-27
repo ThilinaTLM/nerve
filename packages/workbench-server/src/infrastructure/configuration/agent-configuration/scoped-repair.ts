@@ -28,15 +28,15 @@ import {
   type RepairPreview,
   type ScopedConfigurationTarget,
 } from "@nervekit/contracts/agent-configuration";
-import { atomicReplaceFile } from "../../storage-bootstrap/file-mutations.js";
+import {
+  atomicReplaceFile,
+  synchronizeDirectory,
+  type DirectoryDurability,
+} from "../../storage-bootstrap/file-mutations.js";
 import {
   digestBytes,
   ScopeConflictError,
 } from "../scoped-store/scoped-document-store.js";
-import {
-  synchronizeDirectory,
-  type DirectoryDurability,
-} from "../scoped-store/durable-write.js";
 import type { AgentConfigurationService } from "./agent-configuration-service.js";
 
 export function configurationTargetPath(

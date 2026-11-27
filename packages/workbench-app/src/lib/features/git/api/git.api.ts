@@ -1,6 +1,6 @@
 import type {
   GitBranchListResponse,
-  GitDiffArea,
+  GitChangeArea,
   GitFileDiffResponse,
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
@@ -22,7 +22,6 @@ import type {
   GitOperationBulkStartRequest,
   GitProjectFileStatusResponse,
   GitRepoDetailSnapshot,
-  GitStashArea,
   GitWorkspaceSnapshot,
   GitWorkspaceWatchState,
   GitWorkspaceWatchSyncRequest,
@@ -182,7 +181,7 @@ export async function removeGitWorktree(
 export async function createGitStash(
   projectId: string,
   repo: string,
-  area: GitStashArea,
+  area: GitChangeArea,
   paths?: readonly string[],
 ): Promise<GitWorkspaceMutationResponse> {
   return await requestWorkbench("git.stash.create", {
@@ -225,7 +224,7 @@ export async function getGitFileDiff(
   projectId: string,
   repo: string,
   path: string,
-  area: GitDiffArea,
+  area: GitChangeArea,
 ): Promise<GitFileDiffResponse> {
   return await requestWorkbench("git.file.diff.get", {
     projectId,

@@ -1,6 +1,6 @@
 import type { FilesystemFileResponse, LaunchRecord } from "$lib/api";
 import type { AsyncBash } from "@nervekit/contracts/core";
-import type { GitDiffArea } from "@nervekit/contracts/git";
+import type { GitChangeArea } from "@nervekit/contracts/git";
 import type { FileDisplayMode } from "@nervekit/ui-kit/display/file-display";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 
@@ -50,7 +50,7 @@ interface DiffWorkspaceView {
   readonly path: string;
   readonly renamedFrom?: string;
   readonly repo: string;
-  readonly area: GitDiffArea;
+  readonly area: GitChangeArea;
   readonly loading: boolean;
   readonly refreshing: boolean;
   readonly error?: string;

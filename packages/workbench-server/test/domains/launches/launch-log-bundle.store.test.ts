@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -7,9 +8,7 @@ import { LaunchLogBundleStore } from "../../../src/domains/launches/persistence/
 
 const roots: string[] = [];
 afterEach(async () =>
-  Promise.all(
-    roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
-  ),
+  Promise.all(roots.splice(0).map((root) => removeTree(root))),
 );
 
 describe("LaunchLogBundleStore", () => {

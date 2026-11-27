@@ -54,7 +54,7 @@ import {
 } from "node:path";
 import type {
   GitBranchListResponse,
-  GitDiffArea,
+  GitChangeArea,
   GitDiscoveryResponse,
   GitFileDiffResponse,
   GithubPrCheckoutResponse,
@@ -77,7 +77,6 @@ import type {
   GitProjectFileStatusResponse,
   GitRecentCommit,
   GitRepoSummary,
-  GitStashArea,
 } from "@nervekit/contracts/git";
 import {
   branchExists as branchExistsImpl,
@@ -696,7 +695,7 @@ export class GitService {
     projectId: string,
     relativePath: string,
     path: string,
-    area: GitDiffArea,
+    area: GitChangeArea,
   ): Promise<GitFileDiffResponse> {
     return readFileDiff(
       this.#fileDiffContext,
@@ -734,7 +733,7 @@ export class GitService {
   async createStash(
     projectId: string,
     relativePath: string,
-    area: GitStashArea,
+    area: GitChangeArea,
     paths?: readonly string[],
   ): Promise<GitMutationResponse> {
     return createStashImpl(

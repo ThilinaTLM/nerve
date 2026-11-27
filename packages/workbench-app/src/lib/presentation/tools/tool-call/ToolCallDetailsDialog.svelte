@@ -169,14 +169,8 @@ const footerMeta = $derived.by(() => {
     (view.kind === "bash" || view.kind === "python") && view.outputLineCount > 0
       ? `${view.outputLineCount.toLocaleString()} ${view.outputLineCount === 1 ? "line" : "lines"}`
       : undefined;
-  const age = relativeTimeLabel(displayToolCall.updatedAt);
-  return [
-    duration,
-    lines,
-    age ? (age === "now" ? "just now" : `${age} ago`) : undefined,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const age = relativeTimeLabel(displayToolCall.updatedAt, { style: "long" });
+  return [duration, lines, age].filter(Boolean).join(" · ");
 });
 
 // Card chips that carry information the footer text does not (truncated,

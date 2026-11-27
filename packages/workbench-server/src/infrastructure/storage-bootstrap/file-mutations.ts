@@ -1,4 +1,13 @@
 import { randomBytes } from "node:crypto";
+import {
+  closeSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { mkdir, open, rename, rm, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 
@@ -19,8 +28,18 @@ export interface RenameDependencies {
   readonly onRenameRetry?: (observation: RenameRetryObservation) => void;
 }
 
+/**
+ * How far an atomic write is made durable before it is reported done.
+ * - `none`: no fsync. Rebuildable caches and indexes.
+ * - `file` (default): fsync the temporary file before the rename.
+ * - `directory`: also fsync the parent directory so the rename survives power loss.
+ *   Configuration, credentials and tokens.
+ */
+export type WriteDurability = "none" | "file" | "directory";
+
 export interface AtomicReplaceOptions extends RenameDependencies {
   readonly mode?: number;
+  readonly durability?: WriteDurability;
   readonly prepare?: (
     resolvedPath: string,
   ) => Promise<{ mode?: number } | undefined>;
@@ -70,13 +89,17 @@ export function atomicReplaceFile(
       temporaryCreated = true;
       try {
         await writeTemporary(handle);
-        await handle.sync();
-        options.onFsync?.();
+        if (options.durability !== "none") {
+          await handle.sync();
+          options.onFsync?.();
+        }
       } finally {
         await handle.close();
       }
       await retryRename(temporary, resolvedPath, options);
       replacementCompleted = true;
+      if (options.durability === "directory")
+        await synchronizeDirectory(resolvedPath);
     } finally {
       if (temporaryCreated && !replacementCompleted) {
         await rm(temporary, { force: true }).catch(() => undefined);
@@ -97,6 +120,38 @@ export function atomicWriteFile(
     },
     options,
   );
+}
+
+/** Synchronous sibling of {@link atomicWriteFile} for crash and shutdown paths. No queueing or rename retry. */
+export function atomicWriteFileSync(
+  filePath: string,
+  data: string | Buffer,
+  options: Pick<AtomicReplaceOptions, "mode" | "durability"> & {
+    readonly directoryMode?: number;
+  } = {},
+): void {
+  const resolvedPath = path.resolve(filePath);
+  mkdirSync(path.dirname(resolvedPath), {
+    recursive: true,
+    ...(options.directoryMode === undefined
+      ? {}
+      : { mode: options.directoryMode }),
+  });
+  const temporary = temporaryFilePath(resolvedPath);
+  let replaced = false;
+  try {
+    const fd = openSync(temporary, "wx", options.mode);
+    try {
+      writeFileSync(fd, data);
+      if (options.durability !== "none") fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(temporary, resolvedPath);
+    replaced = true;
+  } finally {
+    if (!replaced) rmSync(temporary, { force: true });
+  }
 }
 
 export async function retryRename(
@@ -141,10 +196,37 @@ function temporaryFilePath(filePath: string): string {
   );
 }
 
-function errorCode(error: unknown): string | undefined {
+export function errorCode(error: unknown): string | undefined {
   return typeof error === "object" && error !== null && "code" in error
     ? String((error as { code?: unknown }).code)
     : undefined;
+}
+
+export type DirectoryDurability = "synchronized" | "unsupported";
+
+/** Rename durability needs a directory fsync in addition to the file fsync. */
+export async function synchronizeDirectory(
+  filePath: string,
+): Promise<DirectoryDurability> {
+  let directory;
+  try {
+    directory = await open(path.dirname(filePath), "r");
+    await directory.sync();
+    return "synchronized";
+  } catch (error) {
+    const code = errorCode(error);
+    if (
+      code === "EINVAL" ||
+      code === "ENOTSUP" ||
+      code === "EOPNOTSUPP" ||
+      (process.platform === "win32" &&
+        (code === "EPERM" || code === "EACCES" || code === "EISDIR"))
+    )
+      return "unsupported";
+    throw error;
+  } finally {
+    await directory?.close();
+  }
 }
 
 function delay(milliseconds: number): Promise<void> {

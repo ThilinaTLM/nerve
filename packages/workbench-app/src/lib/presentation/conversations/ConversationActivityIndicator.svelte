@@ -9,7 +9,7 @@ import {
   StatusDot,
   type StatusDotSize,
 } from "@nervekit/ui-kit/components/composites/status-dot";
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import { toneTextClass } from "@nervekit/ui-kit/display/status";
 import type { ConversationActivity } from "./conversation-activity";
 
 let {
@@ -25,15 +25,6 @@ let {
   isOpen?: boolean;
   size?: StatusDotSize;
 } = $props();
-
-const colorClass: Record<StatusTone, string> = {
-  neutral: "text-muted-foreground",
-  brand: "text-primary",
-  info: "text-info",
-  success: "text-success",
-  warning: "text-warning",
-  destructive: "text-destructive",
-};
 
 const Icon = $derived(
   activity.indicator === "needs-user"
@@ -71,7 +62,7 @@ const Icon = $derived(
     />
   {:else if Icon}
     <Icon
-      class={`size-3 ${variant === "rail" && (activity.indicator === "aborted" || activity.indicator === "completed") ? "text-muted-foreground" : colorClass[activity.tone]}`}
+      class={`size-3 ${variant === "rail" && (activity.indicator === "aborted" || activity.indicator === "completed") ? "text-muted-foreground" : toneTextClass[activity.tone]}`}
       aria-hidden="true"
     />
   {:else}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { processAgentResultPolicy } from "./policies/process.js";
@@ -10,6 +10,7 @@ import {
   projectProcessOutputResult,
 } from "./process-output.js";
 import { projectAgentResult } from "./projector.js";
+import { removeTree } from "@nervekit/test-kit";
 
 void test("small process output stays inline without file locators", async () => {
   assert.equal(
@@ -62,7 +63,7 @@ void test("large captures show a tail-biased head/tail view with one recovery pa
     assert.ok(!text.includes("ERROR middle-file match"));
     const notice = shown.at(-1) ?? "";
     const match =
-      /^\[Showing lines 1-(\d+) and (\d+)-2000 of 2000; [\d.]+KB omitted\. Full output: (.+)\]$/.exec(
+      /^\[Showing lines 1-(\d+) and (\d+)-2000 of 2000; [\d.]+ KB omitted\. Full output: (.+)\]$/.exec(
         notice,
       );
     assert.ok(match, notice);
@@ -77,7 +78,7 @@ void test("large captures show a tail-biased head/tail view with one recovery pa
     assert.equal(snapshot?.strategy, "head_tail");
     assert.equal(snapshot?.originalTextLines, 2002);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });
 

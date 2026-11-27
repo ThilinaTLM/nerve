@@ -1,38 +1,18 @@
-import { join } from "node:path";
 import type {
   SubscriptionQuota,
   SubscriptionUsage,
 } from "@nervekit/contracts/usage";
 import {
-  API_TIMEOUT_MS,
-  DEFAULT_RATE_LIMIT_BACKOFF_MS,
   createCachedUsageFetcher,
+  fetchUsageApi,
   numberValue,
-  parseRetryAfterMs,
-  readUsageCacheFile,
   windowQuota,
-  writeUsageCacheFile,
   type UsageApiResponse,
 } from "./cached-usage-fetch.js";
 
 const API_HOST = "api.anthropic.com";
 const API_PATH = "/api/oauth/usage";
 const API_URL = `https://${API_HOST}${API_PATH}`;
-
-function cacheFile(cacheDir: string): string {
-  return join(cacheDir, "anthropic-usage.json");
-}
-
-function readCacheFile(cacheDir: string) {
-  return readUsageCacheFile(cacheFile(cacheDir), "anthropic");
-}
-
-async function writeCacheFile(
-  cacheDir: string,
-  data: SubscriptionUsage,
-): Promise<void> {
-  await writeUsageCacheFile(cacheDir, cacheFile(cacheDir), data);
-}
 
 function normalizeIsoDateTime(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -94,33 +74,17 @@ export function parseAnthropicUsageResponse(
   };
 }
 
-async function fetchApi(token: string): Promise<UsageApiResponse> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-  try {
-    const res = await fetch(API_URL, {
-      method: "GET",
+function fetchApi(token: string): Promise<UsageApiResponse> {
+  return fetchUsageApi(
+    API_URL,
+    {
       headers: {
         Authorization: `Bearer ${token}`,
         "anthropic-beta": "oauth-2025-04-20",
       },
-      signal: controller.signal,
-    });
-    if (res.ok) return { kind: "success", body: await res.text() };
-    if (res.status === 429) {
-      return {
-        kind: "rate-limited",
-        retryAfterMs:
-          parseRetryAfterMs(res.headers.get("retry-after"), Date.now()) ??
-          DEFAULT_RATE_LIMIT_BACKOFF_MS,
-      };
-    }
-    return { kind: "error" };
-  } catch {
-    return { kind: "error" };
-  } finally {
-    clearTimeout(timeout);
-  }
+    },
+    (res) => res.text(),
+  );
 }
 
 /**
@@ -129,9 +93,8 @@ async function fetchApi(token: string): Promise<UsageApiResponse> {
  * the last good snapshot is served on transient failures.
  */
 export const fetchAnthropicUsage = createCachedUsageFetcher({
-  lockFileName: "anthropic-usage.lock",
-  readCacheFile,
-  writeCacheFile,
-  fetchApi: fetchApi,
+  cacheName: "anthropic",
+  provider: "anthropic",
+  fetchApi,
   parseResponse: parseAnthropicUsageResponse,
 });

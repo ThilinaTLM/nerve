@@ -1,3 +1,4 @@
+import type { Layer } from "@nervekit/contracts/core";
 import type {
   ConfigurationResource,
   ConfigurationResourceKind,
@@ -9,7 +10,7 @@ import type {
  * trust; only the user's Settings page does.
  */
 
-export type ConfigurationAgentScope = "user" | "project";
+export type ConfigurationAgentScope = Layer;
 
 export type ConfigurationAgentResult = {
   resources: ConfigurationResource[];

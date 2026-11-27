@@ -1,8 +1,9 @@
 import { createRuntimeFixture } from "../support/runtime-fixture.js";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
+import { removeTree } from "@nervekit/test-kit";
 import {
   shutdownServerRuntime,
   type ServerRuntime,
@@ -16,11 +17,7 @@ const states: ServerRuntime[] = [];
 
 after(async () => {
   await Promise.allSettled(states.map(shutdownServerRuntime));
-  await Promise.all(
-    roots.map((root) =>
-      rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }),
-    ),
-  );
+  await Promise.all(roots.map(removeTree));
 });
 
 export async function tempHome(prefix: string): Promise<string> {

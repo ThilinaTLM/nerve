@@ -1,15 +1,8 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  rmdirSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, rmSync, rmdirSync } from "node:fs";
+import { join } from "node:path";
 import { type DaemonFile, daemonFileSchema } from "@nervekit/contracts/status";
 import { DAEMON_LEASE_CONFLICT_CODE } from "@nervekit/contracts/storage";
+import { atomicWriteFileSync } from "../storage-bootstrap/file-mutations.js";
 import { writeCrashReportSync } from "./crash-reports.js";
 
 interface LegacyRuntimeMarker {
@@ -197,13 +190,11 @@ async function atomicWrite(path: string, value: DaemonFile): Promise<void> {
 }
 
 function atomicWriteSync(path: string, value: DaemonFile): void {
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.${process.pid}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-    encoding: "utf8",
+  atomicWriteFileSync(path, `${JSON.stringify(value, null, 2)}\n`, {
     mode: 0o600,
+    directoryMode: 0o700,
+    durability: "none",
   });
-  renameSync(temporary, path);
 }
 
 function isProcessAlive(pid: number): boolean {

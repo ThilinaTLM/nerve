@@ -1,108 +1,67 @@
 import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
+import { KeyedLoader } from "$lib/application/refresh/keyed-loader";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import { BUILT_IN_PERMISSION_RULE_SET_SUMMARIES } from "$lib/domain/permissions/rule-set-options";
 
-type CatalogEntry = {
-  summaries: PermissionRuleSetSummary[];
-  loading: boolean;
-  loaded: boolean;
-  error?: string;
-};
-
 class PermissionRuleSetCatalog {
-  private entries = $state<Record<string, CatalogEntry>>({});
-  private readonly inFlight = new Map<
-    string,
-    Promise<PermissionRuleSetSummary[]>
-  >();
+  private errors = $state<Record<string, string>>({});
+  // A failed read keeps the last summaries (built-ins before the first load) and reports why.
+  private readonly loader = new KeyedLoader<string, PermissionRuleSetSummary[]>(
+    {
+      load: () =>
+        requestConversation("permissionRuleSet.list", {}).then(
+          (configuration) =>
+            configuration.ruleSets.map(
+              ({ id, name, source, enabled, description }) => ({
+                id,
+                name,
+                source,
+                enabled,
+                description,
+                available: enabled,
+              }),
+            ),
+        ),
+      onError: (projectId, error) => {
+        this.errors[projectId] =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Could not load permission rule sets.";
+      },
+    },
+  );
 
   summaries(projectId: string | undefined): PermissionRuleSetSummary[] {
-    if (!projectId) return [...BUILT_IN_PERMISSION_RULE_SET_SUMMARIES];
     return (
-      this.entries[projectId]?.summaries ?? [
+      (projectId ? this.loader.get(projectId) : undefined) ?? [
         ...BUILT_IN_PERMISSION_RULE_SET_SUMMARIES,
       ]
     );
   }
 
   loading(projectId: string | undefined): boolean {
-    return projectId ? (this.entries[projectId]?.loading ?? false) : false;
+    return projectId ? this.loader.loading(projectId) : false;
   }
 
   error(projectId: string | undefined): string | undefined {
-    return projectId ? this.entries[projectId]?.error : undefined;
+    return projectId ? this.errors[projectId] : undefined;
   }
 
   install(projectId: string, summaries: readonly PermissionRuleSetSummary[]) {
-    this.entries[projectId] = {
-      summaries: [...summaries],
-      loading: false,
-      loaded: true,
-    };
+    delete this.errors[projectId];
+    this.loader.set(projectId, [...summaries]);
   }
 
-  ensure(projectId: string): Promise<PermissionRuleSetSummary[]> {
-    if (this.entries[projectId]?.loaded) {
-      return Promise.resolve(this.entries[projectId].summaries);
-    }
-    return this.load(projectId);
+  async ensure(projectId: string): Promise<PermissionRuleSetSummary[]> {
+    if (!this.loader.has(projectId)) delete this.errors[projectId];
+    await this.loader.ensure(projectId);
+    return this.summaries(projectId);
   }
 
-  refresh(projectId: string): Promise<PermissionRuleSetSummary[]> {
-    return this.load(projectId);
-  }
-
-  private load(projectId: string): Promise<PermissionRuleSetSummary[]> {
-    const existing = this.inFlight.get(projectId);
-    if (existing) return existing;
-
-    const current = this.entries[projectId];
-    this.entries[projectId] = {
-      summaries: current?.summaries ?? [
-        ...BUILT_IN_PERMISSION_RULE_SET_SUMMARIES,
-      ],
-      loading: true,
-      loaded: current?.loaded ?? false,
-      error: undefined,
-    };
-
-    const request = requestConversation("permissionRuleSet.list", {})
-      .then((configuration) => {
-        const summaries = configuration.ruleSets.map(
-          ({ id, name, source, enabled, description }) => ({
-            id,
-            name,
-            source,
-            enabled,
-            description,
-            available: enabled,
-          }),
-        );
-        this.install(projectId, summaries);
-        return summaries;
-      })
-      .catch((error: unknown) => {
-        const entry = this.entries[projectId];
-        this.entries[projectId] = {
-          summaries: entry?.summaries ?? [
-            ...BUILT_IN_PERMISSION_RULE_SET_SUMMARIES,
-          ],
-          loading: false,
-          loaded: entry?.loaded ?? false,
-          error:
-            error instanceof Error && error.message.trim()
-              ? error.message
-              : "Could not load permission rule sets.",
-        };
-        return this.entries[projectId].summaries;
-      })
-      .finally(() => {
-        if (this.inFlight.get(projectId) === request) {
-          this.inFlight.delete(projectId);
-        }
-      });
-    this.inFlight.set(projectId, request);
-    return request;
+  async refresh(projectId: string): Promise<PermissionRuleSetSummary[]> {
+    delete this.errors[projectId];
+    await this.loader.refresh(projectId);
+    return this.summaries(projectId);
   }
 }
 

@@ -69,6 +69,8 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
     "@nervekit/extension-api": [".", "./host", "./testing"],
     "@nervekit/extension-sdk": [".", "./testing", "./ui", "./env"],
     "@nervekit/native": ["."],
+    "@nervekit/primitives": ["."],
+    "@nervekit/test-kit": ["."],
     "@nervekit/protocol": [
       ".",
       "./client",
@@ -96,6 +98,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
       "./styles/base.css",
       "./styles/animation.css",
       "./styles/components.css",
+      "./styles/theme-resolver",
       "./utils",
       "./icons/*",
       "./browser/*",
@@ -118,7 +121,7 @@ export const packageExportSurfaces: Readonly<Record<string, string[]>> =
     ],
     "@nervekit/website": [],
     "@nervekit/workbench-app": [],
-    "@nervekit/workbench-server": [".", "./network", "./main"],
+    "@nervekit/workbench-server": [".", "./network", "./diagnostics", "./main"],
   });
 
 export function validateBuiltPackageExportTargets(repoRoot: string): string[] {

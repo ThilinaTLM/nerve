@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -16,7 +16,7 @@ import {
 } from "../../src/git/git-operation-context.js";
 
 import { runNativeGitProjectRead } from "../../src/git/read/git-native-read-admission.js";
-import { waitFor } from "../support/wait-for.js";
+import { removeTree, waitFor } from "@nervekit/test-kit";
 
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 const until = (predicate: () => boolean) =>
@@ -110,7 +110,7 @@ async function fixture(
     },
     async cleanup() {
       await service.close();
-      await rm(root, { recursive: true, force: true });
+      await removeTree(root);
     },
   };
 }

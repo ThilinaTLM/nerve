@@ -1,6 +1,6 @@
 import { findAssignableUser } from "./users.js";
 import { markdownDoc } from "./media.js";
-import { closeMatches } from "../shared/args.js";
+import { closeMatches } from "@nervekit/extension-api/host";
 import { resolveFieldSelection, type JiraFieldInfo } from "./issue.js";
 import type { JiraSession } from "./session.js";
 

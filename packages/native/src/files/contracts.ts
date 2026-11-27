@@ -96,3 +96,57 @@ export interface ContentSearchResult {
   truncated: boolean;
   searchedFiles: number;
 }
+
+export interface GrepOptions {
+  pattern: string;
+  /** Fixed string instead of a regular expression. */
+  literal?: boolean;
+  /** Default false (case-sensitive). */
+  ignoreCase?: boolean;
+  /** ripgrep `--glob` semantics: a glob without `/` matches the file name at any depth. */
+  glob?: string;
+  /** Lines of context before and after each match. Default 0. */
+  context?: number;
+  /** Match lines to return; the totals still count every match. */
+  limit: number;
+  /** Longest returned line text in bytes, cut at a character boundary. Default: whole line. */
+  maxLineBytes?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+export interface GrepLine {
+  /** Relative to the display root, "/" separators. */
+  path: string;
+  /** 1-based. */
+  line: number;
+  text: string;
+  /** False for context lines. */
+  isMatch: boolean;
+}
+
+export interface GrepResult {
+  /** Ordered by path then line; at most `limit` matches plus context. */
+  lines: GrepLine[];
+  /** Matching lines across all searched files, beyond `limit` too. */
+  totalMatches: number;
+  totalFiles: number;
+}
+
+export interface FindFilesOptions {
+  /**
+   * Glob. A pattern containing `/` matches the full path (a relative one is anchored
+   * with a leading `**\/`); any other pattern matches the file name.
+   */
+  pattern: string;
+  limit: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+export interface FindFilesResult {
+  /** The first `limit` regular files by path, relative to the root. */
+  paths: string[];
+  /** All matching files, beyond `limit` too. */
+  total: number;
+}

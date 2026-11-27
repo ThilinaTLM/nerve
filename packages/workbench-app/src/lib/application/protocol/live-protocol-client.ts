@@ -7,7 +7,7 @@ import type { ProtocolRequestData } from "@nervekit/contracts/wire";
 
 export type LiveProtocolRequestOptions = Pick<
   ProtocolRequestData,
-  "idempotencyKey" | "timeoutMs" | "expect"
+  "timeoutMs" | "expect"
 >;
 
 export interface LiveProtocolRequester {

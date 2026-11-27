@@ -243,7 +243,7 @@ pub const INVALID_PATTERN_CODE: &str = "INVALID_SEARCH_PATTERN";
 /// Condenses a regex engine diagnostic (a multi-line snippet with a caret) into
 /// a short description and, when the caret points inside the user's query, the
 /// 1-based column. The engine reports the pattern wrapped as `(?:<query>)`.
-fn invalid_pattern_error(raw: &str, query: &str) -> String {
+pub(super) fn invalid_pattern_error(raw: &str, query: &str) -> String {
     const WRAPPER: usize = 3;
     let lines: Vec<&str> = raw.lines().collect();
     let description = lines

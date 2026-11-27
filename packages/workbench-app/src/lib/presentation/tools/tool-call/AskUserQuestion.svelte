@@ -2,6 +2,7 @@
 // One ask_user question as a sheet section. The same element carries the
 // question from the first streamed byte to the recorded answer: options stay
 // and the choice is marked, the composer is the only transient control.
+import { formatElapsedClock } from "@nervekit/ui-kit/display/time";
 import { onDestroy, untrack } from "svelte";
 import { fade, slide } from "svelte/transition";
 import Check from "@lucide/svelte/icons/check";
@@ -145,7 +146,7 @@ const micTitle = $derived(
     : transcribing
       ? `Cancel transcription (Esc)${voice.session.retryAttempt > 0 ? ` — retry ${voice.session.retryAttempt}/${voice.session.maxRetries}` : ""}`
       : recording
-        ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — Esc or right-click to cancel (${formatElapsed(voice.session.elapsedMs)} / ${formatElapsed(voice.session.maxDurationMs)})`
+        ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — Esc or right-click to cancel (${formatElapsedClock(voice.session.elapsedMs)} / ${formatElapsedClock(voice.session.maxDurationMs)})`
         : voiceBusyElsewhere
           ? "Voice recording is active elsewhere"
           : !chatGptAudioConfigured
@@ -214,13 +215,6 @@ onDestroy(() => {
   clearRegisteredVoiceTarget(true);
   dictation.discard();
 });
-
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
 
 function toggleVoice() {
   if (!voice || !voiceTarget) return;

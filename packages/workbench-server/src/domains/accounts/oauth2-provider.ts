@@ -1,3 +1,4 @@
+import { sleep } from "@nervekit/primitives";
 import { createHash, randomBytes } from "node:crypto";
 import { accountClientIdField } from "@nervekit/contracts/extensions";
 import type { AccountOAuth2Provider } from "@nervekit/extension-api";
@@ -44,16 +45,8 @@ const IDENTITY_VALUE_MAX = 200;
 const base64Url = (bytes: Buffer) => bytes.toString("base64url");
 
 const defaultSleep = (ms: number, signal?: AbortSignal) =>
-  new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        reject(new Error("Sign-in cancelled"));
-      },
-      { once: true },
-    );
+  sleep(ms, signal).catch(() => {
+    throw new Error("Sign-in cancelled");
   });
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -165,7 +158,7 @@ export function createOAuth2Provider(
 ): CredentialProvider {
   const doFetch = deps.fetch ?? fetch;
   const now = deps.now ?? (() => Date.now());
-  const sleep = deps.sleep ?? defaultSleep;
+  const wait = deps.sleep ?? defaultSleep;
   const discovered = new Map<string, Promise<Record<string, unknown>>>();
 
   /** One request to a sign-in origin: guarded, bounded; a network failure is transient. */
@@ -457,7 +450,7 @@ export function createOAuth2Provider(
     const deadline =
       now() + (expiresIn > 0 ? expiresIn * 1000 : MAX_DEVICE_WAIT_MS);
     while (now() < deadline) {
-      await sleep(interval, signal);
+      await wait(interval, signal);
       const body = await tokenRequest(
         account,
         endpoints.token,

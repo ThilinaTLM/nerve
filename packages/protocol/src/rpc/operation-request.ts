@@ -1,4 +1,3 @@
-import type { OperationIdempotency } from "@nervekit/contracts/operations";
 import {
   operationDefinition,
   parseOperationParams,
@@ -20,17 +19,13 @@ export type PreparedOperationRequest =
   | {
       readonly ok: true;
       readonly data: ProtocolRequestData;
-      readonly retryable: boolean;
     }
   | { readonly ok: false; readonly error: OperationRequestFailure };
 
 export function prepareOperationRequest<M extends OperationName>(
   method: M,
   params: OperationParams<M>,
-  options: Pick<
-    ProtocolRequestData,
-    "idempotencyKey" | "timeoutMs" | "expect"
-  > & {
+  options: Pick<ProtocolRequestData, "timeoutMs" | "expect"> & {
     readonly target?: PeerDescriptor;
   } = {},
 ): PreparedOperationRequest {
@@ -47,41 +42,14 @@ export function prepareOperationRequest<M extends OperationName>(
       },
     };
   }
-  if (operation.idempotency === "none" && options.idempotencyKey) {
-    return {
-      ok: false,
-      error: {
-        code: "VALIDATION_FAILED",
-        message: `Operation ${method} does not accept an idempotency key`,
-      },
-    };
-  }
-  if (
-    (operation.idempotency as OperationIdempotency) === "required" &&
-    !options.idempotencyKey
-  ) {
-    return {
-      ok: false,
-      error: {
-        code: "VALIDATION_FAILED",
-        message: `Operation ${method} requires an idempotency key`,
-      },
-    };
-  }
   try {
     const data = protocolRequestDataSchema.parse({
       method,
       params: parseOperationParams(method, params),
-      idempotencyKey: options.idempotencyKey,
       timeoutMs: options.timeoutMs,
       expect: options.expect,
     });
-    return {
-      ok: true,
-      data,
-      retryable:
-        operation.idempotency !== "none" && Boolean(data.idempotencyKey),
-    };
+    return { ok: true, data };
   } catch (error) {
     return {
       ok: false,

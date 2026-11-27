@@ -12,7 +12,7 @@ impl Default for SnapshotOptions {
         Self {
             include_ignored: false,
             recent_commit_limit: 10,
-            status_limit: 100_000,
+            status_limit: 20_000,
             ref_limit: 100_000,
             stash_limit: 1_000,
         }

@@ -1,5 +1,8 @@
 import type { GitFileChange, GitRepoSummary } from "@nervekit/contracts/git";
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import {
+  toneTextClass,
+  type StatusTone,
+} from "@nervekit/ui-kit/display/status";
 import {
   repositoryLabels,
   type RepositoryLabelOptions,
@@ -44,15 +47,6 @@ export function fileStatusTone(file: GitFileChange): StatusTone {
   if (file.index === "R" || file.worktree === "R") return "info";
   return "warning";
 }
-
-const toneTextClass: Record<StatusTone, string> = {
-  destructive: "text-destructive",
-  success: "text-success",
-  info: "text-info",
-  warning: "text-warning",
-  neutral: "text-muted-foreground",
-  brand: "text-primary",
-};
 
 export function fileTone(file: GitFileChange): string {
   return toneTextClass[fileStatusTone(file)];

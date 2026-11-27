@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import {
   mkdir,
   mkdtemp,
   readFile,
   readlink,
-  rm,
   stat,
   symlink,
   writeFile,
@@ -24,7 +24,7 @@ import {
 
 async function fixture(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "migration-toolkit-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   return createStepContext(
     storagePaths(home),
     "0001-example",
@@ -126,7 +126,7 @@ void test("discarded units quarantine raw files and persist a private report ind
   const report = JSON.parse(await readFile(reportPath, "utf8"));
   if (process.platform !== "win32")
     assert.equal((await stat(reportPath)).mode & 0o777, 0o600);
-  await rm(ctx.scratchDir, { recursive: true, force: true });
+  await removeTree(ctx.scratchDir);
   assert.equal(
     await readFile(
       join(report.setAside[0].quarantinePath, "payload/broken.json"),
@@ -192,8 +192,8 @@ void test("quarantine moves an owned symlink boundary instead of touching its ex
   const ctx = await fixture(t);
   const project = await mkdtemp(join(tmpdir(), "migration-project-"));
   const external = await mkdtemp(join(tmpdir(), "migration-unowned-"));
-  t.after(() => rm(project, { recursive: true, force: true }));
-  t.after(() => rm(external, { recursive: true, force: true }));
+  t.after(() => removeTree(project));
+  t.after(() => removeTree(external));
   await mkdir(join(project, ".nerve"));
   await writeFile(join(external, "file.json"), "untouched");
   const boundary = join(project, ".nerve", "config");

@@ -1,5 +1,6 @@
 import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
+import { layerSchema } from "../core/scope.js";
 
 /** Letters, digits, `_` and `-`: the names MCP clients accept, which tool names are built from. */
 export const mcpServerNameSchema = z
@@ -13,7 +14,7 @@ export const mcpSecretNameSchema = z
   .max(64);
 
 /** Where a server is defined: the user's `mcp.json` or a project's. */
-export const mcpScopeSchema = z.enum(["user", "project"]);
+export const mcpScopeSchema = layerSchema;
 export type McpScope = z.infer<typeof mcpScopeSchema>;
 
 /** The scope an operation acts on. */
@@ -23,9 +24,12 @@ export const mcpTargetSchema = z.discriminatedUnion("scope", [
 ]);
 export type McpTarget = z.infer<typeof mcpTargetSchema>;
 
+export const mcpTransportSchema = z.enum(["stdio", "http"]);
+export type McpTransport = z.infer<typeof mcpTransportSchema>;
+
 /** One entry of `mcp.json` as written (variables and `${secret:…}` references not expanded). */
 export const mcpServerEntrySchema = z.strictObject({
-  type: z.enum(["stdio", "http"]).optional(),
+  type: mcpTransportSchema.optional(),
   command: z.string().optional(),
   args: z.array(z.string()).optional(),
   env: z.record(z.string(), z.string()).optional(),
@@ -39,8 +43,6 @@ export const mcpServerEntrySchema = z.strictObject({
   timeout: z.number().optional(),
 });
 export type McpServerEntry = z.infer<typeof mcpServerEntrySchema>;
-
-export const mcpTransportSchema = z.enum(["stdio", "http"]);
 
 /** The user's decision about an entry, by its exact content. */
 /** The user's decision about an entry, by its exact content. */

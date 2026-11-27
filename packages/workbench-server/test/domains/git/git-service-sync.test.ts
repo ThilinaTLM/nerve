@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -77,7 +78,7 @@ async function withRemoteFixture(
   try {
     await fn(fixture);
   } finally {
-    await rm(fixture.root, { recursive: true, force: true });
+    await removeTree(fixture.root);
   }
 }
 

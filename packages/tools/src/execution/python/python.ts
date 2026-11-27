@@ -1,7 +1,4 @@
-import {
-  spawnManagedChildProcess,
-  terminateManagedChildProcess,
-} from "@nervekit/native";
+import { spawnManagedChildProcess } from "@nervekit/native";
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
@@ -11,16 +8,14 @@ import type {
 } from "../execution-context.js";
 import { numberArg } from "../process/arguments.js";
 import { resolveCommandCwd } from "../process/command-cwd.js";
-import { BoundedProcessOutput } from "../output/bounded-process-output.js";
-import { LiveOutputDelivery } from "../output/live-output.js";
+import { formatByteSize } from "../output/format-bytes.js";
 import { pythonProcessPolicy } from "../process/managed-process-policy.js";
-import { forceKillProcessTree } from "../process/process-tree.js";
+import { runManagedProcess } from "../process/run-managed-process.js";
 import { buildProcessResult } from "../process/process-result.js";
 import { pathNotFoundMessage, resolveToolPath } from "../filesystem/path.js";
 
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const MAX_TIMEOUT_SECONDS = 600;
-const FORCE_KILL_AFTER_MS = 2000;
 const MAX_ARTIFACTS = 100;
 const SENSITIVE_ENV_KEY_PATTERN =
   /authorization|cookie|token|apikey|api_key|password|passwd|secret|credential|private.?key|nerve_daemon_token/i;
@@ -359,168 +354,80 @@ async function runPythonProcess({
   signal,
   onUpdate,
 }: RunPythonProcessOptions): Promise<ToolExecutionResult> {
-  const output = new BoundedProcessOutput();
-  const startedAt = performance.now();
+  const runnerPolicy = {
+    ...policy,
+    artifactDir,
+  };
 
-  return await new Promise<ToolExecutionResult>((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new Error("Python execution aborted."));
-      return;
-    }
-
-    const runnerPolicy = {
-      ...policy,
-      artifactDir,
-    };
-    const child = spawnManagedChildProcess(
-      runtime.command,
-      [
-        ...runtime.args,
-        "-u",
-        "-B",
-        runnerPath,
-        userPath,
-        JSON.stringify(runnerPolicy),
-      ],
-      {
-        cwd,
-        env: {
-          ...process.env,
-          ...envOverrides,
-          PYTHONIOENCODING: "utf-8",
-          PYTHONDONTWRITEBYTECODE: "1",
-          NERVE_PYTHON_ALLOW_NETWORK: policy.allowNetwork ? "1" : "0",
-          NERVE_PYTHON_ALLOW_FILEWRITE: policy.allowFileWrite ? "1" : "0",
-          NERVE_PYTHON_ARTIFACT_DIR: artifactDir,
+  return await runManagedProcess({
+    spawn: () =>
+      spawnManagedChildProcess(
+        runtime.command,
+        [
+          ...runtime.args,
+          "-u",
+          "-B",
+          runnerPath,
+          userPath,
+          JSON.stringify(runnerPolicy),
+        ],
+        {
+          cwd,
+          env: {
+            ...process.env,
+            ...envOverrides,
+            PYTHONIOENCODING: "utf-8",
+            PYTHONDONTWRITEBYTECODE: "1",
+            NERVE_PYTHON_ALLOW_NETWORK: policy.allowNetwork ? "1" : "0",
+            NERVE_PYTHON_ALLOW_FILEWRITE: policy.allowFileWrite ? "1" : "0",
+            NERVE_PYTHON_ARTIFACT_DIR: artifactDir,
+          },
+          policy: pythonProcessPolicy(timeoutSeconds * 1000),
         },
-        policy: pythonProcessPolicy(timeoutSeconds * 1000),
-      },
-    );
-
-    const liveOutput = new LiveOutputDelivery(onUpdate);
-    let settled = false;
-    let timedOut = false;
-    let timeoutKilled = false;
-    // eslint-disable-next-line prefer-const -- Cleanup closes over the timer before it is scheduled.
-    let timeout: NodeJS.Timeout | undefined;
-    let forceKillTimeout: NodeJS.Timeout | undefined;
-    const cleanup = () => {
-      if (timeout) clearTimeout(timeout);
-      if (forceKillTimeout) clearTimeout(forceKillTimeout);
-      signal?.removeEventListener("abort", onAbort);
-    };
-    const terminateGracefully = () => {
-      void terminateManagedChildProcess(child, "SIGTERM").then((result) => {
-        if (!result || result.error) {
-          rejectTerminationFailure(
-            result?.error ?? "Native managed process metadata is unavailable",
-          );
-        }
-      }, rejectTerminationFailure);
-    };
-    const rejectTerminationFailure = (error: unknown) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(
-        new Error(
-          `Failed to terminate Python process tree: ${error instanceof Error ? error.message : String(error)}`,
-        ),
-      );
-    };
-    const onAbort = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      void forceKillProcessTree(child).then(
-        () => reject(new Error("Python execution aborted.")),
-        () =>
-          reject(
-            new Error(
-              "Python execution aborted after process termination failed.",
+      ),
+    signal,
+    onUpdate,
+    timeoutSeconds,
+    timeoutLabel: "Python",
+    abortedMessage: "Python execution aborted.",
+    terminationNoun: "Python",
+    buildResult: async (close) => {
+      const artifacts = await listArtifacts(artifactDir);
+      const snapshot = close.output.snapshot();
+      return buildProcessResult({
+        stdoutChunks: snapshot.stdoutChunks,
+        stderrChunks: snapshot.stderrChunks,
+        combinedChunks: snapshot.combinedChunks,
+        code: close.code,
+        signal: close.signal,
+        outputFilePrefix: "nerve-python",
+        agentProfile: "script_output",
+        exitMessagePrefix: "Python",
+        artifactDir,
+        durationMs: close.durationMs,
+        timedOut: close.timedOut,
+        timeoutKilled: close.timeoutKilled,
+        timeoutMessage: close.timeoutMessage,
+        contentFooterLines: artifactFooterLines(artifacts),
+        details: {
+          executable: runtime.displayPath,
+          version: runtime.version,
+          timeoutSeconds,
+          allowNetwork: policy.allowNetwork,
+          allowFileWrite: policy.allowFileWrite,
+          envKeys: Object.keys(envOverrides).sort(),
+          inputMode,
+          scriptPath,
+          artifactDir: artifacts.length > 0 ? artifactDir : undefined,
+          artifacts,
+          outputLimits: {
+            artifacts: artifacts.map((artifact, index) =>
+              pythonArtifactClaim(artifact, index),
             ),
-          ),
-      );
-    };
-
-    signal?.addEventListener("abort", onAbort, { once: true });
-    timeout = setTimeout(() => {
-      if (settled) return;
-      timedOut = true;
-      timeoutKilled = true;
-      if (process.platform === "win32") {
-        void forceKillProcessTree(child).catch(rejectTerminationFailure);
-        return;
-      }
-      terminateGracefully();
-      forceKillTimeout = setTimeout(() => {
-        if (!settled) {
-          void forceKillProcessTree(child).catch(rejectTerminationFailure);
-        }
-      }, FORCE_KILL_AFTER_MS);
-    }, timeoutSeconds * 1000);
-
-    child.stdout?.on("data", (chunk: Buffer) => {
-      output.push("stdout", chunk);
-      liveOutput.write("stdout", chunk, child.stdout ?? undefined);
-    });
-    child.stderr?.on("data", (chunk: Buffer) => {
-      output.push("stderr", chunk);
-      liveOutput.write("stderr", chunk, child.stderr ?? undefined);
-    });
-    child.on("error", (error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    });
-    child.on("close", (code, closeSignal) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      const durationMs = Math.round(performance.now() - startedAt);
-      void liveOutput
-        .end()
-        .then(() => listArtifacts(artifactDir))
-        .then((artifacts) => {
-          const snapshot = output.snapshot();
-          return buildProcessResult({
-            stdoutChunks: snapshot.stdoutChunks,
-            stderrChunks: snapshot.stderrChunks,
-            combinedChunks: snapshot.combinedChunks,
-            code,
-            signal: closeSignal,
-            outputFilePrefix: "nerve-python",
-            agentProfile: "script_output",
-            exitMessagePrefix: "Python",
-            artifactDir,
-            durationMs,
-            timedOut,
-            timeoutKilled,
-            timeoutMessage: `Python timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`,
-            contentFooterLines: artifactFooterLines(artifacts),
-            details: {
-              executable: runtime.displayPath,
-              version: runtime.version,
-              timeoutSeconds,
-              allowNetwork: policy.allowNetwork,
-              allowFileWrite: policy.allowFileWrite,
-              envKeys: Object.keys(envOverrides).sort(),
-              inputMode,
-              scriptPath,
-              artifactDir: artifacts.length > 0 ? artifactDir : undefined,
-              artifacts,
-              outputLimits: {
-                artifacts: artifacts.map((artifact, index) =>
-                  pythonArtifactClaim(artifact, index),
-                ),
-              },
-            },
-          });
-        })
-        .then(resolve)
-        .catch(reject);
-    });
+          },
+        },
+      });
+    },
   });
 }
 
@@ -645,7 +552,7 @@ function artifactFooterLines(artifacts: PythonArtifact[]): string[] {
   const lines = [
     `Python artifacts (${artifacts.length}):`,
     ...artifacts.map(
-      (artifact) => `- ${artifact.path} (${formatArtifactSize(artifact.size)})`,
+      (artifact) => `- ${artifact.path} (${formatByteSize(artifact.size)})`,
     ),
   ];
   if (artifacts.length >= MAX_ARTIFACTS) {
@@ -709,11 +616,4 @@ function artifactCount(result: ToolExecutionResult): number {
   if (!details || typeof details !== "object") return 0;
   const artifacts = (details as { artifacts?: unknown }).artifacts;
   return Array.isArray(artifacts) ? artifacts.length : 0;
-}
-
-function formatArtifactSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
 }

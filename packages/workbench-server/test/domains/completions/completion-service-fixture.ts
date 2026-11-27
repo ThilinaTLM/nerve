@@ -1,5 +1,6 @@
 import type { SearchQuery } from "@nervekit/native";
-import { mkdtemp, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UnifiedCompletionService } from "../../../src/domains/completions/unified-completion-service.js";
@@ -112,7 +113,7 @@ export async function fixture(
     home,
     async close() {
       await service.dispose();
-      await rm(home, { recursive: true, force: true });
+      await removeTree(home);
     },
   };
 }

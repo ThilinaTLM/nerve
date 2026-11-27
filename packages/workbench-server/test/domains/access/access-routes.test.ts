@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -17,9 +18,7 @@ import { markTunnelListener } from "../../../src/infrastructure/network/tunnel-s
 import { withPeer } from "../../support/peer-address.js";
 
 const roots: string[] = [];
-after(() =>
-  Promise.all(roots.map((r) => rm(r, { recursive: true, force: true }))),
-);
+after(() => Promise.all(roots.map((r) => removeTree(r))));
 
 const TOKEN = "nt_test-local-token";
 const json = { "content-type": "application/json" };

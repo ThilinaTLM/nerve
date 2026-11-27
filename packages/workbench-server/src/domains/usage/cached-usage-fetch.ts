@@ -7,8 +7,8 @@ import {
   type SubscriptionUsageProvider,
 } from "@nervekit/contracts/usage";
 
-export const API_TIMEOUT_MS = 5000;
-export const DEFAULT_RATE_LIMIT_BACKOFF_MS = 30_000;
+const API_TIMEOUT_MS = 5000;
+const DEFAULT_RATE_LIMIT_BACKOFF_MS = 30_000;
 const CACHE_MAX_AGE_MS = 30_000;
 const LOCK_MAX_AGE_MS = 10_000;
 
@@ -30,7 +30,7 @@ export function numberValue(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function parseRetryAfterMs(
+function parseRetryAfterMs(
   header: string | null,
   nowMs: number,
 ): number | null {
@@ -77,6 +77,40 @@ async function writeLock(
   }
 }
 
+/**
+ * GET `url` with the shared timeout: a 429 becomes `rate-limited` (honoring
+ * `Retry-After`), any other failure becomes `error`.
+ */
+export async function fetchUsageApi<TBody = string>(
+  url: string,
+  init: Pick<RequestInit, "headers" | "redirect">,
+  readBody: (response: Response) => Promise<TBody>,
+): Promise<UsageApiResponse<TBody>> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      ...init,
+      method: "GET",
+      signal: controller.signal,
+    });
+    if (res.ok) return { kind: "success", body: await readBody(res) };
+    if (res.status === 429) {
+      return {
+        kind: "rate-limited",
+        retryAfterMs:
+          parseRetryAfterMs(res.headers.get("retry-after"), Date.now()) ??
+          DEFAULT_RATE_LIMIT_BACKOFF_MS,
+      };
+    }
+    return { kind: "error" };
+  } catch {
+    return { kind: "error" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /** Time-window quota without count fields (Anthropic and Codex windows). */
 export function windowQuota(
   id: string,
@@ -90,7 +124,7 @@ export function windowQuota(
 }
 
 /** Reads a persisted snapshot; outdated or foreign files count as missing. */
-export async function readUsageCacheFile(
+async function readUsageCacheFile(
   path: string,
   provider: SubscriptionUsageProvider,
 ): Promise<{ data: SubscriptionUsage; time: number } | null> {
@@ -105,7 +139,7 @@ export async function readUsageCacheFile(
   }
 }
 
-export async function writeUsageCacheFile(
+async function writeUsageCacheFile(
   cacheDir: string,
   path: string,
   data: SubscriptionUsage,
@@ -124,17 +158,15 @@ export async function writeUsageCacheFile(
  * served on transient failures.
  */
 export function createCachedUsageFetcher<TBody, TRequest = string>(options: {
-  /** Basename of the cross-process lock file inside the cache dir. */
-  lockFileName: string;
-  readCacheFile: (cacheDir: string) => Promise<{
-    data: SubscriptionUsage | null;
-    time: number;
-  } | null>;
-  writeCacheFile: (cacheDir: string, data: SubscriptionUsage) => Promise<void>;
+  /** Names the files in the cache dir: `<cacheName>-usage.json` and `<cacheName>-usage.lock`. */
+  cacheName: string;
+  provider: SubscriptionUsageProvider;
   fetchApi: (request: TRequest) => Promise<UsageApiResponse<TBody>>;
   parseResponse: (body: TBody) => SubscriptionUsage | null;
 }): (request: TRequest, cacheDir: string) => Promise<SubscriptionUsage | null> {
   let cache: CacheEntry | null = null;
+  const cacheFile = (cacheDir: string) =>
+    join(cacheDir, `${options.cacheName}-usage.json`);
 
   return async (request, cacheDir) => {
     const now = Date.now();
@@ -147,7 +179,10 @@ export function createCachedUsageFetcher<TBody, TRequest = string>(options: {
       return cache.data;
     }
 
-    const fileCache = await options.readCacheFile(cacheDir);
+    const fileCache = await readUsageCacheFile(
+      cacheFile(cacheDir),
+      options.provider,
+    );
     if (fileCache?.data && now - fileCache.time < CACHE_MAX_AGE_MS) {
       cache = { data: fileCache.data, time: fileCache.time, blockedUntil: 0 };
       return fileCache.data;
@@ -159,7 +194,7 @@ export function createCachedUsageFetcher<TBody, TRequest = string>(options: {
       return lastKnown;
     }
 
-    const lockPath = join(cacheDir, options.lockFileName);
+    const lockPath = join(cacheDir, `${options.cacheName}-usage.lock`);
     const lockedUntil = await readLock(lockPath, now);
     if (lockedUntil) {
       cache = { data: lastKnown, time: now, blockedUntil: lockedUntil };
@@ -182,7 +217,7 @@ export function createCachedUsageFetcher<TBody, TRequest = string>(options: {
     if (!data) return backoff(DEFAULT_RATE_LIMIT_BACKOFF_MS);
 
     cache = { data, time: now, blockedUntil: 0 };
-    await options.writeCacheFile(cacheDir, data);
+    await writeUsageCacheFile(cacheDir, cacheFile(cacheDir), data);
     return data;
   };
 }

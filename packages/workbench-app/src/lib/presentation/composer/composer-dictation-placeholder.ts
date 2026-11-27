@@ -1,3 +1,4 @@
+import { formatElapsedClock } from "@nervekit/ui-kit/display/time";
 import {
   type EditorState,
   type Extension,
@@ -46,11 +47,6 @@ const TITLES: Record<ComposerDictationState, string> = {
   transcribing: "Transcribing — Esc to cancel",
   failed: "Transcription failed — click the mic to retry, Esc to discard",
 };
-
-function formatElapsed(elapsedMs: number): string {
-  const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
 
 class DictationWidget extends WidgetType {
   constructor(
@@ -133,7 +129,7 @@ const placeholderField = StateField.define<Placeholder | null>({
               Decoration.widget({
                 widget: new DictationWidget(
                   value.state,
-                  formatElapsed(value.elapsedMs),
+                  formatElapsedClock(value.elapsedMs),
                 ),
                 side: -1,
               }).range(value.pos),

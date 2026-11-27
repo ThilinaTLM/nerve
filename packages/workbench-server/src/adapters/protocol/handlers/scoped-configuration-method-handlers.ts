@@ -35,6 +35,39 @@ function failure(
     ],
   };
 }
+/** Runs `run`, mapping any thrown error to the scoped-configuration failure result. */
+async function guarded<T>(
+  state: Context,
+  target: ScopedConfigurationTarget,
+  run: () => Promise<T>,
+) {
+  try {
+    return await run();
+  } catch (error) {
+    return failure(state, target, error);
+  }
+}
+function profileTarget(input: {
+  scope: Extract<ScopedConfigurationTarget, { document: "profile" }>["scope"];
+  name: string;
+}): ScopedConfigurationTarget {
+  return { document: "profile", scope: input.scope, name: input.name };
+}
+const deleteLocalProfile = (
+  state: Context,
+  input: {
+    scope: Extract<ScopedConfigurationTarget, { document: "profile" }>["scope"];
+    name: string;
+    expectedDigest: string;
+  },
+) =>
+  guarded(state, profileTarget(input), () =>
+    state.agentConfiguration.profiles.deleteLocal(
+      input.scope,
+      input.name,
+      input.expectedDigest,
+    ),
+  );
 export const scopedConfigurationMethodHandlers = define({
   "agentConfiguration.reload": async (state, input) => ({
     status: "reloaded" as const,
@@ -45,26 +78,17 @@ export const scopedConfigurationMethodHandlers = define({
   }),
   "agentProfiles.list": (state, input) =>
     state.agentConfiguration.profiles.listForEditing(input.scope, input.role),
-  "agentProfiles.read": async (state, input) => {
-    try {
-      return {
-        status: "available" as const,
-        ...(await state.agentConfiguration.profiles.readForEditing(
-          input.scope,
-          input.name,
-          input.role,
-        )),
-      };
-    } catch (error) {
-      return failure(
-        state,
-        { document: "profile", scope: input.scope, name: input.name },
-        error,
-      );
-    }
-  },
-  "agentProfiles.save": async (state, input) => {
-    try {
+  "agentProfiles.read": (state, input) =>
+    guarded(state, profileTarget(input), async () => ({
+      status: "available" as const,
+      ...(await state.agentConfiguration.profiles.readForEditing(
+        input.scope,
+        input.name,
+        input.role,
+      )),
+    })),
+  "agentProfiles.save": (state, input) =>
+    guarded(state, profileTarget(input), async () => {
       const saved = await state.agentConfiguration.profiles.save(
         input.scope,
         input.name,
@@ -72,61 +96,19 @@ export const scopedConfigurationMethodHandlers = define({
         input.definition,
       );
       return { status: "saved" as const, digest: saved.digest };
-    } catch (error) {
-      return failure(
-        state,
-        { document: "profile", scope: input.scope, name: input.name },
-        error,
-      );
-    }
-  },
-  "agentProfiles.delete": async (state, input) => {
-    try {
-      return await state.agentConfiguration.profiles.deleteLocal(
-        input.scope,
-        input.name,
-        input.expectedDigest,
-      );
-    } catch (error) {
-      return failure(
-        state,
-        { document: "profile", scope: input.scope, name: input.name },
-        error,
-      );
-    }
-  },
-  "agentProfiles.reset": async (state, input) => {
-    try {
-      return await state.agentConfiguration.profiles.deleteLocal(
-        input.scope,
-        input.name,
-        input.expectedDigest,
-      );
-    } catch (error) {
-      return failure(
-        state,
-        { document: "profile", scope: input.scope, name: input.name },
-        error,
-      );
-    }
-  },
-  "agentConfiguration.repairPreview": async (state, input) => {
-    try {
-      return {
-        status: "ready" as const,
-        preview: await createScopedRepair(state.agentConfiguration).preview(
-          input,
-        ),
-      };
-    } catch (error) {
-      return failure(state, input.target, error);
-    }
-  },
-  "agentConfiguration.repairApply": async (state, input) => {
-    try {
-      return await createScopedRepair(state.agentConfiguration).apply(input);
-    } catch (error) {
-      return failure(state, input.target, error);
-    }
-  },
+    }),
+  // Resetting a built-in override and deleting a local profile are the same operation.
+  "agentProfiles.delete": deleteLocalProfile,
+  "agentProfiles.reset": deleteLocalProfile,
+  "agentConfiguration.repairPreview": (state, input) =>
+    guarded(state, input.target, async () => ({
+      status: "ready" as const,
+      preview: await createScopedRepair(state.agentConfiguration).preview(
+        input,
+      ),
+    })),
+  "agentConfiguration.repairApply": (state, input) =>
+    guarded(state, input.target, () =>
+      createScopedRepair(state.agentConfiguration).apply(input),
+    ),
 });

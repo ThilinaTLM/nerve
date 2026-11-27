@@ -11,6 +11,14 @@ import type {
 
 export { EXTENSION_ERROR_CODES, isArtifactName } from "./errors.js";
 export {
+  ARTIFACT_PREFIX,
+  MAX_STREAMED_FILE_BYTES,
+  artifactNameOf,
+  assertArtifactName,
+  mediaTypeFor,
+} from "./artifacts.js";
+export { closeMatches, editDistance } from "./text.js";
+export {
   DEFAULT_TOOL_VIEW,
   VIEW_SECTION_ID,
   VIEW_SECTION_TYPES,

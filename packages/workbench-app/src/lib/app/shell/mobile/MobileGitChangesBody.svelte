@@ -12,9 +12,8 @@ import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import Undo2 from "@lucide/svelte/icons/undo-2";
 import type {
-  GitDiffArea,
+  GitChangeArea,
   GitFileChange,
-  GitStashArea,
   GitStashEntry,
 } from "@nervekit/contracts/git";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -170,13 +169,13 @@ const remoteItems = $derived<ContextMenuItem[]>([
   },
 ]);
 
-function statusLetter(file: GitFileChange, area: GitDiffArea): string {
+function statusLetter(file: GitFileChange, area: GitChangeArea): string {
   if (file.untracked) return "U";
   const code = area === "staged" ? file.index : file.worktree;
   return code.trim() || "M";
 }
 
-function tone(file: GitFileChange, area: GitDiffArea): StatusTone {
+function tone(file: GitFileChange, area: GitChangeArea): StatusTone {
   const letter = statusLetter(file, area);
   if (letter === "D") return "destructive";
   if (letter === "A" || letter === "U") return "success";
@@ -190,17 +189,17 @@ function splitPath(path: string): { name: string; dir: string } {
     : { name: path.slice(index + 1), dir: path.slice(0, index) };
 }
 
-function openDiff(file: GitFileChange, area: GitDiffArea) {
+function openDiff(file: GitFileChange, area: GitChangeArea) {
   void openMobileCenter("diff", () =>
     gitActions.openDiff(repository, file, area),
   );
 }
 
-function stashArea(area: GitDiffArea): GitStashArea {
+function stashArea(area: GitChangeArea): GitChangeArea {
   return area === "staged" ? "staged" : "unstaged";
 }
 
-function menu(file: GitFileChange, area: GitDiffArea): ContextMenuItem[] {
+function menu(file: GitFileChange, area: GitChangeArea): ContextMenuItem[] {
   const canMutate = model.capabilities.mutateFiles.enabled;
   const items: ContextMenuItem[] = [
     area === "staged"
@@ -241,7 +240,7 @@ const showBar = $derived(model.availability.available && total > 0);
 const hasUnstaged = $derived(unstagedCount > 0);
 </script>
 
-{#snippet fileRows(files: GitFileChange[], area: GitDiffArea)}
+{#snippet fileRows(files: GitFileChange[], area: GitChangeArea)}
   {#each files as file (`${area}:${file.path}`)}
     {@const parts = splitPath(file.path)}
     <MobileListRow

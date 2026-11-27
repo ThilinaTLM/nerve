@@ -1,4 +1,5 @@
 <script lang="ts">
+import { formatElapsedClock } from "@nervekit/ui-kit/display/time";
 import { editableCapabilityResets } from "$lib/domain/capabilities/editable-resets";
 import {
   agentProfileCatalog,
@@ -374,7 +375,7 @@ const micTitle = $derived(
   transcribing
     ? `Cancel transcription${cancelMicShortcut ? ` (${cancelMicShortcut})` : " (Esc)"}${voiceInputSession.retryAttempt > 0 ? ` — retry ${voiceInputSession.retryAttempt}/${voiceInputSession.maxRetries}` : ""}`
     : recording
-      ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — ${cancelMicShortcut ?? "Esc"} to cancel; right-click to cancel (${formatElapsed(voiceInputSession.elapsedMs)} / ${formatElapsed(voiceInputSession.maxDurationMs)})`
+      ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — ${cancelMicShortcut ?? "Esc"} to cancel; right-click to cancel (${formatElapsedClock(voiceInputSession.elapsedMs)} / ${formatElapsedClock(voiceInputSession.maxDurationMs)})`
       : voiceBusyElsewhere
         ? "Voice recording is active in another conversation"
         : !chatGptAudioConfigured
@@ -409,13 +410,6 @@ const sendTitle = $derived(
             ? "Queue prompt for the next agent turn"
             : "Send prompt",
 );
-
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
 
 async function submitComposer() {
   if (!availability.canSubmit) return;

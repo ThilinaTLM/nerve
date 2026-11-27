@@ -5,6 +5,7 @@
   removed. Adding goes through the daemon; this page never writes the file.
 -->
 <script lang="ts">
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import { untrack } from "svelte";
 import Plug from "@lucide/svelte/icons/plug";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
@@ -50,13 +51,8 @@ $effect(() => {
     projectId ? mcpTarget("project", projectId) : mcpTarget("user", undefined),
   );
 });
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive) return;
-  void projectId;
-  untrack(() => enablement.load());
-});
 $effect(() => list.observe());
-$effect(() => enablement.observe());
+enablement.connect();
 
 // The files change without an event (an edit, a pull). The attention list reads
 // them again when it learns of a change, so follow what it knows about MCP, and
@@ -89,12 +85,8 @@ const error = $derived(list.error ?? enablement.error);
 let query = $state("");
 const rows = $derived(list.rows);
 const visible = $derived(
-  rows.length >= SETTINGS_SEARCH_MIN && query.trim()
-    ? rows.filter((row) =>
-        `${row.name} ${row.description ?? ""}`
-          .toLowerCase()
-          .includes(query.trim().toLowerCase()),
-      )
+  rows.length >= SETTINGS_SEARCH_MIN
+    ? rows.filter((row) => matchesTerms(query, row.name, row.description))
     : rows,
 );
 const groups = $derived([

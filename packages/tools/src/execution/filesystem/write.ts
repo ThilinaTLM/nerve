@@ -4,6 +4,7 @@ import type {
   FilesystemExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
+import { formatByteSize } from "../output/format-bytes.js";
 import { writeTextFileAtomically } from "./atomic-write.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
 import { resolveToolPath } from "./path.js";
@@ -27,7 +28,7 @@ export async function executeWrite(
     await mkdir(dirname(path), { recursive: true });
     await writeTextFileAtomically(path, args.content as string);
     const bytesWritten = Buffer.byteLength(args.content as string, "utf8");
-    const content = `${outcome === "created" ? "Created" : "Overwrote"} ${shown} (${formatSize(bytesWritten)}).`;
+    const content = `${outcome === "created" ? "Created" : "Overwrote"} ${shown} (${formatByteSize(bytesWritten)}).`;
     return {
       path,
       content,
@@ -45,10 +46,4 @@ export async function executeWrite(
       },
     };
   });
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

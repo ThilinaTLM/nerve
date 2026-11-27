@@ -5,7 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { mcpBlock } from "../../../src/domains/mcp/mcp-enablement.js";
 import { createTestMcp } from "../../fixtures/mcp/test-hub.js";
-import { waitFor } from "../../support/wait-for.js";
+import { waitFor } from "@nervekit/test-kit";
 
 const FAKE_SERVER = fileURLToPath(
   new URL("../../fixtures/mcp/fake-mcp-server.mjs", import.meta.url),

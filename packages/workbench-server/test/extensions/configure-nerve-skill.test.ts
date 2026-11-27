@@ -1,13 +1,13 @@
 // The built-in `configure-nerve` skill: its guide's links and its plain-Node scripts. The
 // declaration pointers and theme-token mentions are checked against the generated reference in
 // scripts/build/skill-reference-assets.test.ts.
+import { removeTree } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
 import {
   cp,
   mkdtemp,
   readdir,
   readFile,
-  rm,
   stat,
   writeFile,
 } from "node:fs/promises";
@@ -103,7 +103,7 @@ void test("the scripts target the SDK of this Nerve's version", async () => {
     await writeFile(join(root, "nerve-version.json"), '{"version":"1.2.3"}\n');
     assert.equal(lib.resolveSdk(root, {}).version, "1.2.3");
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
   // Maintainers point at a tarball before the SDK is published.
   const local = lib.resolveSdk(root, {
@@ -173,6 +173,6 @@ void test("installs ignore scripts, use the lockfile when there is one, and list
       ["install", "--frozen-lockfile", "--ignore-scripts"],
     ]);
   } finally {
-    await rm(folder, { recursive: true, force: true });
+    await removeTree(folder);
   }
 });

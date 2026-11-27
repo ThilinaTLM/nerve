@@ -24,7 +24,7 @@ import {
 } from "./discovery.js";
 import { nonEmptyString, optionalText } from "../shared/args.js";
 import { orWhenUnsupported } from "../shared/errors.js";
-import { mediaTypeFor } from "../shared/files.js";
+import { mediaTypeFor } from "@nervekit/extension-api/host";
 import { defineMethod, type PathedMethod } from "../shared/define-method.js";
 import type { JiraSession } from "./session.js";
 import { jiraIssue, jiraProject, jiraSprint } from "../shared/targets.js";

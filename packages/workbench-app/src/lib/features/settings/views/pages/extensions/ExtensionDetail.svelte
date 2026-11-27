@@ -26,6 +26,7 @@ import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
 import { tick } from "svelte";
+import { isProjectLocked } from "$lib/application/agent-configuration/project-lock";
 import type { ModelInfo } from "$lib/api";
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import type { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
@@ -121,7 +122,7 @@ const userItems = $derived(
   ),
 );
 const projectLocked = $derived(
-  layered && (extensions.view?.file.trustState ?? "trusted") !== "trusted",
+  layered && isProjectLocked(extensions.view?.file),
 );
 const sameValue = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b);

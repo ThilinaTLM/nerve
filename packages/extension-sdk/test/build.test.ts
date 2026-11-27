@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { buildExtension, sdkVersion } from "../src/build.ts";
 import { extensionKinds, initExtension } from "../src/init.ts";
 import { ExtensionProjectError } from "../src/problems.ts";
+import { removeTree } from "@nervekit/test-kit";
 
 async function withTemp<T>(run: (root: string) => Promise<T>): Promise<T> {
   const root = await mkdtemp(join(tmpdir(), "nerve-sdk-"));
   try {
     return await run(root);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 }
 

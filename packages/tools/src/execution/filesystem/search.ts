@@ -1,11 +1,6 @@
-import type { ChildProcessByStdio } from "node:child_process";
-import { spawnManagedChildProcess } from "@nervekit/native";
-import { searchProcessPolicy } from "../process/managed-process-policy.js";
-import { createReadStream } from "node:fs";
-import { open, readFile, stat } from "node:fs/promises";
+import { files } from "@nervekit/native";
+import { readFile, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { createInterface } from "node:readline";
-import type { Readable } from "node:stream";
 import type {
   FilesystemExecutionContext,
   ToolExecutionResult,
@@ -18,18 +13,13 @@ import {
   textLimitSnapshot,
 } from "../output/output-budget.js";
 import {
-  globToRegExp,
   resolveSearchScope,
+  searchError,
   type SearchScope,
-  walkFiles,
 } from "./search-utils.js";
 import { GREP_MAX_LINE_LENGTH } from "../output/truncate.js";
-import { isErrnoException } from "./path.js";
 
 const GREP_TIMEOUT_MS = 30_000;
-const STDERR_LIMIT = 64 * 1024;
-const STDOUT_LINE_LIMIT = 1024 * 1024;
-const BINARY_PROBE_BYTES = 8 * 1024;
 
 type GrepMatch = NonNullable<ToolExecutionResult["matches"]>[number];
 type GrepDisplayLine = GrepMatch & { isMatch: boolean };
@@ -40,51 +30,17 @@ type GrepRunResult = {
   totalFiles: number;
 };
 
-class RipgrepUnavailableError extends Error {}
-
-type GrepBackendMode = "auto" | "rg" | "node";
-
 export async function executeGrep(
   args: Record<string, unknown>,
   context: FilesystemExecutionContext,
-): Promise<ToolExecutionResult> {
-  return executeGrepWithBackend(args, context, "auto");
-}
-
-/** Internal deterministic seam for semantic tests and development benchmarks. */
-export async function executeGrepWithBackend(
-  args: Record<string, unknown>,
-  context: FilesystemExecutionContext,
-  backendMode: GrepBackendMode,
 ): Promise<ToolExecutionResult> {
   if (typeof args.pattern !== "string" || args.pattern.length === 0) {
     throw new Error("Tool argument 'pattern' must be a non-empty string.");
   }
   const scope = await resolveSearchScope(context.cwd, args, "grep");
   const limit = Math.min(numberArg(args.limit, 100), 2000);
-  const contextLines = numberArg(args.context, 0);
-  let raw: GrepRunResult;
-  if (backendMode === "node") {
-    raw = await fallbackGrep(args, scope, limit, contextLines, context.signal);
-  } else {
-    try {
-      raw = await runRg(args, scope, limit, contextLines, context.signal);
-    } catch (error) {
-      if (
-        backendMode !== "auto" ||
-        !(error instanceof RipgrepUnavailableError)
-      ) {
-        throw error;
-      }
-      raw = await fallbackGrep(
-        args,
-        scope,
-        limit,
-        contextLines,
-        context.signal,
-      );
-    }
-  }
+  const contextLines = Math.max(0, Math.floor(numberArg(args.context, 0)));
+  const raw = await runGrep(args, scope, limit, contextLines, context.signal);
   const bounded = boundGrepResult(raw);
   const longLine = bounded.firstTruncated
     ? await longLineReadHint(
@@ -113,325 +69,6 @@ export async function executeGrepWithBackend(
       producerLimitReached: bounded.result.matches.length >= limit,
     },
   };
-}
-
-async function runRg(
-  args: Record<string, unknown>,
-  scope: SearchScope,
-  limit: number,
-  contextLines: number,
-  signal: AbortSignal | undefined,
-): Promise<GrepRunResult> {
-  throwIfSearchAborted(signal);
-  const rgArgs = [
-    "--json",
-    "--line-number",
-    "--color=never",
-    "--hidden",
-    "--with-filename",
-    "--max-columns",
-    String(FILE_OUTPUT_MAX_LINE_CHARS),
-    "--max-columns-preview",
-  ];
-  if (args.ignoreCase) rgArgs.push("--ignore-case");
-  if (args.literal) rgArgs.push("--fixed-strings");
-  if (typeof args.glob === "string" && args.glob.length > 0) {
-    rgArgs.push("--glob", args.glob);
-  }
-  if (contextLines > 0) rgArgs.push("--context", String(contextLines));
-  rgArgs.push("--", String(args.pattern), ...scope.roots);
-
-  return new Promise<GrepRunResult>((resolve, reject) => {
-    let child: ChildProcessByStdio<null, Readable, Readable>;
-    try {
-      child = spawnManagedChildProcess("rg", rgArgs, {
-        policy: searchProcessPolicy(),
-      }) as ChildProcessByStdio<null, Readable, Readable>;
-    } catch (error) {
-      reject(commandUnavailableError(error));
-      return;
-    }
-
-    const matches: GrepMatch[] = [];
-    const lines: GrepDisplayLine[] = [];
-    let stdoutBuffer = "";
-    let stderr = "";
-    let settled = false;
-    let totalMatches = 0;
-    const matchedFiles = new Set<string>();
-    let finalMatchPath: string | undefined;
-    let finalContextLine = 0;
-    let processError: Error | undefined;
-    let forceKillTimer: NodeJS.Timeout | undefined;
-
-    const killChild = () => {
-      if (child.exitCode !== null || child.signalCode !== null) return;
-      child.kill("SIGTERM");
-      forceKillTimer ??= setTimeout(() => child.kill("SIGKILL"), 100);
-      forceKillTimer.unref();
-    };
-    const failAndKill = (error: Error) => {
-      processError ??= error;
-      killChild();
-    };
-    const onAbort = () => failAndKill(abortError());
-    signal?.addEventListener("abort", onAbort, { once: true });
-    const timeout = setTimeout(
-      () =>
-        failAndKill(new Error(`grep timed out after ${GREP_TIMEOUT_MS}ms.`)),
-      GREP_TIMEOUT_MS,
-    );
-    timeout.unref();
-
-    const cleanup = () => {
-      clearTimeout(timeout);
-      if (forceKillTimer) clearTimeout(forceKillTimer);
-      signal?.removeEventListener("abort", onAbort);
-    };
-    const settle = (error?: Error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      if (error) reject(error);
-      else
-        resolve({
-          matches,
-          lines,
-          totalMatches,
-          totalFiles: matchedFiles.size,
-        });
-    };
-
-    const consumeLine = (line: string) => {
-      if (!line) return;
-      let event: unknown;
-      try {
-        event = JSON.parse(line);
-      } catch {
-        failAndKill(
-          new Error(
-            `ripgrep returned invalid JSON output: ${line.slice(0, 200)}`,
-          ),
-        );
-        return;
-      }
-      const record = asRecord(event);
-      const type = record?.type;
-      if (type !== "match" && type !== "context") return;
-      const data = asRecord(record?.data);
-      const pathData = asRecord(data?.path);
-      const linesData = asRecord(data?.lines);
-      const pathText = stringValue(pathData?.text);
-      const lineNumber = data?.line_number;
-      const text = stringValue(linesData?.text)?.replace(/\r?\n$/, "");
-      if (!pathText || typeof lineNumber !== "number" || text === undefined) {
-        return;
-      }
-      const displayLine: GrepDisplayLine = {
-        path: displayPath(scope.displayRoot, pathText),
-        line: lineNumber,
-        text,
-        isMatch: type === "match",
-      };
-
-      if (displayLine.isMatch) {
-        totalMatches += 1;
-        matchedFiles.add(displayLine.path);
-      }
-      if (matches.length < limit) {
-        lines.push(displayLine);
-        if (displayLine.isMatch) {
-          matches.push(stripDisplayFlag(displayLine));
-          if (matches.length === limit) {
-            finalMatchPath = displayLine.path;
-            finalContextLine = displayLine.line + contextLines;
-          }
-        }
-        return;
-      }
-
-      if (
-        displayLine.path === finalMatchPath &&
-        displayLine.line <= finalContextLine
-      ) {
-        lines.push({ ...displayLine, isMatch: false });
-        return;
-      }
-    };
-
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdoutBuffer += chunk;
-      if (
-        stdoutBuffer.length > STDOUT_LINE_LIMIT &&
-        !stdoutBuffer.includes("\n")
-      ) {
-        failAndKill(new Error("ripgrep returned an oversized JSON record."));
-        return;
-      }
-      let newline = stdoutBuffer.indexOf("\n");
-      while (newline >= 0 && !processError) {
-        const line = stdoutBuffer.slice(0, newline).replace(/\r$/, "");
-        stdoutBuffer = stdoutBuffer.slice(newline + 1);
-        consumeLine(line);
-        newline = stdoutBuffer.indexOf("\n");
-      }
-    });
-    child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk: string) => {
-      if (stderr.length < STDERR_LIMIT) {
-        stderr += chunk.slice(0, STDERR_LIMIT - stderr.length);
-      }
-    });
-    child.once("error", (error) => {
-      processError = commandUnavailableError(error);
-    });
-    child.once("close", (code) => {
-      if (!processError && stdoutBuffer.trim()) {
-        consumeLine(stdoutBuffer.replace(/\r$/, ""));
-      }
-      if (processError) {
-        settle(processError);
-        return;
-      }
-      if (code === 0 || code === 1) {
-        settle();
-        return;
-      }
-      const diagnostic = stderr.trim();
-      settle(
-        new Error(
-          diagnostic
-            ? `ripgrep failed: ${diagnostic}`
-            : `ripgrep exited with code ${code ?? "unknown"}.`,
-        ),
-      );
-    });
-  });
-}
-
-async function fallbackGrep(
-  args: Record<string, unknown>,
-  scope: SearchScope,
-  limit: number,
-  contextLines: number,
-  signal: AbortSignal | undefined,
-): Promise<GrepRunResult> {
-  const matches: GrepMatch[] = [];
-  const lines: GrepDisplayLine[] = [];
-  const displayIndexes = new Map<string, number>();
-  const literal = Boolean(args.literal);
-  const ignoreCase = Boolean(args.ignoreCase);
-  const pattern = String(args.pattern);
-  const regex = literal
-    ? undefined
-    : new RegExp(pattern, ignoreCase ? "i" : undefined);
-  const needle = ignoreCase ? pattern.toLowerCase() : pattern;
-  const glob =
-    typeof args.glob === "string" ? globToRegExp(args.glob) : undefined;
-  const deadline = Date.now() + GREP_TIMEOUT_MS;
-  let totalMatches = 0;
-  const matchedFiles = new Set<string>();
-
-  const checkExecution = () => {
-    throwIfSearchAborted(signal);
-    if (Date.now() >= deadline) {
-      throw new Error(`grep timed out after ${GREP_TIMEOUT_MS}ms.`);
-    }
-  };
-  const addDisplayLine = (line: GrepDisplayLine) => {
-    const key = `${line.path}\0${line.line}`;
-    const existingIndex = displayIndexes.get(key);
-    if (existingIndex === undefined) {
-      displayIndexes.set(key, lines.length);
-      lines.push(line);
-    } else if (line.isMatch) {
-      lines[existingIndex] = line;
-    }
-  };
-
-  for (const root of scope.roots) {
-    await walkFiles(
-      scope.displayRoot,
-      root,
-      limit,
-      async (absolutePath, relativePath) => {
-        checkExecution();
-        const normalizedPath = relativePath.split(sep).join("/");
-        if (glob && !glob.test(normalizedPath)) return;
-        if (await isBinaryFile(absolutePath)) return;
-
-        const before: Array<{ line: number; text: string }> = [];
-        let trailingThrough = 0;
-        let lineNumber = 0;
-        const input = createReadStream(absolutePath, { encoding: "utf8" });
-        const reader = createInterface({ input, crlfDelay: Infinity });
-        try {
-          for await (const text of reader) {
-            checkExecution();
-            lineNumber += 1;
-            const haystack = ignoreCase ? text.toLowerCase() : text;
-            const isMatch = regex
-              ? regex.test(text)
-              : haystack.includes(needle);
-            if (isMatch) {
-              totalMatches += 1;
-              matchedFiles.add(normalizedPath);
-            }
-            if (isMatch && matches.length < limit) {
-              for (const item of before) {
-                addDisplayLine({
-                  path: normalizedPath,
-                  line: item.line,
-                  text: item.text,
-                  isMatch: false,
-                });
-              }
-              const match = { path: normalizedPath, line: lineNumber, text };
-              matches.push(match);
-              addDisplayLine({ ...match, isMatch: true });
-              trailingThrough = lineNumber + contextLines;
-            } else if (lineNumber <= trailingThrough) {
-              addDisplayLine({
-                path: normalizedPath,
-                line: lineNumber,
-                text,
-                isMatch: false,
-              });
-            }
-
-            before.push({ line: lineNumber, text });
-            if (before.length > contextLines) before.shift();
-          }
-        } catch (error) {
-          if (!isTransientFileError(error)) throw error;
-        } finally {
-          reader.close();
-          input.destroy();
-        }
-      },
-      () => {
-        checkExecution();
-        return false;
-      },
-    );
-  }
-  return { matches, lines, totalMatches, totalFiles: matchedFiles.size };
-}
-
-async function isBinaryFile(path: string): Promise<boolean> {
-  let file;
-  try {
-    file = await open(path, "r");
-    const buffer = Buffer.allocUnsafe(BINARY_PROBE_BYTES);
-    const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
-    return buffer.subarray(0, bytesRead).includes(0);
-  } catch (error) {
-    if (isTransientFileError(error)) return true;
-    return true;
-  } finally {
-    await file?.close().catch(() => undefined);
-  }
 }
 
 type TruncatedGrepLine = { path: string; line: number; text: string };
@@ -575,52 +212,38 @@ function formatMatches(
   };
 }
 
-function displayPath(displayRoot: string, path: string): string {
-  const displayed = isAbsolute(path) ? relative(displayRoot, path) : path;
-  return displayed.split(sep).join("/") || path;
-}
-
 function stripDisplayFlag(line: GrepDisplayLine): GrepMatch {
   return { path: line.path, line: line.line, text: line.text };
 }
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function commandUnavailableError(error: unknown): Error {
-  if (
-    error instanceof Error &&
-    ((isErrnoException(error) &&
-      (error.code === "ENOENT" || error.code === "EACCES")) ||
-      /no such file|not found|access is denied|permission denied/i.test(
-        error.message,
-      ))
-  ) {
-    return new RipgrepUnavailableError(error.message);
+async function runGrep(
+  args: Record<string, unknown>,
+  scope: SearchScope,
+  limit: number,
+  contextLines: number,
+  signal: AbortSignal | undefined,
+): Promise<GrepRunResult> {
+  let result: files.GrepResult;
+  try {
+    result = await files.grep(scope.displayRoot, scope.roots, {
+      pattern: args.pattern as string,
+      literal: Boolean(args.literal),
+      ignoreCase: Boolean(args.ignoreCase),
+      glob: typeof args.glob === "string" ? args.glob : undefined,
+      context: contextLines,
+      limit,
+      maxLineBytes: FILE_OUTPUT_MAX_LINE_CHARS,
+      timeoutMs: GREP_TIMEOUT_MS,
+      signal,
+    });
+  } catch (error) {
+    throw searchError(error, "grep", GREP_TIMEOUT_MS, signal);
   }
-  return error instanceof Error ? error : new Error(String(error));
-}
-
-function isTransientFileError(error: unknown): boolean {
-  return (
-    isErrnoException(error) &&
-    (error.code === "ENOENT" || error.code === "ENOTDIR")
-  );
-}
-
-function throwIfSearchAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) throw abortError();
-}
-
-function abortError(): Error {
-  const error = new Error("grep execution aborted.");
-  error.name = "AbortError";
-  return error;
+  const lines: GrepDisplayLine[] = result.lines;
+  return {
+    lines,
+    matches: lines.filter((line) => line.isMatch).map(stripDisplayFlag),
+    totalMatches: result.totalMatches,
+    totalFiles: result.totalFiles,
+  };
 }

@@ -1,7 +1,8 @@
-use std::collections::BTreeMap;
 use std::path::Path;
 
-use gix::bstr::{BStr, ByteSlice};
+use std::collections::BTreeMap;
+
+use gix::bstr::ByteSlice;
 
 use super::error::{ErrorKind, GitReadError};
 use super::model::{
@@ -23,45 +24,95 @@ pub fn read_info(path: &str) -> Result<RepositoryInfo, GitReadError> {
     })
 }
 
-pub fn read_snapshot(path: &str, options: SnapshotOptions) -> Result<Snapshot, GitReadError> {
+/// Full snapshot on the bounded, cancellable path: 16 MiB metadata accounting,
+/// a one-million-commit walk budget and per-entry cancellation checks. Unlike the
+/// monitor and project reads it may run configured clean filters, so it must only
+/// be reached from the isolated reader process (which is killed on abort).
+pub(crate) fn read_snapshot(
+    path: &str,
+    options: SnapshotOptions,
+    token: &CancellationToken,
+) -> Result<Snapshot, GitReadError> {
     let repo = open_snapshot_repository(path)?;
-    let context = ReadContext::legacy();
-    let HeadMetadata {
+    let files = read_status(&repo, options.include_ignored, options.status_limit, token)?;
+    let metadata = metadata_from_repository(
+        &repo,
+        MetadataOptions {
+            ref_limit: options.ref_limit,
+            recent_commit_limit: options.recent_commit_limit,
+            stash_limit: options.stash_limit,
+        },
+        token,
+        &ReadContext::bounded(token),
+    )?;
+    Ok(assemble(metadata, files))
+}
+
+fn assemble(metadata: MetadataSnapshot, files: Vec<FileStatus>) -> Snapshot {
+    let MetadataSnapshot {
+        git_dir,
+        work_dir,
         head_oid,
         head_branch,
         detached,
         upstream,
         ahead,
         behind,
-    } = read_head(&repo, &context)?;
-
-    let refs = read_refs(&repo, options.ref_limit, &context)?;
-    let remotes = read_remotes(&repo, &context)?;
-    let files = read_status(&repo, options.include_ignored, options.status_limit)?;
-    let recent_commits = read_recent_commits(&repo, options.recent_commit_limit, &context)?;
-    let stashes = read_stashes(&repo, options.stash_limit, &context)?;
-
-    Ok(Snapshot {
-        git_dir: repo.git_dir().to_string_lossy().into_owned(),
-        work_dir: repo
-            .workdir()
-            .map(|path| path.to_string_lossy().into_owned()),
-        head_oid,
-        head_branch,
-        detached,
-        upstream,
-        ahead,
-        behind,
-        in_progress: super::project::read_in_progress(
-            &repo,
-            &crate::core::cancellation::CancellationToken::default(),
-        )?,
+        in_progress,
         refs,
         remotes,
-        files,
         recent_commits,
         stashes,
-    })
+    } = metadata;
+    Snapshot {
+        git_dir,
+        work_dir,
+        head_oid,
+        head_branch,
+        detached,
+        upstream,
+        ahead,
+        behind,
+        in_progress,
+        refs,
+        remotes,
+        recent_commits,
+        stashes,
+        files,
+    }
+}
+
+fn read_status(
+    repo: &gix::Repository,
+    include_ignored: bool,
+    limit: usize,
+    token: &CancellationToken,
+) -> Result<Vec<FileStatus>, GitReadError> {
+    let mut platform = repo
+        .status(gix::progress::Discard)
+        .map_err(|error| GitReadError::from_gix("prepare status", error))?;
+    if include_ignored {
+        platform.dirwalk_options_mut(|options| {
+            options.set_emit_ignored(Some(gix::dir::walk::EmissionMode::Matching));
+        });
+    }
+    let iterator = platform
+        .into_iter(Vec::<gix::bstr::BString>::new())
+        .map_err(|error| GitReadError::from_gix("start status", error))?;
+    let mut files: BTreeMap<String, FileStatus> = BTreeMap::new();
+    for item in iterator {
+        super::project::check(token)?;
+        let item = item.map_err(|error| GitReadError::from_gix("read status", error))?;
+        let path = super::project::path_text(item.location())?;
+        super::project::apply_item(&mut files, path, item)?;
+        if files.len() > limit {
+            return Err(GitReadError::new(
+                ErrorKind::LimitExceeded,
+                format!("status entry count exceeds {limit}"),
+            ));
+        }
+    }
+    Ok(files.into_values().collect())
 }
 
 fn read_refs(
@@ -155,102 +206,6 @@ fn read_remotes(
     }
     remotes.sort_by(|left, right| left.name.cmp(&right.name));
     Ok(remotes)
-}
-
-fn read_status(
-    repo: &gix::Repository,
-    include_ignored: bool,
-    limit: usize,
-) -> Result<Vec<FileStatus>, GitReadError> {
-    let mut platform = repo
-        .status(gix::progress::Discard)
-        .map_err(|error| GitReadError::from_gix("prepare status", error))?;
-    if include_ignored {
-        platform.dirwalk_options_mut(|options| {
-            options.set_emit_ignored(Some(gix::dir::walk::EmissionMode::Matching));
-        });
-    }
-    let iterator = platform
-        .into_iter(Vec::<gix::bstr::BString>::new())
-        .map_err(|error| GitReadError::from_gix("start status", error))?;
-    let mut files: BTreeMap<String, FileStatus> = BTreeMap::new();
-    for item in iterator {
-        let item = item.map_err(|error| GitReadError::from_gix("read status", error))?;
-        let path = path_text(item.location())?;
-        let status = files.entry(path.clone()).or_insert_with(|| FileStatus {
-            path,
-            index: " ".into(),
-            worktree: " ".into(),
-            ..FileStatus::default()
-        });
-        match item {
-            gix::status::Item::TreeIndex(change) => {
-                use gix::diff::index::ChangeRef;
-                status.index = match &change {
-                    ChangeRef::Addition { .. } => "A",
-                    ChangeRef::Deletion { .. } => "D",
-                    ChangeRef::Modification { .. } => "M",
-                    ChangeRef::Rewrite {
-                        source_location,
-                        copy,
-                        ..
-                    } => {
-                        status.renamed_from = Some(path_text(source_location)?);
-                        if *copy { "C" } else { "R" }
-                    }
-                }
-                .into();
-            }
-            gix::status::Item::IndexWorktree(change) => {
-                if let gix::status::index_worktree::Item::DirectoryContents { entry, .. } = &change
-                {
-                    match entry.status {
-                        gix::dir::entry::Status::Ignored(_) => {
-                            status.index = "!".into();
-                            status.worktree = "!".into();
-                            status.ignored = true;
-                            continue;
-                        }
-                        gix::dir::entry::Status::Untracked => {
-                            status.index = "?".into();
-                            status.worktree = "?".into();
-                            status.untracked = true;
-                            continue;
-                        }
-                        _ => {}
-                    }
-                }
-                if let gix::status::index_worktree::Item::Rewrite { source, copy, .. } = &change {
-                    status.renamed_from = Some(path_text(source.rela_path())?);
-                    status.worktree = if *copy { "C" } else { "R" }.into();
-                    continue;
-                }
-                status.worktree = match change.summary() {
-                    Some(gix::status::index_worktree::iter::Summary::Removed) => "D",
-                    Some(gix::status::index_worktree::iter::Summary::Added) => "?",
-                    Some(gix::status::index_worktree::iter::Summary::Renamed) => "R",
-                    Some(gix::status::index_worktree::iter::Summary::Copied) => "C",
-                    Some(gix::status::index_worktree::iter::Summary::Conflict) => "U",
-                    Some(gix::status::index_worktree::iter::Summary::Modified)
-                    | Some(gix::status::index_worktree::iter::Summary::TypeChange)
-                    | Some(gix::status::index_worktree::iter::Summary::IntentToAdd) => "M",
-                    None => " ",
-                }
-                .into();
-                status.untracked = status.worktree == "?";
-                if status.untracked {
-                    status.index = "?".into();
-                }
-            }
-        }
-        if files.len() > limit {
-            return Err(GitReadError::new(
-                ErrorKind::LimitExceeded,
-                format!("status entry count exceeds {limit}"),
-            ));
-        }
-    }
-    Ok(files.into_values().collect())
 }
 
 fn read_recent_commits(
@@ -425,15 +380,6 @@ fn to_u32(value: usize) -> Result<u32, GitReadError> {
         .map_err(|_| GitReadError::new(ErrorKind::LimitExceeded, "commit count exceeds u32"))
 }
 
-fn path_text(path: &BStr) -> Result<String, GitReadError> {
-    path.to_str().map(ToOwned::to_owned).map_err(|_| {
-        GitReadError::new(
-            ErrorKind::Unsupported,
-            "non-UTF-8 repository paths are unsupported by the public contract",
-        )
-    })
-}
-
 struct HeadMetadata {
     head_oid: Option<String>,
     head_branch: Option<String>,
@@ -534,7 +480,7 @@ fn metadata_from_repository(
     } = read_head(repo, context)?;
     let refs = read_refs(repo, options.ref_limit, context)?;
     let remotes = read_remotes(repo, context)?;
-    // Unlike legacy zero status limits, explicit metadata zero limits skip work.
+    // Explicit zero history/stash limits skip the work; a zero ref limit fails on any ref.
     let recent_commits = if options.recent_commit_limit == 0 {
         Vec::new()
     } else {
@@ -571,9 +517,9 @@ fn metadata_from_repository(
     })
 }
 
-/// Owning monitor composition: preserve the full snapshot fingerprint schema,
-/// but never execute external filters in the parent. Admission spans metadata
-/// and joined status completion, including subordinate module reads.
+/// Owning monitor composition: the full snapshot fingerprint schema, never
+/// executing external filters in the parent. Admission spans metadata and
+/// joined status completion, including subordinate module reads.
 pub(crate) fn read_monitor_snapshot(path: &str) -> Result<Snapshot, GitReadError> {
     let _permit = super::project::admit().map_err(|e| GitReadError::new(e.category, e.message))?;
     let token = CancellationToken::default();
@@ -599,37 +545,7 @@ pub(crate) fn read_monitor_snapshot(path: &str) -> Result<Snapshot, GitReadError
         false,
     )?
     .files;
-    let MetadataSnapshot {
-        git_dir,
-        work_dir,
-        head_oid,
-        head_branch,
-        detached,
-        upstream,
-        ahead,
-        behind,
-        in_progress,
-        refs,
-        remotes,
-        recent_commits,
-        stashes,
-    } = metadata;
-    Ok(Snapshot {
-        git_dir,
-        work_dir,
-        head_oid,
-        head_branch,
-        detached,
-        upstream,
-        ahead,
-        behind,
-        in_progress,
-        refs,
-        remotes,
-        recent_commits,
-        stashes,
-        files,
-    })
+    Ok(assemble(metadata, files))
 }
 
 #[cfg(test)]

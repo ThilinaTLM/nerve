@@ -1,6 +1,6 @@
 import type { ArtifactRef, FormPart } from "@nervekit/extension-api";
 import { ExtensionError } from "@nervekit/extension-api";
-import { MAX_ATTACHMENT_BYTES } from "../shared/files.js";
+import { MAX_STREAMED_FILE_BYTES } from "@nervekit/extension-api/host";
 import {
   rawRequestUrl,
   sendRaw,
@@ -157,7 +157,7 @@ export async function jiraDownloadToArtifact(
     response: "artifact",
     artifact: { name: options.name },
     timeoutMs: TRANSFER_TIMEOUT_MS,
-    maxBytes: options.maxBytes ?? MAX_ATTACHMENT_BYTES,
+    maxBytes: options.maxBytes ?? MAX_STREAMED_FILE_BYTES,
     errorPath: path,
   });
   return {
@@ -171,7 +171,7 @@ export async function jiraDownloadToArtifact(
 export function attachmentTooLarge(id: string, size: number): ExtensionError {
   return new ExtensionError(
     "BAD_REQUEST",
-    `Attachment ${id} is ${(size / 1048576).toFixed(1)} MB; the limit is ${MAX_ATTACHMENT_BYTES / 1048576} MB.`,
+    `Attachment ${id} is ${(size / 1048576).toFixed(1)} MB; the limit is ${MAX_STREAMED_FILE_BYTES / 1048576} MB.`,
   );
 }
 

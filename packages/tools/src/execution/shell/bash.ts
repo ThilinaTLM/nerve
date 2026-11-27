@@ -1,18 +1,14 @@
 import type { ProjectShellLaunchContext } from "@nervekit/contracts/tools";
-import {
-  spawnManagedChildProcess,
-  terminateManagedChildProcess,
-} from "@nervekit/native";
+import { spawnManagedChildProcess } from "@nervekit/native";
 import type {
   ShellExecutionContext,
   ToolExecutionResult,
 } from "../execution-context.js";
 import { numberArg } from "../process/arguments.js";
 import { resolveCommandCwd } from "../process/command-cwd.js";
-import { BoundedProcessOutput } from "../output/bounded-process-output.js";
-import { LiveOutputDelivery } from "../output/live-output.js";
+import type { BoundedProcessOutput } from "../output/bounded-process-output.js";
 import { bashProcessPolicy } from "../process/managed-process-policy.js";
-import { forceKillProcessTree } from "../process/process-tree.js";
+import { runManagedProcess } from "../process/run-managed-process.js";
 import { buildProcessResult } from "../process/process-result.js";
 import { resolveProjectShellInvocation } from "./project-environment.js";
 import {
@@ -20,8 +16,6 @@ import {
   formatProjectShellFailure,
 } from "./launch-diagnostics.js";
 import { resolveBashShellConfig } from "./shell-config.js";
-
-const FORCE_KILL_AFTER_MS = 2000;
 
 function nonInteractiveShellEnv(): NodeJS.ProcessEnv {
   return {
@@ -53,27 +47,17 @@ export async function executeBash(
     typeof args.timeout === "number"
       ? Math.max(0, numberArg(args.timeout, 0))
       : undefined;
-  const output = new BoundedProcessOutput();
-  const startedAt = performance.now();
+  const env = nonInteractiveShellEnv();
+  const invocation = resolveProjectShellInvocation(args.command, {
+    cwd,
+    env,
+    projectEnvironment: args.projectEnvironment,
+    shellConfig: resolveBashShellConfig({ shellPath: context.shellPath }),
+  });
 
-  return await new Promise<ToolExecutionResult>((resolve, reject) => {
-    if (context.signal?.aborted) {
-      reject(new Error("Command aborted."));
-      return;
-    }
-
-    const env = nonInteractiveShellEnv();
-    const invocation = resolveProjectShellInvocation(args.command as string, {
-      cwd,
-      env,
-      projectEnvironment: args.projectEnvironment as boolean | undefined,
-      shellConfig: resolveBashShellConfig({
-        shellPath: context.shellPath,
-      }),
-    });
-    let child: ReturnType<typeof spawnManagedChildProcess>;
-    try {
-      child = spawnManagedChildProcess(invocation.shell, invocation.args, {
+  return await runManagedProcess({
+    spawn: () =>
+      spawnManagedChildProcess(invocation.shell, invocation.args, {
         cwd,
         env: invocation.env,
         policy: bashProcessPolicy(
@@ -82,92 +66,16 @@ export async function executeBash(
             : undefined,
         ),
         detachOutputAfterExit: true,
-      });
-    } catch (error) {
-      reject(contextualizeShellSpawnError(error, invocation.launch));
-      return;
-    }
-
-    const liveOutput = new LiveOutputDelivery(context.onUpdate);
-    let settled = false;
-    let timedOut = false;
-    let timeoutKilled = false;
-    let timeout: NodeJS.Timeout | undefined;
-    let forceKillTimeout: NodeJS.Timeout | undefined;
-    const cleanup = () => {
-      if (timeout) clearTimeout(timeout);
-      if (forceKillTimeout) clearTimeout(forceKillTimeout);
-      context.signal?.removeEventListener("abort", onAbort);
-    };
-    const terminateGracefully = () => {
-      void terminateManagedChildProcess(child, "SIGTERM").then((result) => {
-        if (!result || result.error) {
-          rejectTerminationFailure(
-            result?.error ?? "Native managed process metadata is unavailable",
-          );
-        }
-      }, rejectTerminationFailure);
-    };
-    const rejectTerminationFailure = (error: unknown) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(
-        new Error(
-          `Failed to terminate command process tree: ${error instanceof Error ? error.message : String(error)}`,
-        ),
-      );
-    };
-    const onAbort = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      void forceKillProcessTree(child).then(
-        () => reject(new Error("Command aborted.")),
-        () =>
-          reject(
-            new Error("Command aborted after process termination failed."),
-          ),
-      );
-    };
-
-    context.signal?.addEventListener("abort", onAbort, { once: true });
-    if (timeoutSeconds !== undefined && timeoutSeconds > 0) {
-      timeout = setTimeout(() => {
-        if (settled) return;
-        timedOut = true;
-        timeoutKilled = true;
-        if (process.platform === "win32") {
-          void forceKillProcessTree(child).catch(rejectTerminationFailure);
-          return;
-        }
-        terminateGracefully();
-        forceKillTimeout = setTimeout(() => {
-          if (!settled) {
-            void forceKillProcessTree(child).catch(rejectTerminationFailure);
-          }
-        }, FORCE_KILL_AFTER_MS);
-      }, timeoutSeconds * 1000);
-    }
-
-    child.stdout?.on("data", (chunk: Buffer) => {
-      output.push("stdout", chunk);
-      liveOutput.write("stdout", chunk, child.stdout ?? undefined);
-    });
-    child.stderr?.on("data", (chunk: Buffer) => {
-      output.push("stderr", chunk);
-      liveOutput.write("stderr", chunk, child.stderr ?? undefined);
-    });
-    child.on("error", (error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(contextualizeShellSpawnError(error, invocation.launch));
-    });
-    child.on("close", (code, signal) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
+      }),
+    signal: context.signal,
+    onUpdate: context.onUpdate,
+    timeoutSeconds,
+    timeoutLabel: "Command",
+    abortedMessage: "Command aborted.",
+    terminationNoun: "command",
+    mapSpawnError: (error) =>
+      contextualizeShellSpawnError(error, invocation.launch),
+    beforeEnd: ({ code, timedOut, output, liveOutput }) => {
       if (
         !timedOut &&
         invocation.launch.manager &&
@@ -180,23 +88,21 @@ export async function executeBash(
         output.push("stderr", diagnostic);
         liveOutput.write("stderr", diagnostic);
       }
-      void liveOutput
-        .end()
-        .then(() =>
-          buildResult(output.snapshot(), code, signal, context.artifactDir, {
-            launch: invocation.launch,
-            durationMs: Math.round(performance.now() - startedAt),
-            timedOut,
-            timeoutKilled,
-            timeoutMessage:
-              timeoutSeconds !== undefined
-                ? `Command timed out after ${timeoutSeconds}s and ${timeoutKilled ? "was killed" : "was not killed"}.`
-                : undefined,
-          }),
-        )
-        .then(resolve)
-        .catch(reject);
-    });
+    },
+    buildResult: (close) =>
+      buildResult(
+        close.output.snapshot(),
+        close.code,
+        close.signal,
+        context.artifactDir,
+        {
+          launch: invocation.launch,
+          durationMs: close.durationMs,
+          timedOut: close.timedOut,
+          timeoutKilled: close.timeoutKilled,
+          timeoutMessage: close.timeoutMessage,
+        },
+      ),
   });
 }
 

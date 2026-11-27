@@ -1,4 +1,5 @@
 <script lang="ts">
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import { PageItem } from "@nervekit/ui-kit/components/composites/page";
 import { accountsState } from "$lib/application/extensions/accounts-state.svelte";
 import { visibleAccounts } from "../accounts/accounts-view";
@@ -30,7 +31,7 @@ import {
   setExtensionTools,
 } from "$lib/presentation/tools/lifecycle/extension-tools";
 import ExtensionMark from "../extensions/ExtensionMark.svelte";
-import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import { LayeredAgentState } from "$lib/application/agent-configuration/layered-agent-state.svelte";
 import { ScopedExtensionsState } from "$lib/application/extensions/scoped-extensions-state.svelte";
 import {
   openProjectSettingsPane,
@@ -86,21 +87,13 @@ const clamp = (model: ModelSelection, level: ThinkingLevel) => {
   const known = models.find((m) => modelKey(m) === modelKey(model));
   return known ? clampThinkingLevelForModel(level, known) : level;
 };
-const userEditor = new ScopedAgentState(clamp);
-const projectEditor = new ScopedAgentState(clamp);
+const agent = new LayeredAgentState(() => ({ projectId, layered }), clamp);
+agent.connect(() => models);
+const { user: userEditor, project: projectEditor } = agent;
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
-  void models;
-  void userEditor.load({ scope: "user" });
   ensureProfilesFor(projectId ? "project" : "user", projectId);
 });
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive || !projectId) return;
-  void models;
-  void projectEditor.load({ scope: "project", projectId });
-});
-$effect(() => userEditor.observe());
-$effect(() => projectEditor.observe());
 // The direct tools of enabled extensions, grouped under their extension below the core tools.
 let toolDescriptors = $state<ToolDescriptor[]>([]);
 $effect(() => {
@@ -170,11 +163,9 @@ const total = $derived(
     extensionGroups.reduce((sum, group) => sum + group.tools.length, 0),
 );
 let query = $state("");
-const needle = $derived(
-  total >= SETTINGS_SEARCH_MIN ? query.trim().toLowerCase() : "",
-);
-const matches = (text: string) =>
-  !needle || text.toLowerCase().includes(needle);
+const needle = $derived(total >= SETTINGS_SEARCH_MIN ? query : "");
+const matches = (...fields: (string | undefined)[]) =>
+  matchesTerms(needle, ...fields);
 const shownRows = $derived(
   toolRows.filter((row) => matches(`${row.label} ${row.description}`)),
 );
@@ -211,23 +202,14 @@ function openExtension(item?: string, section?: string) {
   if (projectId) void openProjectSettingsPane(projectId, "extensions", options);
   else void openSettingsPane("extensions", options);
 }
-const error = $derived(
-  userEditor.error ?? (layered ? projectEditor.error : undefined),
-);
-const ready = $derived(
-  !!userEditor.resolution && (!layered || !!projectEditor.resolution),
-);
+const error = $derived(agent.error);
+const ready = $derived(agent.ready);
 const loading = $derived(!ready && !error);
 /** The project's settings file is not trusted: its column is locked. */
-const locked = $derived(
-  layered &&
-    projectEditor.document?.status === "available" &&
-    (projectEditor.document.trustState ?? "trusted") !== "trusted",
-);
+const locked = $derived(agent.locked);
 
-const editors = { user: userEditor, project: projectEditor } as const;
 function payload(layer: SettingsLayer, id: ToolId): ToolPayload {
-  return editors[layer].resolution?.settings.tools?.[id] ?? {};
+  return agent.editor(layer).resolution?.settings.tools?.[id] ?? {};
 }
 const displayContext = $derived({ profileLabel: profileLabelFor });
 /** The row's status line: settings only, or what the tool does. */
@@ -269,9 +251,9 @@ async function writeEnabled(
   choice: boolean | undefined,
 ) {
   if (choice === undefined)
-    await editors[layer].save({}, [`/overrides/tools/${id}/enabled`]);
+    await agent.editor(layer).save({}, [`/overrides/tools/${id}/enabled`]);
   else
-    await editors[layer].save(
+    await agent.editor(layer).save(
       leadSettingsOverridesSchema.parse({
         tools: { [id]: { enabled: choice } },
       }),
@@ -287,10 +269,7 @@ function toggle(id: ToolId, layer: SettingsLayer, next: boolean) {
   });
 }
 function onRetry() {
-  return Promise.all([
-    userEditor.reload(),
-    layered ? projectEditor.reload() : undefined,
-  ]);
+  return agent.reload();
 }
 
 const toolIcons: Partial<Record<ToolId, typeof Wrench>> = {
@@ -314,7 +293,7 @@ function configure(row: ToolRowDef) {
 }
 const dialogValue = $derived(payload(dialogLayer, dialogTool.id));
 function save(next: ToolPayload) {
-  const editor = editors[dialogLayer];
+  const editor = agent.editor(dialogLayer);
   try {
     const mutation = toolSettingsMutation(
       dialogTool.id,

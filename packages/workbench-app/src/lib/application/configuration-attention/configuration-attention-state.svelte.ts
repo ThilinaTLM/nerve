@@ -1,3 +1,4 @@
+import { createDebouncedTask } from "@nervekit/primitives";
 import type { ConfigurationResource } from "@nervekit/contracts/configuration";
 import { projectConfigurationHealth } from "$lib/application/project-configuration/project-configuration-health-state.svelte";
 import { settingsHealth } from "$lib/application/settings/settings-health-state.svelte";
@@ -23,7 +24,7 @@ class ConfigurationAttentionController {
   /** The resources are a real read for `projectId`, not the empty start state. */
   loaded = $state(false);
   #request = 0;
-  #timer: ReturnType<typeof setTimeout> | undefined;
+  #refreshSoon = createDebouncedTask(() => void this.refresh(), 300);
 
   /** Files the settings-health and project-configuration entries already show. */
   get shownPaths(): string[] {
@@ -70,7 +71,7 @@ class ConfigurationAttentionController {
   }
 
   async refresh(projectId = this.projectId): Promise<void> {
-    clearTimeout(this.#timer);
+    this.#refreshSoon.cancel();
     const request = ++this.#request;
     try {
       const { resources } = await requestConversation(
@@ -102,8 +103,7 @@ class ConfigurationAttentionController {
 
   /** Change events arrive in bursts; one read follows the last. */
   refreshSoon(): void {
-    clearTimeout(this.#timer);
-    this.#timer = setTimeout(() => void this.refresh(), 300);
+    this.#refreshSoon.schedule();
   }
 
   /** The project closed or changed: nothing from the old one stays. */

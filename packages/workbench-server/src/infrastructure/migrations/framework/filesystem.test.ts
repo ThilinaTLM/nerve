@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
-import {
-  mkdtemp,
-  readFile,
-  mkdir,
-  writeFile,
-  readdir,
-  rm,
-} from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, readFile, mkdir, writeFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -15,7 +9,7 @@ import { RollbackJournal } from "./rollback-journal.js";
 
 void test("journaled filesystem restores original bytes, renames, removals and new layout", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "migration-fs-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const scratch = join(root, "scratch");
   const file = join(root, "config.json");
   const removed = join(root, "removed");
@@ -49,7 +43,7 @@ void test("journaled filesystem restores original bytes, renames, removals and n
 
 void test("rollback handles repeated renames and journaled directory removal", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "migration-renames-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const scratch = join(root, "scratch");
   const fs = new MigrationFilesystem(scratch);
   const source = join(root, "source");

@@ -37,7 +37,7 @@ function projectContext(
   return project;
 }
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { KeyedSerialQueue } from "@nervekit/primitives";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import { createId } from "@nervekit/contracts";
 import {
@@ -46,7 +46,10 @@ import {
   type PermissionOverlayOrigin,
 } from "@nervekit/contracts/permissions";
 import { assertHomeConfigurationPathWritable } from "../../infrastructure/configuration/home-configuration.js";
-import { atomicWriteJson } from "../../infrastructure/storage-bootstrap/index.js";
+import {
+  atomicWriteJson,
+  readJsonFile,
+} from "../../infrastructure/storage-bootstrap/index.js";
 
 export function emptyOverlayDocument(): PermissionOverlayDocument {
   return { schemaVersion: 2, overlays: [] };
@@ -77,18 +80,12 @@ export async function loadPermissionOverlay(
       );
     return projectPermissionValue(loaded.value);
   }
-  try {
-    return permissionOverlayDocumentForOriginSchema(origin).parse(
-      JSON.parse(await readFile(path, "utf8")),
-    );
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT")
-      return emptyOverlayDocument();
-    throw error;
-  }
+  return readJsonFile(path, permissionOverlayDocumentForOriginSchema(origin), {
+    missing: emptyOverlayDocument,
+  });
 }
 
-const writes = new Map<string, Promise<void>>();
+const writes = new KeyedSerialQueue<string>();
 
 /** Serializes read-modify-write cycles per file and validates before the atomic write. */
 export async function mutatePermissionOverlay(
@@ -110,43 +107,36 @@ export async function mutatePermissionOverlay(
       },
     );
   }
-  const write = (writes.get(path) ?? Promise.resolve())
-    .catch(() => undefined)
-    .then(async () => {
-      if (origin === "user") {
-        assertHomeConfigurationPathWritable(path);
-        try {
-          permissionOverlayDocumentForOriginSchema(origin).parse(
-            JSON.parse(await readFile(path, "utf8")),
-          );
-        } catch (cause) {
-          throw new Error(
-            "Cannot save invalid permissions settings. Reset to defaults or fix the file and Reload first.",
-            { cause },
-          );
-        }
-      }
-      const document = await loadPermissionOverlay(origin, path);
-      mutate(document);
-      const parsed =
-        permissionOverlayDocumentForOriginSchema(origin).parse(document);
-      if (origin === "user")
-        await trustedWrite(
-          userTrust,
-          { kind: "permissions", projectId: null, path },
-          async () => {
-            await atomicWriteJson(path, parsed, 0o600);
-            return `${JSON.stringify(parsed, null, 2)}\n`;
-          },
+  await writes.run(path, async () => {
+    if (origin === "user") {
+      assertHomeConfigurationPathWritable(path);
+      try {
+        await readJsonFile(
+          path,
+          permissionOverlayDocumentForOriginSchema(origin),
         );
-      else await atomicWriteJson(path, parsed, 0o600);
-    });
-  writes.set(path, write);
-  try {
-    await write;
-  } finally {
-    if (writes.get(path) === write) writes.delete(path);
-  }
+      } catch (cause) {
+        throw new Error(
+          "Cannot save invalid permissions settings. Reset to defaults or fix the file and Reload first.",
+          { cause },
+        );
+      }
+    }
+    const document = await loadPermissionOverlay(origin, path);
+    mutate(document);
+    const parsed =
+      permissionOverlayDocumentForOriginSchema(origin).parse(document);
+    if (origin === "user")
+      await trustedWrite(
+        userTrust,
+        { kind: "permissions", projectId: null, path },
+        async () => {
+          await atomicWriteJson(path, parsed, 0o600);
+          return `${JSON.stringify(parsed, null, 2)}\n`;
+        },
+      );
+    else await atomicWriteJson(path, parsed, 0o600);
+  });
 }
 
 /**

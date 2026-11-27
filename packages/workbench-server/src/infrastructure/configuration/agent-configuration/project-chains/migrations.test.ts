@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
-import {
-  mkdtemp,
-  mkdir,
-  readFile,
-  writeFile,
-  rm,
-  readdir,
-} from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, readFile, writeFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -26,7 +20,7 @@ import { projectPermissionsConfiguration } from "../../../../core-host/permissio
 
 async function fixture(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "project-chains-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const context = { projectId: "p", directory: join(home, "project") };
   const service = new ProjectMigrationService({ home });
   const put = async (path: string, value: unknown) => {

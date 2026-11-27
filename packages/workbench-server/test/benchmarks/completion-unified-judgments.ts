@@ -1,7 +1,8 @@
 // Actual production provider mapping -> native index -> coordinator/policy.
 // Acquisition is invented raw catalogs only. No pre-scored lexical stubs, real
 // workspace discovery, network, user config/history, or command execution.
-import { mkdtemp, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
@@ -163,7 +164,7 @@ async function scenario<T>(
     });
   } finally {
     await service?.dispose();
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   }
 }
 

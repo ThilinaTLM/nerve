@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { conversationScopeSchema, sourceSchema } from "../core/scope.js";
 import {
   profileExtensionsSchema,
   type ProfileExtensions,
@@ -252,7 +253,7 @@ export const sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const revision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const contribution = {
   name: agentProfileNameSchema,
-  source: z.enum(["builtin", "user", "project"]),
+  source: sourceSchema,
   sourceDigest: sha256HexSchema,
   instructions: agentProfileInstructionsSchema,
 };
@@ -449,7 +450,7 @@ export const conversationAgentSummariesSchema = z.strictObject({
   ),
 });
 export const configurationDiagnosticSchema = z.strictObject({
-  scope: z.enum(["user", "project", "conversation"]),
+  scope: conversationScopeSchema,
   scopeId: z.string().optional(),
   document: z.string().min(1),
   path: z.string(),

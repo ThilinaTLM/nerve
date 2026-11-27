@@ -1,3 +1,4 @@
+import type { Layer } from "@nervekit/contracts/core";
 import {
   accountFieldKinds,
   fieldScopes,
@@ -9,8 +10,7 @@ import {
 } from "@nervekit/contracts/extensions";
 
 /** Scopes the Extensions page edits. */
-export type ExtensionsScope = "user" | "project";
-
+export type ExtensionsScope = Layer;
 export type AccountChoice = {
   id: string;
   name: string;
@@ -688,7 +688,7 @@ export function parseNumberInput(text: string): number | undefined | "invalid" {
 
 // ── Installed extensions (user and project folders) ─────────────────────────
 
-export type InstalledGroup = "user" | "project";
+export type InstalledGroup = Layer;
 
 /** The catalog entries of one installed source, in the catalog's order. */
 export function installedEntries(

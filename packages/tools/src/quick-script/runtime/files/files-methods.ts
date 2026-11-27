@@ -3,9 +3,8 @@ import { dirname } from "node:path";
 import { ToolExecutionError } from "../../../execution/index.js";
 import { executeEdit } from "../../../execution/index.js";
 import { resolveToolPath } from "../../../execution/index.js";
+import { ARTIFACT_PREFIX, artifactNameOf } from "@nervekit/extension-api/host";
 import {
-  ARTIFACT_PREFIX,
-  artifactNameOf,
   listArtifacts,
   MAX_FILE_BYTES,
   notFound,

@@ -269,7 +269,6 @@ function protocolStatus(code: NerveErrorCode): number {
     case "RESOURCE_NOT_FOUND":
       return 404;
     case "CONFLICT":
-    case "IDEMPOTENCY_CONFLICT":
       return 409;
     case "DOMAIN_VALIDATION_FAILED":
       return 422;

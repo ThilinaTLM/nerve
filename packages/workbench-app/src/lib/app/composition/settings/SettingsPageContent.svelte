@@ -54,7 +54,7 @@ const accountSignIn = new AccountSignInFlow();
 
 type SettingsChange = (
   patch: UpdateSettingsRequest,
-  options?: { immediate?: boolean; debounceMs?: number },
+  options?: { immediate?: boolean },
 ) => void;
 
 /**

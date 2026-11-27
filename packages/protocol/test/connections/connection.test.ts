@@ -7,6 +7,7 @@ import {
   createMessageFactory,
 } from "../../src/index.js";
 import { ManualTransport } from "../test-runtime.js";
+import { createFakeClock } from "../support/fake-clock.js";
 
 const messages = createMessageFactory({
   source: { role: "ui", id: "ui_connection" },
@@ -132,27 +133,8 @@ test("disposal prevents stale queued frames from applying", async () => {
 });
 
 function fakeClock() {
-  let nextId = 0;
-  const pending = new Map<number, { at: number; run: () => void }>();
-  let now = 0;
-  return {
-    timers: {
-      setTimeout: (run: () => void, ms: number) => {
-        pending.set(++nextId, { at: now + ms, run });
-        return nextId;
-      },
-      clearTimeout: (handle: unknown) => void pending.delete(handle as number),
-    },
-    advance(ms: number) {
-      now += ms;
-      for (const [id, timer] of [...pending]) {
-        if (timer.at <= now) {
-          pending.delete(id);
-          timer.run();
-        }
-      }
-    },
-  };
+  const clock = createFakeClock();
+  return { timers: clock.timers, advance: clock.advance };
 }
 
 test("slow handler is reported once while ordering is preserved", async () => {
@@ -170,11 +152,11 @@ test("slow handler is reported once while ordering is preserved", async () => {
   });
   void transport.emit(first);
   await tick();
-  clock.advance(99);
+  await clock.advance(99);
   await tick();
   assert.deepEqual(errors, []);
-  clock.advance(1);
-  clock.advance(500);
+  await clock.advance(1);
+  await clock.advance(500);
   await tick();
   assert.equal(errors.length, 1);
   assert.match(errors[0]!, /exceeded 100ms/);
@@ -203,7 +185,7 @@ test("close returns within the drain bound when a handler hangs", async () => {
   });
   await tick();
   assert.equal(closed, false);
-  clock.advance(1000);
+  await clock.advance(1000);
   await closing;
   assert.equal(closed, true);
   assert.match(errors.join(), /drain timed out after 1000ms/);

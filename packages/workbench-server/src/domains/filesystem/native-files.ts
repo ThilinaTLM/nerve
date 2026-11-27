@@ -1,102 +1,19 @@
-/**
- * Loader for the optional native `files` API (`@nervekit/native`). Typed locally
- * so the server keeps working (with Node fallbacks) when the addon is missing
- * or predates the API.
- */
-export type NativeListedEntry = {
-  name: string;
-  path: string;
-  kind: "file" | "directory" | "other";
-  symlink: boolean;
-  ignored: boolean;
-};
+import { files } from "@nervekit/native";
 
-export type NativePathMatch = {
-  path: string;
-  kind: "file" | "directory";
-  score: number;
-  positions: number[];
-};
+/** The native `files` API the server uses; the addon always ships it. */
+export type NativeFilesApi = Pick<
+  typeof files,
+  "listDirectory" | "createPathIndex" | "searchContent"
+>;
+export type NativePathIndex = ReturnType<NativeFilesApi["createPathIndex"]>;
 
-export interface NativePathIndex {
-  search(
-    query: string,
-    options?: { limit?: number; kinds?: Array<"file" | "directory"> },
-  ): Promise<{ matches: NativePathMatch[]; incomplete: boolean }>;
-  applyChanges(changedPaths: string[]): Promise<void>;
-  rebuild(): Promise<void>;
-  close(): void;
+let override: NativeFilesApi | undefined;
+
+export function nativeFiles(): NativeFilesApi {
+  return override ?? files;
 }
 
-export type NativeContentSearchOptions = {
-  query: string;
-  regex?: boolean;
-  caseSensitive?: boolean;
-  wholeWord?: boolean;
-  include?: string[];
-  exclude?: string[];
-  includeIgnored?: boolean;
-  maxResults?: number;
-  maxPreviewChars?: number;
-  timeoutMs?: number;
-};
-
-export interface NativeFilesApi {
-  listDirectory(
-    root: string,
-    relativePath: string,
-    options?: { includeHidden?: boolean },
-  ): Promise<NativeListedEntry[]>;
-  createPathIndex(
-    root: string,
-    options?: { maxEntries?: number },
-  ): NativePathIndex;
-  searchContent(
-    root: string,
-    options: NativeContentSearchOptions,
-  ): Promise<{
-    files: Array<{
-      path: string;
-      matches: Array<{
-        line: number;
-        text: string;
-        ranges: Array<[number, number]>;
-      }>;
-    }>;
-    truncated: boolean;
-    searchedFiles: number;
-  }>;
-}
-
-let loaded: Promise<NativeFilesApi | undefined> | undefined;
-
-function isFilesApi(value: unknown): value is NativeFilesApi {
-  const api = value as
-    | (Partial<NativeFilesApi> & { isAvailable?: () => boolean })
-    | undefined;
-  // The wrapper namespace exists even when the addon binary predates the API.
-  if (typeof api?.isAvailable === "function" && !api.isAvailable())
-    return false;
-  return (
-    typeof api?.listDirectory === "function" &&
-    typeof api.createPathIndex === "function" &&
-    typeof api.searchContent === "function"
-  );
-}
-
-export function loadNativeFiles(): Promise<NativeFilesApi | undefined> {
-  loaded ??= import("@nervekit/native")
-    .then((module) => {
-      const files = (module as unknown as { files?: unknown }).files;
-      return isFilesApi(files) ? files : undefined;
-    })
-    .catch(() => undefined);
-  return loaded;
-}
-
-/** Test seam: pass `null` to restore lazy loading. */
-export function setNativeFilesForTesting(
-  api: NativeFilesApi | undefined | null,
-): void {
-  loaded = api === null ? undefined : Promise.resolve(api);
+/** Test seam: pass `null` to restore the real addon. */
+export function setNativeFilesForTesting(api: NativeFilesApi | null): void {
+  override = api ?? undefined;
 }

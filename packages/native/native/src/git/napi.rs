@@ -26,13 +26,7 @@ pub struct NativeGitRepositoryInfo {
 #[napi(object)]
 pub struct NativeGitRepositoryInfoResult {
     pub repository: Option<NativeGitRepositoryInfo>,
-    pub error: Option<NativeGitError>,
-}
-
-#[napi(object)]
-pub struct NativeGitError {
-    pub category: String,
-    pub message: String,
+    pub error: Option<NativeGitReadErrorDetail>,
 }
 
 #[napi(object)]
@@ -97,7 +91,7 @@ pub struct NativeGitSnapshot {
 #[napi(object)]
 pub struct NativeGitSnapshotResult {
     pub snapshot: Option<NativeGitSnapshot>,
-    pub error: Option<NativeGitError>,
+    pub error: Option<NativeGitReadErrorDetail>,
 }
 
 #[napi(object)]
@@ -110,7 +104,7 @@ pub struct NativeGitAncestry {
 #[napi(object)]
 pub struct NativeGitAncestryResult {
     pub ancestry: Option<NativeGitAncestry>,
-    pub error: Option<NativeGitError>,
+    pub error: Option<NativeGitReadErrorDetail>,
 }
 
 #[napi(object)]
@@ -136,19 +130,19 @@ pub struct NativeGitFileDiff {
 #[napi(object)]
 pub struct NativeGitFileDiffResult {
     pub diff: Option<NativeGitFileDiff>,
-    pub error: Option<NativeGitError>,
+    pub error: Option<NativeGitReadErrorDetail>,
 }
 
 #[napi(object)]
 pub struct NativeGitRevisionResult {
     pub oid: Option<String>,
-    pub error: Option<NativeGitError>,
+    pub error: Option<NativeGitReadErrorDetail>,
 }
 
 #[napi(object)]
 pub struct NativeGitCountResult {
     pub count: Option<u32>,
-    pub error: Option<NativeGitError>,
+    pub error: Option<NativeGitReadErrorDetail>,
 }
 
 pub struct RepositoryInfoTask {
@@ -189,6 +183,7 @@ pub fn read_git_repository_info(path: String) -> AsyncTask<RepositoryInfoTask> {
 pub struct SnapshotTask {
     path: String,
     options: SnapshotOptions,
+    operation: std::sync::Arc<super::project::Operation>,
 }
 
 impl Task for SnapshotTask {
@@ -196,7 +191,11 @@ impl Task for SnapshotTask {
     type JsValue = NativeGitSnapshotResult;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        Ok(git::read_snapshot(&self.path, self.options.clone()))
+        Ok(git::read_snapshot(
+            &self.path,
+            self.options.clone(),
+            &self.operation.token,
+        ))
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -217,11 +216,15 @@ impl Task for SnapshotTask {
 pub fn read_git_snapshot(
     path: String,
     options: Option<NativeGitSnapshotOptions>,
-) -> AsyncTask<SnapshotTask> {
-    AsyncTask::new(SnapshotTask {
+    handle: u32,
+) -> Result<AsyncTask<SnapshotTask>> {
+    let operation =
+        super::project::start_operation(handle).map_err(|e| napi::Error::from_reason(e.message))?;
+    Ok(AsyncTask::new(SnapshotTask {
         path,
         options: options.map(Into::into).unwrap_or_default(),
-    })
+        operation,
+    }))
 }
 
 pub struct AncestryTask {
@@ -435,11 +438,64 @@ impl From<NativeGitSnapshotOptions> for SnapshotOptions {
     }
 }
 
-impl From<GitReadError> for NativeGitError {
+impl From<GitReadError> for NativeGitReadErrorDetail {
     fn from(value: GitReadError) -> Self {
+        super::project::detail(value).into()
+    }
+}
+
+impl From<super::Reference> for NativeGitReference {
+    fn from(value: super::Reference) -> Self {
         Self {
-            category: value.kind.as_str().to_string(),
+            name: value.name,
+            target: value.target,
+            symbolic_target: value.symbolic_target,
+            upstream: value.upstream,
+            commit_timestamp_seconds: value.commit_timestamp_seconds.map(|seconds| seconds as f64),
+        }
+    }
+}
+
+impl From<super::Remote> for NativeGitRemote {
+    fn from(value: super::Remote) -> Self {
+        Self {
+            name: value.name,
+            fetch_url: value.fetch_url,
+            push_url: value.push_url,
+        }
+    }
+}
+
+impl From<super::FileStatus> for NativeGitFileStatus {
+    fn from(value: super::FileStatus) -> Self {
+        Self {
+            path: value.path,
+            renamed_from: value.renamed_from,
+            index: value.index,
+            worktree: value.worktree,
+            untracked: value.untracked,
+            ignored: value.ignored,
+        }
+    }
+}
+
+impl From<super::RecentCommit> for NativeGitRecentCommit {
+    fn from(value: super::RecentCommit) -> Self {
+        Self {
+            oid: value.oid,
+            subject: value.subject,
+            timestamp_seconds: value.timestamp_seconds as f64,
+        }
+    }
+}
+
+impl From<super::Stash> for NativeGitStash {
+    fn from(value: super::Stash) -> Self {
+        Self {
+            index: value.index,
+            oid: value.oid,
             message: value.message,
+            timestamp_seconds: value.timestamp_seconds as f64,
         }
     }
 }
@@ -456,59 +512,11 @@ impl From<Snapshot> for NativeGitSnapshot {
             ahead: value.ahead,
             behind: value.behind,
             in_progress: value.in_progress,
-            refs: value
-                .refs
-                .into_iter()
-                .map(|value| NativeGitReference {
-                    name: value.name,
-                    target: value.target,
-                    symbolic_target: value.symbolic_target,
-                    upstream: value.upstream,
-                    commit_timestamp_seconds: value
-                        .commit_timestamp_seconds
-                        .map(|timestamp| timestamp as f64),
-                })
-                .collect(),
-            remotes: value
-                .remotes
-                .into_iter()
-                .map(|value| NativeGitRemote {
-                    name: value.name,
-                    fetch_url: value.fetch_url,
-                    push_url: value.push_url,
-                })
-                .collect(),
-            files: value
-                .files
-                .into_iter()
-                .map(|value| NativeGitFileStatus {
-                    path: value.path,
-                    renamed_from: value.renamed_from,
-                    index: value.index,
-                    worktree: value.worktree,
-                    untracked: value.untracked,
-                    ignored: value.ignored,
-                })
-                .collect(),
-            recent_commits: value
-                .recent_commits
-                .into_iter()
-                .map(|value| NativeGitRecentCommit {
-                    oid: value.oid,
-                    subject: value.subject,
-                    timestamp_seconds: value.timestamp_seconds as f64,
-                })
-                .collect(),
-            stashes: value
-                .stashes
-                .into_iter()
-                .map(|value| NativeGitStash {
-                    index: value.index,
-                    oid: value.oid,
-                    message: value.message,
-                    timestamp_seconds: value.timestamp_seconds as f64,
-                })
-                .collect(),
+            refs: value.refs.into_iter().map(Into::into).collect(),
+            remotes: value.remotes.into_iter().map(Into::into).collect(),
+            files: value.files.into_iter().map(Into::into).collect(),
+            recent_commits: value.recent_commits.into_iter().map(Into::into).collect(),
+            stashes: value.stashes.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -736,18 +744,7 @@ impl Task for ProjectSnapshotsTask {
                                             ignored: s.counts.ignored,
                                             conflicted: s.counts.conflicted,
                                         },
-                                        files: s
-                                            .files
-                                            .into_iter()
-                                            .map(|f| NativeGitFileStatus {
-                                                path: f.path,
-                                                renamed_from: f.renamed_from,
-                                                index: f.index,
-                                                worktree: f.worktree,
-                                                untracked: f.untracked,
-                                                ignored: f.ignored,
-                                            })
-                                            .collect(),
+                                        files: s.files.into_iter().map(Into::into).collect(),
                                     }),
                                 },
                             }
@@ -807,47 +804,10 @@ impl From<super::MetadataSnapshot> for NativeGitMetadataSnapshot {
             ahead: value.ahead,
             behind: value.behind,
             in_progress: value.in_progress,
-            refs: value
-                .refs
-                .into_iter()
-                .map(|value| NativeGitReference {
-                    name: value.name,
-                    target: value.target,
-                    symbolic_target: value.symbolic_target,
-                    upstream: value.upstream,
-                    commit_timestamp_seconds: value
-                        .commit_timestamp_seconds
-                        .map(|timestamp| timestamp as f64),
-                })
-                .collect(),
-            remotes: value
-                .remotes
-                .into_iter()
-                .map(|value| NativeGitRemote {
-                    name: value.name,
-                    fetch_url: value.fetch_url,
-                    push_url: value.push_url,
-                })
-                .collect(),
-            recent_commits: value
-                .recent_commits
-                .into_iter()
-                .map(|value| NativeGitRecentCommit {
-                    oid: value.oid,
-                    subject: value.subject,
-                    timestamp_seconds: value.timestamp_seconds as f64,
-                })
-                .collect(),
-            stashes: value
-                .stashes
-                .into_iter()
-                .map(|value| NativeGitStash {
-                    index: value.index,
-                    oid: value.oid,
-                    message: value.message,
-                    timestamp_seconds: value.timestamp_seconds as f64,
-                })
-                .collect(),
+            refs: value.refs.into_iter().map(Into::into).collect(),
+            remotes: value.remotes.into_iter().map(Into::into).collect(),
+            recent_commits: value.recent_commits.into_iter().map(Into::into).collect(),
+            stashes: value.stashes.into_iter().map(Into::into).collect(),
         }
     }
 }

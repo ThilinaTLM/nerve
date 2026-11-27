@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import {
   mkdtemp,
   mkdir,
@@ -34,7 +35,7 @@ const type: ProjectConfigurationType<{ version: 1 }> = {
 };
 async function fixture(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "legacy-notices-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  t.after(() => removeTree(home));
   const context = { projectId: "p", directory: join(home, "project") };
   const put = async (name: string, raw: string) => {
     const path = join(context.directory, ".nerve", name);

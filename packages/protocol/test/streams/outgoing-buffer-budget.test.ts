@@ -1,16 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { EventEnvelope, NotifyEvent } from "@nervekit/contracts/events";
+import type { NotifyEvent } from "@nervekit/contracts/events";
 import { OutgoingBufferBudget } from "../../src/streams/outgoing-buffer-budget.js";
+import { event } from "../support/events.js";
 
-const event = (seq: number, pad = ""): EventEnvelope =>
-  ({
-    seq,
-    id: `evt_${seq}`,
-    ts: "2026-07-18T00:00:00.000Z",
-    type: "project.created",
-    data: { pad },
-  }) as EventEnvelope;
 const notify = { type: "x", data: {} } as unknown as NotifyEvent;
 
 describe("OutgoingBufferBudget", () => {
@@ -33,7 +26,7 @@ describe("OutgoingBufferBudget", () => {
     const overflow: string[] = [];
     const budget = new OutgoingBufferBudget(100, 200, (m) => overflow.push(m));
     assert.equal(budget.check([event(1)], []), true);
-    assert.equal(budget.check([event(1, "x".repeat(300))], []), false);
+    assert.equal(budget.check([event(1, { pad: "x".repeat(300) })], []), false);
     assert.equal(overflow.length, 1);
   });
 });

@@ -1,5 +1,6 @@
 //! Ignore-aware project file primitives: directory listing, a fuzzy path index
 //! and content search. Plain Rust; the N-API adapter is `napi.rs`.
+mod agent_search;
 mod content;
 mod listing;
 pub(crate) mod napi;

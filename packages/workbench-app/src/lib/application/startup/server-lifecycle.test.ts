@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { stubFetch } from "@nervekit/test-kit";
 import type { ServerLifecycle } from "@nervekit/contracts/status";
 import {
   describeLifecycle,
@@ -98,20 +99,14 @@ test("failure kind picks the recovery screen", () => {
   );
 });
 
-test("retry sends discard ids only when given; rollback posts no body", async () => {
-  const calls: { url: string; init?: RequestInit }[] = [];
-  const original = globalThis.fetch;
-  globalThis.fetch = (async (url: string, init?: RequestInit) => {
-    calls.push({ url, init });
-    return new Response(JSON.stringify(base), { status: 202 });
-  }) as typeof fetch;
-  try {
-    await postLifecycleRetry();
-    await postLifecycleRetry(["conv_1", "conv_2"]);
-    await postLifecycleRollback();
-  } finally {
-    globalThis.fetch = original;
-  }
+test("retry sends discard ids only when given; rollback posts no body", async (t) => {
+  const { calls } = stubFetch(
+    t,
+    () => new Response(JSON.stringify(base), { status: 202 }),
+  );
+  await postLifecycleRetry();
+  await postLifecycleRetry(["conv_1", "conv_2"]);
+  await postLifecycleRollback();
   assert.equal(calls[0]?.init?.body, undefined);
   assert.equal(
     calls[1]?.init?.body,
@@ -121,16 +116,10 @@ test("retry sends discard ids only when given; rollback posts no body", async ()
   assert.equal(calls[2]?.init?.body, undefined);
 });
 
-test("refused recovery requests resolve undefined", async () => {
-  const original = globalThis.fetch;
-  globalThis.fetch = (async () =>
-    new Response("{}", { status: 409 })) as typeof fetch;
-  try {
-    assert.equal(await postLifecycleRollback(), undefined);
-    assert.equal(await postLifecycleRetry(["x"]), undefined);
-  } finally {
-    globalThis.fetch = original;
-  }
+test("refused recovery requests resolve undefined", async (t) => {
+  stubFetch(t, () => new Response("{}", { status: 409 }));
+  assert.equal(await postLifecycleRollback(), undefined);
+  assert.equal(await postLifecycleRetry(["x"]), undefined);
 });
 
 test("discard plan copy fits files, conversations, and both", () => {

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -63,7 +64,7 @@ void test("turns use captured instructions without consulting their source templ
     assert.match(next.systemPrompt, /Fresh project context/);
     assert.doesNotMatch(next.systemPrompt, /Initial project context/);
   } finally {
-    await rm(project, { recursive: true, force: true });
+    await removeTree(project);
   }
 });
 
@@ -138,6 +139,6 @@ void test("prompt preparation reads initialized and subsequently replaced skill 
     assert.match(next.systemPrompt, /path: \/browser\/refreshed\/SKILL.md/);
     assert.doesNotMatch(next.systemPrompt, /initial\/SKILL.md/);
   } finally {
-    await rm(project, { recursive: true, force: true });
+    await removeTree(project);
   }
 });

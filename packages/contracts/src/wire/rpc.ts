@@ -12,7 +12,6 @@ import { eventBatchDataSchema, streamCursorSchema } from "./event-stream.js";
 export const protocolRequestDataSchema = z.object({
   method: operationNameSchema,
   params: z.unknown().optional(),
-  idempotencyKey: z.string().min(1).optional(),
   timeoutMs: z.number().int().positive().safe().optional(),
   expect: z
     .object({

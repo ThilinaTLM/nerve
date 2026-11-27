@@ -1,16 +1,11 @@
-import { join } from "node:path";
 import type {
   SubscriptionQuota,
   SubscriptionUsage,
 } from "@nervekit/contracts/usage";
 import {
-  API_TIMEOUT_MS,
-  DEFAULT_RATE_LIMIT_BACKOFF_MS,
   createCachedUsageFetcher,
+  fetchUsageApi,
   numberValue,
-  parseRetryAfterMs,
-  readUsageCacheFile,
-  writeUsageCacheFile,
   type UsageApiResponse,
 } from "./cached-usage-fetch.js";
 
@@ -36,21 +31,6 @@ const PLAN_LABELS: Record<string, string> = {
   business: "Business",
   enterprise: "Enterprise",
 };
-
-function cacheFile(cacheDir: string): string {
-  return join(cacheDir, "copilot-usage.json");
-}
-
-function readCacheFile(cacheDir: string) {
-  return readUsageCacheFile(cacheFile(cacheDir), "github-copilot");
-}
-
-async function writeCacheFile(
-  cacheDir: string,
-  data: SubscriptionUsage,
-): Promise<void> {
-  await writeUsageCacheFile(cacheDir, cacheFile(cacheDir), data);
-}
 
 /** `api.github.com`, or `api.<host>` for GitHub Enterprise (GHE.com) logins. */
 export function copilotApiHost(enterpriseUrl: string | undefined): string {
@@ -239,38 +219,22 @@ export function parseCopilotUsageResponse(
   };
 }
 
-async function fetchApi(
+function fetchApi(
   request: CopilotUsageRequest,
 ): Promise<UsageApiResponse<unknown>> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-  try {
-    const host = copilotApiHost(request.enterpriseUrl);
-    const res = await fetch(`https://${host}/copilot_internal/user`, {
-      method: "GET",
+  const host = copilotApiHost(request.enterpriseUrl);
+  return fetchUsageApi(
+    `https://${host}/copilot_internal/user`,
+    {
       headers: {
         ...COPILOT_HEADERS,
         Authorization: `token ${request.githubToken}`,
         accept: "application/json",
       },
       redirect: "error",
-      signal: controller.signal,
-    });
-    if (res.ok) return { kind: "success", body: await res.json() };
-    if (res.status === 429) {
-      return {
-        kind: "rate-limited",
-        retryAfterMs:
-          parseRetryAfterMs(res.headers.get("retry-after"), Date.now()) ??
-          DEFAULT_RATE_LIMIT_BACKOFF_MS,
-      };
-    }
-    return { kind: "error" };
-  } catch {
-    return { kind: "error" };
-  } finally {
-    clearTimeout(timeout);
-  }
+    },
+    (res) => res.json(),
+  );
 }
 
 /**
@@ -279,9 +243,8 @@ async function fetchApi(
  * rate-limit backoff like the other usage fetchers.
  */
 export const fetchCopilotUsage = createCachedUsageFetcher({
-  lockFileName: "copilot-usage.lock",
-  readCacheFile,
-  writeCacheFile,
+  cacheName: "copilot",
+  provider: "github-copilot",
   fetchApi,
   parseResponse: parseCopilotUsageResponse,
 });

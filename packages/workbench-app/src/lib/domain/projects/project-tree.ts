@@ -1,3 +1,4 @@
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import { compareConversationsByLastUserPromptDesc } from "@nervekit/contracts/core";
 import type { AgentRecord } from "$lib/domain/projects/sidebar-view-models";
 import type { ConversationRecord } from "$lib/domain/projects/sidebar-view-models";
@@ -99,14 +100,11 @@ export function buildConversationRows(options: {
 }): ConversationRow[] {
   const { conversations, agents } = options;
   const projectIds = new Set(options.projectIds);
-  const query = options.filter?.trim().toLowerCase() ?? "";
+  const query = options.filter ?? "";
   return conversations
     .filter((conversation) => projectIds.has(conversation.projectId))
-    .filter(
-      (conversation) =>
-        !query ||
-        conversation.title.toLowerCase().includes(query) ||
-        conversation.id.toLowerCase().includes(query),
+    .filter((conversation) =>
+      matchesTerms(query, conversation.title, conversation.id),
     )
     .map((conversation) => ({
       conversation,

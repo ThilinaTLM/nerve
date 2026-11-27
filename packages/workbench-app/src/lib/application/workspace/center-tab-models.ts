@@ -5,7 +5,7 @@ import type {
 } from "$lib/api";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { Project } from "@nervekit/contracts/core";
-import type { GitDiffArea } from "@nervekit/contracts/git";
+import type { GitChangeArea } from "@nervekit/contracts/git";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import type {
   FileDisplayMode,
@@ -80,7 +80,7 @@ export type DiffTabModel = {
   id: string;
   path?: string;
   repo?: string;
-  area?: GitDiffArea;
+  area?: GitChangeArea;
   active: boolean;
   sending: boolean;
   error?: string;

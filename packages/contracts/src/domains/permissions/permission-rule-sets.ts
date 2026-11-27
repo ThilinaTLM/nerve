@@ -1,5 +1,6 @@
 import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
+import { conversationScopeSchema } from "../core/scope.js";
 
 const identifierSchema = z
   .string()
@@ -593,7 +594,7 @@ export type RulePrecedence = z.infer<typeof rulePrecedenceSchema>;
 
 export const ignoredPermissionSourceSchema = z
   .object({
-    origin: z.enum(["user", "project", "conversation"]),
+    origin: conversationScopeSchema,
     path: z.string().min(1).max(4_096),
     reason: z.string().min(1).max(4_096),
   })

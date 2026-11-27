@@ -63,10 +63,7 @@ export function isWorkbenchReady(): boolean {
 export function requestWorkbench<M extends OperationName>(
   method: M,
   params: OperationParams<M>,
-  options?: Pick<
-    ProtocolRequestData,
-    "idempotencyKey" | "timeoutMs" | "expect"
-  >,
+  options?: Pick<ProtocolRequestData, "timeoutMs" | "expect">,
 ): Promise<OperationResult<M>> {
   if (!isWorkbenchOperation(method))
     return Promise.reject(new Error(`Not a workbench operation: ${method}`));
@@ -78,7 +75,7 @@ export function requestWorkbench<M extends OperationName>(
 export async function protocolRequest<M extends OperationName>(
   method: M,
   params: OperationParams<M>,
-  options?: Pick<ProtocolRequestData, "idempotencyKey" | "timeoutMs">,
+  options?: Pick<ProtocolRequestData, "timeoutMs">,
 ): Promise<{ result: OperationResult<M> }> {
   return { result: await requestWorkbench(method, params, options) };
 }

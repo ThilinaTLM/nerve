@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { createTestCatalog } from "./fixtures.js";
-import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,7 +29,7 @@ before(async () => {
   temp = await mkdtemp(join(tmpdir(), "sdk-built-"));
 });
 after(async () => {
-  await rm(temp, { recursive: true, force: true });
+  await removeTree(temp);
 });
 
 void test("the reader accepts the SDK's manifest", async () => {

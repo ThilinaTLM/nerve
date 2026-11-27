@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -17,9 +18,7 @@ import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 
 const roots: string[] = [];
 after(async () => {
-  await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
-  );
+  await Promise.all(roots.map((root) => removeTree(root)));
 });
 
 describe("host allowlist", () => {

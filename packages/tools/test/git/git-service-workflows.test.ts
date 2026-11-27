@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { GitCommandError, GitWorkflowError } from "../../src/git/git-errors.js";
 import { safeGitFailure } from "../../src/git/git-progress.js";
 import { GitService } from "../../src/git/git-service.js";
+import { removeTree } from "@nervekit/test-kit";
 
 type RepositoryFixture = {
   root: string;
@@ -108,7 +109,7 @@ async function withFixture(
   try {
     await run(fixture);
   } finally {
-    await rm(fixture.root, { recursive: true, force: true });
+    await removeTree(fixture.root);
   }
 }
 

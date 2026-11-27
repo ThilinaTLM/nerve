@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -8,6 +8,7 @@ import {
   canonicalGitIdentity,
   GitOperationLanes,
 } from "../../src/git/git-operation-lanes.js";
+import { removeTree } from "@nervekit/test-kit";
 
 function gate() {
   let release!: () => void;
@@ -151,6 +152,6 @@ test("canonical identity unifies symlinks and linked worktrees but isolates subm
       primary.commonDir,
     );
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });

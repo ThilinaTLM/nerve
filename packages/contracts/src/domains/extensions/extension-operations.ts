@@ -1,5 +1,6 @@
 import { trustStateSchema } from "../core/trust-state.js";
 import { z } from "zod";
+import { layerSchema } from "../core/scope.js";
 import { diagnosticSchema } from "../configuration/diagnostic.js";
 import { defineOperation } from "../../operations/definition.js";
 import { extensionCatalogEntrySchema } from "./catalog.js";
@@ -200,7 +201,7 @@ const installedExtensionRefSchema = z.strictObject({
       projectId: z.string().min(1),
     }),
   ]),
-  source: z.enum(["user", "project"]),
+  source: layerSchema,
   id: extensionIdSchema,
 });
 export type InstalledExtensionRef = z.infer<typeof installedExtensionRefSchema>;
@@ -227,7 +228,6 @@ export const extensionOperationDefinitions = [
     z.strictObject({ target: extensionTargetSchema }),
     extensionsViewSchema,
     "read",
-    "none",
     host,
     "operation.extensions.get",
   ),
@@ -236,7 +236,6 @@ export const extensionOperationDefinitions = [
     saveExtensionRequestSchema,
     extensionMutationResultSchema,
     "mutation",
-    "none",
     host,
     "operation.extensions.save",
   ),
@@ -245,7 +244,6 @@ export const extensionOperationDefinitions = [
     resetExtensionRequestSchema,
     extensionMutationResultSchema,
     "mutation",
-    "none",
     host,
     "operation.extensions.reset",
   ),
@@ -254,7 +252,6 @@ export const extensionOperationDefinitions = [
     trustProjectExtensionsRequestSchema,
     trustProjectExtensionsResultSchema,
     "mutation",
-    "none",
     host,
     "operation.extensions.trustProject",
   ),
@@ -263,7 +260,6 @@ export const extensionOperationDefinitions = [
     reloadExtensionsRequestSchema,
     installedExtensionResultSchema,
     "mutation",
-    "none",
     host,
     "operation.extensions.reload",
   ),

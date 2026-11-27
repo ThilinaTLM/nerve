@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { layerSchema } from "../core/scope.js";
 import { defineOperation } from "../../operations/definition.js";
 import { extensionIdSchema } from "./settings-schema.js";
 import {
@@ -71,7 +72,6 @@ const uiOperation = <const M extends ServerBridgeMethod>(
     uiRequest(bridgeMethods[method].params),
     bridgeMethods[method].result,
     kind,
-    "none",
     ["workbench_server"],
     `operation.extensions.ui.${method}`,
   );
@@ -82,7 +82,7 @@ const frameUrl = z.string().min(1).max(2048);
 const contributionBase = {
   extensionId: extensionIdSchema,
   extensionName: z.string(),
-  source: z.enum(["user", "project"]),
+  source: layerSchema,
   id: uiContributionIdSchema,
   label: z.string(),
   /** Path (with the daemon's origin as base) of the frame's `index.html`; carries a per-project token. */
@@ -141,7 +141,6 @@ export const extensionUiOperationDefinitions = [
     z.strictObject({ projectId: z.string().min(1) }),
     extensionUiContributionsSchema,
     "read",
-    "none",
     ["workbench_server"],
     "operation.extensions.ui.contributions",
   ),
@@ -150,7 +149,6 @@ export const extensionUiOperationDefinitions = [
     z.strictObject({}),
     extensionUiThemesSchema,
     "read",
-    "none",
     ["workbench_server"],
     "operation.extensions.ui.themes",
   ),
@@ -171,7 +169,6 @@ export const extensionUiOperationDefinitions = [
     z.strictObject({ ...requestBase, error: bridgeFrameErrorSchema }),
     z.strictObject({}),
     "mutation",
-    "none",
     ["workbench_server"],
     "operation.extensions.ui.reportFrameError",
   ),

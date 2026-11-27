@@ -9,6 +9,7 @@ import type {
   GithubPrReviewSummary,
 } from "@nervekit/contracts/git";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
+import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 
 type TimelineEntry =
   | { kind: "comment"; at: string; value: GithubPrComment }
@@ -70,24 +71,6 @@ export function formatPrDateCompact(value?: string): string {
         hour: "numeric",
         minute: "2-digit",
       });
-}
-
-/** Compact age for dense rows: "3m", "2h", "6d", "4mo", "2y". */
-export function formatCompactAge(value?: string, now = Date.now()): string {
-  if (!value) return "";
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return "";
-  const seconds = Math.max(0, Math.floor((now - timestamp) / 1_000));
-  if (seconds < 60) return "now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo`;
-  return `${Math.floor(months / 12)}y`;
 }
 
 export function defaultMergeMethod(
@@ -208,18 +191,17 @@ export function fileStatusTone(status: GithubPrFileStatus): string {
   return "text-warning";
 }
 
-/** "now", "5m ago", "2h ago", "3d ago"; older than a month falls back to a date. */
+/** "just now", "5m ago", "2h ago", "3d ago", "2w ago"; older than a month falls back to a date. */
 export function formatRelativeAge(value?: string, now = Date.now()): string {
-  const compact = formatCompactAge(value, now);
+  const compact = relativeTimeLabel(value, { now });
   if (!compact) return "";
-  if (compact === "now") return "just now";
   if (compact.endsWith("mo") || compact.endsWith("y"))
     return new Date(value as string).toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
-  return `${compact} ago`;
+  return relativeTimeLabel(value, { style: "long", now });
 }
 
 /** "Today", "Yesterday", or a calendar date, in the viewer's time zone. */

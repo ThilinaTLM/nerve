@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { launchDefinitionRunPolicySchema } from "../launch-definitions/launch-definition.js";
 
 export const pinnedCommandSchema = z.object({
   id: z.string().startsWith("pin_"),
@@ -6,7 +7,7 @@ export const pinnedCommandSchema = z.object({
   label: z.string().min(1).optional(),
   command: z.string().min(1),
   cwd: z.string().min(1).optional(),
-  runPolicy: z.enum(["single", "concurrent"]).optional(),
+  runPolicy: launchDefinitionRunPolicySchema.optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
@@ -16,7 +17,7 @@ export const createPinnedCommandRequestSchema = z.object({
   command: z.string().min(1),
   label: z.string().min(1).optional(),
   cwd: z.string().min(1).optional(),
-  runPolicy: z.enum(["single", "concurrent"]).optional(),
+  runPolicy: launchDefinitionRunPolicySchema.optional(),
 });
 export type CreatePinnedCommandRequest = z.infer<
   typeof createPinnedCommandRequestSchema
@@ -26,7 +27,7 @@ export const updatePinnedCommandRequestSchema = z.object({
   command: z.string().min(1),
   label: z.string().min(1).optional(),
   cwd: z.string().min(1).optional(),
-  runPolicy: z.enum(["single", "concurrent"]).optional(),
+  runPolicy: launchDefinitionRunPolicySchema.optional(),
 });
 export type UpdatePinnedCommandRequest = z.infer<
   typeof updatePinnedCommandRequestSchema

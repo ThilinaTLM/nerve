@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -13,7 +14,7 @@ import { createHtmlPreviewRoutes } from "../../../src/adapters/http/routes/html-
 
 test("authenticated lifecycle shares a public read-only capability, revocation, HEAD and safe errors", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "html-preview-route-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   await writeFile(join(root, "demo.html"), "saved");
   await writeFile(join(root, "demo.mjs"), "export const value = 1;");
   const app = withPeer(new Hono());

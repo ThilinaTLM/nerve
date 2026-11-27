@@ -17,8 +17,8 @@ import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
-import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
-import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import { LayeredAgentState } from "$lib/application/agent-configuration/layered-agent-state.svelte";
+import type { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import {
   skillApprovalProblem,
   skillIsPending,
@@ -57,34 +57,18 @@ let {
   onOpenItem?: (name: string) => void;
 } = $props();
 
-const userEditor = new ScopedAgentState();
-const projectEditor = new ScopedAgentState();
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive) return;
-  void userEditor.load({ scope: "user" });
-});
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive || !projectId) return;
-  void projectEditor.load({ scope: "project", projectId });
-});
-$effect(() => userEditor.observe());
-$effect(() => projectEditor.observe());
+const agent = new LayeredAgentState(() => ({
+  projectId,
+  layered: !!projectId && !!projectName,
+}));
+agent.connect();
+const { user: userEditor, project: projectEditor } = agent;
 
-const layered = $derived(!!projectId && !!projectName);
-const ready = $derived(
-  !!userEditor.resolution && (!layered || !!projectEditor.resolution),
-);
-const error = $derived(
-  userEditor.error ??
-    (layered ? projectEditor.error : undefined) ??
-    catalogError,
-);
+const layered = $derived(agent.layered);
+const ready = $derived(agent.ready);
+const error = $derived(agent.error ?? catalogError);
 /** The project's settings file is not trusted: its column is locked. */
-const locked = $derived(
-  layered &&
-    projectEditor.document?.status === "available" &&
-    (projectEditor.document.trustState ?? "trusted") !== "trusted",
-);
+const locked = $derived(agent.locked);
 let query = $state("");
 
 const escape = (value: string) =>
@@ -267,10 +251,7 @@ function review(entry: SkillEntry): void {
   ]);
 }
 function onRetry() {
-  return Promise.all([
-    userEditor.reload(),
-    layered ? projectEditor.reload() : undefined,
-  ]);
+  return agent.reload();
 }
 </script>
 

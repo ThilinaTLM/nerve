@@ -16,6 +16,7 @@ import {
   onAnyEvent,
   onWorkbenchReconnect,
 } from "$lib/application/events/workbench-event-bus";
+import { KeyedLoader } from "$lib/application/refresh/keyed-loader";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
 /** Profiles a lead conversation can switch to: unblocked and not sub-agent only. */
@@ -50,49 +51,41 @@ const noProject = "";
 
 /** Resolved agent profiles per project, refreshed when profile documents change. */
 class AgentProfileCatalog {
-  private entries = $state<Record<string, ProfileOption[]>>({});
-  private readonly inFlight = new Map<string, Promise<ProfileOption[]>>();
+  // A failed read keeps the last profiles (or none) until the next refresh.
+  private readonly loader = new KeyedLoader<string, ProfileOption[]>({
+    load: (key) =>
+      requestWorkbench("agentProfiles.list", {
+        scope:
+          key === noProject
+            ? { scope: "user" }
+            : { scope: "project", projectId: key },
+      }).then(({ profiles }) => profiles.map(profileOption)),
+  });
   private listening = false;
 
   profiles(projectId: string | undefined): ProfileOption[] {
-    return this.entries[projectId ?? noProject] ?? [];
+    return this.loader.get(projectId ?? noProject) ?? [];
   }
 
   loaded(projectId: string | undefined): boolean {
-    return (projectId ?? noProject) in this.entries;
+    return this.loader.has(projectId ?? noProject);
   }
 
-  ensure(projectId: string | undefined): Promise<ProfileOption[]> {
+  async ensure(projectId: string | undefined): Promise<ProfileOption[]> {
     this.listen();
-    return this.loaded(projectId)
-      ? Promise.resolve(this.profiles(projectId))
-      : this.refresh(projectId);
+    return (await this.loader.ensure(projectId ?? noProject)) ?? [];
   }
 
-  refresh(projectId: string | undefined): Promise<ProfileOption[]> {
-    const key = projectId ?? noProject;
-    const existing = this.inFlight.get(key);
-    if (existing) return existing;
-    const request = requestWorkbench("agentProfiles.list", {
-      scope: projectId ? { scope: "project", projectId } : { scope: "user" },
-    })
-      .then(({ profiles }) => {
-        const options = profiles.map(profileOption);
-        this.entries[key] = options;
-        return options;
-      })
-      .catch(() => this.profiles(projectId))
-      .finally(() => this.inFlight.delete(key));
-    this.inFlight.set(key, request);
-    return request;
+  async refresh(projectId: string | undefined): Promise<ProfileOption[]> {
+    return (await this.loader.refresh(projectId ?? noProject)) ?? [];
   }
 
   private listen(): void {
     if (this.listening) return;
     this.listening = true;
     const refreshLoaded = () => {
-      for (const key of Object.keys(this.entries))
-        void this.refresh(key === noProject ? undefined : key);
+      for (const key of this.loader.keys())
+        if (this.loader.has(key)) void this.loader.refresh(key);
     };
     onAnyEvent((event) => {
       // A decision on a profile makes it offered or not (picker, `/profile`).

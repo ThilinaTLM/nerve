@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { flush } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
 import type {
   Conversation,
@@ -97,10 +98,6 @@ async function setup({
     },
   };
 }
-const flush = async () => {
-  await Promise.resolve();
-  await Promise.resolve();
-};
 
 test("one title request for a new root; apply changes only title metadata", async () => {
   const { service, rows, pending } = await setup();

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inGitLane } from "../../src/git/git-operation-context.js";
@@ -10,6 +10,7 @@ import {
   parseGithubRepositoryRemote,
   parseGithubRepositoryUrl,
 } from "../../src/git/git-github-parsers.js";
+import { removeTree } from "@nervekit/test-kit";
 
 const repository = {
   hostname: "github.com" as const,
@@ -202,7 +203,7 @@ void it("cancels one token waiter promptly without cancelling another repository
     assert.equal(fetchCalls, 1);
   } finally {
     release("synthetic-token");
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 

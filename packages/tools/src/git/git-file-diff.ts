@@ -1,4 +1,7 @@
-import type { GitDiffArea, GitFileDiffResponse } from "@nervekit/contracts/git";
+import type {
+  GitChangeArea,
+  GitFileDiffResponse,
+} from "@nervekit/contracts/git";
 import type { GitReadBackend, GitReadSnapshot } from "./read/types.js";
 
 export interface GitFileDiffContext {
@@ -12,7 +15,7 @@ export async function readFileDiff(
   projectId: string,
   relativePath: string,
   path: string,
-  area: GitDiffArea,
+  area: GitChangeArea,
 ): Promise<GitFileDiffResponse> {
   const repoDir = ctx.resolveRepoDir(projectId, relativePath);
   const snapshot = await ctx.readSnapshot(repoDir);

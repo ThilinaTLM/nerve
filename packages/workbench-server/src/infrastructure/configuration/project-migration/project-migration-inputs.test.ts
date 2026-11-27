@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +13,7 @@ void test(
   { skip: process.platform === "win32" },
   async (t) => {
     const home = await mkdtemp(join(tmpdir(), "migration-paths-"));
-    t.after(() => rm(home, { recursive: true, force: true }));
+    t.after(() => removeTree(home));
     const context = { projectId: "p", directory: join(home, "project") };
     const root = join(context.directory, ".nerve");
     await mkdir(root, { recursive: true });

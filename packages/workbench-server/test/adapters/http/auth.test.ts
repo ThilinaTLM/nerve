@@ -1,29 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, describe, it } from "node:test";
+import { makeTempDir } from "@nervekit/test-kit";
+import { describe, it } from "node:test";
 import { AuthManager } from "../../../src/domains/auth/index.js";
 import { EncryptedFileSecretProvider } from "../../../src/infrastructure/secrets/index.js";
 
-const roots: string[] = [];
-
-after(async () => {
-  await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
-  );
-});
-
-async function tempHome(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "nerve-auth-"));
-  roots.push(root);
-  return root;
-}
-
 describe("AuthManager", () => {
-  it("warns about OpenAI subscription limitations before and after connection without disabling either login", async () => {
+  it("warns about OpenAI subscription limitations before and after connection without disabling either login", async (t) => {
     const auth = new AuthManager(
-      new EncryptedFileSecretProvider(await tempHome()),
+      new EncryptedFileSecretProvider(await makeTempDir(t, "nerve-auth-")),
     );
     const before = await auth.listProviderMetadata();
     const openai = before.find((provider) => provider.provider === "openai");
@@ -53,9 +37,9 @@ describe("AuthManager", () => {
     assert.equal(connected?.credentialType, "oauth");
     assert.equal(connected?.warning, openai.warning);
   });
-  it("stores OAuth credentials and resolves access tokens for subscription providers", async () => {
+  it("stores OAuth credentials and resolves access tokens for subscription providers", async (t) => {
     const auth = new AuthManager(
-      new EncryptedFileSecretProvider(await tempHome()),
+      new EncryptedFileSecretProvider(await makeTempDir(t, "nerve-auth-")),
     );
 
     await auth.setOAuth("openai-codex", {
@@ -67,9 +51,9 @@ describe("AuthManager", () => {
     assert.equal(await auth.credentialType("openai-codex"), "oauth");
     assert.equal(await auth.getApiKey("openai-codex"), "access-token");
   });
-  it("preserves provider-derived request routing for subscriptions", async () => {
+  it("preserves provider-derived request routing for subscriptions", async (t) => {
     const auth = new AuthManager(
-      new EncryptedFileSecretProvider(await tempHome()),
+      new EncryptedFileSecretProvider(await makeTempDir(t, "nerve-auth-")),
     );
     await auth.setOAuth("github-copilot", {
       access:
@@ -87,9 +71,9 @@ describe("AuthManager", () => {
     assert.equal(resolved?.baseUrl, "https://api.business.githubcopilot.com");
   });
 
-  it("treats API keys and OAuth credentials as mutually exclusive", async () => {
+  it("treats API keys and OAuth credentials as mutually exclusive", async (t) => {
     const auth = new AuthManager(
-      new EncryptedFileSecretProvider(await tempHome()),
+      new EncryptedFileSecretProvider(await makeTempDir(t, "nerve-auth-")),
     );
 
     await auth.setOAuth("anthropic", {
@@ -103,9 +87,9 @@ describe("AuthManager", () => {
     assert.equal(await auth.getApiKey("anthropic"), "sk-ant-api-test");
   });
 
-  it("advertises every pi-ai subscription provider", async () => {
+  it("advertises every pi-ai subscription provider", async (t) => {
     const auth = new AuthManager(
-      new EncryptedFileSecretProvider(await tempHome()),
+      new EncryptedFileSecretProvider(await makeTempDir(t, "nerve-auth-")),
     );
 
     const providers = await auth.listProviderMetadata();
@@ -127,9 +111,9 @@ describe("AuthManager", () => {
     ]);
   });
 
-  it("advertises custom providers without enumerating their models", async () => {
+  it("advertises custom providers without enumerating their models", async (t) => {
     const auth = new AuthManager(
-      new EncryptedFileSecretProvider(await tempHome()),
+      new EncryptedFileSecretProvider(await makeTempDir(t, "nerve-auth-")),
     );
 
     const providers = await auth.listProviderMetadata(
@@ -144,8 +128,8 @@ describe("AuthManager", () => {
     assert.equal(custom.supportsApiKey, true);
   });
 
-  it("passes a stable installation device ID to OAuth login flows", async () => {
-    const home = await tempHome();
+  it("passes a stable installation device ID to OAuth login flows", async (t) => {
+    const home = await makeTempDir(t, "nerve-auth-");
     const deviceIds: string[] = [];
     const loginWith = (auth: AuthManager) => {
       auth.models.login = async (_provider, _type, _interaction, options) => {

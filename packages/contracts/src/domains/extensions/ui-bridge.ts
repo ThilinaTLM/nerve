@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { previewEditModeSchema } from "./installed-manifest.js";
 import { bridgeLimits } from "./limits.js";
+import { bridgeThemeKindSchema } from "./theme-file.js";
 import { uiContributionIdSchema } from "./ui-contribution-id.js";
 
 /*
@@ -50,8 +51,6 @@ export type BridgeContributionKind = z.infer<
 
 export const bridgeModeSchema = z.enum(["preview", "edit"]);
 export type BridgeMode = z.infer<typeof bridgeModeSchema>;
-
-export const bridgeThemeKindSchema = z.enum(["light", "dark"]);
 
 export const bridgeErrorCodeSchema = z.enum([
   /** The message does not match the method's schema. */

@@ -1,37 +1,16 @@
 import assert from "node:assert/strict";
-import {
-  access,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { makeTempDir } from "@nervekit/test-kit";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { after, describe, it } from "node:test";
+import { describe, it } from "node:test";
 import {
   ApplicationLogger,
   serializeError,
 } from "../../../src/infrastructure/diagnostics/index.js";
 
-const roots: string[] = [];
-
-after(async () => {
-  await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
-  );
-});
-
-async function tempHome(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "nerve-logging-"));
-  roots.push(root);
-  return root;
-}
-
 describe("ApplicationLogger", () => {
-  it("does no application-log work when disabled", async () => {
-    const home = await tempHome();
+  it("does no application-log work when disabled", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -58,8 +37,8 @@ describe("ApplicationLogger", () => {
     await assert.rejects(access(join(home, "logs")));
   });
 
-  it("applies retention to dated daemon and desktop logs", async () => {
-    const home = await tempHome();
+  it("applies retention to dated daemon and desktop logs", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logs = join(home, "logs");
     await mkdir(logs, { recursive: true });
     const oldApplication = join(logs, "application-2000-01-01.jsonl");
@@ -84,8 +63,8 @@ describe("ApplicationLogger", () => {
     await access(recentDesktop);
   });
 
-  it("writes, queries, and redacts structured application logs", async () => {
-    const home = await tempHome();
+  it("writes, queries, and redacts structured application logs", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -131,8 +110,8 @@ describe("ApplicationLogger", () => {
     });
   });
 
-  it("filters by level and cursor", async () => {
-    const home = await tempHome();
+  it("filters by level and cursor", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -151,8 +130,8 @@ describe("ApplicationLogger", () => {
     assert.equal(since.logs.length, 0);
   });
 
-  it("pages newest and older matching logs without gaps or duplicates", async () => {
-    const home = await tempHome();
+  it("pages newest and older matching logs without gaps or duplicates", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -192,8 +171,8 @@ describe("ApplicationLogger", () => {
     assert.equal(oldest.hasMoreBefore, false);
   });
 
-  it("pages across nonmatching records and does not skip bounded newer batches", async () => {
-    const home = await tempHome();
+  it("pages across nonmatching records and does not skip bounded newer batches", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -237,8 +216,8 @@ describe("ApplicationLogger", () => {
     );
   });
 
-  it("prunes all application logs", async () => {
-    const home = await tempHome();
+  it("prunes all application logs", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -259,8 +238,8 @@ describe("ApplicationLogger", () => {
     assert.ok(after.logs[0].seq > 2);
   });
 
-  it("prunes filtered application logs and preserves non-matches", async () => {
-    const home = await tempHome();
+  it("prunes filtered application logs and preserves non-matches", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -282,8 +261,8 @@ describe("ApplicationLogger", () => {
     );
   });
 
-  it("hydrates only the recent bounded tail and preserves sequence monotonicity", async () => {
-    const home = await tempHome();
+  it("hydrates only the recent bounded tail and preserves sequence monotonicity", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logsDir = join(home, "logs");
     await mkdir(logsDir, { recursive: true });
     const record = (seq: number, ts: string) => ({
@@ -324,8 +303,8 @@ describe("ApplicationLogger", () => {
     assert.equal(response.logs.at(-1)?.message, "after restart");
   });
 
-  it("serializes concurrent appends in submission order", async () => {
-    const home = await tempHome();
+  it("serializes concurrent appends in submission order", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -351,8 +330,8 @@ describe("ApplicationLogger", () => {
     );
   });
 
-  it("keeps individual write errors with their callers and continues after a rejected append", async () => {
-    const home = await tempHome();
+  it("keeps individual write errors with their callers and continues after a rejected append", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -387,8 +366,8 @@ describe("ApplicationLogger", () => {
     );
   });
 
-  it("flush waits for ignored fire-and-forget diagnostic writes", async () => {
-    const home = await tempHome();
+  it("flush waits for ignored fire-and-forget diagnostic writes", async (t) => {
+    const home = await makeTempDir(t, "nerve-logging-");
     const logger = new ApplicationLogger({
       dataDir: home,
       component: "test",
@@ -408,8 +387,8 @@ describe("ApplicationLogger", () => {
   });
 });
 
-it("conversation log filtering preserves queued appends and malformed unrelated lines", async () => {
-  const home = await tempHome();
+it("conversation log filtering preserves queued appends and malformed unrelated lines", async (t) => {
+  const home = await makeTempDir(t, "nerve-logging-");
   const logger = new ApplicationLogger({
     dataDir: home,
     mirrorToConsole: false,

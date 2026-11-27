@@ -8,11 +8,8 @@ import {
   withTimeoutSignal,
   ToolExecutionError,
 } from "../../../execution/index.js";
-import {
-  assertArtifactName,
-  freshArtifactName,
-  writeArtifact,
-} from "../files/artifacts.js";
+import { assertArtifactName } from "@nervekit/extension-api/host";
+import { freshArtifactName, writeArtifact } from "../files/artifacts.js";
 import { codedError } from "../errors.js";
 import { defineMethod } from "../sdk-args.js";
 import type { SdkMethod } from "../sdk-types.js";

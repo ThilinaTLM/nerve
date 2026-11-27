@@ -612,6 +612,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Build website workspace dependencies
+        run: pnpm --filter '@nervekit/website^...' build
       - name: Check website
         run: pnpm --filter @nervekit/website check
       - name: Test website

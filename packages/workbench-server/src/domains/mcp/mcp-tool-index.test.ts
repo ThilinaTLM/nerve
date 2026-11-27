@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -11,7 +12,7 @@ before(async () => {
   directory = await mkdtemp(join(tmpdir(), "nerve-mcp-index-"));
 });
 after(async () => {
-  await rm(directory, { recursive: true, force: true });
+  await removeTree(directory);
 });
 
 const tool = (name: string): McpTool => ({

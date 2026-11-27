@@ -1,3 +1,4 @@
+import { matchesTerms } from "@nervekit/ui-kit/collections/match-terms";
 import {
   HISTORY_ROOT_ID,
   type HistoryStepSummary,
@@ -348,17 +349,19 @@ export function matchHistoryItems(
   model: HistoryItems,
   query: string,
 ): Set<string> {
-  const needle = query.trim().toLowerCase();
   const matches = new Set<string>();
-  if (needle.length < 2) return matches;
+  if (query.trim().length < 2) return matches;
   for (const id of model.order) {
     const item = model.items.get(id)!;
     const hit = item.members.some((node) => {
       const entry = node.entry;
       if (!entry) return false;
-      return [entry.summary, entry.text, ...node.folded.map((f) => f.text)]
-        .filter(Boolean)
-        .some((text) => text!.toLowerCase().includes(needle));
+      return matchesTerms(
+        query,
+        entry.summary,
+        entry.text,
+        ...node.folded.map((f) => f.text),
+      );
     });
     if (hit) matches.add(id);
   }

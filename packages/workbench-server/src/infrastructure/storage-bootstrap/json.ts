@@ -29,11 +29,28 @@ export async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-export async function readJsonFile<S extends z.ZodType>(
+/**
+ * Reads and validates a JSON file. With `missing`, an absent file (ENOENT)
+ * yields `missing()` instead of throwing; unreadable, malformed and
+ * schema-invalid files still throw so callers keep their own error messages.
+ */
+export async function readJsonFile<S extends z.ZodType, M = never>(
   path: string,
   schema: S,
-): Promise<z.infer<S>> {
-  return schema.parse(await readJsonFileUnknown(path));
+  options: { missing?: () => M } = {},
+): Promise<z.infer<S> | M> {
+  let value: unknown;
+  try {
+    value = await readJsonFileUnknown(path);
+  } catch (error) {
+    if (
+      options.missing &&
+      (error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"
+    )
+      return options.missing();
+    throw error;
+  }
+  return schema.parse(value);
 }
 
 /** Explicit opt-out: parsed JSON with no shape validation. */

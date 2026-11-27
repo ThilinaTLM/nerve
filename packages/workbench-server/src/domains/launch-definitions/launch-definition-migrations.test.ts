@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
+import { removeTree } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -9,7 +10,7 @@ import { launchDefinitionsConfiguration } from "./launch-definition-migrations.j
 
 void test("same-file launch bump preserves placement and resets corrupted launches", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "legacy-launches-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const context = { projectId: "proj_test", directory: join(root, "project") };
   const path = join(context.directory, ".nerve/launches/definitions.json");
   const source = JSON.stringify({
@@ -55,7 +56,7 @@ void test("same-file launch bump preserves placement and resets corrupted launch
 
 void test("old task files and home staging are never launch sources", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "launch-notice-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const context = { projectId: "p", directory: join(root, "project") };
   const old = join(context.directory, ".nerve/tasks/definitions.json");
   await mkdir(dirname(old), { recursive: true });

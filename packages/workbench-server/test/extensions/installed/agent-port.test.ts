@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -21,7 +22,7 @@ before(async () => {
   root = await mkdtemp(join(tmpdir(), "agent-port-"));
 });
 after(async () => {
-  await rm(root, { recursive: true, force: true });
+  await removeTree(root);
 });
 
 void test("the error log keeps the newest failures of a bounded set of extensions", () => {

@@ -1,3 +1,4 @@
+use super::agent_search::{FindOptions, FindOutput, GrepOptions, GrepOutput, find_files, grep};
 use super::content::{ContentOptions, ContentSearchOutput, search_content};
 use super::listing::list_directory;
 use super::path_index::{PathIndex, PathKind, PathSearchOutput};
@@ -357,4 +358,186 @@ pub fn cancel_file_content_search(cancel_id: u32) {
     {
         flag.store(true, Ordering::Release);
     }
+}
+
+// --- agent grep / find: deterministic order, exact caps and totals ---
+
+fn whole(name: &str, value: Option<f64>) -> Result<Option<usize>> {
+    match value {
+        None => Ok(None),
+        Some(value) if value.is_finite() && value >= 0.0 => Ok(Some(value as usize)),
+        Some(_) => Err(napi::Error::from_reason(format!("Invalid {name}"))),
+    }
+}
+
+fn register_cancel(cancel_id: Option<u32>) -> Arc<AtomicBool> {
+    let cancel = Arc::new(AtomicBool::new(false));
+    if let Some(id) = cancel_id {
+        searches()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(id, Arc::clone(&cancel));
+    }
+    cancel
+}
+
+fn release_cancel(cancel_id: Option<u32>) {
+    if let Some(id) = cancel_id {
+        searches()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&id);
+    }
+}
+
+#[napi(object)]
+pub struct NativeGrepRequest {
+    pub pattern: String,
+    pub literal: Option<bool>,
+    pub ignore_case: Option<bool>,
+    pub glob: Option<String>,
+    pub context: Option<f64>,
+    pub limit: f64,
+    pub max_line_bytes: Option<f64>,
+    pub timeout_ms: Option<f64>,
+    pub cancel_id: Option<u32>,
+}
+
+#[napi(object)]
+pub struct NativeGrepLine {
+    pub path: String,
+    pub line: f64,
+    pub text: String,
+    pub is_match: bool,
+}
+
+#[napi(object)]
+pub struct NativeGrepResult {
+    pub lines: Vec<NativeGrepLine>,
+    pub total_matches: f64,
+    pub total_files: f64,
+}
+
+pub struct GrepTask {
+    display_root: PathBuf,
+    roots: Vec<PathBuf>,
+    options: Option<GrepOptions>,
+    cancel: Arc<AtomicBool>,
+    cancel_id: Option<u32>,
+}
+
+impl Task for GrepTask {
+    type Output = GrepOutput;
+    type JsValue = NativeGrepResult;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        let options = self.options.take().unwrap_or_default();
+        let result = grep(
+            &self.display_root,
+            &self.roots,
+            options,
+            Arc::clone(&self.cancel),
+        );
+        release_cancel(self.cancel_id);
+        result.map_err(napi::Error::from_reason)
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(NativeGrepResult {
+            total_matches: output.total_matches as f64,
+            total_files: output.total_files as f64,
+            lines: output
+                .lines
+                .into_iter()
+                .map(|line| NativeGrepLine {
+                    path: line.path,
+                    line: line.line as f64,
+                    text: line.text,
+                    is_match: line.is_match,
+                })
+                .collect(),
+        })
+    }
+}
+
+#[napi]
+pub fn grep_files(
+    display_root: String,
+    roots: Vec<String>,
+    request: NativeGrepRequest,
+) -> Result<AsyncTask<GrepTask>> {
+    let options = GrepOptions {
+        pattern: request.pattern,
+        literal: request.literal.unwrap_or(false),
+        ignore_case: request.ignore_case.unwrap_or(false),
+        glob: request.glob,
+        context: whole("context", request.context)?.unwrap_or(0),
+        limit: whole("limit", Some(request.limit))?.unwrap_or(0),
+        max_line_bytes: count("maxLineBytes", request.max_line_bytes)?,
+        timeout: count("timeoutMs", request.timeout_ms)?.map(|ms| Duration::from_millis(ms as u64)),
+    };
+    let cancel = register_cancel(request.cancel_id);
+    Ok(AsyncTask::new(GrepTask {
+        display_root: PathBuf::from(display_root),
+        roots: roots.into_iter().map(PathBuf::from).collect(),
+        options: Some(options),
+        cancel,
+        cancel_id: request.cancel_id,
+    }))
+}
+
+#[napi(object)]
+pub struct NativeFindRequest {
+    pub pattern: String,
+    pub limit: f64,
+    pub timeout_ms: Option<f64>,
+    pub cancel_id: Option<u32>,
+}
+
+#[napi(object)]
+pub struct NativeFindResult {
+    pub paths: Vec<String>,
+    pub total: f64,
+}
+
+pub struct FindTask {
+    root: PathBuf,
+    options: Option<FindOptions>,
+    cancel: Arc<AtomicBool>,
+    cancel_id: Option<u32>,
+}
+
+impl Task for FindTask {
+    type Output = FindOutput;
+    type JsValue = NativeFindResult;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        let options = self.options.take().unwrap_or_default();
+        let result = find_files(&self.root, options, Arc::clone(&self.cancel));
+        release_cancel(self.cancel_id);
+        result.map_err(napi::Error::from_reason)
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(NativeFindResult {
+            paths: output.paths,
+            total: output.total as f64,
+        })
+    }
+}
+
+#[napi]
+pub fn find_project_files(root: String, request: NativeFindRequest) -> Result<AsyncTask<FindTask>> {
+    let options = FindOptions {
+        pattern: request.pattern,
+        limit: whole("limit", Some(request.limit))?.unwrap_or(0),
+        timeout: count("timeoutMs", request.timeout_ms)?.map(|ms| Duration::from_millis(ms as u64)),
+    };
+    let cancel = register_cancel(request.cancel_id);
+    Ok(AsyncTask::new(FindTask {
+        root: PathBuf::from(root),
+        options: Some(options),
+        cancel,
+        cancel_id: request.cancel_id,
+    }))
 }

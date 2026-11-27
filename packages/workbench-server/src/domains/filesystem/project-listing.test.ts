@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, utimes, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -28,7 +29,7 @@ void test("listing is cached per project root and path, not per directory alone"
     assert.equal(fromParent[0]?.path, "sub/a.txt");
     assert.equal(fromNested[0]?.path, "a.txt");
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -44,8 +45,7 @@ void test("editing .gitignore refreshes cached ignored flags without waiting for
     await utimes(root, old, old);
     const before = await list(root);
     const gen = before.find((entry) => entry.name === "gen.txt");
-    if (gen?.ignored === undefined) return; // Node fallback: no ignore rules.
-    assert.equal(gen.ignored, false);
+    assert.equal(gen?.ignored, false);
 
     await writeFile(join(root, ".gitignore"), "gen.txt\n");
     await utimes(root, old, old); // The edit does not touch the directory.
@@ -59,6 +59,6 @@ void test("editing .gitignore refreshes cached ignored flags without waiting for
       false,
     );
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });

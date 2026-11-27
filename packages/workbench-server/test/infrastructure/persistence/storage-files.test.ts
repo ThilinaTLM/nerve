@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import fs, {
   link,
   mkdir,
@@ -54,7 +55,7 @@ it("reuses a single traversal for logical path sizes, owners and root files", as
       files: scan.files,
     });
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });
 
@@ -102,6 +103,6 @@ it("tolerates unreadable directories and disappearing or replaced files", async 
     reader.mock.restore();
     stat.mock.restore();
     syncBuiltinESMExports();
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 });

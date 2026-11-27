@@ -4,7 +4,7 @@ import type {
   GitOperationStartRequest,
   GitBranchSummary,
   GitFileChange,
-  GitStashArea,
+  GitChangeArea,
   GitStashEntry,
 } from "@nervekit/contracts/git";
 import {
@@ -235,7 +235,7 @@ export async function mutateGitFile(
 export async function mutateGitFileScope(
   projectId: string,
   repo: string,
-  area: GitStashArea,
+  area: GitChangeArea,
   action: "stage" | "unstage" | "discard",
   path?: string,
 ): Promise<void> {
@@ -275,7 +275,7 @@ export async function mutateGitFileScope(
 export async function createGitRepoStash(
   projectId: string,
   repo: string,
-  area: GitStashArea,
+  area: GitChangeArea,
   path?: string,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);

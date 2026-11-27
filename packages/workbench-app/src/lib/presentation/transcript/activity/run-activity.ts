@@ -1,3 +1,4 @@
+import { formatElapsedClock } from "@nervekit/ui-kit/display/time";
 import type { ConversationActiveRunSnapshot } from "$lib/presentation/view-models/conversation";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { ConversationRunOutcome } from "../../state/conversation-render-state";
@@ -104,11 +105,6 @@ const HIDDEN: RunActivityView = {
   spinnerRate: 1,
 };
 
-export function formatElapsed(ms: number): string {
-  const seconds = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
 export function tailPhase(tail: TimelineItem | undefined): TailPhase {
   if (!tail) return "thinking";
   if (tail.kind === "message") {
@@ -179,8 +175,8 @@ function finishedView(input: RunActivityInput): RunActivityView {
     kind: stopped ? "stopped" : "done",
     labelKey: stopped ? "stopped" : "done",
     label: stopped
-      ? `Stopped after ${formatElapsed(duration)}`
-      : `Done in ${formatElapsed(duration)}`,
+      ? `Stopped after ${formatElapsedClock(duration)}`
+      : `Done in ${formatElapsedClock(duration)}`,
     tone: stopped ? "neutral" : "success",
     spinnerRate: 1,
   };
@@ -226,7 +222,7 @@ function waitingView(
     tone: "neutral",
     pending,
     elapsedLabel:
-      since === undefined ? undefined : formatElapsed(input.nowMs - since),
+      since === undefined ? undefined : formatElapsedClock(input.nowMs - since),
     spinnerRate: WAITING_SPINNER_RATE,
   };
 }
@@ -251,7 +247,7 @@ function compactionView(input: RunActivityInput): RunActivityView {
     spinnerRate: 1,
     elapsedLabel:
       run && run.status !== "interrupted" && runElapsed >= TIMER_AFTER_MS
-        ? formatElapsed(runElapsed)
+        ? formatElapsedClock(runElapsed)
         : undefined,
   };
 }
@@ -276,7 +272,7 @@ export function deriveRunActivity(input: RunActivityInput): RunActivityView {
     mounted: true,
     open: now - input.runSeenAtMs >= SHOW_DELAY_MS,
     elapsedLabel:
-      runElapsed >= TIMER_AFTER_MS ? formatElapsed(runElapsed) : undefined,
+      runElapsed >= TIMER_AFTER_MS ? formatElapsedClock(runElapsed) : undefined,
     spinnerRate: 1,
   };
   const quiet = (label?: string): RunActivityView => ({

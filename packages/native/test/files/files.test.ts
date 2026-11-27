@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { ChangeMonitor, files, type ChangeNotice } from "../../src/index.js";
-import { waitFor } from "../support/wait-for.js";
+import { waitFor } from "@nervekit/test-kit";
 
 async function fixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "nerve-files-"));

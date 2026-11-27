@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { layerSchema } from "../core/scope.js";
 import type { AccountKind } from "../extensions/settings-schema.js";
 import { validateField } from "../extensions/validator.js";
 
@@ -8,7 +9,7 @@ import { validateField } from "../extensions/validator.js";
  */
 
 /** A user-level account is available in every project; a project-level one in one project. */
-export const accountLevelSchema = z.enum(["user", "project"]);
+export const accountLevelSchema = layerSchema;
 export type AccountLevel = z.infer<typeof accountLevelSchema>;
 
 /**

@@ -5,7 +5,6 @@ import {
   mkdir,
   readFile,
   rename,
-  rm,
   utimes,
   writeFile,
 } from "node:fs/promises";
@@ -22,6 +21,7 @@ import {
 } from "@nervekit/native";
 import { createGitIsolatedReader } from "../../../src/git/read/git-isolated-reader.js";
 import { lightGitIsolatedSnapshot } from "../../../src/git/read/git-isolated-reader-protocol.js";
+import { removeTree } from "@nervekit/test-kit";
 
 const exec = promisify(execFile);
 async function fixture(
@@ -87,7 +87,7 @@ async function fixture(
     for (const key of Object.keys(process.env))
       if (key.startsWith("GIT_")) delete process.env[key];
     Object.assign(process.env, saved);
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   }
 }
 function quote(value: string): string {

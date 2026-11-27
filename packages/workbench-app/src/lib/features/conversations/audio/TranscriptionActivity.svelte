@@ -1,4 +1,5 @@
 <script lang="ts">
+import { formatElapsedClock } from "@nervekit/ui-kit/display/time";
 type Props = {
   recording?: boolean;
   transcribing?: boolean;
@@ -20,8 +21,8 @@ let {
 }: Props = $props();
 
 const visible = $derived(recording || transcribing);
-const elapsedLabel = $derived(formatElapsed(elapsedMs));
-const maxLabel = $derived(formatElapsed(maxDurationMs));
+const elapsedLabel = $derived(formatElapsedClock(elapsedMs));
+const maxLabel = $derived(formatElapsedClock(maxDurationMs));
 const progress = $derived(
   Math.max(0, Math.min(1, maxDurationMs > 0 ? elapsedMs / maxDurationMs : 0)),
 );
@@ -40,13 +41,6 @@ const ariaLabel = $derived(
       ? `Retrying transcription ${retryAttempt} of ${maxRetries}`
       : "Transcribing audio",
 );
-
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-}
 </script>
 
 {#if visible}

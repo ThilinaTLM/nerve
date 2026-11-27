@@ -119,11 +119,11 @@ void test("upload file handles stream up to 100 MB, not the 20 MB read limit", a
   );
   await assert.rejects(
     artifacts.read("artifact:mid.bin"),
-    /the limit is 20 MB/,
+    /the limit is 20.0 MB/,
   );
   await assert.rejects(
     artifacts.info("artifact:huge.bin"),
-    /the limit is 100 MB/,
+    /the limit is 100.0 MB/,
   );
 });
 

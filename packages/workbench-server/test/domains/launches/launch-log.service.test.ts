@@ -1,11 +1,12 @@
 import { createId } from "@nervekit/contracts";
+import { removeTree } from "@nervekit/test-kit";
 import type { NotifyEvent } from "@nervekit/contracts/events";
 import {
   type LaunchLogEvent,
   type LaunchRecord,
 } from "@nervekit/contracts/launches";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -20,9 +21,7 @@ import { PerformanceMetricsCollector } from "../../../src/infrastructure/diagnos
 const roots: string[] = [];
 
 after(async () => {
-  await Promise.all(
-    roots.map((root) => rm(root, { recursive: true, force: true })),
-  );
+  await Promise.all(roots.map((root) => removeTree(root)));
 });
 
 describe("launch log service line buffering", () => {

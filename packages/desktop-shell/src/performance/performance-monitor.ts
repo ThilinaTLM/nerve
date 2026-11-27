@@ -1,5 +1,8 @@
-import { appendFile, mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import {
+  appendLogLine,
+  performanceLogFilename,
+} from "@nervekit/workbench-server/diagnostics";
 
 const SAMPLE_INTERVAL_MS = 10_000;
 
@@ -36,25 +39,6 @@ export type DesktopPerformanceMonitorOptions = {
 
 export type DesktopPerformanceMonitor = { stop: () => void };
 
-async function appendJsonLine(path: string, line: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await appendFile(path, line, "utf8");
-}
-
-const SAFE_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-
-function performanceLogFilename(
-  sessionId: string | undefined,
-  source: "desktop",
-  now: Date,
-  pid: number,
-): string {
-  const safeSessionId = SAFE_SESSION_ID.test(sessionId ?? "")
-    ? sessionId
-    : `${now.toISOString().replace(/[-:.]/g, "")}-${source}-${Math.max(0, Math.trunc(pid))}`;
-  return `performance-${safeSessionId}.jsonl`;
-}
-
 function kilobytesToBytes(value: number | undefined): number | undefined {
   return value === undefined ? undefined : value * 1024;
 }
@@ -64,7 +48,7 @@ export function installDesktopPerformanceMonitor(
 ): DesktopPerformanceMonitor {
   if (!options.enabled) return { stop: () => undefined };
 
-  const append = options.append ?? appendJsonLine;
+  const append = options.append ?? appendLogLine;
   const now = options.now ?? (() => new Date());
   const createInterval = options.setInterval ?? setInterval;
   const destroyInterval = options.clearInterval ?? clearInterval;

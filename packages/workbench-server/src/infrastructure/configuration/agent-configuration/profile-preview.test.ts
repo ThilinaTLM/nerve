@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -44,7 +45,7 @@ void test("transition previews include target metadata/instructions, changed val
   });
   t.after(async () => {
     await service.flushSummaries();
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   });
   await mkdir(path.dirname(service.paths.agent({ scope: "user" })), {
     recursive: true,
@@ -157,7 +158,7 @@ void test("declared model levels diagnose unsupported requirements and block tra
   });
   t.after(async () => {
     await service.flushSummaries();
-    await rm(home, { recursive: true, force: true });
+    await removeTree(home);
   });
   await mkdir(path.join(home, "config"));
   await writeFile(

@@ -1,5 +1,5 @@
 import {
-  NativeGitReadError,
+  NativeOperationError,
   type NativeGitDocumentSource,
   type NativeGitFileDiff,
 } from "@nervekit/native";
@@ -47,7 +47,7 @@ export class ObservedGitReadBackend implements GitReadBackend {
       );
     } catch (error) {
       if (
-        error instanceof NativeGitReadError &&
+        error instanceof NativeOperationError &&
         error.category === "not_repository"
       )
         return false;

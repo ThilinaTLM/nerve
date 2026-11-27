@@ -2,14 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { EventEnvelope } from "@nervekit/contracts/events";
 import { LiveEventBuffer } from "../../src/streams/live-event-buffer.js";
+import { event } from "../support/events.js";
 
-const event = (seq: number): EventEnvelope => ({
-  seq,
-  id: `evt_${seq}`,
-  ts: "2026-07-18T00:00:00.000Z",
-  type: "project.created",
-  data: {},
-});
 const seqs = (events: EventEnvelope[]) => events.map((e) => e.seq);
 
 describe("LiveEventBuffer", () => {

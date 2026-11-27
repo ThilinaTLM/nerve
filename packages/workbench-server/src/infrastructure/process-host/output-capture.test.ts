@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import { test } from "node:test";
 import { PassThrough } from "node:stream";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -56,7 +57,7 @@ for (const capped of [false, true]) {
         (await stat(files.combined)).size <= PROCESS_OUTPUT_LIMIT_BYTES,
       );
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await removeTree(dir);
     }
   });
 }
@@ -77,7 +78,7 @@ void test("successful capped capture reports truncation without a failure diagno
     );
     assert.ok((await stat(files.combined)).size <= PROCESS_OUTPUT_LIMIT_BYTES);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });
 
@@ -91,6 +92,6 @@ void test("capture rejects writer errors and settles pending writes", async () =
     stderr.end("pending stderr");
     await assert.rejects(drained, /EISDIR/);
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });

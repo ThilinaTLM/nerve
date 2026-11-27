@@ -2,7 +2,7 @@ import { anyJson } from "./http.js";
 import { confluenceAttachmentRequest } from "../confluence/client.js";
 import { valuesFromConfluenceList } from "../confluence/format.js";
 import type { ConfluenceSession } from "../confluence/session.js";
-import { mediaTypeFor } from "./files.js";
+import { mediaTypeFor } from "@nervekit/extension-api/host";
 import type { ToolAuthorization } from "@nervekit/extension-api";
 
 /** One file to attach: any handle (`artifact:<name>` or a workspace path). */

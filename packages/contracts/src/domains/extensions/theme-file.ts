@@ -8,6 +8,8 @@ import { uiContributionIdSchema } from "./ui-contribution-id.js";
  * list drift apart.
  */
 
+export const bridgeThemeKindSchema = z.enum(["light", "dark"]);
+
 /** Core colour inputs, as the custom property without its `--`. */
 export const themeCoreTokens = [
   "background",
@@ -119,7 +121,7 @@ export const themeColorSchema = z
 export const themeFileSchema = z.strictObject({
   id: uiContributionIdSchema,
   label: z.string().trim().min(1).max(64),
-  kind: z.enum(["light", "dark"]),
+  kind: bridgeThemeKindSchema,
   tokens: z
     .strictObject({
       ...(Object.fromEntries(

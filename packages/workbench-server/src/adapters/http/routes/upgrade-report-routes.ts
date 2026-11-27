@@ -1,4 +1,5 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readJsonFile } from "../../../infrastructure/storage-bootstrap/json.js";
 import { join } from "node:path";
 import {
   upgradeReportSchema,
@@ -29,12 +30,11 @@ export async function readUnseenUpgradeReports(
     if (!upgradeStepIdSchema.safeParse(step).success) continue;
     if (seen.has(`${step}.seen`)) continue;
     try {
-      const parsed = upgradeReportSchema.safeParse(
-        JSON.parse(await readFile(join(directory, name), "utf8")),
+      const report = await readJsonFile(
+        join(directory, name),
+        upgradeReportSchema,
       );
-      if (parsed.success && parsed.data.step === step) {
-        reports.push(parsed.data);
-      }
+      if (report.step === step) reports.push(report);
     } catch {
       // A damaged report must never affect the workbench.
     }

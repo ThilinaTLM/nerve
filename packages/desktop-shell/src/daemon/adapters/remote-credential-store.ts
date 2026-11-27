@@ -1,5 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readFile } from "node:fs/promises";
+import { SerialQueue } from "@nervekit/primitives";
+import { atomicWriteFile } from "@nervekit/workbench-server";
 import type { DaemonLoggerPort, RemoteCredentialStorePort } from "../ports.js";
 
 /** OS-keychain-backed encryption (Electron `safeStorage`). */
@@ -24,7 +25,7 @@ export function createRemoteCredentialStore(options: {
 }): RemoteCredentialStorePort {
   const { filePath, cipher, logger } = options;
   const memory = new Map<string, string>();
-  let writeChain: Promise<void> = Promise.resolve();
+  const writes = new SerialQueue();
 
   async function readFileEntries(): Promise<StoredCredentials> {
     try {
@@ -40,16 +41,14 @@ export function createRemoteCredentialStore(options: {
   function persist(
     update: (entries: StoredCredentials) => void,
   ): Promise<void> {
-    const next = writeChain.then(async () => {
+    return writes.run(async () => {
       const entries = await readFileEntries();
       update(entries);
-      await mkdir(dirname(filePath), { recursive: true });
-      const temp = `${filePath}.${process.pid}.tmp`;
-      await writeFile(temp, JSON.stringify(entries), { mode: 0o600 });
-      await rename(temp, filePath);
+      await atomicWriteFile(filePath, JSON.stringify(entries), {
+        mode: 0o600,
+        durability: "directory",
+      });
     });
-    writeChain = next.catch(() => undefined);
-    return next;
   }
 
   return {

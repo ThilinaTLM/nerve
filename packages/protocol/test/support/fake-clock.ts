@@ -1,46 +1,44 @@
+import { createManualTimerCore, flush } from "@nervekit/test-kit";
 import type { ProtocolClock, ProtocolTimers } from "../../src/runtime/ports.js";
 
-const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
-
-/** Manual clock plus timers. `advance` fires due timeouts in order, then settles microtasks. */
-export function createFakeClock(start = 0) {
-  let now = start;
-  const timeouts = new Map<symbol, { at: number; callback: () => void }>();
-  const clock: ProtocolClock = {
-    now: () => now,
-    isoNow: () => new Date(now).toISOString(),
-  };
-  const timers: ProtocolTimers = {
-    setTimeout: (callback, delay) => {
-      const key = Symbol();
-      timeouts.set(key, { at: now + delay, callback });
-      return key;
-    },
-    clearTimeout: (key) => {
-      timeouts.delete(key as symbol);
-    },
-    setInterval: () => {
-      throw new Error("Unexpected interval");
-    },
-    clearInterval: () => {},
-  };
+/** `ProtocolTimers` over a manual timer core. Intervals are allowed only when asked for. */
+export function protocolTimersOf(
+  core: ReturnType<typeof createManualTimerCore>,
+  options: { intervals?: boolean } = {},
+): ProtocolTimers {
   return {
-    clock,
-    timers,
-    timeouts,
-    now: () => now,
-    advance: async (ms: number) => {
-      now += ms;
-      for (const [key, timer] of [...timeouts].sort(
-        (a, b) => a[1].at - b[1].at,
-      ))
-        if (timer.at <= now) {
-          timeouts.delete(key);
-          timer.callback();
-        }
-      await settle();
+    setTimeout: (callback, delay) => core.setTimeout(callback, delay),
+    clearTimeout: (handle) => core.clearTimeout(handle),
+    setInterval: (callback, every) => {
+      if (!options.intervals) throw new Error("Unexpected interval");
+      return core.setInterval(callback, every);
     },
+    clearInterval: (handle) => core.clearInterval(handle),
   };
 }
 
-export { settle };
+/** Manual clock plus timers. `advance` fires due timeouts in order, then settles microtasks. */
+export function createFakeClock(
+  start = 0,
+  options: { intervals?: boolean } = {},
+) {
+  const core = createManualTimerCore(start);
+  const clock: ProtocolClock = {
+    now: () => core.now(),
+    isoNow: () => new Date(core.now()).toISOString(),
+  };
+  return {
+    clock,
+    timers: protocolTimersOf(core, options),
+    /** Armed timers; `size` mirrors the old map the tests asserted on. */
+    timeouts: {
+      get size() {
+        return core.pending();
+      },
+    },
+    now: core.now,
+    advance: core.advance,
+  };
+}
+
+export { flush as settle };

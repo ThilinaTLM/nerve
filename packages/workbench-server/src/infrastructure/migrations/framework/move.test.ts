@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { removeTree } from "@nervekit/test-kit";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -8,7 +9,7 @@ import { RollbackJournal } from "./rollback-journal.js";
 
 void test("cross-device moves retain bytes and rollback across devices", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "migration-cross-device-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   let other: string;
   try {
     other = await mkdtemp("/dev/shm/migration-cross-device-");
@@ -16,7 +17,7 @@ void test("cross-device moves retain bytes and rollback across devices", async (
     t.skip("No writable second filesystem");
     return;
   }
-  t.after(() => rm(other, { recursive: true, force: true }));
+  t.after(() => removeTree(other));
   if ((await stat(root)).dev === (await stat(other)).dev) {
     t.skip("Temporary directories share a filesystem");
     return;

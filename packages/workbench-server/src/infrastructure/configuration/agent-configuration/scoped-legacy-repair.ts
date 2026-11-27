@@ -8,9 +8,13 @@ import {
   type RepairPreview,
   type RepairApplyRequest,
 } from "@nervekit/contracts/agent-configuration";
-import { withFileMutation } from "../../storage-bootstrap/file-mutations.js";
+import {
+  withFileMutation,
+  atomicWriteFile,
+  synchronizeDirectory,
+  type DirectoryDurability,
+} from "../../storage-bootstrap/file-mutations.js";
 import { lstatSync } from "node:fs";
-import { atomicWriteFile } from "../../storage-bootstrap/file-mutations.js";
 function safePath(file: string): void {
   for (let entry = path.resolve(file); ; entry = path.dirname(entry)) {
     if (lstatSync(entry, { throwIfNoEntry: false })?.isSymbolicLink())
@@ -22,10 +26,6 @@ import {
   digestBytes,
   ScopeConflictError,
 } from "../scoped-store/scoped-document-store.js";
-import {
-  synchronizeDirectory,
-  type DirectoryDurability,
-} from "../scoped-store/durable-write.js";
 import { readConfigurationDigest } from "./configuration-bytes.js";
 import type { AgentConfigurationService } from "./agent-configuration-service.js";
 

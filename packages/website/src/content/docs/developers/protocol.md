@@ -11,7 +11,7 @@ Nerve Protocol v1 connects the Workbench UI to `workbench_server` over authentic
 
 The schema reserves `workbench_server`, `ui`, `desktop_shell`, and `cli` roles so every strict envelope can name its source and target. The implemented product link today is the Workbench UI (`ui`) to `workbench_server`; the desktop shell manages daemon lifecycle outside that session, and there is no active CLI Protocol v1 client.
 
-The operation catalog declares method schemas, roles, capabilities, idempotency, and transport exposure. The public event catalog declares payload, source roles, delivery class, and routing.
+The operation catalog declares method schemas, roles, capabilities, and transport exposure. The public event catalog declares payload, source roles, delivery class, and routing.
 
 ## Product channels
 

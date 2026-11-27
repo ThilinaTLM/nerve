@@ -3,13 +3,14 @@ import type {
   GitFileChange,
   GithubPrHeadSummary,
   GithubPrHeadsResponse,
-  GitStashArea,
+  GitChangeArea,
 } from "@nervekit/contracts/git";
 import type {
   GitPanelActions,
   GitPanelModel,
   GitRemoteOperation,
 } from "./git-panel-types.js";
+import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import {
   panelTreeExpandableIds,
   type PanelTreeNode,
@@ -27,7 +28,7 @@ export function gitFileGroups(files: readonly GitFileChange[]): {
 
 export function gitFilesInScope(
   files: readonly GitFileChange[],
-  area: GitStashArea,
+  area: GitChangeArea,
   path?: string,
 ): GitFileChange[] {
   const grouped = gitFileGroups(files)[area];
@@ -48,7 +49,7 @@ export function gitPathspecs(files: readonly GitFileChange[]): string[] {
 }
 
 export function gitChangeTreeFolderKey(
-  area: GitStashArea,
+  area: GitChangeArea,
   path: readonly string[],
 ): string {
   return `${area}:group:${JSON.stringify(path)}`;
@@ -56,7 +57,7 @@ export function gitChangeTreeFolderKey(
 
 export function gitExpandedGroupIds<T>(
   nodes: readonly PanelTreeNode<T>[],
-  area: GitStashArea,
+  area: GitChangeArea,
   collapsed: ReadonlySet<string>,
 ): Set<string> {
   return new Set(
@@ -120,20 +121,8 @@ export function formatBranchUpdatedLabel(
   updatedAt: string | null,
   now = Date.now(),
 ): string {
-  if (!updatedAt) return "Update time unavailable";
-  const timestamp = Date.parse(updatedAt);
-  if (Number.isNaN(timestamp)) return "Update time unavailable";
-  const seconds = Math.max(0, Math.floor((now - timestamp) / 1_000));
-  if (seconds < 60) return "Updated just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `Updated ${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Updated ${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `Updated ${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `Updated ${months}mo ago`;
-  return `Updated ${Math.floor(months / 12)}y ago`;
+  const age = relativeTimeLabel(updatedAt ?? undefined, { style: "long", now });
+  return age ? `Updated ${age}` : "Update time unavailable";
 }
 
 export function groupBranchesForDialog(

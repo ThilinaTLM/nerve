@@ -1,6 +1,7 @@
 import { registry } from "./registry.js";
+import { removeTree } from "@nervekit/test-kit";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -201,7 +202,7 @@ void test("over budget, describe summarises and writes the full declarations to 
     assert.match(await readFile(file, "utf8"), /declare const jira: \{/);
     assert.ok(env.report.artifacts.has("artifact:sdk-jira.d.ts"));
   } finally {
-    await rm(dir, { recursive: true, force: true });
+    await removeTree(dir);
   }
 });
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createFakeClock, flush } from "./fake-clock";
+import { createManualTimerCore, flush } from "@nervekit/test-kit";
 import { createPoll, type PollEnvironment } from "./poll";
 
 function setup(
@@ -13,7 +13,7 @@ function setup(
     onError?: (error: unknown) => void;
   } = {},
 ) {
-  const fake = createFakeClock();
+  const fake = createManualTimerCore();
   let visible = true;
   let wake: (() => void) | undefined;
   const environment: PollEnvironment = {
@@ -28,7 +28,7 @@ function setup(
   const state = { runs: 0 };
   const poll = createPoll({
     intervalMs: options.intervalMs ?? 1000,
-    clock: fake.clock,
+    clock: fake,
     environment,
     onError: options.onError ?? (() => undefined),
     enabled: options.enabled,

@@ -17,7 +17,7 @@ import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import type { AuthProviderMetadata, ModelInfo, Settings } from "$lib/api";
 import { openSettingsPane } from "$lib/application/settings";
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
-import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import { LayeredAgentState } from "$lib/application/agent-configuration/layered-agent-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { projectColumns } from "../../../state/project-columns.svelte";
 import { CreationPreferencesState } from "../../../state/creation-preferences.svelte";
@@ -60,8 +60,9 @@ const clamp = (model: ModelSelection, level: ThinkingLevel) => {
   const known = models.find((m) => modelKey(m) === modelKey(model));
   return known ? clampThinkingLevelForModel(level, known) : level;
 };
-const userState = new ScopedAgentState(clamp);
-const projectState = new ScopedAgentState(clamp);
+const agent = new LayeredAgentState(() => ({ projectId, layered }), clamp);
+agent.connect(() => models);
+const { user: userState, project: projectState } = agent;
 const userPrefs = new CreationPreferencesState();
 const projectPrefs = new CreationPreferencesState();
 let repairOpen = $state<Record<"user" | "project", boolean>>({
@@ -70,14 +71,10 @@ let repairOpen = $state<Record<"user" | "project", boolean>>({
 });
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
-  void models;
-  void userState.load({ scope: "user" });
   void userPrefs.load({ scope: "user" });
 });
 $effect(() => {
   if (!workbenchStartupState.progressiveActive || !projectId) return;
-  void models;
-  void projectState.load({ scope: "project", projectId });
   void projectPrefs.load({ scope: "project", projectId });
   void permissionRuleSetCatalog.ensure(projectId);
 });
@@ -85,8 +82,6 @@ $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
   ensureProfilesFor(projectId ? "project" : "user", projectId);
 });
-$effect(() => userState.observe());
-$effect(() => projectState.observe());
 $effect(() => userPrefs.observe());
 $effect(() => projectPrefs.observe());
 
@@ -111,27 +106,24 @@ function display(settings: LeadSettingsOverrides, startProfile?: string) {
     compaction: { ...defaultSettings.compaction, ...settings.compaction },
   };
 }
-const states = { user: userState, project: projectState } as const;
 const prefs = { user: userPrefs, project: projectPrefs } as const;
 function creationOf(layer: Layer) {
   const result = prefs[layer].result;
   return result?.status === "available" ? result : undefined;
 }
 /** What applies at the layer. */
-const valuesOf = (layer: Layer) =>
-  states[layer].resolution
+const valuesOf = (layer: Layer) => {
+  const resolution = agent.editor(layer).resolution;
+  return resolution
     ? display(
-        states[layer].resolution.settings,
+        resolution.settings,
         creationOf(layer)?.effective.defaultAgentProfile,
       )
     : undefined;
+};
 const userValues = $derived(valuesOf("user"));
 /** The project column: a locked (untrusted) file shows User's values. */
-const locked = $derived(
-  layered &&
-    projectState.document?.status === "available" &&
-    (projectState.document.trustState ?? "trusted") !== "trusted",
-);
+const locked = $derived(agent.locked);
 const projectValues = $derived(locked ? userValues : valuesOf("project"));
 const defaults = $derived(
   display(
@@ -156,7 +148,7 @@ const pointers: Record<Exclude<Key, "model">, string> = {
   percent: "/compaction/customTriggerPercent",
 };
 function isSet(layer: Layer, key: Key): boolean {
-  const overrides = states[layer].overrides;
+  const overrides = agent.editor(layer).overrides;
   switch (key) {
     case "startProfile":
       return prefs[layer].overrides.defaultAgentProfile !== undefined;
@@ -196,12 +188,14 @@ async function clear(layer: Layer, key: Key): Promise<void> {
   if (key === "startProfile")
     await prefs[layer].save({}, ["/overrides/defaultAgentProfile"]);
   else
-    await states[layer].save(
-      {},
-      key === "model"
-        ? ["/overrides/model", "/overrides/reasoningLevel"]
-        : [`/overrides${pointers[key]}`],
-    );
+    await agent
+      .editor(layer)
+      .save(
+        {},
+        key === "model"
+          ? ["/overrides/model", "/overrides/reasoningLevel"]
+          : [`/overrides${pointers[key]}`],
+      );
 }
 /**
  * Sets a value at a layer. A choice equal to what the layer would inherit is
@@ -259,7 +253,7 @@ function setModel(
       },
     })),
     (l) =>
-      states[l].save({
+      agent.editor(l).save({
         ...(next.model ? { model: next.model } : {}),
         reasoningLevel: next.thinkingLevel,
       }),
@@ -273,7 +267,7 @@ function setPermission(layer: Layer, permissionRuleSetId: string) {
       ...v,
       defaults: { ...v.defaults, permissionRuleSetId },
     })),
-    (l) => states[l].save({ permissionRuleSetId }),
+    (l) => agent.editor(l).save({ permissionRuleSetId }),
   );
 }
 function setCompaction(
@@ -288,7 +282,7 @@ function setCompaction(
       ...v,
       compaction: { ...v.compaction, ...compaction },
     })),
-    (l) => states[l].save({ compaction }),
+    (l) => agent.editor(l).save({ compaction }),
   );
 }
 function setPercent(layer: Layer, value: string) {
@@ -419,7 +413,7 @@ const reasoningConflict = $derived(
 
 {#snippet modelPicker(layer: Layer, v: Display, disabled: boolean)}
   <ModelPicker
-    disabled={disabled || states[layer].saving}
+    disabled={disabled || agent.editor(layer).saving}
     label={layer === "user" ? "Default model" : `Default model in this project`}
     class="w-full"
     models={usableModels}
@@ -437,7 +431,7 @@ const reasoningConflict = $derived(
       : undefined}
   >
     <SelectField
-      disabled={disabled || states[layer].saving}
+      disabled={disabled || agent.editor(layer).saving}
       items={ruleSetOptions}
       value={v.defaults.permissionRuleSetId}
       placeholder={ruleSetText(v.defaults.permissionRuleSetId)}
@@ -452,7 +446,7 @@ const reasoningConflict = $derived(
 {#snippet strategySelect(layer: Layer, v: Display, disabled: boolean)}
   <div class="w-full">
     <SelectField
-      disabled={disabled || states[layer].saving}
+      disabled={disabled || agent.editor(layer).saving}
       items={compactionProfileItems.map((item) => ({
         value: item.value,
         label: item.label,
@@ -475,7 +469,7 @@ const reasoningConflict = $derived(
     <span class="flex items-center gap-2">
       <Input
         class={columns ? "w-20" : undefined}
-        disabled={disabled || states[layer].saving}
+        disabled={disabled || agent.editor(layer).saving}
         type="number"
         min={60}
         max={90}

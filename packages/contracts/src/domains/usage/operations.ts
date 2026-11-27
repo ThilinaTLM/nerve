@@ -10,7 +10,6 @@ export const usageOperationDefinitions = [
     emptyParamsSchema,
     z.object({ usage: z.array(subscriptionUsageSchema) }),
     "read",
-    "none",
     ["workbench_server"] as const,
     "operation.usage.subscription.get",
   ),

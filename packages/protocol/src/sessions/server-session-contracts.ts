@@ -102,10 +102,7 @@ export interface ServerSessionRpc {
   request<M extends OperationName>(
     method: M,
     params: OperationParams<M>,
-    options?: Pick<
-      ProtocolRequestData,
-      "idempotencyKey" | "timeoutMs" | "expect"
-    > & {
+    options?: Pick<ProtocolRequestData, "timeoutMs" | "expect"> & {
       readonly correlationId?: string;
       readonly causationId?: string;
       readonly traceId?: string;

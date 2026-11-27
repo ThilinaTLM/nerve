@@ -14,7 +14,10 @@ import type {
 import { isOperationCheck } from "./sdk-types.js";
 import { ToolExecutionError } from "../../execution/index.js";
 import { type DisplayPaths, errnoMessage, hostErrorCode } from "./errors.js";
-import { processFooter } from "../../result-projection/index.js";
+import {
+  formatByteSize,
+  processFooter,
+} from "../../result-projection/index.js";
 import { withImageSizes } from "./files/artifacts.js";
 import { CallLog, callOutcomeLines, truncate } from "./call-log.js";
 import { SLEEP_METHOD } from "./sandbox-globals.js";
@@ -384,7 +387,7 @@ export function reportLines(
     // One folder: print it once so Read/Edit can open any artifact as <folder>/<name>.
     const folder = dirname(artifacts[0].path);
     lines.push(
-      `Artifacts: ${artifacts.map((file) => `${file.handle} (${formatBytes(file.bytes)})`).join(", ")} in ${folder}`,
+      `Artifacts: ${artifacts.map((file) => `${file.handle} (${formatByteSize(file.bytes)})`).join(", ")} in ${folder}`,
     );
   }
   for (const [label, items] of [
@@ -407,12 +410,6 @@ export function reportLines(
 }
 
 const MAX_CREATED_LISTED = 20;
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 /** `jira 3 calls (issues.search 1, issues.get 2) · confluence 1 call (pages.get 1) · exit 0 · 1.2s`. */
 export function quickScriptFooter(input: {

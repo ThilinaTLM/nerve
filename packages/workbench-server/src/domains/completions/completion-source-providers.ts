@@ -22,8 +22,10 @@ import {
   type LeadSettingsOverrides,
 } from "@nervekit/contracts/agent-configuration";
 import type { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
-import type { discoverEntries } from "./file-completion-candidates.js";
-import { projectPathIndexes } from "../filesystem/project-path-index.js";
+import {
+  projectPathIndexes,
+  type FileCompletionEntry,
+} from "../filesystem/project-path-index.js";
 import { completionDocumentId } from "./completion-document-identity.js";
 import { FileCompletionDocument } from "./file-completion-document.js";
 import type {
@@ -139,7 +141,8 @@ export type CompletionSourcePorts = {
     | "status"
     | "updatedAt"
   >[];
-  discover?: typeof discoverEntries;
+  /** Replaces the project path index (tests and benchmarks). */
+  discover?: (root: string) => Promise<readonly FileCompletionEntry[]>;
 };
 const fields = (
   values: [

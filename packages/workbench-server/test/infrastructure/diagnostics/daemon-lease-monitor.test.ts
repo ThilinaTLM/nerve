@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
+import { removeTree } from "@nervekit/test-kit";
 import {
   mkdtemp,
   readFile,
   readdir,
-  rm,
   stat,
   writeFile,
   mkdir,
@@ -20,7 +20,7 @@ import {
 
 async function home(t: test.TestContext) {
   const path = await mkdtemp(join(tmpdir(), "nerve-daemon-lease-"));
-  t.after(() => rm(path, { recursive: true, force: true }));
+  t.after(() => removeTree(path));
   return path;
 }
 

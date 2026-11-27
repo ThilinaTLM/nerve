@@ -1,3 +1,4 @@
+import type { Source } from "@nervekit/contracts/core";
 /**
  * What a script may do to the installed extensions of its conversation's project: re-read one and
  * read how it fared. Deliberately small: no consent surface (granting, revoking, the reviewed
@@ -26,7 +27,7 @@ export type ExtensionAgentStatus = {
     | "invalid"
     | "shadowed"
     | "not_found";
-  source?: "builtin" | "user" | "project";
+  source?: Source;
   /** Folder of an installed extension. */
   folder?: string;
   version?: string;
