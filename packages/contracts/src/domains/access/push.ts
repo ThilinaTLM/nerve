@@ -4,7 +4,7 @@ import { defineOperation } from "../../operations/definition.js";
 /*
  * Web Push: a paired device subscribes once; the daemon pushes the same
  * attention edges the app shows, but only when nobody is at a screen. See
- * docs/proposals/mobile-workbench.md (Phase 3).
+ * docs/architecture/conversation-state-and-attention.md (Web Push).
  */
 
 /** The browser's `PushSubscription.toJSON()`, reduced to what sending needs. */

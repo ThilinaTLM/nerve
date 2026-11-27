@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * Private remote access through Tailscale Serve. The daemon owns a loopback
- * listener that Serve proxies to; see docs/proposals/mobile-workbench.md.
+ * listener that Serve proxies to; see docs/architecture/access.md (Private tunnel).
  */
 
 /** HTTPS ports Tailscale Serve accepts. 443 gives a URL without a port. */
