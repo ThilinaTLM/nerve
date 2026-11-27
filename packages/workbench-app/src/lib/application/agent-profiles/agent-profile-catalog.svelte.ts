@@ -9,6 +9,8 @@ export type ProfileOption = {
   error?: string;
   digest?: string;
   source?: "builtin" | "user" | "project";
+  /** The user's decision on a user or project profile; built-ins have none. */
+  trustState?: "needs_review" | "trusted" | "declined";
 };
 import {
   onAnyEvent,
@@ -24,6 +26,22 @@ export function leadAgentProfiles(
     (profile) =>
       profile.applicable !== false &&
       !profile.error &&
+      profile.usableBy !== "subagent",
+  );
+}
+
+/**
+ * Lead profiles that would be offered but wait for the user's review: the
+ * picker and `/profile` list them disabled with Review. Declined ones stay
+ * hidden (the user's choice).
+ */
+export function pendingLeadProfiles(
+  profiles: readonly ProfileOption[],
+): ProfileOption[] {
+  return profiles.filter(
+    (profile) =>
+      profile.trustState === "needs_review" &&
+      profile.applicable !== false &&
       profile.usableBy !== "subagent",
   );
 }
@@ -77,7 +95,14 @@ class AgentProfileCatalog {
         void this.refresh(key === noProject ? undefined : key);
     };
     onAnyEvent((event) => {
-      if (event.type === "agentProfiles.changed") refreshLoaded();
+      // A decision on a profile makes it offered or not (picker, `/profile`).
+      if (
+        event.type === "agentProfiles.changed" ||
+        (event.type === "configuration.decided" &&
+          (event.data.target as { kind?: string } | undefined)?.kind ===
+            "agent-profile")
+      )
+        refreshLoaded();
     });
     onWorkbenchReconnect(refreshLoaded);
   }
@@ -95,6 +120,7 @@ function profileOption(entry: ProfileCatalogEntry): ProfileOption {
     applicable: entry.applicable,
     digest: entry.digest,
     source: entry.source,
+    ...(entry.trustState ? { trustState: entry.trustState } : {}),
     error:
       entry.definition && entry.trustState === "trusted"
         ? undefined

@@ -29,8 +29,10 @@ type Props = {
   /** The project's settings file is not trusted. */
   locked?: boolean;
   onChange: (layer: SettingsLayer, next: boolean) => void;
-  /** Opens the server's page (its review while it waits for one). */
+  /** Opens the server's page. */
   onOpen: () => void;
+  /** Opens the review dialog on a waiting entry; the page otherwise. */
+  onReview?: () => void;
 };
 
 let {
@@ -42,6 +44,7 @@ let {
   locked = false,
   onChange,
   onOpen,
+  onReview,
 }: Props = $props();
 
 const pending = $derived(mcpPending(row));
@@ -71,7 +74,7 @@ const summary = $derived(
   {summary}
   problem={declined ? undefined : mcpProblem(row)}
   problemAction={row.review === "needs_review"
-    ? { label: "Review", onclick: onOpen }
+    ? { label: "Review", onclick: onReview ?? onOpen }
     : undefined}
   {onOpen}
   openLabel={pending ? `Review ${row.name}` : `Open ${row.name}`}

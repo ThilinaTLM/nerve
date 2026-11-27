@@ -19,6 +19,7 @@ import {
 
 /** Where the user decides each project file; the decision is made on the page of the resource. */
 export const AGENT_TRUST_PAGE = "Settings → General, project column";
+export const USER_AGENT_TRUST_PAGE = "Settings → General";
 export const PERMISSIONS_TRUST_PAGE = "Settings → Permission rules";
 export const PROFILE_TRUST_PAGE = "Settings → Agents or Sub-Agents";
 const trustAt = (where: string) => ({ kind: "trust", where }) as const;
@@ -72,7 +73,11 @@ function finding(
     path: issue.path,
   };
   const approval = trustAt(
-    issue.document === "agent" ? AGENT_TRUST_PAGE : PROFILE_TRUST_PAGE,
+    issue.document !== "agent"
+      ? PROFILE_TRUST_PAGE
+      : issue.scope === "user"
+        ? USER_AGENT_TRUST_PAGE
+        : AGENT_TRUST_PAGE,
   );
   if (issue.code === "needs-review") return { ...at, approval };
   if (issue.code === "declined") return { ...at, approval, declined: true };
@@ -112,9 +117,13 @@ export function agentConfigurationProvider(options: {
       ? [
           {
             ...identify("agent"),
-            scope: "project",
+            scope: context.scope,
             path: service.paths.agent(scope),
-            approval: trustAt(AGENT_TRUST_PAGE),
+            approval: trustAt(
+              context.scope === "user"
+                ? USER_AGENT_TRUST_PAGE
+                : AGENT_TRUST_PAGE,
+            ),
             ...(state === "declined" ? { declined: true as const } : {}),
           },
         ]

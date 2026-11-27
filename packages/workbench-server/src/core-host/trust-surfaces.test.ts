@@ -14,17 +14,11 @@ import { hostRegistry } from "./host-tools.js";
 
 /** Operations of the signed-in user's app that record, withdraw or advance a decision. */
 const TRUST_MOVING = [
-  // Decisions.
-  "trust.decide",
-  "trust.delete",
-  "extensions.grantConsent",
-  "extensions.revokeConsent",
+  // Decisions on the two project enablement files, which are not configuration resources.
   "extensions.trustProject",
-  "agentProfiles.trust",
-  "agentConfiguration.trust",
-  "promptSuggestion.trust.update",
   "promptSuggestion.projectFile.trust",
-  "permission.projectTrust.grant",
+  // One review and decision for every kind of configuration item (the user's review dialog).
+  "configuration.decide",
   // Saves from the UI that move a trusted digest to the bytes they wrote, or drop a decision.
   "permission.rule.save",
   "permission.rule.delete",
@@ -36,13 +30,25 @@ const TRUST_MOVING = [
   "extensions.save",
   "extensions.reset",
   "promptSuggestion.enabled.update",
+  // A user or project suggestion file created through Nerve is trusted.
+  "promptSuggestion.create",
   // MCP entries: saving approves what was written; removing drops the decision.
   "mcp.servers.save",
   "mcp.servers.remove",
 ] as const;
 
+/*
+ * User-scope writes keep trust the same way (`captureTrust` in `trusted-write.ts`): the saves above
+ * cover user and project files alike, and "Always allow" persists into the user overlay through the
+ * permission port (`createPermissionPort.addRule`), which no agent surface reaches. Nothing else
+ * advances a decision.
+ */
+
 /** Operations whose name mentions trust, consent or approval but that decide nothing. */
-const NOT_TRUST_MOVING = ["trust.list"] as const;
+const NOT_TRUST_MOVING = [
+  // Reads what the user reviews; decides nothing.
+  "configuration.review",
+] as const;
 
 const catalog = new Set<string>(operationNameSchema.options);
 

@@ -1,4 +1,5 @@
 import type { Dirent } from "node:fs";
+import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join, basename, resolve } from "node:path";
 import { pathExists } from "../../infrastructure/storage-bootstrap/json.js";
@@ -96,9 +97,17 @@ async function loadSuggestionFile(
           ],
         };
       raw = type.encode!(loaded.value);
-      return parseSuggestionMarkdown(input, filePath, raw);
+      // Trust names the bytes on disk, which the migration may have just rewritten.
+      return parseSuggestionMarkdown(
+        input,
+        filePath,
+        raw,
+        digestOf(await readFile(filePath)),
+      );
     }
-    raw = await readFile(filePath, "utf8");
+    const bytes = await readFile(filePath);
+    raw = bytes.toString("utf8");
+    return parseSuggestionMarkdown(input, filePath, raw, digestOf(bytes));
   } catch (error) {
     diagnostics.push({
       level: "error",
@@ -108,6 +117,7 @@ async function loadSuggestionFile(
     });
     return { diagnostics };
   }
-
-  return parseSuggestionMarkdown(input, filePath, raw);
 }
+
+const digestOf = (bytes: Buffer) =>
+  createHash("sha256").update(bytes).digest("hex");

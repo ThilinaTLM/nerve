@@ -106,6 +106,10 @@ export interface ConversationUiCapabilities {
     toolCallId: string,
     decision: "retry" | "cancel",
   ) => Promise<void>;
+  /** Opens the review dialog on the files a configuration-blocked call waits for. */
+  reviewConfigurationBlock?: (
+    diagnostics: import("@nervekit/contracts/core").ConfigurationBlockedRequest["diagnostics"],
+  ) => void;
   fetchToolCall?: (toolCallId: string) => Promise<ToolCallDetails>;
   /** Read one bounded UTF-8 chunk of the complete result. */
   readToolCallResult?: (

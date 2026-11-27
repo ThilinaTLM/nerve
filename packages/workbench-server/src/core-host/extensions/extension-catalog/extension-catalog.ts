@@ -67,7 +67,6 @@ export interface ExtensionManagement {
     ref: InstalledExtensionRef,
     contentHash: string,
   ): Promise<"granted" | "changed" | "not_found">;
-  revokeConsent(ref: InstalledExtensionRef): Promise<boolean>;
   reload(id?: string): Promise<void>;
 }
 
@@ -365,14 +364,6 @@ export class ExtensionCatalog implements ExtensionUiSource {
     const granted = await this.#gate.grant(found.candidate, contentHash);
     await this.reload(ref.id);
     return granted ? "granted" : "changed";
-  }
-
-  async revokeConsent(ref: InstalledExtensionRef): Promise<boolean> {
-    const found = await this.#find(ref);
-    if (!found?.candidate) return false;
-    await this.#gate.revoke?.(found.candidate);
-    await this.reload(ref.id);
-    return true;
   }
 
   async #find(

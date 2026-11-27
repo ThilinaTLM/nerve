@@ -35,18 +35,18 @@ export type ProjectSkillStatus = {
 };
 
 /**
- * Approval of project skills (trust kind `project_skill`). A skill that arrives with a
+ * Approval of project and user skills (trust kind `skill`). A skill that arrives with a
  * repository can carry scripts it tells the agent to run, so it is used only after the user
  * approved the exact content of its folder. See docs/architecture/trust.md.
  */
 export interface ProjectSkillTrust {
   /** Whether the agent may be told about the skill: only when `trusted`. */
-  status(projectId: string, skill: Skill): Promise<ProjectSkillStatus>;
+  status(projectId: string | null, skill: Skill): Promise<ProjectSkillStatus>;
   /** What the user reviews: every file of the folder and the digest an approval names. */
-  review(projectId: string, skill: Skill): Promise<SkillReview>;
+  review(projectId: string | null, skill: Skill): Promise<SkillReview>;
 }
 
-async function files(folder: string): Promise<SkillReviewFile[]> {
+export async function files(folder: string): Promise<SkillReviewFile[]> {
   const found: SkillReviewFile[] = [];
   const walk = async (directory: string, prefix: string): Promise<void> => {
     for (const entry of await listUnignoredEntries(directory)) {
@@ -73,7 +73,7 @@ async function files(folder: string): Promise<SkillReviewFile[]> {
   return found.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
-async function digest(
+export async function digest(
   folder: string,
   listed: readonly SkillReviewFile[],
 ): Promise<string> {
@@ -92,11 +92,14 @@ async function digest(
 export function createProjectSkillTrust(
   trust: Pick<TrustedResourceService, "find" | "trustState">,
 ): ProjectSkillTrust {
-  async function review(projectId: string, skill: Skill): Promise<SkillReview> {
+  async function review(
+    projectId: string | null,
+    skill: Skill,
+  ): Promise<SkillReview> {
     const folder = dirname(skill.filePath);
     const listed = await files(folder);
     const contentDigest = await digest(folder, listed);
-    const row = trust.find("project_skill", projectId, folder);
+    const row = trust.find("skill", projectId, folder);
     const state = trust.trustState(row, contentDigest);
     return {
       name: skill.name,

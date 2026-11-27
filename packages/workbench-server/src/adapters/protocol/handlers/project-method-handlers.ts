@@ -51,10 +51,6 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
       await state.promptSuggestions.updateEnabled(params);
       return { ok: true };
     },
-    "promptSuggestion.trust.update": async (state, params) => {
-      await state.promptSuggestions.updateTrust(params);
-      return { ok: true };
-    },
     "project.openEditor": (state, params) =>
       state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>

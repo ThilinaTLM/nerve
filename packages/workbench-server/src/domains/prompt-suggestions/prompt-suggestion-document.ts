@@ -37,6 +37,8 @@ export function parseSuggestionMarkdown(
   input: SourceInput,
   filePath: string,
   raw: string,
+  /** The digest (hex) of the file's bytes, which a trust decision names; default: of `raw`. */
+  fileDigest?: string,
 ): {
   definition?: PromptSuggestionDefinition;
   diagnostics: PromptSuggestionDiagnostic[];
@@ -143,11 +145,12 @@ export function parseSuggestionMarkdown(
   }
 
   const enableJs = normalizeEnableJs(frontmatter);
-  const predicateHash = enableJs ? sha256(enableJs) : undefined;
+  // Trust covers the whole file, so any change of it asks the user again.
+  const predicateHash = fileDigest ?? sha256(raw);
   const absPath = resolve(filePath);
-  const trustId = predicateHash
-    ? sha256(`${input.kind}\0${absPath}\0${name}\0${predicateHash}`)
-    : undefined;
+  const trustId = sha256(
+    `${input.kind}\0${absPath}\0${name}\0${predicateHash}`,
+  );
 
   if (
     diagnostics.some((diagnostic) => diagnostic.code === "invalid-metadata")

@@ -92,7 +92,8 @@
 
 .dialog-header-actions {
   display: flex;
-  min-width: 0;
+  /* Wrap between actions, never squeeze one under the title. */
+  min-width: min-content;
   flex: 1;
   flex-wrap: wrap;
   align-items: center;
@@ -108,6 +109,8 @@
 
 .dialog-title-block {
   display: grid;
+  /* A title with a badge truncates instead of overflowing into the actions. */
+  grid-template-columns: minmax(0, 1fr);
   min-width: min(16rem, 40%);
   gap: 0.125rem;
 }

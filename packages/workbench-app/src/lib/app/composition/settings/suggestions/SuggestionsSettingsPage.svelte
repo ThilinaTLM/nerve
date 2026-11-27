@@ -24,24 +24,26 @@ import {
   SETTINGS_SEARCH_MIN,
   SettingsSection,
   TipBadge,
-  TrustDecisionActions,
   type SettingsLayer,
   type SettingsOrigin,
 } from "$lib/presentation/settings";
-import UntrustedProjectCallout from "$lib/features/settings/views/pages/capabilities/UntrustedProjectCallout.svelte";
+import ConfigurationReviewCallout from "$lib/presentation/configuration-review/ConfigurationReviewCallout.svelte";
+import type { ConfigurationReviewTarget } from "@nervekit/contracts/configuration";
+import { openConfigurationReview } from "$lib/application/configuration-review/configuration-review-queue.svelte";
+import ItemReviewSections from "$lib/features/settings/views/pages/review/ItemReviewSections.svelte";
+import { useItemReview } from "$lib/features/settings/views/pages/review/item-review.svelte";
 import CreatePromptSuggestionDialog from "$lib/features/prompt-suggestions/views/CreatePromptSuggestionDialog.svelte";
 import { trustPromptSuggestionProjectFile } from "$lib/features/prompt-suggestions/api/prompt-suggestions.api";
 import {
   createPromptSuggestion,
   refreshPromptSuggestionStatuses,
   setPromptSuggestionLayers,
-  setPromptSuggestionTrust,
 } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
 import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
 import type { SuggestionsPageState } from "./suggestions-page-state.svelte";
 import {
-  awaitsScriptReview,
-  scriptTrustState,
+  awaitsReview,
+  suggestionTrustState,
   suggestionSwitches,
   suggestionWrites,
   trustBadge,
@@ -65,7 +67,6 @@ let {
   onCloseItem,
 }: Props = $props();
 
-let savingTrustId = $state<string | undefined>(undefined);
 let mutationError = $state<string | undefined>(undefined);
 let query = $state("");
 
@@ -183,22 +184,28 @@ async function change(
   }
 }
 
-async function updateTrust(
-  trustId: string | undefined,
-  trusted: boolean,
-): Promise<void> {
-  if (!trustId) return;
-  savingTrustId = trustId;
-  mutationError = undefined;
-  try {
-    await setPromptSuggestionTrust({ trustId, trusted });
-    await refreshPromptSuggestionStatuses(activeProject?.id);
-  } catch (error) {
-    mutationError = error instanceof Error ? error.message : String(error);
-  } finally {
-    savingTrustId = undefined;
-  }
+/** The review dialog's target for a user or project suggestion. */
+function reviewTarget(
+  status: PromptSuggestionStatus,
+): ConfigurationReviewTarget | undefined {
+  if (status.sourceKind === "user")
+    return { kind: "prompt-suggestion", scope: "user", id: status.name };
+  if (status.sourceKind === "project" && activeProject)
+    return {
+      kind: "prompt-suggestion",
+      scope: "project",
+      projectId: activeProject.id,
+      id: status.name,
+    };
+  return undefined;
 }
+/** Review and Trust open the shared review dialog; a built-in opens its page. */
+function review(status: PromptSuggestionStatus): void {
+  const target = reviewTarget(status);
+  if (target) openConfigurationReview([target]);
+  else onOpenItem?.(status.definitionKey);
+}
+const openReview = useItemReview(() => (open ? reviewTarget(open) : undefined));
 
 async function create(request: CreatePromptSuggestionRequest): Promise<void> {
   await createPromptSuggestion(request, activeProject?.id);
@@ -231,7 +238,7 @@ function copyPath(path: string): void {
     projectSet={values.projectSet}
     {projectName}
     projectOnly={status.sourceKind === "project"}
-    pending={awaitsScriptReview(status)}
+    pending={awaitsReview(status)}
     {locked}
     inapplicable={status.overriddenBy === "project" &&
       status.sourceKind !== "project"}
@@ -240,6 +247,20 @@ function copyPath(path: string): void {
 {/snippet}
 
 {#snippet detail(status: PromptSuggestionStatus)}
+  {@const decision = suggestionTrustState(status)}
+  {#if decision}
+    <ConfigurationReviewCallout
+      state={decision}
+      effect="it is not shown"
+      changedSinceDecision={status.status === "stale"}
+      busy={openReview.current?.busy}
+      error={openReview.current?.notice ?? openReview.current?.error}
+      onTrust={() => review(status)}
+      onDecline={() => void openReview.current?.decline()}
+      onRevoke={() => void openReview.current?.decline()}
+      showTrusted
+    />
+  {/if}
   <div class="flex flex-wrap items-center gap-2">
     <Badge variant="neutral"
       >{status.sourceKind === "builtin"
@@ -277,26 +298,19 @@ function copyPath(path: string): void {
       </Button>
     </div>
   {/if}
-  {@const decision = scriptTrustState(status)}
-  {#if decision && status.trustId}
-    <div class="flex flex-wrap gap-1">
-      <TrustDecisionActions
-        state={decision}
-        busy={savingTrustId === status.trustId}
-        onTrust={() => updateTrust(status.trustId, true)}
-        onDecline={() => updateTrust(status.trustId, false)}
-        onRevoke={() => updateTrust(status.trustId, false)}
-      />
-    </div>
+  {@const target = reviewTarget(status)}
+  {#if target}
+    <ItemReviewSections {target} item={openReview.current} />
   {/if}
 {/snippet}
 
 {#snippet notices()}
   {#if fileState && projectName}
-    <UntrustedProjectCallout
+    <ConfigurationReviewCallout
       state={fileState}
       subject="This project's suggestion settings file"
       busy={decidingFile}
+      effect="the project uses your settings and its column is locked"
       showTrusted
       onTrust={() => void decideFile(true)}
       onDecline={() => void decideFile(false)}
@@ -339,7 +353,7 @@ function copyPath(path: string): void {
       class="mb-1"
     >
       {#snippet below()}
-        {#if open && !open.stale && !awaitsScriptReview(open)}
+        {#if open && !open.stale && !awaitsReview(open)}
           {@const values = suggestionSwitches(open)}
           <div class="pt-2">
             <LayerEnabledTable
@@ -418,13 +432,13 @@ function copyPath(path: string): void {
             icon={Lightbulb}
             summary={status.description ?? status.conditionSummary}
             muted={!!status.overriddenBy}
-            problem={awaitsScriptReview(status)
-              ? "Its script waits for your review"
+            problem={awaitsReview(status)
+              ? "Waiting for your review"
               : undefined}
-            problemAction={awaitsScriptReview(status)
+            problemAction={awaitsReview(status)
               ? {
                   label: "Review",
-                  onclick: () => onOpenItem?.(status.definitionKey),
+                  onclick: () => review(status),
                 }
               : undefined}
             onOpen={() => onOpenItem?.(status.definitionKey)}

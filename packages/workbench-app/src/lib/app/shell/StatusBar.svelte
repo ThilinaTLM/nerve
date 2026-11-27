@@ -21,6 +21,7 @@ import type {
 import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import type { SubscriptionUsageEntry } from "$lib/features/usage";
 import { tildePath } from "$lib/domain/filesystem/project-path";
+import type { LatestRelease } from "@nervekit/contracts/status";
 import StatusPopover from "./StatusPopover.svelte";
 import { SubscriptionUsageChip } from "$lib/features/usage";
 import LayoutControl from "./LayoutControl.svelte";
@@ -49,6 +50,8 @@ type Props = {
   gitStatus?: GitStatus;
   subscriptionUsages?: SubscriptionUsageEntry[];
   status?: StatusResponse;
+  /** The newest stable release, for the version line of the daemon popover. */
+  latestRelease?: LatestRelease;
   maintenanceOperation?: MaintenanceOperation | null;
   homeDir?: string;
   zoomLevel?: number;
@@ -68,6 +71,7 @@ let {
   gitStatus,
   subscriptionUsages = [],
   status,
+  latestRelease,
   maintenanceOperation,
   homeDir,
   zoomLevel = 0,
@@ -225,7 +229,14 @@ function gitStatusTitle(status: GitStatus): string {
         <LayoutControl {zoomLevel} {dockToggles} {onZoomLevelChange} />
       {/if}
 
-      <StatusPopover {connection} {live} {status} side="top" compact={phone} />
+      <StatusPopover
+        {connection}
+        {live}
+        {status}
+        {latestRelease}
+        side="top"
+        compact={phone}
+      />
     </span>
   {/snippet}
 </ShellStatusBar>

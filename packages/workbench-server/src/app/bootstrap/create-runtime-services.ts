@@ -1,5 +1,6 @@
 import { McpSecrets } from "../../domains/mcp/mcp-secrets.js";
 import { createPinnedFetch } from "@nervekit/tools/execution";
+import { captureTrust } from "../../infrastructure/configuration/trusted-write.js";
 import { createProjectSkillTrust } from "../../core-host/resources/project-skill-trust.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import { promptSuggestionProvider } from "../../core-host/configuration/providers/prompt-suggestion-provider.js";
@@ -384,15 +385,10 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     storage.paths.configPath,
     {
       state: (projectId, path, digest) =>
-        conversationCore.trust.state(
-          "project_capabilities",
-          projectId,
-          path,
-          digest,
-        ),
+        conversationCore.trust.state("capabilities", projectId, path, digest),
       decide: ({ projectId, path, digest, trusted }) =>
         conversationCore.trust.decide({
-          kind: "project_capabilities",
+          kind: "capabilities",
           projectId,
           name: "Prompt suggestion settings",
           resourceKey: path,
@@ -409,6 +405,13 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     trustRepository: new PromptSuggestionTrustRepository(
       conversationCore.trust,
     ),
+    captureUserTrust: (path, source) =>
+      captureTrust(() => coreStorage, {
+        kind: "prompt_suggestion",
+        projectId: null,
+        path,
+        source,
+      }),
     enablementRepository: promptSuggestionEnablement,
     git: gitService,
     getProject: (id) => {
@@ -493,7 +496,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
         configuration: agentConfiguration,
         isProjectAgentTrusted: (projectId, path, digest) =>
           conversationCore.trust.isTrusted(
-            "project_capabilities",
+            "capabilities",
             projectId,
             path,
             toTrustedDigest(digest),

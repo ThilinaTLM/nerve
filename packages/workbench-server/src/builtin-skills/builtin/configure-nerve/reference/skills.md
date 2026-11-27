@@ -5,10 +5,10 @@ A skill is a folder with a `SKILL.md`: a name and description in frontmatter, th
 ## Procedure
 
 1. Settle the trigger: what task should make the agent reach for the skill, and what it should do differently from today.
-2. Choose the scope: `<home>/agent/skills/<name>/` for a personal skill (works from the next agent run), `<project>/.nerve/skills/<name>/` for a team skill (the user approves it first).
+2. Choose the scope: `<home>/agent/skills/<name>/` for a personal skill, `<project>/.nerve/skills/<name>/` for a team skill. The user approves either first.
 3. `configuration.list({ kind: "skill" })`: if the name exists, read that skill and confirm before replacing it.
 4. Write `SKILL.md` and any linked files. Read the description as the agent would: does it alone tell when to load the skill?
-5. `configuration.check(scope)`; fix what it reports. Hand over with the approval a project skill needs (Settings → Skills, project column).
+5. `configuration.check(scope)`; fix what it reports. Hand over with the approval the skill needs (Settings → Skills).
 
 ## Locations
 
@@ -38,13 +38,13 @@ description: Use when writing or updating release notes for this repository.
 
 A skill with an invalid frontmatter is skipped. `configuration.check(scope)` reports it, and a skill hidden by another of the same name (`skill-shadowed`).
 
-## Approval of project skills
+## Approval of skills
 
-A project skill is not used until the user approves the exact content of its folder in Settings → Skills, project column; any change to any file in the folder asks again. You cannot approve it. So:
+A skill is not used until the user approves the exact content of its folder in Settings → Skills (the project's skills in the project column); any change to any file in the folder asks again. You cannot approve it. So:
 
-- A skill you write at project scope does not work until the user approves it. Say so when you hand over, and name the page.
-- A skill you write at user scope (`<home>/agent/skills/`) works from the next agent run. Prefer user scope for a skill that is personal rather than part of the repository.
-- After editing an approved project skill, tell the user it waits for approval again.
+- A skill you write, at either scope, does not work until the user approves it. Say so when you hand over, and name the page.
+- Prefer user scope (`<home>/agent/skills/`) for a skill that is personal rather than part of the repository.
+- After editing an approved skill, tell the user it waits for approval again.
 
 `configuration.list({ kind: "skill", state: "needs_review" })` lists the skills that wait.
 

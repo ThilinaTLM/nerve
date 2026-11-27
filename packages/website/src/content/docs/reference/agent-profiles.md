@@ -36,7 +36,7 @@ Model and reasoning are separate settings; the picker saves them together. Reaso
 
 Applying a profile captures its instructions, recommendations and requirements, with its name, source and digest, in the conversation's `agent.json`. Editing, disabling or deleting the catalog definition does not change a valid applied snapshot. Use **Apply updated profile** to capture a changed definition explicitly. Switching/reapplying preserves conversation overrides and local prompt context.
 
-Project definitions require trust in their exact bytes. External edits invalidate trust for new applications. Trusting a profile does not independently trust skill content or grant credentials.
+User and project definitions both require trust in their exact bytes; built-in profiles need none. A new or externally edited definition isn't offered or applied until you review it (**Needs review**), and a pending project definition falls back to the user one of the same name. External edits invalidate trust for new applications. Trusting a profile does not independently trust skill content or grant credentials.
 
 ## Files and editing
 

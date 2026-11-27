@@ -39,6 +39,9 @@ type Props = {
   profileDisabled: boolean;
   /** Profiles offered by the selector; an empty list drops it entirely. */
   agentProfiles: ComposerAgentProfile[];
+  /** Profiles that wait for review: listed disabled, with Review. */
+  pendingAgentProfiles?: ComposerAgentProfile[];
+  onReviewAgentProfile?: (name: string) => void;
   agentProfile: string;
   /** Fields the active profile locks; their pickers are disabled. */
   lockedFields?: ComposerLockedFields;
@@ -102,6 +105,8 @@ let {
   controlsDisabled,
   profileDisabled,
   agentProfiles,
+  pendingAgentProfiles = [],
+  onReviewAgentProfile,
   agentProfile,
   lockedFields = {},
   session,
@@ -241,6 +246,8 @@ non-default permission. -->
     <ComposerProfilePicker
       {agentProfiles}
       {agentProfile}
+      pendingProfiles={pendingAgentProfiles}
+      onReview={onReviewAgentProfile}
       disabled={profileDisabled}
       {controlsDisabled}
       shortcut={profileShortcut}
@@ -304,6 +311,8 @@ non-default permission. -->
     <ComposerSettingsPopover
       {agentProfiles}
       {agentProfile}
+      {pendingAgentProfiles}
+      {onReviewAgentProfile}
       {profileDisabled}
       {controlsDisabled}
       {onAgentProfileChange}

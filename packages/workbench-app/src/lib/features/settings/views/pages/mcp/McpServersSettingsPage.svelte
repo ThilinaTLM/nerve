@@ -21,6 +21,7 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import { OriginGroup, SETTINGS_SEARCH_MIN } from "$lib/presentation/settings";
 import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
 import McpServerDialog from "./McpServerDialog.svelte";
+import { openConfigurationReview } from "$lib/application/configuration-review/configuration-review-queue.svelte";
 import McpServerItem from "./McpServerItem.svelte";
 import { McpEnablementState } from "./mcp-enablement-state.svelte";
 
@@ -168,6 +169,17 @@ const onRetry = () => Promise.all([list.reload(), enablement.reload()]);
           onChange={(layer, next) =>
             void enablement.change(row, layer, next).then(() => list.reload())}
           onOpen={() => onOpenItem?.(mcpItemId(row.scope, row.name))}
+          onReview={row.scope === "user" || projectId
+            ? () =>
+                openConfigurationReview([
+                  {
+                    kind: "mcp-servers",
+                    scope: row.scope,
+                    ...(row.scope === "project" ? { projectId } : {}),
+                    id: row.name,
+                  },
+                ])
+            : undefined}
         />
       {/each}
     </OriginGroup>

@@ -215,6 +215,23 @@ describe("popup groups", () => {
       ["Run"],
     );
   });
+
+  it("lists a profile that waits for review as unavailable, with Review", () => {
+    const groups = buildSlashGroups(slashCommandCompletionItems, "/profile", {
+      profile: "coding",
+      profiles: [{ name: "coding", label: "Coding" }],
+      pendingProfiles: [{ name: "reviewer", label: "Reviewer" }],
+      running: false,
+    });
+    const row = groups[0]!.rows.find((r) => r.command === "profile reviewer");
+    assert.equal(row?.state, "unavailable");
+    assert.equal(row?.badge?.text, "Needs review");
+    assert.equal(row?.reviewProfile, "reviewer");
+    assert.equal(
+      groups[0]!.rows.find((r) => r.command === "profile coding")?.state,
+      "ready",
+    );
+  });
 });
 
 function harness(raw: Partial<ComposerCompletionOptions> = {}) {
@@ -523,5 +540,29 @@ describe("composer completion controller", () => {
     h.controller.accept();
     assert.deepEqual(ran, ["plan"]);
     assert.equal(h.state.doc.toString(), "");
+  });
+
+  it("does not switch to a profile that waits for review; Review opens it", () => {
+    const ran: string[] = [];
+    const actions: unknown[] = [];
+    const h = harness({
+      slashCompletions: () => [
+        { kind: "slash", label: "/profile <name>", detail: "Switch profile" },
+      ],
+      slashContext: () => ({
+        profile: "coding",
+        profiles: [],
+        pendingProfiles: [{ name: "reviewer", label: "Reviewer" }],
+        running: false,
+      }),
+      slashCommand: () => (name) => ran.push(name),
+      action: () => (action) => actions.push(action),
+    });
+    h.type("/prof");
+    assert.equal(h.last()?.footer?.action?.label, "Review");
+    h.controller.accept();
+    assert.deepEqual(ran, []);
+    h.controller.runFooterAction();
+    assert.deepEqual(actions, [{ type: "review-profile", name: "reviewer" }]);
   });
 });

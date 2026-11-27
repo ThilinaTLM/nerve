@@ -52,8 +52,6 @@ export interface ExtensionTrustGate {
     candidate: InstalledExtensionCandidate,
     contentHash: string,
   ): Promise<boolean>;
-  /** Withdraws consent: the extension is declined. */
-  revoke?(key: InstalledExtensionKey): Promise<void>;
 }
 
 /** Nothing installed runs. A gate for tests that need the safe default. */

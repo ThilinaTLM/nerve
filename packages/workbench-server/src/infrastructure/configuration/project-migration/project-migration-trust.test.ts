@@ -9,7 +9,7 @@ import type { TrustedResource } from "@nervekit/contracts/core";
 import { projectMigrationTrust } from "./project-migration-trust.js";
 const digest = (bytes: Buffer) =>
   `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
-for (const kind of ["project_permissions", "project_capabilities"] as const)
+for (const kind of ["permissions", "capabilities"] as const)
   void test(`only exact same-file trusted bytes carry over; changed bindings and reset cannot grant trust (${kind})`, async (t) => {
     const approvalDigest = digest;
     const root = await mkdtemp(join(tmpdir(), "migration-trust-"));
@@ -80,7 +80,7 @@ for (const kind of ["project_permissions", "project_capabilities"] as const)
     assert.equal(record, undefined);
   });
 
-void test("a file created through Nerve is trusted unless the binding changed; prompt suggestions never are", async (t) => {
+void test("a file created through Nerve is trusted unless the binding changed", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "migration-trust-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const path = join(root, "extensions.json");
@@ -96,14 +96,10 @@ void test("a file created through Nerve is trusted unless the binding changed; p
     },
   } as unknown as CoreStorage;
   const trust = projectMigrationTrust(() => storage, {
-    extensions: "project_capabilities",
+    extensions: "capabilities",
     "prompt-suggestion": "prompt_suggestion",
   });
   const input = { projectId: "proj_one", path, source: undefined };
-  assert.equal(
-    await trust.capture({ ...input, type: "prompt-suggestion:a.md" }),
-    undefined,
-  );
   const create = (await trust.capture({ ...input, type: "extensions" }))!;
   await writeFile(path, output);
   await create(path, output);

@@ -67,12 +67,17 @@ const settingsSaveStatus = $derived(settingsSelectors.settingsSaveStatus);
 const settingsMessage = $derived(settingsSelectors.settingsMessage);
 const skillsProjectId = $derived(scopeProject?.id);
 
-// A project's own skills open a review page; known once this project's list is in.
+// A project skill, and a user skill with a decision, open a page
+// (`project:<name>`, `user:<name>`); known once this project's list is in.
 const skillItems = $derived(
-  scopeProject && settingsState.skillsProjectId === scopeProject.id
-    ? settingsState.skills
-        .filter((skill) => skill.source === "project")
-        .map((skill) => ({ id: skill.name, label: skill.name }))
+  !scopeProject || settingsState.skillsProjectId === scopeProject.id
+    ? settingsState.skills.flatMap((skill) =>
+        skill.source === "project"
+          ? [{ id: `project:${skill.name}`, label: skill.name }]
+          : skill.source === "user" && skill.trustState !== undefined
+            ? [{ id: `user:${skill.name}`, label: skill.name }]
+            : [],
+      )
     : undefined,
 );
 

@@ -6,7 +6,13 @@ import {
   projectPermissionsConfiguration,
   projectPermissionValue,
 } from "./project-permission-migrations.js";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { defaultUserConfiguration } from "@nervekit/contracts/settings";
+import {
+  trustedWrite,
+  type TrustStorage,
+} from "../../infrastructure/configuration/trusted-write.js";
 type ProjectOverlayContext = {
   context: ProjectConfigurationContext;
   migrations: ProjectMigrationService;
@@ -90,6 +96,8 @@ export async function mutatePermissionOverlay(
   path: string,
   mutate: (document: PermissionOverlayDocument) => void,
   project?: ProjectOverlayContext,
+  /** The user's overlay stays trusted when Nerve writes it (docs/architecture/trust.md). */
+  userTrust?: TrustStorage,
 ): Promise<void> {
   if (origin === "project") {
     const active = projectContext(path, project);
@@ -122,7 +130,16 @@ export async function mutatePermissionOverlay(
       mutate(document);
       const parsed =
         permissionOverlayDocumentForOriginSchema(origin).parse(document);
-      await atomicWriteJson(path, parsed, 0o600);
+      if (origin === "user")
+        await trustedWrite(
+          userTrust,
+          { kind: "permissions", projectId: null, path },
+          async () => {
+            await atomicWriteJson(path, parsed, 0o600);
+            return `${JSON.stringify(parsed, null, 2)}\n`;
+          },
+        );
+      else await atomicWriteJson(path, parsed, 0o600);
     });
   writes.set(path, write);
   try {
@@ -132,36 +149,34 @@ export async function mutatePermissionOverlay(
   }
 }
 
-/** Records the file's current bytes as trusted for the project. */
-export async function trustProjectPermissions(
-  storage: CoreStorage,
-  projectId: string,
+/**
+ * The overlay Nerve itself creates when it first starts holds no rules and was never reviewed, so
+ * it is recorded as trusted; any other bytes, or any existing decision, are left alone.
+ */
+export function trustShippedUserOverlay(
+  storage: Pick<CoreStorage, "trustedResources">,
   path: string,
-): Promise<void> {
-  const contentDigest = overlayDigest(await readFile(path));
-  const existing = storage.trustedResources.find(
-    "project_permissions",
-    projectId,
-    path,
-  );
+): void {
+  if (storage.trustedResources.find("permissions", null, path)) return;
+  let bytes: Buffer | undefined;
+  try {
+    bytes = readFileSync(path);
+  } catch {
+    return;
+  }
+  const shipped = `${JSON.stringify(defaultUserConfiguration.permissions, null, 2)}\n`;
+  if (bytes.toString("utf8") !== shipped) return;
   const now = new Date().toISOString();
-  if (existing)
-    storage.trustedResources.update(existing.id, {
-      contentDigest,
-      status: "trusted",
-      updatedAt: now,
-    });
-  else
-    storage.trustedResources.insert({
-      id: createId("trust"),
-      kind: "project_permissions",
-      projectId,
-      resourceKey: path,
-      name: null,
-      grants: null,
-      contentDigest,
-      status: "trusted",
-      createdAt: now,
-      updatedAt: now,
-    });
+  storage.trustedResources.insert({
+    id: createId("trust"),
+    kind: "permissions",
+    projectId: null,
+    resourceKey: path,
+    name: null,
+    grants: null,
+    contentDigest: overlayDigest(bytes),
+    status: "trusted",
+    createdAt: now,
+    updatedAt: now,
+  });
 }

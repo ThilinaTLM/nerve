@@ -4,7 +4,10 @@ import type { ScopedPermissionPolicySource } from "./scoped-permission-source.js
 import { join } from "node:path";
 import type { CoreStorage, PermissionPort } from "@nervekit/conversation-core";
 import { permissionRuleSchema } from "@nervekit/contracts/permissions";
-import { mutatePermissionOverlay } from "./permission-overlays.js";
+import {
+  mutatePermissionOverlay,
+  trustShippedUserOverlay,
+} from "./permission-overlays.js";
 import {
   ConfigurationScopePaths,
   userConfigurationRoot,
@@ -22,9 +25,11 @@ export function createPermissionPort(
     new ProjectMigrationService({
       home,
       trust: projectMigrationTrust(() => storage, {
-        "permission-overlay": "project_permissions",
+        "permission-overlay": "permissions",
       }),
     });
+  // The overlay Nerve creates on first start holds no rules; it is trusted from the start.
+  trustShippedUserOverlay(storage, join(home, "config", "permissions.json"));
   const paths = (conversationId: string, projectDir: string) => {
     const resolver = new ConfigurationScopePaths({
       userConfigPath: userConfigurationRoot(home),
@@ -77,6 +82,7 @@ export function createPermissionPort(
         input.scope === "project" && projectId
           ? { context: { projectId, directory: input.projectDir }, migrations }
           : undefined,
+        () => storage,
       );
       await admissionPolicy.reload([path]);
     },

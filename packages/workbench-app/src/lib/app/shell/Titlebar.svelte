@@ -13,7 +13,7 @@ import {
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import type { LatestRelease } from "@nervekit/contracts/status";
-import VersionIndicator from "$lib/app/shell/VersionIndicator.svelte";
+import UpdateIndicator from "$lib/app/shell/UpdateIndicator.svelte";
 import WindowControls from "$lib/app/shell/WindowControls.svelte";
 import type { ResolvedHeaderType } from "$lib/app/shell/header-type";
 import type { DiscoverBadge } from "$lib/app/discover";
@@ -25,7 +25,7 @@ type Props = {
   activeProjectKey?: string;
   homeDir?: string;
   desktop?: boolean;
-  /** Set for `pnpm desktop:dev` instances; replaces the version indicator. */
+  /** Set for `pnpm desktop:dev` instances; replaces the Update button. */
   developmentSlot?: number;
   headerType?: ResolvedHeaderType;
   maximized?: boolean;
@@ -135,7 +135,8 @@ let {
           <span aria-hidden="true">DEV {developmentSlot}</span>
         </span>
       {:else if currentVersion}
-        <VersionIndicator {currentVersion} {latestRelease} />
+        <!-- Nothing while current; the version is in the daemon status popover. -->
+        <UpdateIndicator {currentVersion} {latestRelease} />
       {/if}
       {@render activity?.()}
       <Button

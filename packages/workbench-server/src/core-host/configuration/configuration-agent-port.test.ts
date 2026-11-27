@@ -16,19 +16,37 @@ import { createConfigurationAgentPort } from "./configuration-agent-port.js";
 async function setup(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "nerve-config-port-"));
   const project = join(home, "project");
+  // Skills under the OS home are the user's too; keep the developer's own out of the test.
+  const osHome = process.env.HOME;
+  process.env.HOME = join(home, "os-home");
+  t.after(() => {
+    process.env.HOME = osHome;
+  });
   await mkdir(join(home, "config"), { recursive: true });
   await mkdir(join(home, "agent", "agent-profiles"), { recursive: true });
   await mkdir(join(project, ".nerve", "config"), { recursive: true });
   await mkdir(join(project, ".nerve", "agent-profiles"), {
     recursive: true,
   });
-  const trust = new TrustedResourceService({} as CoreStorage, () => "");
+  // The user's own files are trusted in these tests; the project's follow the stored decisions.
+  const userDecision = { id: "user", status: "trusted", contentDigest: "" };
+  const trusting = {
+    trustedResources: {
+      find: (_kind: string, projectId: string | null) =>
+        projectId === null ? userDecision : null,
+    },
+  } as unknown as CoreStorage;
+  const trust = new TrustedResourceService(trusting, () => "");
+  const decided = trust.trustState.bind(trust);
+  trust.trustState = (row, digest) =>
+    row === userDecision ? "trusted" : decided(row, digest);
   const service = new AgentConfigurationService({
     home,
     projectDirectory: () => project,
     conversationOwner: () => ({ projectId: "p", role: "lead" }),
     builtins: {},
-    profileTrustState: () => "needs_review",
+    profileTrustState: (projectId) =>
+      projectId === null ? "trusted" : "needs_review",
     captureResources: () => ({ options: {}, isCurrent: () => true }),
   });
   t.after(async () => {
@@ -38,7 +56,7 @@ async function setup(t: test.TestContext) {
   // The real source: it owns the validation the port reports.
   const source = createScopedPermissionSource({
     home,
-    storage: {} as CoreStorage,
+    storage: trusting,
     trust,
     agents: service,
     trustGeneration: () => 0,
@@ -62,7 +80,8 @@ async function setup(t: test.TestContext) {
     policy,
     trust: {
       find: () => null,
-      state: () => "needs_review",
+      state: (_kind, projectId) =>
+        projectId === null ? "trusted" : "needs_review",
       trustState: (row, digest) => trust.trustState(row, digest),
     },
     launchDefinitions: { problem: async () => launchProblem },

@@ -5,6 +5,7 @@ import { agentProfileEventDefinitions } from "../domains/agent-profiles/events.j
 import { conversationChannelEvents } from "../domains/core/channel.js";
 import { backgroundJobsEventDefinitions } from "../domains/background-jobs/events.js";
 import { mcpEventDefinitions } from "../domains/mcp/events.js";
+import { configurationEventDefinitions } from "../domains/configuration/events.js";
 import { z } from "zod";
 import { scratchNoteEventDefinitions } from "../domains/scratch-notes/events.js";
 import { accessEventDefinitions } from "../domains/access/events.js";
@@ -48,6 +49,7 @@ const definitions: PublicEventDefinition[] = [
   ...authEventDefinitions,
   ...extensionEventDefinitions,
   ...mcpEventDefinitions,
+  ...configurationEventDefinitions,
   ...daemonEventDefinitions,
   ...maintenanceEventDefinitions,
   ...activityEventDefinitions,

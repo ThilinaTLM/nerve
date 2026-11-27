@@ -12,7 +12,6 @@ import {
   readScopedProfile,
   resetAgentProfile,
   saveScopedProfile,
-  trustAgentProfile,
 } from "../../../api/agent-profiles.api";
 import { applyLayerChange } from "../../shared/layer-change";
 import type { Layered } from "../../../state/layered";
@@ -301,19 +300,6 @@ export class ProfilesStore {
         error instanceof Error ? error.message : String(error);
       return false;
     }
-  }
-
-  /** Trusts this exact version of a project profile, or declines it (revoking a trusted one). */
-  trust(row: ProfileRow, trusted: boolean): Promise<boolean> {
-    const scope = this.scopeOf(row.origin);
-    if (scope?.scope !== "project") return Promise.resolve(false);
-    return this.mutate(row.id, () =>
-      trustAgentProfile({
-        target: { document: "profile", scope, name: row.name },
-        expectedDigest: row.entry.digest,
-        trusted,
-      }),
-    );
   }
 
   /** The launch switch of a sub-agent profile: what each layer chose, and what shows. */

@@ -51,6 +51,7 @@ export type PromptSuggestionDefinition = {
   when?: PromptSuggestionWhen;
   matches?: (input: PromptSuggestionEvaluationInput) => boolean;
   enableJs?: string;
+  /** Digest (hex) of the whole suggestion file, which a trust decision names; absent for built-ins. */
   predicateHash?: string;
   trustId?: string;
   source: {
@@ -105,4 +106,11 @@ export type PromptSuggestionEvaluationInput = {
 
 export function anyDirtyRepo(repos: PromptSuggestionRepo[]): boolean {
   return repos.some((repo) => repo.dirty);
+}
+
+/** User and project suggestion files wait for the user's approval of the whole file; built-ins ship with Nerve. */
+export function suggestionRequiresTrust(
+  definition: Pick<PromptSuggestionDefinition, "source">,
+): boolean {
+  return definition.source.kind !== "builtin";
 }

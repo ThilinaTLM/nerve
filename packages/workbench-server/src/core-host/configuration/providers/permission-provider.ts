@@ -63,6 +63,9 @@ export function permissionProvider(options: {
         const [resource] = resourcesFromFindings([
           {
             ...at,
+            ...(report.previousVersionActive
+              ? { previousVersionActive: true as const }
+              : {}),
             ...(approval
               ? {
                   approval: approval.approval,
@@ -101,10 +104,11 @@ export function permissionProvider(options: {
     return found;
 
     function approvalOf(report: PermissionFileReport) {
-      if (report.scope !== "project" || !report.contentDigest) return undefined;
+      if (report.scope === "conversation" || !report.contentDigest)
+        return undefined;
       const state = options.trust.state(
-        "project_permissions",
-        context.projectId ?? null,
+        report.kind === "rule-set" ? "permission_rule_set" : "permissions",
+        report.scope === "project" ? (context.projectId ?? null) : null,
         report.path,
         report.contentDigest,
       );

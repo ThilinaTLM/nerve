@@ -109,8 +109,12 @@ export function attentionTarget(
   switch (resource.kind) {
     case "skill":
       // Only a skill that waits for approval has a review page; a broken one is not listed.
-      return group === "review" && scope === "project"
-        ? { scope, pageId: "skills", item: resource.id }
+      return group === "review"
+        ? {
+            scope,
+            pageId: "skills",
+            item: `${scope}:${resource.id}`,
+          }
         : { scope, pageId: "skills" };
     case "extension":
       return { scope, pageId: "extensions", item: resource.id };

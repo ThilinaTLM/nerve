@@ -291,6 +291,30 @@
   }
 }
 
+/* Arrival ring around a floating pill (the transcript's review marker): a ring
+ * in the element's colour spreads from its edge and fades, three times, then
+ * stops. Put the class on an empty `absolute inset-0` span inside the pill and
+ * set the colour with a text utility (`text-warning`). Reduced motion
+ * collapses it via the base layer. */
+.attention-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  animation: attention-ring 1.333s cubic-bezier(0, 0, 0.2, 1) 3 both;
+}
+
+@keyframes attention-ring {
+  from {
+    box-shadow: 0 0 0 0 currentColor;
+    opacity: 0.6;
+  }
+  to {
+    box-shadow: 0 0 0 0.625rem currentColor;
+    opacity: 0;
+  }
+}
+
 /* Composer badge dot pop-in (workbench-app composer.css `.composer-badge-dot`). */
 @keyframes composer-badge-dot-in {
   from {

@@ -164,8 +164,8 @@ export function inheritedAgentSettings(
     const trustedProject =
       project &&
       project.scope.scope === "project" &&
-      (!port.options.projectAgentTrustState ||
-        port.options.projectAgentTrustState(
+      (!port.options.agentTrustState ||
+        port.options.agentTrustState(
           project.scope.projectId,
           project.path,
           project.digest,
@@ -306,8 +306,8 @@ export async function resolveRepairCandidate(
   // their proposed pair above, but show the actually applicable post-repair view.
   if (
     scope.scope === "project" &&
-    port.options.projectAgentTrustState &&
-    port.options.projectAgentTrustState(
+    port.options.agentTrustState &&
+    port.options.agentTrustState(
       scope.projectId,
       port.paths.agent(scope),
       digestBytes(`${JSON.stringify(candidate, null, 2)}\n`),
@@ -434,7 +434,7 @@ export async function prepareConversationDocument(
   return document;
 }
 
-/** The trust state of a project's `agent.json`; user, conversation and missing files need no decision (`trusted`). */
+/** The trust state of a user or project `agent.json`; conversation and missing files need no decision (`trusted`). */
 export function agentDocumentTrustState(
   options: AgentConfigurationServiceOptions,
   paths: AgentConfigurationPaths,
@@ -444,12 +444,12 @@ export function agentDocumentTrustState(
     state.status === "unavailable" ? state.scope : state.value.scope;
   const digest =
     state.status === "unavailable" ? state.sourceDigest : state.value.digest;
-  return scope.scope === "project" &&
+  return (scope.scope === "project" || scope.scope === "user") &&
     digest !== undefined &&
     digest !== "missing" &&
-    options.projectAgentTrustState !== undefined
-    ? options.projectAgentTrustState(
-        scope.projectId,
+    options.agentTrustState !== undefined
+    ? options.agentTrustState(
+        scope.scope === "project" ? scope.projectId : null,
         paths.agent(scope),
         digest,
       )

@@ -1,11 +1,17 @@
 <script lang="ts">
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import X from "@lucide/svelte/icons/x";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 let {
   onResolve,
-}: { onResolve?: (decision: "retry" | "cancel") => Promise<void> } = $props();
+  onReview,
+}: {
+  onResolve?: (decision: "retry" | "cancel") => Promise<void>;
+  /** The call waits for a file the user has not reviewed: Review opens it. */
+  onReview?: () => void;
+} = $props();
 let busy = $state(false);
 let error = $state<string>();
 async function resolve(decision: "retry" | "cancel") {
@@ -23,7 +29,14 @@ async function resolve(decision: "retry" | "cancel") {
 </script>
 {#if error}<span class="text-ui text-destructive" role="alert">{error}</span
   >{/if}
-<Button size="sm" disabled={busy || !onResolve} onclick={() => resolve("retry")}
+{#if onReview}<Button size="sm" disabled={busy} onclick={onReview}
+    ><ShieldCheck class="size-3.5" />Review</Button
+  >{/if}
+<Button
+  size="sm"
+  variant={onReview ? "outline" : "default"}
+  disabled={busy || !onResolve}
+  onclick={() => resolve("retry")}
   >{#if busy}<Spinner class="size-3.5" />{:else}<RotateCcw
       class="size-3.5"
     />{/if}Retry</Button

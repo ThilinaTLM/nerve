@@ -9,7 +9,14 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { Settings } from "$lib/api";
 import { OriginGroup } from "$lib/presentation/settings";
 import { configurationAttention } from "$lib/application/configuration-attention/configuration-attention-state.svelte";
-import UntrustedProjectCallout from "../capabilities/UntrustedProjectCallout.svelte";
+import {
+  onConfigurationDecision,
+  openConfigurationReview,
+} from "$lib/application/configuration-review/configuration-review-queue.svelte";
+import { pendingReviewState } from "$lib/application/configuration-review/review-resource-state";
+import ConfigurationReviewCallout from "$lib/presentation/configuration-review/ConfigurationReviewCallout.svelte";
+import ItemReviewSections from "../review/ItemReviewSections.svelte";
+import { useItemReview } from "../review/item-review.svelte";
 import PermissionRuleDialog from "./PermissionRuleDialog.svelte";
 import PermissionRuleSetDetail from "./PermissionRuleSetDetail.svelte";
 import PermissionRuleSetItem from "./PermissionRuleSetItem.svelte";
@@ -66,7 +73,6 @@ type Editing = {
 };
 let editing = $state<Editing>();
 let dialogOpen = $state(false);
-let trusting = $state(false);
 let actionError = $state<string>();
 
 const editingRuleSet = $derived(
@@ -96,27 +102,82 @@ function target() {
   };
 }
 
-async function trustProject(): Promise<void> {
-  if (!projectId || trusting) return;
-  trusting = true;
-  actionError = await controller.trustProject(projectId);
-  trusting = false;
-  configurationAttention.refreshSoon();
+const projectFileTarget = $derived(
+  projectId
+    ? {
+        kind: "permission-overlay" as const,
+        scope: "project" as const,
+        projectId,
+        id: "permissions.json",
+      }
+    : undefined,
+);
+
+// The project's file: Decline and Revoke decide on the content its review read.
+const projectFileReview = useItemReview(() =>
+  fileState ? projectFileTarget : undefined,
+);
+/** Declines the project's file, or revokes a trusted one. */
+function declineProject(): void {
+  void projectFileReview.current?.decline();
 }
 
-/** Declines the project's file, or revokes a trusted one. */
-async function declineProject(): Promise<void> {
-  if (!projectId || trusting) return;
-  trusting = true;
-  // The daemon's own name for the file, from its report of what waits for the user.
-  const reported = configurationAttention.resources.find(
-    (resource) =>
-      resource.kind === "permission-overlay" && resource.scope === "project",
-  )?.path;
-  actionError = await controller.declineProject(projectId, reported);
-  trusting = false;
-  configurationAttention.refreshSoon();
-}
+// User rule sets and the user's permissions file: a waiting decision comes
+// from the registry; a declined file (which asks for nothing) from its review.
+const resources = $derived(configurationAttention.resources);
+const userFileTarget = {
+  kind: "permission-overlay" as const,
+  scope: "user" as const,
+  id: "permissions.json",
+};
+const userFileReview = useItemReview(() => userFileTarget);
+const userFileState = $derived.by(() => {
+  const reviewed = userFileReview.current?.review?.state;
+  return (
+    pendingReviewState(
+      resources,
+      "permission-overlay",
+      "user",
+      "permissions.json",
+    ) ?? (reviewed && reviewed !== "trusted" ? reviewed : undefined)
+  );
+});
+const ruleSetState = (id: string) =>
+  pendingReviewState(resources, "rule-set", "user", id);
+const ruleSetTarget = (id: string) => ({
+  kind: "rule-set" as const,
+  scope: "user" as const,
+  id,
+});
+
+// The open user rule set: its decision callout and what it can do.
+const openRuleSetTarget = $derived(
+  openRuleSet && openRuleSet.source !== "builtin"
+    ? ruleSetTarget(openRuleSet.id)
+    : undefined,
+);
+const openRuleSetReview = useItemReview(() => openRuleSetTarget);
+const openRuleSetState = $derived.by(() => {
+  if (!openRuleSetTarget || !openRuleSet) return undefined;
+  const reviewed = openRuleSetReview.current?.review?.state;
+  return (
+    ruleSetState(openRuleSet.id) ??
+    (reviewed && reviewed !== "trusted" ? reviewed : undefined)
+  );
+});
+
+// A decision in the review dialog changes what applies: read the rules again.
+$effect(() =>
+  onConfigurationDecision((review) => {
+    if (
+      review.target.kind === "rule-set" ||
+      review.target.kind === "permission-overlay"
+    ) {
+      void controller.load(projectId);
+      configurationAttention.refreshSoon();
+    }
+  }),
+);
 
 /** The decision on the project's permissions file, when it has one to make. */
 const fileState = $derived.by(() => {
@@ -155,15 +216,42 @@ const fileState = $derived.by(() => {
     <Callout layout="block" tone="destructive" text={actionError} />
   {/if}
   {#if fileState && !itemId}
-    <UntrustedProjectCallout
+    <ConfigurationReviewCallout
       state={fileState}
       subject="This project's permission rules file"
       effect="its rule overrides don't apply"
-      busy={trusting}
+      busy={projectFileReview.current?.busy}
+      error={projectFileReview.current?.notice ??
+        projectFileReview.current?.error}
       showTrusted
-      onTrust={() => void trustProject()}
-      onDecline={() => void declineProject()}
-      onRevoke={() => void declineProject()}
+      onTrust={() =>
+        projectFileTarget && openConfigurationReview([projectFileTarget])}
+      onDecline={declineProject}
+      onRevoke={declineProject}
+    />
+  {/if}
+  {#if openRuleSetTarget && openRuleSetState && itemId}
+    <ConfigurationReviewCallout
+      state={openRuleSetState}
+      effect="it can't be selected; where it is the default, the last version you trusted stays in effect"
+      changedSinceDecision={openRuleSetReview.current?.review
+        ?.changedSinceDecision}
+      busy={openRuleSetReview.current?.busy}
+      error={openRuleSetReview.current?.notice ??
+        openRuleSetReview.current?.error}
+      onTrust={() => openRuleSetReview.current?.trust()}
+      onDecline={() => void openRuleSetReview.current?.decline()}
+    />
+  {/if}
+  {#if userFileState && !itemId}
+    <ConfigurationReviewCallout
+      state={userFileState}
+      subject="Your permission rules file"
+      effect="the last version you trusted stays in effect"
+      busy={userFileReview.current?.busy}
+      error={userFileReview.current?.notice ?? userFileReview.current?.error}
+      onTrust={() => openConfigurationReview([userFileTarget])}
+      onDecline={() => void userFileReview.current?.decline()}
     />
   {/if}
   {#each configuration?.diagnostics ?? [] as diagnostic (diagnostic)}
@@ -179,11 +267,18 @@ const fileState = $derived.by(() => {
       {configuration}
       isDefault={openRuleSet.id === defaultId}
       {projectName}
-      {trusting}
+      trusting={projectFileReview.current?.busy}
       onEdit={(editScope, rule) => edit(openRuleSet.id, editScope, rule)}
-      onTrustProject={() => void trustProject()}
-      onDeclineProject={() => void declineProject()}
+      onTrustProject={() =>
+        projectFileTarget && openConfigurationReview([projectFileTarget])}
+      onDeclineProject={declineProject}
     />
+    {#if openRuleSetTarget}
+      <ItemReviewSections
+        target={openRuleSetTarget}
+        item={openRuleSetReview.current}
+      />
+    {/if}
   {:else if configuration}
     <PageEmptyState
       variant="card"
@@ -211,7 +306,12 @@ const fileState = $derived.by(() => {
             {ruleSet}
             {configuration}
             isDefault={ruleSet.id === defaultId}
+            reviewState={ruleSet.source === "builtin"
+              ? undefined
+              : ruleSetState(ruleSet.id)}
             onOpen={() => onOpenItem?.(ruleSet.id)}
+            onReview={() =>
+              openConfigurationReview([ruleSetTarget(ruleSet.id)])}
           />
         {/each}
       </OriginGroup>

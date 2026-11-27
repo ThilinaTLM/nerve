@@ -30,15 +30,3 @@ export function mcpToolCount(row: McpServerRow): string | undefined {
     ? undefined
     : `${row.toolCount} ${row.toolCount === 1 ? "tool" : "tools"}`;
 }
-
-/** Splits text at `backtick` spans, so the daemon's sentences render with inline code and never as HTML. */
-export function codeSpans(text: string): { text: string; code: boolean }[] {
-  return text
-    .split(/(`[^`]+`)/)
-    .filter((part) => part !== "")
-    .map((part) =>
-      part.length > 2 && part.startsWith("`") && part.endsWith("`")
-        ? { text: part.slice(1, -1), code: true }
-        : { text: part, code: false },
-    );
-}

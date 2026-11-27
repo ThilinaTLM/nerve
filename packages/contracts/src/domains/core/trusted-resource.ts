@@ -5,10 +5,11 @@ import { mcpGrantSnapshotSchema } from "../mcp/schemas.js";
 /** See docs/architecture/trust.md. Kinds are validated here, not by SQL, so a new kind needs no table rebuild. */
 export const trustedResourceKindSchema = z.enum([
   "prompt_suggestion",
-  "project_permissions",
-  "project_capabilities",
+  "permissions",
+  "capabilities",
+  "permission_rule_set",
   "agent_profile",
-  "project_skill",
+  "skill",
   "extension",
   "mcp_server",
 ]);
@@ -22,11 +23,27 @@ export const trustedContentDigestSchema = z
 export const toTrustedDigest = (hex: string): string =>
   hex.startsWith("sha256:") ? hex : `sha256:${hex}`;
 
+/**
+ * The `grants` of every kind but `extension` and `mcp_server`: the review items the user saw when
+ * deciding (`ConfigurationReviewItem.text`), so the next review can mark what is new. A decision
+ * made without a review (a save through Nerve's own UI) has none.
+ */
+export const configurationReviewSnapshotSchema = z.strictObject({
+  items: z.array(z.string().max(2_048)).max(512),
+});
+export type ConfigurationReviewSnapshot = z.infer<
+  typeof configurationReviewSnapshotSchema
+>;
+
 const trustedGrantsSchema = z
-  .union([extensionGrantSnapshotSchema, mcpGrantSnapshotSchema])
+  .union([
+    extensionGrantSnapshotSchema,
+    mcpGrantSnapshotSchema,
+    configurationReviewSnapshotSchema,
+  ])
   .nullable();
 
-/** The `grants` a kind stores; every kind but `extension` and `mcp_server` has none. */
+/** The `grants` a kind stores: its own snapshot for `extension` and `mcp_server`, else the review snapshot. */
 export function trustedResourceGrantsSchema(
   kind: z.infer<typeof trustedResourceKindSchema>,
 ) {
@@ -34,7 +51,7 @@ export function trustedResourceGrantsSchema(
     ? extensionGrantSnapshotSchema.nullable()
     : kind === "mcp_server"
       ? mcpGrantSnapshotSchema.nullable()
-      : z.null();
+      : configurationReviewSnapshotSchema.nullable();
 }
 
 const trustedResourceShape = z.object({

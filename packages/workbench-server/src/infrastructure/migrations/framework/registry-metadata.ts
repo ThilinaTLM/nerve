@@ -70,4 +70,11 @@ export const MIGRATION_METADATA: readonly MigrationRegistryEntry[] =
       // Dev homes that applied the profile move still hold accounts.json; the step is idempotent.
       // Remove with the release of this step.
     },
+    {
+      step: { id: "0007-user-configuration-trust" },
+      checksum:
+        "a6ff05c2cf99fe7abff2d03bcfd6355100f1a90b386368d62eb3d70f9fb0b261",
+      stage: "draft",
+      rerunOnChange: true,
+    },
   ]);

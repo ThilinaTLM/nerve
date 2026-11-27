@@ -14,7 +14,7 @@ A profile sets the agent's instructions and can also set its model, thinking lev
 - **Coding** carries out the work: features, fixes, and refactors.
 - **Planning** researches, asks you questions, and presents a plan for you to review. It can't change your project.
 - **Lead** splits a large effort among [sub-agents](/guides/agents-and-delegation/) and verifies what they return.
-- **Forge** configures Nerve itself: extensions, skills, launches, profiles, prompt suggestions, and permission rules. See [Configure Nerve by chat](/guides/configure-by-chat/).
+- **Forge** configures Nerve itself: extensions, skills, launches, profiles, prompt suggestions, and permission rules, which you approve before they apply. See [Configure Nerve by chat](/guides/configure-by-chat/).
 
 On an empty conversation in a project, these four appear as starter cards. Choose one to start a conversation with that profile; the card for your default profile is tagged **Default**.
 

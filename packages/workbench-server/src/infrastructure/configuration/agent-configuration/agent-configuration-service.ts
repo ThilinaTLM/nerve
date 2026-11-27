@@ -1,5 +1,6 @@
 import type { TrustState } from "@nervekit/contracts/core";
 import { ConfigurationSignals } from "./configuration-signals.js";
+import { effectiveAgentLayers, userAgentLayer } from "./agent-layers.js";
 import { registerProjectRecovery } from "./project-chains/recovery.js";
 import { ProjectCapabilityLayer } from "./project-chains/capability-layer.js";
 import { projectSettings } from "./profile-resources.js";
@@ -143,6 +144,11 @@ export class AgentConfigurationService {
         () => projectAgentConfiguration,
       ),
       ...projectAgentDisk,
+      captureTrust: (scope, path, source) =>
+        scope.scope === "user"
+          ? (options.userTrust?.capture("capabilities", path, source) ??
+            Promise.resolve(undefined))
+          : Promise.resolve(undefined),
       resolvePath: (scope) => this.paths.agent(scope),
       required: (scope) => scope.scope === "conversation",
       supportedVersion: 1,
@@ -188,6 +194,7 @@ export class AgentConfigurationService {
       prepareProject: (id) => this.prepareProject(id),
       builtins: options.builtins,
       trustState: options.profileTrustState,
+      userTrust: options.userTrust,
       io: options.io,
       publish: (scope) => options.publish?.("profile", scope),
       invalidate: (scope) => {
@@ -323,45 +330,12 @@ export class AgentConfigurationService {
           conversationId,
           diagnostics,
         });
-      const values = states.flatMap((state) => {
-        if (state.status === "unavailable" && state.scope.scope === "project")
-          return [];
-        if (this.untrustedProject(state)) {
-          const scope =
-            state.status === "unavailable" ? state.scope : state.value.scope;
-          diagnostics.push(
-            diagnostic(
-              scope,
-              "agent",
-              this.paths.agent(scope),
-              this.projectTrustState(state) === "declined"
-                ? "project-declined"
-                : "project-needs-review",
-            ),
-          );
-          return [
-            {
-              scope,
-              path: this.paths.agent(scope),
-              generation:
-                state.status === "unavailable"
-                  ? state.generation
-                  : state.value.generation,
-              revision: 0,
-              digest:
-                state.status === "unavailable"
-                  ? state.sourceDigest!
-                  : state.value.digest,
-              document: {
-                schemaVersion: 1 as const,
-                revision: 0,
-                overrides: {},
-              },
-            },
-          ];
-        }
-        return state.status === "unavailable" ? [] : [state.value];
-      });
+      const values = effectiveAgentLayers(
+        this.options,
+        this.paths,
+        states,
+        diagnostics,
+      );
       const checkDocuments = this.agents.captureGenerations(scopes, true);
       const resourceEpoch = this.resourceEpoch;
       const catalogEpoch = this.catalogEpoch;
@@ -437,7 +411,13 @@ export class AgentConfigurationService {
       if (!initialResources.isCurrent()) continue;
       const values = scopes.map((scope) => {
         const state = this.agents.peek(scope)!;
-        if (this.untrustedProject(state)) return {};
+        if (scope.scope === "project" && this.untrustedProject(state))
+          return {};
+        if (scope.scope === "user" && state.status !== "unavailable")
+          return (
+            userAgentLayer(this.options, state.value).layer?.document
+              .overrides ?? {}
+          );
         if (state.status === "unavailable") {
           if (scope.scope === "project") return {};
           throw new ScopeUnavailableError();
@@ -531,8 +511,7 @@ export class AgentConfigurationService {
     const capabilities = await this.capabilityLayer.capture(
       { projectId, directory },
       (file, digest) =>
-        this.options.projectAgentTrustState?.(projectId, file, digest) ??
-        "trusted",
+        this.options.agentTrustState?.(projectId, file, digest) ?? "trusted",
     );
     return {
       ...resources,

@@ -44,6 +44,22 @@ async function world() {
   };
 }
 
+/** Decline or Revoke as `configuration.decide` records it: the user scope's row becomes `rejected`. */
+function decline(
+  consent: ReturnType<typeof testConsent>,
+  found: InstalledExtensionCandidate,
+): void {
+  const row = consent.trust().find("extension", null, found.folder);
+  consent.trust().decide({
+    kind: "extension",
+    projectId: null,
+    resourceKey: found.folder,
+    name: found.id,
+    contentDigest: row?.contentDigest ?? "sha256:unknown",
+    status: "rejected",
+  });
+}
+
 async function candidate(
   extensions: string,
   id: string,
@@ -132,8 +148,8 @@ void test("nothing runs before consent; consent is bound to the reviewed files",
   assert.equal(row.status, "trusted");
   assert.equal(row.contentDigest, `sha256:${pending.consent!.contentHash}`);
   assert.deepEqual(row.grants?.tools, ["first_echo", "first_ping"]);
-  // Revoking keeps the row as rejected, and the extension is declined.
-  await trust.revoke(await candidate(extensions, "first"));
+  // Revoking (configuration.decide, trusted: false) keeps the row as rejected: the extension is declined.
+  decline(consent, candidateFirst);
   assert.equal(
     consent.trust().find("extension", null, candidateFirst.folder)?.status,
     "rejected",
@@ -182,7 +198,7 @@ void test("project extensions need consent again after any content change", asyn
   );
 });
 
-void test("user extensions keep consent through code-only changes and ask again for new grants, listing only what is new", async () => {
+void test("user extensions ask again after any change; the review lists only what is new", async () => {
   const { extensions, trust } = await world();
   const folder = await writeExtension(extensions, { id: "usr" });
   const first = verdict(await trust.decide(await candidate(extensions, "usr")));
@@ -191,7 +207,18 @@ void test("user extensions keep consent through code-only changes and ask again 
     first.consent!.contentHash,
   );
 
+  // A code-only change asks again, and says it asks for nothing new.
   await writeFile(join(folder, "dist", "backend.js"), "// code only\n");
+  const code = verdict(await trust.decide(await candidate(extensions, "usr")));
+  assert.equal(code.decision, "pending");
+  assert.deepEqual(
+    code.consent?.items.map((item) => item.kind),
+    ["code"],
+  );
+  await trust.grant(
+    await candidate(extensions, "usr"),
+    code.consent!.contentHash,
+  );
   assert.equal(
     await trust.decide(await candidate(extensions, "usr")),
     "trusted",
@@ -205,26 +232,6 @@ void test("user extensions keep consent through code-only changes and ask again 
   assert.deepEqual(
     grew.consent?.items.map((item) => item.text),
     ["Adds agent tools: usr_extra"],
-  );
-  await trust.grant(
-    await candidate(extensions, "usr"),
-    grew.consent!.contentHash,
-  );
-  assert.equal(
-    await trust.decide(await candidate(extensions, "usr")),
-    "trusted",
-  );
-
-  // Removing a grant needs no consent; adding it back does.
-  await writeExtension(extensions, { id: "usr" });
-  assert.equal(
-    await trust.decide(await candidate(extensions, "usr")),
-    "trusted",
-  );
-  await writeExtension(extensions, { id: "usr" }, withTool);
-  assert.equal(
-    verdict(await trust.decide(await candidate(extensions, "usr"))).decision,
-    "pending",
   );
 });
 
@@ -250,7 +257,7 @@ void test("trust is per folder: the same id elsewhere has no consent", async () 
 });
 
 void test("a user extension that was revoked stays pending through a code-only change", async () => {
-  const { extensions, trust } = await world();
+  const { extensions, trust, consent } = await world();
   const folder = await writeExtension(extensions, { id: "revoked" });
   const first = verdict(
     await trust.decide(await candidate(extensions, "revoked")),
@@ -259,7 +266,7 @@ void test("a user extension that was revoked stays pending through a code-only c
     await candidate(extensions, "revoked"),
     first.consent!.contentHash,
   );
-  await trust.revoke(await candidate(extensions, "revoked"));
+  decline(consent, await candidate(extensions, "revoked"));
   await writeFile(join(folder, "dist", "backend.js"), "// code only\n");
   assert.equal(
     verdict(await trust.decide(await candidate(extensions, "revoked")))

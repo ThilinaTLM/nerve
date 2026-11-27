@@ -3,7 +3,6 @@ import { definePublicEvent } from "../../events/definition.js";
 import {
   promptSuggestionSourceKindSchema,
   updatePromptSuggestionEnabledRequestSchema,
-  updatePromptSuggestionTrustRequestSchema,
 } from "./prompt-suggestion.js";
 
 const workbenchRoles = ["workbench_server"] as const;
@@ -16,11 +15,6 @@ export const promptSuggestionCreatedEventSchema = z.object({
 });
 
 export const promptSuggestionEventDefinitions = [
-  definePublicEvent(
-    "prompt_suggestions.trust_updated",
-    updatePromptSuggestionTrustRequestSchema,
-    { allowedSourceRoles: workbenchRoles, scope: ["trustId"] },
-  ),
   definePublicEvent(
     "prompt_suggestions.enabled_updated",
     updatePromptSuggestionEnabledRequestSchema,

@@ -156,11 +156,19 @@ void test("changing only the credential code asks again, and the review says onl
     "trusted",
   );
 
-  // A code-only change to the backend keeps consent (the credential code did not change).
+  // A code-only change to the backend asks again (any change outside Nerve does), for nothing new.
   await writeFile(join(folder, "dist", "backend.js"), "// backend only\n");
-  assert.equal(
+  const backend = verdict(
     await trust.decide(await candidate(extensions, "usr")),
-    "trusted",
+  );
+  assert.equal(backend.decision, "pending");
+  assert.deepEqual(
+    backend.consent?.items.map((item) => item.kind),
+    ["code"],
+  );
+  await trust.grant(
+    await candidate(extensions, "usr"),
+    backend.consent!.contentHash,
   );
 
   // The credential code changed: nothing else did.

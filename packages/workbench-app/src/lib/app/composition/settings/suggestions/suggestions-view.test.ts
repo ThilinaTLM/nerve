@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { PromptSuggestionStatus } from "@nervekit/contracts/prompt-suggestions";
-import { awaitsScriptReview, suggestionWrites } from "./suggestions-view";
+import { awaitsReview, suggestionWrites } from "./suggestions-view";
 
 const status = (
   patch: Partial<PromptSuggestionStatus> = {},
@@ -73,18 +73,16 @@ describe("suggestionWrites", () => {
   });
 });
 
-describe("awaitsScriptReview", () => {
-  it("asks for review of unreviewed scripts only", () => {
+describe("awaitsReview", () => {
+  it("asks for review of unreviewed files only", () => {
     assert.equal(
-      awaitsScriptReview(
-        status({ requiresTrust: true, status: "needs_review" }),
-      ),
+      awaitsReview(status({ requiresTrust: true, status: "needs_review" })),
       true,
     );
     assert.equal(
-      awaitsScriptReview(status({ requiresTrust: true, status: "trusted" })),
+      awaitsReview(status({ requiresTrust: true, status: "trusted" })),
       false,
     );
-    assert.equal(awaitsScriptReview(status()), false);
+    assert.equal(awaitsReview(status()), false);
   });
 });

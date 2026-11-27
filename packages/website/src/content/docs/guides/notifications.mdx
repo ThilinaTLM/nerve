@@ -17,6 +17,15 @@ The bell in the header opens **Notifications**. Entries are grouped as **Needs a
 
 The bell badge counts conversations waiting for you. A red dot means a failure or a notice you haven't looked at.
 
+## When something waits for you
+
+While anything needs you, the bell becomes a small **island**. A new item shows for a few seconds, then the island settles to the bell's size with the icon and count of the most urgent level, and expands into two lists:
+
+- **Needs your review**: configuration waiting for your trust, in your settings or the project. It has a warning tint and always comes first. **Review** opens the review dialog; see [Configure Nerve by chat](/guides/configure-by-chat/#the-review-dialog).
+- **Conversations waiting**: conversations that need an answer.
+
+While configuration waits for review, a **Needs your review** marker also sits at the top of every conversation. It opens the island (on a phone, the review queue). Choose **Later** to hide the island and the marker until a new item needs review in this session; the bell keeps counting. Items already waiting when Nerve starts or you switch projects don't pop up as arrivals. Review items don't raise toasts, and the bell's own list shows them as one summary row that opens the island.
+
 <DocsScreenshot
   light={notificationsLight}
   dark={notificationsDark}

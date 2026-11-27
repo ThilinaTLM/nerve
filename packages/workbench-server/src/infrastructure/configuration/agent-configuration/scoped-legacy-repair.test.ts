@@ -72,7 +72,8 @@ function fixture(t: { after(fn: () => Promise<void>): void }) {
     projectDirectory: (id) => join(root, id),
     conversationOwner: () => ({ projectId: "p", role: "lead" }),
     builtins: {},
-    profileTrustState: () => "needs_review",
+    profileTrustState: (projectId) =>
+      projectId === null ? "trusted" : "needs_review",
     prepareUser: () => prepare("user"),
     prepareProject: (id) => prepare("project", id),
     captureResources: () => ({ options: {}, isCurrent: () => true }),

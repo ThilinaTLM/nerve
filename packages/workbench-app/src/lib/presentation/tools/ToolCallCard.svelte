@@ -512,6 +512,16 @@ provideToolMotion({
     <ConfigurationBlockedActions
       onResolve={(decision) =>
         capabilities.resolveConfigurationBlocked!(toolCall!.id, decision)}
+      onReview={configurationBlocked &&
+      capabilities.reviewConfigurationBlock &&
+      configurationBlocked.diagnostics.some(
+        (diagnostic) => diagnostic.code === "needs-review",
+      )
+        ? () =>
+            capabilities.reviewConfigurationBlock!(
+              configurationBlocked!.diagnostics,
+            )
+        : undefined}
     />
   {/if}
 {/snippet}
@@ -562,8 +572,11 @@ provideToolMotion({
   {#if configurationBlocked}
     <CardSheet>
       <p class="px-3 py-2 text-ui text-warning">
-        Configuration blocked · Repair the configuration, then retry or cancel
-        this request.
+        {configurationBlocked.diagnostics.some(
+          (diagnostic) => diagnostic.code === "needs-review",
+        )
+          ? "Configuration blocked · A permission file changed outside Nerve and waits for your review. Review it, then retry or cancel this request."
+          : "Configuration blocked · Repair the configuration, then retry or cancel this request."}
       </p>
       {#each configurationBlocked.diagnostics as diagnostic, index (index)}
         <p class="px-3 py-1 text-ui">

@@ -61,3 +61,16 @@ void test("project configuration health is a published, ephemeral workbench noti
     health,
   );
 });
+
+void test("a configuration decision is a published workbench notice for every window", () => {
+  assert.ok(publicEventDefinition("configuration.decided"));
+  assert.equal(isWorkbenchEvent("configuration.decided"), true);
+  const decided = {
+    target: { kind: "agent-profile", scope: "user", id: "reviewer" },
+    state: "trusted",
+  };
+  assert.deepEqual(
+    validatePublicEvent("configuration.decided", decided, "workbench_server"),
+    decided,
+  );
+});

@@ -9,6 +9,7 @@ import {
   onAnyEvent,
   onWorkbenchReconnect,
 } from "$lib/application/events/workbench-event-bus";
+import { onConfigurationDecision } from "$lib/application/configuration-review/configuration-review-queue.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { modelDisplayName, modelKey } from "$lib/presentation/utils/model";
 import ProfileDetail from "./ProfileDetail.svelte";
@@ -72,9 +73,13 @@ $effect(() => {
       refresh();
   });
   const stopReconnect = onWorkbenchReconnect(refresh);
+  const stopDecisions = onConfigurationDecision((review) => {
+    if (review.target.kind === "agent-profile") refresh();
+  });
   return () => {
     stopEvents();
     stopReconnect();
+    stopDecisions();
   };
 });
 

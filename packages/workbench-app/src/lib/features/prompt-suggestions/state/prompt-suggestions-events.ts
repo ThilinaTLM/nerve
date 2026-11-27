@@ -2,6 +2,7 @@ import {
   onEvent,
   onWorkbenchReconnect,
 } from "$lib/application/events/workbench-event-bus";
+import { onConfigurationDecision } from "$lib/application/configuration-review/configuration-review-queue.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import {
   refreshPromptSuggestionStatuses,
@@ -16,7 +17,10 @@ export function registerPromptSuggestionEventHandlers(): () => void {
     });
   };
   const dispose = [
-    onEvent("prompt_suggestions.trust_updated", refresh),
+    // Decided in the review dialog, here or in another window (`configuration.decided`).
+    onConfigurationDecision((review) => {
+      if (review.target.kind === "prompt-suggestion") refresh();
+    }),
     onEvent("prompt_suggestions.enabled_updated", refresh),
     onEvent("prompt_suggestions.created", refresh),
     onWorkbenchReconnect(refresh),

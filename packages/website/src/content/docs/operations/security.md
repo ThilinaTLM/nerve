@@ -45,7 +45,7 @@ Non-loopback binding requires explicit opt-in. Each phone, browser, or remote de
 
 `AGENTS.md`, `.nerve/APPEND_SYSTEM.md`, skills, prompt-suggestion JavaScript, and other repository content can influence behavior. Review unfamiliar projects before enabling executable predicates or broad permissions.
 
-Project configuration that changes agent behavior (`agent.json`, `permissions.json`, `extensions.json`, profiles, skills, MCP server entries) is ignored until you trust its exact content. Each item is **Needs review**, **Trusted**, or **Declined**, and you decide it in Settings; agent tools, Quick script, and extensions can't reach those decisions. Configuration Nerve writes for you through Settings stays trusted. See [Configuration](/operations/configuration/#project-trust).
+Configuration that changes agent behavior, in your Nerve home or the project (`agent.json`, permission files and rule sets, `extensions.json`, profiles, skills, prompt suggestions, MCP server entries), is ignored until you trust its exact content. Each item is **Needs review**, **Trusted**, or **Declined**, and you decide it in Settings; agent tools, Quick script, and extensions can't reach those decisions. Configuration Nerve writes for you through Settings stays trusted. See [Configuration](/operations/configuration/#trust).
 
 [MCP servers](/integrations/mcp/) can start programs and send data to URLs. Each entry needs your trust, and a started stdio server isn't checked as a Bash command; calling one of its tools counts as destructive in a Quick script. Installed [extensions](/reference/extensions/) run sandboxed and load only after you review and allow them.
 

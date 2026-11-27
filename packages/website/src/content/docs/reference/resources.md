@@ -70,5 +70,5 @@ Agent Browser skills are prompt guidance from an external CLI, not a native brow
 Legacy `.pi` directories are not loaded. Move Nerve-specific files into `.nerve/` and portable skills into `.agents/skills/`.
 
 :::caution
-Resources are model instructions. Review repository-controlled `AGENTS.md`, `APPEND_SYSTEM.md`, and skills before granting command, network, or autonomous authority. A project skill is not used until you approve it in Settings → Skills (the project column), where you see every file in its folder with scripts marked; any later change to the folder asks again.
+Resources are model instructions. Review repository-controlled `AGENTS.md`, `APPEND_SYSTEM.md`, and skills before granting command, network, or autonomous authority. A user or project skill is not used until you approve it in Settings → Skills, where you see every file in its folder with scripts marked; any later change to the folder outside Nerve asks again. Built-in skills need no approval.
 :::

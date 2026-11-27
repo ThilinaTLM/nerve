@@ -9,6 +9,7 @@ import {
 } from "@nervekit/conversation-core";
 import type { PermissionRule } from "@nervekit/contracts/permissions";
 import { createPermissionConfigurationService } from "./permission-configuration.js";
+import { overlayDigest } from "./permission-overlays.js";
 
 type Trust = {
   id: string;
@@ -54,9 +55,35 @@ async function fixture() {
     trust: new TrustedResourceService(storage, () => ""),
     projectDirectory: (id) => (id === "project" ? project : undefined),
   });
+  /** The user trusts the project file's current bytes (`configuration.decide`). */
+  const trustProjectFile = async () => {
+    const path = join(project, ".nerve", "config", "permissions.json");
+    const now = new Date().toISOString();
+    const contentDigest = overlayDigest(await readFile(path));
+    const existing = records.find((record) => record.resourceKey === path);
+    if (existing)
+      return void Object.assign(existing, {
+        contentDigest,
+        status: "trusted",
+        updatedAt: now,
+      });
+    records.push({
+      id: `trust_${records.length}`,
+      kind: "permissions",
+      projectId: "project",
+      resourceKey: path,
+      name: null,
+      grants: null,
+      contentDigest,
+      status: "trusted",
+      createdAt: now,
+      updatedAt: now,
+    } as unknown as Trust);
+  };
   return {
     service,
     records,
+    trustProjectFile,
     userFile: join(home, "config", "permissions.json"),
     projectFile: join(project, ".nerve", "config", "permissions.json"),
     cleanup: () => rm(root, { recursive: true, force: true }),
@@ -90,7 +117,8 @@ void test("project rules remain visible but untrusted until their exact bytes ar
     assert.equal(configuration.projectTrust.status, "needs_review");
     assert.equal(configuration.projectOverlays.overlays[0]?.rules.length, 1);
 
-    configuration = await f.service.grantProjectTrust("project");
+    await f.trustProjectFile();
+    configuration = await f.service.get("project");
     assert.equal(configuration.projectTrust.status, "trusted");
 
     await writeFile(
@@ -124,7 +152,6 @@ void test("invalid files produce diagnostics and are never overwritten", async (
       }),
     );
     assert.equal(await readFile(f.userFile, "utf8"), "{ nope");
-    await assert.rejects(f.service.grantProjectTrust("project"), /no valid/);
   } finally {
     await f.cleanup();
   }
@@ -246,7 +273,7 @@ void test("project edits enforce project restrictions, trust state, and re-trust
       /project is required/,
     );
 
-    await f.service.grantProjectTrust("project");
+    await f.trustProjectFile();
     configuration = await f.service.deleteRule({
       scope: "project",
       projectId: "project",

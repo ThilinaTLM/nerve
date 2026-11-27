@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { codeSpans } from "./mcp-view";
 import { describe, it } from "node:test";
 import {
   emptyMcpForm,
@@ -83,16 +82,5 @@ describe("MCP form and entry", () => {
     assert.equal(validateMcpForm(form), undefined);
     form.timeout = "abc";
     assert.match(validateMcpForm(form) ?? "", /seconds/);
-  });
-});
-
-describe("codeSpans", () => {
-  it("marks backtick spans and leaves other text alone", () => {
-    assert.deepEqual(codeSpans("Sends `TOKEN` to <b>x</b>"), [
-      { text: "Sends ", code: false },
-      { text: "TOKEN", code: true },
-      { text: " to <b>x</b>", code: false },
-    ]);
-    assert.deepEqual(codeSpans("a ` b"), [{ text: "a ` b", code: false }]);
   });
 });

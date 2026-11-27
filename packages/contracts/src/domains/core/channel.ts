@@ -21,6 +21,11 @@ import {
 } from "../permissions/permission-rule-sets.js";
 import { configurationResourceSchema } from "../configuration/resource.js";
 import {
+  configurationDecisionSchema,
+  configurationReviewSchema,
+  configurationReviewTargetSchema,
+} from "../configuration/review.js";
+import {
   availableSkillsResponseSchema,
   skillReviewRequestSchema,
   skillReviewSchema,
@@ -206,33 +211,6 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.project.delete",
-  ),
-  defineOperation(
-    "trust.list",
-    coreOperationSchemas["trust.list"].params,
-    coreOperationSchemas["trust.list"].result,
-    "read",
-    "none",
-    host,
-    "operation.trust.list",
-  ),
-  defineOperation(
-    "trust.decide",
-    coreOperationSchemas["trust.decide"].params,
-    coreOperationSchemas["trust.decide"].result,
-    "mutation",
-    "none",
-    host,
-    "operation.trust.decide",
-  ),
-  defineOperation(
-    "trust.delete",
-    coreOperationSchemas["trust.delete"].params,
-    coreOperationSchemas["trust.delete"].result,
-    "mutation",
-    "none",
-    host,
-    "operation.trust.delete",
   ),
   defineOperation(
     "conversation.create",
@@ -529,15 +507,6 @@ export const conversationChannelOperations = [
     "operation.permission.rule.delete",
   ),
   defineOperation(
-    "permission.projectTrust.grant",
-    z.object({ projectId: z.string() }),
-    permissionPolicyConfigurationSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.permission.projectTrust.grant",
-  ),
-  defineOperation(
     "skill.list",
     z.object({ projectId: z.string().optional() }).optional(),
     availableSkillsResponseSchema,
@@ -554,6 +523,24 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.configuration.attention",
+  ),
+  defineOperation(
+    "configuration.review",
+    configurationReviewTargetSchema,
+    configurationReviewSchema,
+    "read",
+    "none",
+    host,
+    "operation.configuration.review",
+  ),
+  defineOperation(
+    "configuration.decide",
+    configurationDecisionSchema,
+    configurationReviewSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.configuration.decide",
   ),
   defineOperation(
     "skill.review",

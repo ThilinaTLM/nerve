@@ -101,6 +101,8 @@ function submit(): void {
     profileDisabled={model.profileDisabled ?? blocked}
     agentProfile={model.agentProfile}
     agentProfiles={model.agentProfiles}
+    pendingAgentProfiles={model.pendingAgentProfiles}
+    onReviewAgentProfile={actions.onReviewAgentProfile}
     lockedFields={model.lockedFields}
     modelDisabled={model.modelDisabled ??
       (blocked || model.models.length === 0)}
@@ -172,6 +174,7 @@ function submit(): void {
       slashContext={{
         profile: model.agentProfile,
         profiles: model.agentProfiles,
+        pendingProfiles: model.pendingAgentProfiles,
         running: Boolean(model.showStop ?? model.sending),
       }}
       onSlashCommand={actions.onSlashCommand}

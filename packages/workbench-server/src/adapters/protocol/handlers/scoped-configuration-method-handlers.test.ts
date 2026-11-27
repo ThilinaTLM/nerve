@@ -19,6 +19,7 @@ import {
 } from "@nervekit/contracts/agent-configuration";
 import { AgentConfigurationService } from "../../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import { digestBytes } from "../../../infrastructure/configuration/scoped-store/scoped-document-store.js";
+import { configurationTargetPath } from "../../../infrastructure/configuration/agent-configuration/scoped-repair.js";
 import { scopedConfigurationMethodHandlers } from "./scoped-configuration-method-handlers.js";
 import type { ServerAdapterContexts } from "../../contexts.js";
 
@@ -64,19 +65,22 @@ async function fixture(t: TestContext) {
     string,
     { status: string; contentDigest: string }
   >();
-  const key = (kind: string, projectId: string, file: string) =>
+  const key = (kind: string, projectId: string | null, file: string) =>
     JSON.stringify([kind, projectId, file]);
   const resolver = new TrustedResourceService({} as never, () => "");
   const trusted = (
     kind: string,
-    projectId: string,
+    projectId: string | null,
     file: string,
     digest: string,
   ) =>
-    resolver.trustState(
-      decisions.get(key(kind, projectId, file)) as never,
-      `sha256:${digest}`,
-    );
+    // The user's own files are trusted here; the project's follow the decisions.
+    projectId === null
+      ? "trusted"
+      : resolver.trustState(
+          decisions.get(key(kind, projectId, file)) as never,
+          `sha256:${digest}`,
+        );
   const service = new AgentConfigurationService({
     home,
     projectDirectory: () => directory,
@@ -84,8 +88,8 @@ async function fixture(t: TestContext) {
     builtins: { coding: JSON.stringify(definition) },
     profileTrustState: (id, file, digest) =>
       trusted("agent_profile", id, file, digest),
-    projectAgentTrustState: (id, file, digest) =>
-      trusted("project_capabilities", id, file, digest),
+    agentTrustState: (id, file, digest) =>
+      trusted("capabilities", id, file, digest),
     captureResources: () => ({
       options: { referenceAvailable: () => true },
       isCurrent: () => true,
@@ -139,7 +143,18 @@ async function fixture(t: TestContext) {
     await service.flushSummaries();
     await rm(home, { recursive: true, force: true });
   });
-  return { home, service, invoke, decisions };
+  /** The user's decision on a project file, as `configuration.decide` records it. */
+  const decide = (
+    kind: string,
+    file: string,
+    digest: string,
+    status: "trusted" | "rejected",
+  ) =>
+    decisions.set(key(kind, "p", file), {
+      status,
+      contentDigest: `sha256:${digest}`,
+    });
+  return { home, service, invoke, decisions, decide };
 }
 
 void test("profile handlers edit complete v1 copies, expose provenance, enforce digest CAS and delete only the local shadow", async (t) => {
@@ -247,7 +262,7 @@ void test("profile handlers edit complete v1 copies, expose provenance, enforce 
   );
 });
 
-void test("project profile and agent trust/revoke bind exact bytes and repair never grants trust", async (t) => {
+void test("project profiles follow the decision on their exact bytes and repair never grants trust", async (t) => {
   const f = await fixture(t);
   const saved = success(
     await f.invoke("agentProfiles.save", {
@@ -257,41 +272,19 @@ void test("project profile and agent trust/revoke bind exact bytes and repair ne
       definition,
     }),
   );
-  const target = { document: "profile", scope: project, name: "coding" };
-  assert.equal(
-    (
-      await f.invoke("agentProfiles.trust", {
-        target,
-        expectedDigest: "wrong",
-        trusted: true,
-      })
-    ).status,
-    "conflict",
-  );
-  assert.equal(
-    success(
-      await f.invoke("agentProfiles.trust", {
-        target,
-        expectedDigest: saved.digest,
-        trusted: true,
-      }),
-    ).trustState,
-    "trusted",
-  );
+  const profileFile = configurationTargetPath(f.service, {
+    document: "profile",
+    scope: project,
+    name: "coding",
+  });
+  f.decide("agent_profile", profileFile, saved.digest, "trusted");
+  await f.service.profiles.reload(project, "coding");
   assert.equal(
     (await f.service.profiles.get("coding", "p")).status,
     "available",
   );
-  assert.equal(
-    success(
-      await f.invoke("agentProfiles.trust", {
-        target,
-        expectedDigest: saved.digest,
-        trusted: false,
-      }),
-    ).trustState,
-    "declined",
-  );
+  f.decide("agent_profile", profileFile, saved.digest, "rejected");
+  await f.service.profiles.reload(project, "coding");
   assert.equal(
     (await f.service.profiles.get("coding", "p")).status,
     "unavailable",
@@ -304,16 +297,7 @@ void test("project profile and agent trust/revoke bind exact bytes and repair ne
     overrides: { permissionRuleSetId: "read_only" },
   });
   await writeFile(file, bytes);
-  assert.equal(
-    (
-      await f.invoke("agentConfiguration.trust", {
-        target: { document: "agent", scope: project },
-        expectedDigest: digestBytes(bytes),
-        trusted: true,
-      })
-    ).status,
-    "saved",
-  );
+  f.decide("capabilities", file, digestBytes(bytes), "trusted");
   assert.equal(f.decisions.size, 2);
   await writeFile(
     f.service.paths.agent(user),

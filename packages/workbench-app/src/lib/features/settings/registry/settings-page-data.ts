@@ -193,6 +193,15 @@ const userPages: Record<string, PageData> = {
       { id: "system-information", label: "System information" },
     ],
   },
+  about: {
+    label: "About",
+    description: "The version you run, its license and where to learn more.",
+    sections: [
+      { id: "version", label: "Version" },
+      { id: "license", label: "License" },
+      { id: "links", label: "Links" },
+    ],
+  },
 };
 
 const projectPages: Record<string, PageData> = {
@@ -264,7 +273,14 @@ const userLayout: NavLayout = [
   {
     id: "system",
     title: "System",
-    pages: ["storage", "background-jobs", "remote", "devices", "system"],
+    pages: [
+      "storage",
+      "background-jobs",
+      "remote",
+      "devices",
+      "system",
+      "about",
+    ],
   },
 ];
 

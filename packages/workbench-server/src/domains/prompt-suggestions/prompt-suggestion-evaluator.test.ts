@@ -47,6 +47,8 @@ void test("when: ahead/behind/base/pull-request fields and JS context expose pul
     order: 1,
     defaultEnabled: true,
     enabled: true,
+    trustId: "trust",
+    predicateHash: "hash",
     source: { kind: "user", path: "/s.md" },
   };
   const count = (
@@ -59,7 +61,7 @@ void test("when: ahead/behind/base/pull-request fields and JS context expose pul
         git: { projectIsRepo: true, repos: [{ ...repo, ...patch }] },
         definitions: [{ ...base, when }],
       },
-      () => "needs_review",
+      () => "trusted",
     ).suggestions.length;
   assert.equal(count({ gitAhead: true }), 1);
   assert.equal(count({ gitAhead: false }), 0);
@@ -156,4 +158,47 @@ void test("evaluates conversation/rule-set conditions and fails closed for untru
     if (!code.includes('return "true"'))
       assert.equal(result.diagnostics[0]?.code, "enable-failed");
   }
+});
+
+void test("a user or project suggestion file is shown only while the whole file is trusted, with or without a script", () => {
+  const definition: PromptSuggestionDefinition = {
+    id: "plain",
+    definitionKey: "user:plain",
+    name: "plain",
+    label: "Plain",
+    prompt: "Do something",
+    order: 1,
+    defaultEnabled: true,
+    enabled: true,
+    predicateHash: "file-digest",
+    trustId: "trust",
+    source: { kind: "user", path: "/suggestions/plain.md" },
+  };
+  const input: PromptSuggestionEvaluationInput = {
+    project: { id: "proj_test", name: "Test", dir: "/project" },
+    git: { projectIsRepo: false, repos: [] },
+    definitions: [definition],
+  };
+  const waiting = evaluatePromptSuggestions(input, () => "needs_review");
+  assert.equal(waiting.suggestions.length, 0);
+  assert.equal(waiting.trustRequests.length, 1);
+  assert.equal(
+    evaluatePromptSuggestions(input, () => "declined").suggestions.length,
+    0,
+  );
+  assert.equal(
+    evaluatePromptSuggestions(input, () => "trusted").suggestions.length,
+    1,
+  );
+  const builtin = {
+    ...definition,
+    source: { kind: "builtin" as const, path: "" },
+  };
+  assert.equal(
+    evaluatePromptSuggestions(
+      { ...input, definitions: [builtin] },
+      () => "needs_review",
+    ).suggestions.length,
+    1,
+  );
 });

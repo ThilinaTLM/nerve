@@ -1,6 +1,11 @@
 <script lang="ts">
 import { editableCapabilityResets } from "$lib/domain/capabilities/editable-resets";
-import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
+import {
+  agentProfileCatalog,
+  pendingLeadProfiles,
+} from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
+import type { ConfigurationReviewTarget } from "@nervekit/contracts/configuration";
+import { openConfigurationReview } from "$lib/application/configuration-review/configuration-review-queue.svelte";
 import { parseSlashCommand } from "@nervekit/contracts/completions";
 import { effectiveRiskForCategory } from "@nervekit/contracts/permissions";
 import { onDestroy, untrack, type Snippet } from "svelte";
@@ -450,9 +455,45 @@ function runSlashCommand(name: string): void {
 }
 
 function handleCompletionAction(action: ComposerCompletionAction): void {
-  handleComposerCompletionAction(action, (page) =>
-    onOpenCapabilitySettings?.(page),
+  handleComposerCompletionAction(
+    action,
+    (page) => onOpenCapabilitySettings?.(page),
+    reviewAgentProfile,
   );
+}
+
+// Profiles that would be offered but wait for review: listed disabled, with Review.
+const pendingAgentProfiles = $derived(
+  pendingLeadProfiles(agentProfileCatalog.profiles(activeProject?.id)).map(
+    (profile) => ({
+      name: profile.name,
+      label: profile.label,
+      whenToUse: profile.whenToUse,
+      source: profile.source,
+    }),
+  ),
+);
+/** Opens the review dialog on the waiting profiles, starting with `name`. */
+function reviewAgentProfile(name: string): void {
+  const projectId = activeProject?.id;
+  const targets = pendingLeadProfiles(
+    agentProfileCatalog.profiles(projectId),
+  ).flatMap((profile): ConfigurationReviewTarget[] =>
+    profile.source === "user"
+      ? [{ kind: "agent-profile", scope: "user", id: profile.name }]
+      : profile.source === "project" && projectId
+        ? [
+            {
+              kind: "agent-profile",
+              scope: "project",
+              projectId,
+              id: profile.name,
+            },
+          ]
+        : [],
+  );
+  const start = targets.findIndex((target) => target.id === name);
+  openConfigurationReview(targets, Math.max(0, start));
 }
 
 async function pasteImage(file: File): Promise<string> {
@@ -594,6 +635,7 @@ function handleMicContextMenu(event: MouseEvent) {
     thinkingLevel,
     agentProfile,
     agentProfiles,
+    pendingAgentProfiles,
     lockedFields,
     permissionRuleSetId,
     permissionRuleSets,
@@ -687,6 +729,7 @@ function handleMicContextMenu(event: MouseEvent) {
     onDropFiles: dropFiles,
     onAttachFile: attachFile,
     onSlashCommand: runSlashCommand,
+    onReviewAgentProfile: reviewAgentProfile,
     onCompletionAction: handleCompletionAction,
     onEditorReady: (api) => (editorApi = api),
     onReadClipboardText: readClipboardText,

@@ -28,6 +28,7 @@ export function isWorkbenchEvent(type: string): boolean {
     "applicationLog.",
     "plan.written",
     "project.configuration.health",
+    "configuration.decided",
   ].some((prefix) => type.startsWith(prefix));
 }
 
@@ -36,7 +37,6 @@ export function isWorkbenchOperation(method: string): boolean {
   if (
     [
       "agentConfiguration.reload",
-      "agentConfiguration.trust",
       "agentConfiguration.repairPreview",
       "agentConfiguration.repairApply",
     ].includes(method)

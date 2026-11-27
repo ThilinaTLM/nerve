@@ -13,6 +13,7 @@ export {
   trustedContentDigestSchema,
   toTrustedDigest,
   trustedResourceGrantsSchema,
+  configurationReviewSnapshotSchema,
   trustDecisionSchema,
 } from "./trusted-resource.js";
 export type {
@@ -20,6 +21,7 @@ export type {
   TrustedResourceStatus,
   TrustedResource,
   TrustedResourceGrants,
+  ConfigurationReviewSnapshot,
   TrustDecision,
 } from "./trusted-resource.js";
 export {

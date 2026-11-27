@@ -1,55 +1,56 @@
 <!--
-  The same decision buttons on every item page: Needs review offers Review and
-  trust and Decline, Trusted offers Revoke (which declines), Declined offers
-  only Review and trust. There is no "ask again".
+  The one set of decision buttons, in the review dialog and on item pages:
+  Needs review offers Decline and Trust, Declined only Trust, Trusted Revoke
+  (which declines). The dialog adds Not now before them. There is no "ask
+  again". On a page, Trust opens the review dialog as confirmation.
 -->
 <script lang="ts">
 import type { TrustState } from "@nervekit/contracts/core";
-import type { Snippet } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 
 let {
   state,
   busy = false,
-  trustLabel = "Review and trust",
+  variant = "page",
   onTrust,
   onDecline,
   onRevoke,
-  review,
+  onSkip,
 }: {
   state: TrustState;
   busy?: boolean;
-  trustLabel?: string;
+  /** `dialog`: full-size footer buttons with Not now; `page`: small ones for a header or callout. */
+  variant?: "page" | "dialog";
   onTrust?: () => void;
   onDecline?: () => void;
   /** Withdraws trust; the item becomes Declined. */
   onRevoke?: () => void;
-  /** Replaces the trust button, e.g. one that opens a review dialog. */
-  review?: Snippet;
+  /** Not now (dialog): leaves the item as it is. */
+  onSkip?: () => void;
 } = $props();
+
+const size = $derived(variant === "dialog" ? "default" : "sm");
 </script>
 
-{#snippet trust()}
-  {#if review}{@render review()}{:else if onTrust}<Button
-      size="sm"
+{#if variant === "dialog" && onSkip && state !== "trusted"}
+  <Button variant="ghost" {size} autofocus disabled={busy} onclick={onSkip}
+    >Not now</Button
+  >
+{/if}
+{#if state === "trusted"}
+  {#if onRevoke}<Button
       variant="outline"
+      {size}
       disabled={busy}
-      onclick={onTrust}>{trustLabel}</Button
+      onclick={onRevoke}>Revoke</Button
     >{/if}
-{/snippet}
-
-{#if state === "needs_review"}
-  {@render trust()}
-  {#if onDecline}<Button
-      size="sm"
+{:else}
+  {#if state === "needs_review" && onDecline}<Button
       variant="outline"
+      {size}
       disabled={busy}
       onclick={onDecline}>Decline</Button
     >{/if}
-{:else if state === "declined"}
-  {@render trust()}
-{:else if onRevoke}
-  <Button size="sm" variant="outline" disabled={busy} onclick={onRevoke}
-    >Revoke</Button
-  >
+  {#if onTrust}<Button {size} disabled={busy} onclick={onTrust}>Trust</Button
+    >{/if}
 {/if}

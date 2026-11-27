@@ -22,6 +22,8 @@ import type {
 import { projectView } from "$lib/features/conversations/adapters/core-context.adapter";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
+import AboutSettingsPage from "./about/AboutSettingsPage.svelte";
+import { releaseSelectors } from "$lib/features/releases";
 import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
 import {
@@ -137,6 +139,13 @@ const extensionPagesOf = (extensionId: string) =>
   (contributionsOf(pagesProjectId)?.pages ?? [])
     .filter((page) => page.extensionId === extensionId)
     .map((page) => ({ id: page.id, label: page.label }));
+// A skill's page is `user:<name>` or `project:<name>`.
+const skillItem = $derived.by(() => {
+  const match = /^(user|project):(.+)$/.exec(itemId);
+  return match
+    ? { scope: match[1] as "user" | "project", name: match[2] }
+    : { scope: "project" as const, name: itemId };
+});
 const openExtensionPageTab = (extensionId: string, pageId: string) =>
   void openExtensionPage(pagesProjectId, extensionId, pageId);
 </script>
@@ -228,10 +237,11 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {models}
       {status}
     />
-  {:else if page.id === "skills" && layerProjectId && itemId}
+  {:else if page.id === "skills" && itemId && (skillItem.scope === "user" || layerProjectId)}
     <SkillReviewPage
+      scope={skillItem.scope}
       projectId={layerProjectId}
-      name={itemId}
+      name={skillItem.name}
       onBack={() => onCloseItem?.()}
       onOpenFile={project
         ? (path) => void openFilePane({ projectId: project.id, path })
@@ -291,6 +301,11 @@ const openExtensionPageTab = (extensionId: string, pageId: string) =>
       {daemonRestarting}
       onConfigurationChange={onApplicationConfigurationChange}
       {onRestartDaemon}
+    />
+  {:else if page.id === "about"}
+    <AboutSettingsPage
+      version={status?.version}
+      latestRelease={releaseSelectors.latest}
     />
   {:else}
     <PageEmptyState

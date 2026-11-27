@@ -30,6 +30,7 @@ let {
   emptyExtension,
   activity,
   history,
+  marker,
 }: {
   model: ConversationPaneModel;
   actions: ConversationPaneActions;
@@ -40,6 +41,8 @@ let {
   activity?: Snippet<[showLatest: boolean, onJumpToBottom: () => void]>;
   /** History view, shown over the transcript while `model.transcriptView` is "history". */
   history?: Snippet<[TranscriptHistoryControls]>;
+  /** Floats at the top centre of the transcript; the list starts below it. */
+  marker?: Snippet;
 } = $props();
 
 const mobile = isMobileSurface();
@@ -185,7 +188,7 @@ function goToQuestion(): void {
           bind:atEnd={scroll.atEnd}
           bind:messageMarks
           bind:rowCount
-          paddingStart={12}
+          paddingStart={marker ? 52 : 12}
           paddingEnd={18}
           heightCacheKey={model.transcriptHeightCacheKey ??
             model.conversationId}
@@ -229,6 +232,9 @@ function goToQuestion(): void {
           transcriptMenu={menus.transcriptMenu}
         />
       </div>
+      {#if marker && !historyShowing}
+        {@render marker()}
+      {/if}
       {#if !mobile}
         <TranscriptMessageRail
           bind:this={messageRail}

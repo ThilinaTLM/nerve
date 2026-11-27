@@ -71,7 +71,7 @@ export type McpServiceOptions = {
 /**
  * Settings → MCP servers: list, save, remove, test, disconnect and review for one scope. Saving
  * records the user's approval of what it wrote; entries written any other way wait for review
- * (`trust.decide`). Nothing here is reachable from the agent.
+ * (`configuration.decide`). Nothing here is reachable from the agent.
  */
 export class McpService {
   #saving: Promise<unknown> = Promise.resolve();
@@ -414,7 +414,7 @@ export class McpService {
   }
 
   /**
-   * A decision through `trust.decide` on an entry: the review is recomputed here, the digest must
+   * A decision through `configuration.decide` on an entry: the review is recomputed here, the digest must
    * be that of the entry as it is now, and the stored grants are the ones computed here, not the
    * caller's. Throws when the entry is gone or changed since the user looked.
    */
@@ -498,7 +498,7 @@ export class McpService {
   }
 
   /**
-   * A decision through `trust.decide` or `trust.delete`, or any other change of what is approved:
+   * A decision through `configuration.decide`, or any other change of what is approved:
    * connections of entries that changed or lost approval close.
    */
   async approvalChanged(target: McpTarget): Promise<void> {

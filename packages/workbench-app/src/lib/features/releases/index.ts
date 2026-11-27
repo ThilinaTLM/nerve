@@ -4,3 +4,4 @@ export {
   stopReleasePolling,
 } from "./state/release-polling.svelte";
 export { displayVersion, isVersionOutdated } from "./state/release-version";
+export { default as ReleaseCommands } from "./views/ReleaseCommands.svelte";

@@ -1,15 +1,15 @@
 <!--
   Settings › MCP servers › name: one server, laid out like an extension's page.
   The header has its Enabled switch (the User and project table with a project
-  open). An entry waiting for review shows what it runs and sends, with Approve
-  and Reject; an approved one shows its tools (tested on open while it is on)
-  and its entry, edited in place. Source has the file, the approval and Remove.
+  open). An entry waiting for review shows the shared review callout and what
+  it can do; Trust opens the review dialog. A trusted one shows its tools
+  (tested on open while it is on) and its entry, edited in place. Source has
+  the file, the decision (Revoke) and Remove.
 -->
 <script lang="ts">
 import { untrack } from "svelte";
 import Plug from "@lucide/svelte/icons/plug";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import type { McpReview, McpServerRow } from "@nervekit/contracts/mcp";
+import type { McpServerRow } from "@nervekit/contracts/mcp";
 import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import {
@@ -20,22 +20,20 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import {
-  decideMcpServer,
   disconnectMcpServer,
   mcpTarget,
   type McpTestResult,
   removeMcpServer,
-  reviewMcpServer,
   testMcpServer,
 } from "$lib/application/mcp/mcp-api";
 import { mcpItemId, parseMcpItemId } from "$lib/application/mcp/mcp-item";
 import { McpServersState } from "$lib/application/mcp/mcp-servers-state.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import {
-  LayerEnabledTable,
-  TrustDecisionActions,
-} from "$lib/presentation/settings";
-import McpEntrySections from "./McpEntrySections.svelte";
+import { onConfigurationDecision } from "$lib/application/configuration-review/configuration-review-queue.svelte";
+import { LayerEnabledTable } from "$lib/presentation/settings";
+import ConfigurationReviewCallout from "$lib/presentation/configuration-review/ConfigurationReviewCallout.svelte";
+import ItemReviewSections from "../review/ItemReviewSections.svelte";
+import { useItemReview } from "../review/item-review.svelte";
 import McpServerEditor from "./McpServerEditor.svelte";
 import McpSourceSection from "./McpSourceSection.svelte";
 import McpToolsSection from "./McpToolsSection.svelte";
@@ -92,32 +90,23 @@ const pending = $derived(!!row && row.review !== "trusted");
 const layers = $derived(row ? enablement.layers(row) : undefined);
 const layered = $derived(enablement.layered && !!projectName);
 
-// The review of the entry as it is now: what Approve, Reject and Revoke decide on.
-let review = $state<McpReview | null>();
-let reviewError = $state<string>();
-const reviewKey = $derived(
-  row
-    ? `${row.scope}:${row.name}:${row.review}:${JSON.stringify(row.entry)}`
-    : "",
+// The review of the entry as it is now: what Decline and Revoke decide on; Trust opens the dialog.
+const reviewTarget = $derived(
+  row && (row.scope === "user" || projectId)
+    ? {
+        kind: "mcp-servers" as const,
+        scope: row.scope,
+        ...(row.scope === "project" && projectId ? { projectId } : {}),
+        id: row.name,
+      }
+    : undefined,
 );
-$effect(() => {
-  if (!reviewKey || !row) return;
-  const { scope, name } = row;
-  let current = true;
-  untrack(() => {
-    reviewError = undefined;
-    void reviewMcpServer(mcpTarget(scope, projectId), name)
-      .then((result) => {
-        if (current) review = result;
-      })
-      .catch((cause) => {
-        if (current) reviewError = errorText(cause);
-      });
-  });
-  return () => {
-    current = false;
-  };
-});
+const itemReview = useItemReview(() => reviewTarget);
+$effect(() =>
+  onConfigurationDecision((decided) => {
+    if (decided.target.kind === "mcp-servers") void list.reload();
+  }),
+);
 
 // The tools: tested once on open, after approval and after each save, while the server is on.
 let testResult = $state<McpTestResult>();
@@ -160,23 +149,6 @@ async function act(action: () => Promise<unknown>) {
   } finally {
     busy = false;
   }
-}
-
-/** Decides on exactly the entry shown; a changed entry is shown again. */
-function decide(status: "trusted" | "rejected") {
-  const shown = review;
-  if (!shown) return;
-  void act(async () => {
-    try {
-      await decideMcpServer(shown, projectId ?? null, status);
-    } catch (cause) {
-      review = await reviewMcpServer(
-        mcpTarget(shown.scope, projectId),
-        shown.name,
-      ).catch(() => shown);
-      throw cause;
-    }
-  });
 }
 
 function saved(next: McpServerRow) {
@@ -286,33 +258,22 @@ function errorText(cause: unknown) {
 {:else}
   <div class="grid gap-5">
     {#if actionError}<Callout tone="destructive" text={actionError} />{/if}
-    {#if reviewError}<Callout tone="destructive" text={reviewError} />{/if}
-
     {#if pending}
-      <Callout
-        layout="block"
-        tone={row.review === "declined" ? "neutral" : "warning"}
-        icon={TriangleAlert}
-        title={row.review === "declined"
-          ? "You declined this entry"
-          : "Waiting for your review"}
-        text={row.review === "declined"
-          ? "It stays off until you review and trust it."
-          : "It does not run until you trust it. Trust covers exactly this entry; any change asks again."}
-      >
-        {#snippet actions()}
-          <TrustDecisionActions
-            state={row.review}
-            busy={busy || !review}
-            onTrust={() => decide("trusted")}
-            onDecline={() => decide("rejected")}
-          />
-        {/snippet}
-      </Callout>
-      {#if review}
-        <McpEntrySections {review} />
-      {:else if !reviewError}
-        <Skeleton class="h-24 w-full" />
+      <ConfigurationReviewCallout
+        state={row.review}
+        effect="it does not start"
+        changedSinceDecision={itemReview.current?.review?.changedSinceDecision}
+        busy={busy || itemReview.current?.busy}
+        error={itemReview.current?.notice ?? itemReview.current?.error}
+        onTrust={() => itemReview.current?.trust()}
+        onDecline={() => void itemReview.current?.decline()}
+      />
+      {#if reviewTarget}
+        <ItemReviewSections
+          target={reviewTarget}
+          item={itemReview.current}
+          source={false}
+        />
       {/if}
     {:else}
       {#if row.shadowed}
@@ -343,7 +304,9 @@ function errorText(cause: unknown) {
       {path}
       {busy}
       onOpenFile={openFile}
-      onRevoke={review ? () => decide("rejected") : undefined}
+      onRevoke={itemReview.current?.review
+        ? () => void itemReview.current?.decline()
+        : undefined}
       onRemove={() => (removeOpen = true)}
     />
   </div>

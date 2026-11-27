@@ -6,7 +6,6 @@ import type {
   PromptSuggestionStatus,
   UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionProjectFileTrustRequest,
-  UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts/prompt-suggestions";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
@@ -47,12 +46,6 @@ export async function updatePromptSuggestionEnabled(
   await requestWorkbench("promptSuggestion.enabled.update", body);
 }
 
-export async function updatePromptSuggestionTrust(
-  body: UpdatePromptSuggestionTrustRequest,
-): Promise<void> {
-  await requestWorkbench("promptSuggestion.trust.update", body);
-}
-
 export type {
   CreatePromptSuggestionRequest,
   CreatePromptSuggestionResponse,
@@ -63,5 +56,4 @@ export type {
   PromptSuggestionStatus,
   PromptSuggestionTrustRequest,
   UpdatePromptSuggestionEnabledRequest,
-  UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts/prompt-suggestions";
