@@ -76,9 +76,9 @@ export const envStatusForge: DemoConversation = {
       type: "tool",
       toolName: "read",
       risk: "read",
-      args: { path: "configure-nerve/guide/extensions.md" },
+      args: { path: "configure-nerve/reference/extensions/build.md" },
       result: {
-        path: "configure-nerve/guide/extensions.md",
+        path: "configure-nerve/reference/extensions/build.md",
         content:
           "# Build or change an extension\n\nAn extension is a folder with a built `dist/`. Nerve loads it only after the user allows it in Settings → Extensions. You can never grant that consent…\n\n## 2. Decide scope and kind\n\n- **Scope.** `project`: `<project>/.nerve/extensions/<id>/`, shared through the repository as sources.\n- **Kind.** `panel` (a dock panel) …",
         lines: 94,
@@ -90,7 +90,7 @@ export const envStatusForge: DemoConversation = {
       risk: "command",
       args: {
         command:
-          "node scripts/create-extension.mjs env-status --kind panel --scope project",
+          "node reference/extensions/scripts/create-extension.mjs env-status --kind panel --scope project",
       },
       result: {
         content: `Created ${FOLDER}\nInstalled dependencies (--ignore-scripts)\n[1/3] Type check (svelte-check)\nsvelte-check found 0 errors and 0 warnings\n[2/3] Build and validate\nBuilt env-status 0.1.0 (SDK 0.41.1)\n[3/3] Tests (vitest run)\n 1 file, 2 tests passed\ncheck passed`,

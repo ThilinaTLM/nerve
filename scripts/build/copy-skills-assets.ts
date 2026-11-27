@@ -12,12 +12,19 @@ await mkdir(dirname(destination), { recursive: true });
 await cp(source, destination, { recursive: true });
 
 // The configure-nerve extension scripts install the SDK that matches this Nerve; installed builds have no
-// source checkout to read the version from (see the maintainer note in scripts/lib.mjs).
+// source checkout to read the version from (see the maintainer note in reference/extensions/scripts/lib.mjs).
 const { version } = JSON.parse(
   await readFile(join(repoRoot, "package.json"), "utf8"),
 ) as { version: string };
 await writeFile(
-  join(destination, "configure-nerve", "scripts", "nerve-version.json"),
+  join(
+    destination,
+    "configure-nerve",
+    "reference",
+    "extensions",
+    "scripts",
+    "nerve-version.json",
+  ),
   `${JSON.stringify({ version })}\n`,
 );
 

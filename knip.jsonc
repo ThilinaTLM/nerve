@@ -18,7 +18,7 @@
         "scripts/**/*.ts",
         "{test,src}/**/*.test.ts",
         "src/builtin-skills/builtin/engineering-docs/scripts/doccheck.mjs",
-        "src/builtin-skills/builtin/configure-nerve/scripts/*.mjs",
+        "src/builtin-skills/builtin/configure-nerve/reference/extensions/scripts/*.mjs",
       ],
     },
     "packages/website": {

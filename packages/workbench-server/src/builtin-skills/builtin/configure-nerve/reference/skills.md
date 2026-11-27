@@ -50,7 +50,7 @@ A skill is not used until the user approves the exact content of its folder in S
 
 ## Writing the body
 
-Follow `reference/writing-for-agents.md`. For a skill in particular:
+Follow `writing-for-agents.md`. For a skill in particular:
 
 - Keep `SKILL.md` short and procedural: steps, decision points (what to ask the user, what to choose alone), safety constraints and how to verify the result. Leave out background the agent does not need to act.
 - Put long material (templates, references, examples, scripts) in files beside `SKILL.md` and link them with relative paths; they resolve from the skill directory. List them in `SKILL.md` with when to read each, so the agent loads only what it needs.
@@ -62,7 +62,7 @@ Never overwrite an existing skill without the user's confirmation. When improvin
 
 ## On and off
 
-Skills written by the user are on by default. Built-in Nerve skills (other than this one) and Agent Browser guidance are off by default. Toggles live in `agent.json` (`reference/agent-profiles.md`) under `overrides.skills`:
+Skills written by the user are on by default. Built-in Nerve skills (other than this one) and Agent Browser guidance are off by default. Toggles live in `agent.json` (`reference/agent-preferences.md`) under `overrides.skills`:
 
 ```json
 {

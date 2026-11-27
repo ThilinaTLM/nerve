@@ -8,7 +8,7 @@
 //      (@nervekit/extension-api, @nervekit/ui-kit) are not published, also set
 //      NERVE_EXTENSION_NPM_OVERRIDES to a JSON object (package -> spec); it is written to the
 //      project's package.json "overrides".
-//   2. scripts/nerve-version.json ({ "version": "x.y.z" }), written next to this file when the
+//   2. reference/extensions/scripts/nerve-version.json ({ "version": "x.y.z" }), written next to this file when the
 //      skill is copied into dist (scripts/build/copy-skills-assets.ts), so installed Nerve
 //      builds and the desktop bundle carry the version they were built from.
 //   3. The version of the Nerve source checkout containing this file (the root package.json).
@@ -44,7 +44,7 @@ export function nerveVersion(scriptDir) {
     dir = parent;
   }
   throw new UserError(
-    "Cannot tell which Nerve version this skill belongs to (scripts/nerve-version.json is missing). Reinstall Nerve, or set NERVE_EXTENSION_SDK_SPEC.",
+    "Cannot tell which Nerve version this skill belongs to (reference/extensions/scripts/nerve-version.json is missing). Reinstall Nerve, or set NERVE_EXTENSION_SDK_SPEC.",
   );
 }
 

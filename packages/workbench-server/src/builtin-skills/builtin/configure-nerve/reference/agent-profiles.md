@@ -104,7 +104,3 @@ Rules every sub-agent follows regardless of its profile:
 ## Applying changes
 
 A conversation that already uses a profile keeps a snapshot of it. After editing a profile, the user applies the new version with **Apply updated profile** (or switches to the profile again). New conversations and new sub-agents use the current file after `configuration.reload`.
-
-## Agent preferences (`agent.json`)
-
-`<home>/config/agent.json` and `<project>/.nerve/config/agent.json` hold the default model, thinking level, rule set selection and tool and skill toggles. The user changes them in Settings; edit them only when the user asks for exactly that change. The fields are the settings object above, wrapped as `{ "schemaVersion": 1, "revision": <n>, "overrides": { ... } }`. Keep `revision` as it is; the project file also carries a top-level `"version": 2`, keep it. `permissionRuleSetId` must name a rule set that exists, or the file is refused.

@@ -99,7 +99,6 @@ test("declaration pointers in the extension references name exports of the gener
     await writeSkillReferenceAssets(dir);
     const extensions = join(skillSource, "reference", "extensions");
     const files = [
-      join(skillSource, "guide", "extensions.md"),
       ...(await readdir(extensions))
         .filter((name) => name.endsWith(".md"))
         .map((name) => join(extensions, name)),

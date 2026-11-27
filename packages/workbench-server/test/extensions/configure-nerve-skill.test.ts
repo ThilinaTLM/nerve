@@ -48,7 +48,7 @@ void test("the skill's markdown links only to files that exist", async () => {
   for (const file of await markdownFiles(skill)) {
     const text = await readFile(file, "utf8");
     for (const [, path] of text.matchAll(
-      /`((?:reference|guide|scripts)\/[\w./-]+?)`/g,
+      /`((?:reference\/[\w./-]+?)|writing-for-agents\.md)`/g,
     )) {
       if (generated.some((root) => path!.startsWith(root))) continue;
       await stat(join(skill, path!.replace(/\/$/, ""))).catch(() =>
@@ -84,7 +84,8 @@ type Lib = {
   ): { positional: string[]; flags: Record<string, string> };
 };
 const lib = (await import(
-  pathToFileURL(join(skill, "scripts", "lib.mjs")).href
+  pathToFileURL(join(skill, "reference", "extensions", "scripts", "lib.mjs"))
+    .href
 )) as Lib;
 // From a source checkout the skill targets the repository's version, which the SDK shares.
 const repoPackage = JSON.parse(
@@ -93,13 +94,18 @@ const repoPackage = JSON.parse(
 
 void test("the scripts target the SDK of this Nerve's version", async () => {
   // From a source checkout the version is the repository's, which the SDK shares.
-  const sdk = lib.resolveSdk(join(skill, "scripts"), {});
+  const sdk = lib.resolveSdk(
+    join(skill, "reference", "extensions", "scripts"),
+    {},
+  );
   assert.equal(sdk.version, repoPackage.version);
   assert.equal(sdk.spec, `@nervekit/extension-sdk@${repoPackage.version}`);
   // A packaged skill carries the version next to the scripts.
   const root = await mkdtemp(join(tmpdir(), "nerve-skill-version-"));
   try {
-    await cp(join(skill, "scripts"), root, { recursive: true });
+    await cp(join(skill, "reference", "extensions", "scripts"), root, {
+      recursive: true,
+    });
     await writeFile(join(root, "nerve-version.json"), '{"version":"1.2.3"}\n');
     assert.equal(lib.resolveSdk(root, {}).version, "1.2.3");
   } finally {

@@ -4,7 +4,7 @@ A map of what an extension can do and which file explains each part. Read it onc
 
 ## What the user gets
 
-Choose one or more parts with the user (`guide/extensions.md`, step 2). They map to `--kind` of the scaffold.
+Choose one or more parts with the user (`reference/extensions/build.md`, step 2). They map to `--kind` of the scaffold.
 
 | Part             | The user sees                                                                | Fits                                                                           | Kind          | Read                                                                          |
 | ---------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------- | ----------------------------------------------------------------------------- |
@@ -72,4 +72,4 @@ Test helpers come from `@nervekit/extension-sdk/testing`:
 | Definition decisions, icons, agent-facing text limits, states                  | `reference/extensions/manifest.md` |
 | What the user reviews before allowing it, least privilege                      | `reference/extensions/security.md` |
 | User or project scope, sharing, updates                                        | `reference/extensions/sharing.md`  |
-| Writing namespace summaries, method doc comments, tool descriptions and errors | `reference/writing-for-agents.md`  |
+| Writing namespace summaries, method doc comments, tool descriptions and errors | `writing-for-agents.md`            |
