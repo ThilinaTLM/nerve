@@ -27,6 +27,16 @@ function png(label: string): Buffer {
   ]);
 }
 
+/** PNG signature plus an IHDR header so the intrinsic size is readable. */
+function sizedPng(label: string, width: number, height: number): Buffer {
+  const header = Buffer.alloc(16);
+  header.writeUInt32BE(13, 0);
+  header.write("IHDR", 4, "ascii");
+  header.writeUInt32BE(width, 8);
+  header.writeUInt32BE(height, 12);
+  return Buffer.concat([png(""), header, Buffer.from(label)]);
+}
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => removeTree(root)));
 });
@@ -103,7 +113,7 @@ describe("ProjectIconService", () => {
     assert.match(result.etag, /^"[a-f\d]{24}"$/);
   });
 
-  it("matches conventional filenames case-insensitively and falls through oversized candidates", async () => {
+  it("matches conventional filenames case-insensitively and falls through invalid candidates", async () => {
     const dir = await projectDirectory("conventional");
     await write(join(dir, "app/apple-touch-icon.svg"), "not-an-image");
     await write(join(dir, "app/icon.png"), Buffer.alloc(2 * 1024 * 1024 + 1));
@@ -136,12 +146,126 @@ describe("ProjectIconService", () => {
     await write(join(dir, "node_modules/icon.png"), png("dependency"));
     await write(join(dir, "dist/favicon.png"), png("build"));
     await write(join(dir, "test-artifacts/logo.png"), png("test-output"));
-    await write(join(dir, "one/two/three/four/five/logo.png"), png("too-deep"));
+    await write(join(dir, "dist-e2e/favicon.png"), png("e2e-build"));
+    await write(join(dir, ".venv/lib/logo.png"), png("hidden"));
+    await write(
+      join(dir, "one/two/three/four/five/six/logo.png"),
+      png("too-deep"),
+    );
 
     assert.equal(
       await serviceFor([project("proj_bounded", dir)]).get("proj_bounded"),
       undefined,
     );
+  });
+
+  it("pins the icon through .nerve/icon.* over discovered candidates", async () => {
+    const dir = await projectDirectory("override");
+    await write(join(dir, ".nerve/icon.png"), png("pinned"));
+    await write(
+      join(dir, "public/manifest.webmanifest"),
+      JSON.stringify({ icons: [{ src: "/icon.png", sizes: "512x512" }] }),
+    );
+    await write(join(dir, "public/icon.png"), png("manifest"));
+
+    const result = await icon(
+      serviceFor([project("proj_override", dir)]),
+      "proj_override",
+    );
+    assert.ok(result.buffer.equals(png("pinned")));
+  });
+
+  it("follows HTML icon links into the web root and vetoes scaffold placeholders", async () => {
+    const dir = await projectDirectory("html");
+    await write(
+      join(dir, "web/index.html"),
+      '<link rel="icon" type="image/svg+xml" href="/brand.svg?v=2">',
+    );
+    await write(join(dir, "web/public/brand.svg"), "<svg>declared</svg>");
+    await write(join(dir, "logo.png"), png("guessed"));
+    const scaffold = await projectDirectory("scaffold");
+    await write(
+      join(scaffold, "index.html"),
+      '<link rel="icon" href="/vite.svg">',
+    );
+    await write(join(scaffold, "public/vite.svg"), "<svg>vite</svg>");
+    const service = serviceFor([
+      project("proj_html", dir),
+      project("proj_scaffold", scaffold),
+    ]);
+
+    assert.equal(
+      (await icon(service, "proj_html")).buffer.toString(),
+      "<svg>declared</svg>",
+    );
+    assert.equal(await service.get("proj_scaffold"), undefined);
+  });
+
+  it("reads browser extension icon maps and prefers the largest size", async () => {
+    const dir = await projectDirectory("extension");
+    await write(
+      join(dir, "extension/manifest.json"),
+      JSON.stringify({
+        icons: { "16": "icons/icon16.png", "128": "icons/icon128.png" },
+      }),
+    );
+    await write(
+      join(dir, "extension/icons/icon16.png"),
+      sizedPng("16", 16, 16),
+    );
+    await write(
+      join(dir, "extension/icons/icon128.png"),
+      sizedPng("128", 128, 128),
+    );
+
+    const result = await icon(
+      serviceFor([project("proj_extension", dir)]),
+      "proj_extension",
+    );
+    assert.ok(result.buffer.equals(sizedPng("128", 128, 128)));
+  });
+
+  it("resolves Linux desktop icon names to the plain branded variant", async () => {
+    const dir = await projectDirectory("desktop-entry");
+    await write(
+      join(dir, "packaging/linux/dev.example.kinema.desktop"),
+      "[Desktop Entry]\nName=Kinema\nIcon=dev.example.kinema\n",
+    );
+    const brand = join(dir, "crates/desktop/assets/brand");
+    await write(join(brand, "dev.example.kinema.svg"), "<svg>app</svg>");
+    await write(join(brand, "dev.example.kinema-16.svg"), "<svg>16</svg>");
+    await write(join(brand, "dev.example.kinema-symbolic.svg"), "<svg>s</svg>");
+    await write(
+      join(dir, "crates/desktop/assets/tmdb-logo.svg"),
+      "<svg>3p</svg>",
+    );
+
+    const result = await icon(
+      serviceFor([project("proj_desktop", dir)]),
+      "proj_desktop",
+    );
+    assert.equal(result.buffer.toString(), "<svg>app</svg>");
+  });
+
+  it("ranks undeclared files by project name, variants and shape", async () => {
+    const dir = await projectDirectory("ranking");
+    await write(join(dir, "Cargo.toml"), '[package]\nname = "plantview"\n');
+    await write(
+      join(dir, "src/main/resources/icons/plantview.svg"),
+      '<svg viewBox="0 0 64 64"></svg>',
+    );
+    await write(
+      join(dir, "assets/logo.svg"),
+      '<svg viewBox="0 0 400 100">wordmark</svg>',
+    );
+    await write(join(dir, "assets/github-logo.svg"), "<svg>github</svg>");
+    await write(join(dir, "docs/favicon.png"), png("docs"));
+
+    const result = await icon(
+      serviceFor([project("proj_ranking", dir)]),
+      "proj_ranking",
+    );
+    assert.equal(result.buffer.toString(), '<svg viewBox="0 0 64 64"></svg>');
   });
 
   it("rejects manifest icons that escape through a symlink", async () => {
