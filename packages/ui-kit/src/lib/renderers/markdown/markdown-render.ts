@@ -2,22 +2,70 @@ import { highlightCodeCached } from "@nervekit/ui-kit/highlighting/highlight";
 import { isMermaidLanguage } from "../mermaid/mermaid-render.js";
 import { LruCache } from "@nervekit/ui-kit/collections/lru-cache";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
-import rehypeSanitize from "rehype-sanitize";
+import rehypeSanitize, {
+  defaultSchema,
+  type Options as SanitizeSchema,
+} from "rehype-sanitize";
 import rehypeStringify from "rehype-stringify";
 import remarkBreaks from "remark-breaks";
+import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
+import { FRONTMATTER_CLASS, remarkFrontmatterTable } from "./frontmatter.js";
 
-function createMarkdownProcessor(preserveLineBreaks: boolean) {
+/** Source-level syntax options; each combination has its own processor and cache keys. */
+export type MarkdownSyntax = {
+  /** Convert Markdown soft line endings into semantic hard breaks. */
+  preserveLineBreaks?: boolean;
+  /** Render a leading YAML frontmatter block as metadata (file previews). */
+  frontmatter?: boolean;
+};
+
+const sanitizeSchema: SanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    table: [
+      ...(defaultSchema.attributes?.table ?? []),
+      ["className", FRONTMATTER_CLASS],
+    ],
+    th: [...(defaultSchema.attributes?.th ?? []), ["scope", "row"]],
+  },
+};
+
+function createMarkdownProcessor({
+  preserveLineBreaks,
+  frontmatter,
+}: MarkdownSyntax) {
   const processor = unified().use(remarkParse).use(remarkGfm);
+  if (frontmatter) processor.use(remarkFrontmatter).use(remarkFrontmatterTable);
   if (preserveLineBreaks) processor.use(remarkBreaks);
-  return processor.use(remarkRehype).use(rehypeSanitize).use(rehypeStringify);
+  return processor
+    .use(remarkRehype)
+    .use(rehypeSanitize, sanitizeSchema)
+    .use(rehypeStringify);
 }
 
-const markdownProcessor = createMarkdownProcessor(false);
-const lineBreakMarkdownProcessor = createMarkdownProcessor(true);
+const processors = new Map<
+  string,
+  ReturnType<typeof createMarkdownProcessor>
+>();
+
+function syntaxKey({ preserveLineBreaks, frontmatter }: MarkdownSyntax) {
+  return `${preserveLineBreaks ? "breaks" : "standard"}${frontmatter ? "+fm" : ""}`;
+}
+
+function processorFor(syntax: MarkdownSyntax) {
+  const key = syntaxKey(syntax);
+  let processor = processors.get(key);
+  if (!processor) {
+    processor = createMarkdownProcessor(syntax);
+    processors.set(key, processor);
+  }
+  return processor;
+}
 
 // Content-keyed memoization for the (pure) render products. Re-mounts (tab
 // switches, virtual-scroll remounts) and run-completion re-renders reuse work
@@ -28,19 +76,16 @@ const decoratedCache = new LruCache<string, string>(MARKDOWN_CACHE_MAX);
 const highlightedCache = new LruCache<string, string>(MARKDOWN_CACHE_MAX);
 const highlightInflight = new Map<string, Promise<string>>();
 
-function sourceSignatureFor(
-  source: string,
-  preserveLineBreaks: boolean,
-): string {
-  return `${preserveLineBreaks ? "breaks" : "standard"}\0${source}`;
+function sourceSignatureFor(source: string, syntax: MarkdownSyntax): string {
+  return `${syntaxKey(syntax)}\0${source}`;
 }
 
 function signatureFor(
   source: string,
   trimCodeBlocks: boolean,
-  preserveLineBreaks: boolean,
+  syntax: MarkdownSyntax,
 ): string {
-  return `${trimCodeBlocks ? "t" : "f"}\0${sourceSignatureFor(source, preserveLineBreaks)}`;
+  return `${trimCodeBlocks ? "t" : "f"}\0${sourceSignatureFor(source, syntax)}`;
 }
 
 function escapeHtml(source: string): string {
@@ -50,15 +95,13 @@ function escapeHtml(source: string): string {
     .replaceAll(">", "&gt;");
 }
 
-export type RenderMarkdownOptions = {
+export type RenderMarkdownOptions = MarkdownSyntax & {
   /**
    * When false, bypass the parse cache. Used by the streaming decorate path: an
    * actively streaming message produces a unique string per frame, so caching
    * those transient prefixes would only churn/pollute the LRU.
    */
   cache?: boolean;
-  /** Convert Markdown soft line endings into semantic hard breaks. */
-  preserveLineBreaks?: boolean;
 };
 
 /** Render markdown source to sanitized HTML (before code-block decoration). */
@@ -66,19 +109,15 @@ export function renderMarkdown(
   source: string,
   options: RenderMarkdownOptions = {},
 ): string {
-  const useCache = options.cache ?? true;
-  const preserveLineBreaks = options.preserveLineBreaks ?? false;
-  const key = sourceSignatureFor(source, preserveLineBreaks);
+  const { cache: useCache = true, ...syntax } = options;
+  const key = sourceSignatureFor(source, syntax);
   if (useCache) {
     const cached = parseCache.get(key);
     if (cached !== undefined) return cached;
   }
   let html: string;
   try {
-    const processor = preserveLineBreaks
-      ? lineBreakMarkdownProcessor
-      : markdownProcessor;
-    html = String(processor.processSync(source));
+    html = String(processorFor(syntax).processSync(source));
   } catch {
     html = escapeHtml(source);
   }
@@ -229,13 +268,13 @@ export async function highlightMarkdownHtml(
 export function renderDecoratedMarkdown(
   source: string,
   trimCodeBlocks: boolean,
-  preserveLineBreaks = false,
+  syntax: MarkdownSyntax = {},
 ): string {
-  const key = signatureFor(source, trimCodeBlocks, preserveLineBreaks);
+  const key = signatureFor(source, trimCodeBlocks, syntax);
   const cached = decoratedCache.get(key);
   if (cached !== undefined) return cached;
   const html = decorateMarkdownHtml(
-    renderMarkdown(source, { preserveLineBreaks }),
+    renderMarkdown(source, syntax),
     trimCodeBlocks,
   );
   decoratedCache.set(key, html);
@@ -249,11 +288,9 @@ export function renderDecoratedMarkdown(
 export function getHighlightedMarkdownSync(
   source: string,
   trimCodeBlocks: boolean,
-  preserveLineBreaks = false,
+  syntax: MarkdownSyntax = {},
 ): string | undefined {
-  return highlightedCache.get(
-    signatureFor(source, trimCodeBlocks, preserveLineBreaks),
-  );
+  return highlightedCache.get(signatureFor(source, trimCodeBlocks, syntax));
 }
 
 /**
@@ -263,11 +300,11 @@ export function getHighlightedMarkdownSync(
 export function renderBestAvailableMarkdown(
   source: string,
   trimCodeBlocks: boolean,
-  preserveLineBreaks = false,
+  syntax: MarkdownSyntax = {},
 ): string {
   return (
-    getHighlightedMarkdownSync(source, trimCodeBlocks, preserveLineBreaks) ??
-    renderDecoratedMarkdown(source, trimCodeBlocks, preserveLineBreaks)
+    getHighlightedMarkdownSync(source, trimCodeBlocks, syntax) ??
+    renderDecoratedMarkdown(source, trimCodeBlocks, syntax)
   );
 }
 
@@ -278,15 +315,15 @@ export function renderBestAvailableMarkdown(
 export function renderHighlightedMarkdown(
   source: string,
   trimCodeBlocks: boolean,
-  preserveLineBreaks = false,
+  syntax: MarkdownSyntax = {},
 ): Promise<string> {
-  const key = signatureFor(source, trimCodeBlocks, preserveLineBreaks);
+  const key = signatureFor(source, trimCodeBlocks, syntax);
   const cached = highlightedCache.get(key);
   if (cached !== undefined) return Promise.resolve(cached);
   const inflight = highlightInflight.get(key);
   if (inflight) return inflight;
   const promise = highlightMarkdownHtml(
-    renderMarkdown(source, { preserveLineBreaks }),
+    renderMarkdown(source, syntax),
     trimCodeBlocks,
   )
     .then((html) => {
