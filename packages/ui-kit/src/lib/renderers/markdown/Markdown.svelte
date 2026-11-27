@@ -9,6 +9,7 @@ import {
   renderDecoratedMarkdown,
   renderHighlightedMarkdown,
   renderMarkdown,
+  type MarkdownSyntax,
 } from "@nervekit/ui-kit/renderers/markdown/markdown-render";
 import {
   extractMermaidMarkdownBlocks,
@@ -37,6 +38,8 @@ type Props = {
   trimCodeBlocks?: boolean;
   /** Convert Markdown soft line endings into semantic hard breaks. */
   preserveLineBreaks?: boolean;
+  /** Render a leading YAML frontmatter block as a metadata table (file previews). */
+  frontmatter?: boolean;
   /** Bound streaming work while deferring Shiki until completion. */
   streaming?: boolean;
   /** Pace streaming text into view per frame instead of in bursts. */
@@ -60,6 +63,7 @@ let {
   text,
   trimCodeBlocks = true,
   preserveLineBreaks = false,
+  frontmatter = false,
   streaming = false,
   reveal = false,
   caret = false,
@@ -70,6 +74,10 @@ let {
   onCopy,
 }: Props = $props();
 
+function syntaxFor(preserveBreaks: boolean): MarkdownSyntax {
+  return { preserveLineBreaks: preserveBreaks, frontmatter };
+}
+
 function renderStreamingPrefix(
   source: string,
   trim: boolean,
@@ -77,10 +85,7 @@ function renderStreamingPrefix(
 ): string {
   if (!source) return "";
   return decorateMarkdownHtml(
-    renderMarkdown(source, {
-      cache: false,
-      preserveLineBreaks: preserveBreaks,
-    }),
+    renderMarkdown(source, { cache: false, ...syntaxFor(preserveBreaks) }),
     trim,
   );
 }
@@ -97,7 +102,11 @@ const initialRender = untrack(() => {
   return {
     html: streaming
       ? ""
-      : renderBestAvailableMarkdown(text, trimCodeBlocks, preserveLineBreaks),
+      : renderBestAvailableMarkdown(
+          text,
+          trimCodeBlocks,
+          syntaxFor(preserveLineBreaks),
+        ),
     prefixHtml: parts
       ? renderStreamingPrefix(parts.prefix, trimCodeBlocks, preserveLineBreaks)
       : "",
@@ -469,19 +478,16 @@ function renderWithHighlight(
   trim: boolean,
   preserveBreaks: boolean,
 ) {
-  const cachedHighlighted = getHighlightedMarkdownSync(
-    source,
-    trim,
-    preserveBreaks,
-  );
+  const syntax = syntaxFor(preserveBreaks);
+  const cachedHighlighted = getHighlightedMarkdownSync(source, trim, syntax);
   if (cachedHighlighted !== undefined) {
     html = cachedHighlighted;
     highlightToken += 1;
     return;
   }
-  html = renderDecoratedMarkdown(source, trim, preserveBreaks);
+  html = renderDecoratedMarkdown(source, trim, syntax);
   const token = (highlightToken += 1);
-  renderHighlightedMarkdown(source, trim, preserveBreaks)
+  renderHighlightedMarkdown(source, trim, syntax)
     .then((highlighted) => {
       if (token === highlightToken) {
         html = highlighted;
@@ -489,7 +495,7 @@ function renderWithHighlight(
     })
     .catch(() => {
       if (token === highlightToken) {
-        html = renderDecoratedMarkdown(source, trim, preserveBreaks);
+        html = renderDecoratedMarkdown(source, trim, syntax);
       }
     });
 }
@@ -498,6 +504,8 @@ $effect(() => {
   const source = text;
   const trim = trimCodeBlocks;
   const preserveBreaks = preserveLineBreaks;
+  // Tracked so a frontmatter mode change re-renders; read via syntaxFor().
+  void frontmatter;
   const paced = revealing;
   const value = { source, trim, preserveLineBreaks: preserveBreaks };
   const wasStreaming = untrack(() => showingStreaming);
@@ -877,6 +885,7 @@ $effect(() => () => {
   background: var(--hover);
 }
 
+
 .markdown :global(th) {
   position: sticky;
   top: 0;
@@ -885,5 +894,23 @@ $effect(() => () => {
   color: var(--muted-foreground);
   font-weight: var(--font-weight-normal);
   border-bottom-color: color-mix(in oklab, var(--border) 80%, transparent);
+}
+
+/* Frontmatter metadata: keys are row headers in the first column, sized to
+   their content and not sticky like column headers. Rows are not striped, so
+   only the shaded key column reads as the header. */
+.markdown :global(table.frontmatter tbody tr:nth-child(odd)),
+.markdown :global(table.frontmatter tbody tr:hover) {
+  background: transparent;
+}
+
+.markdown :global(table.frontmatter th[scope="row"]) {
+  position: static;
+  width: 1%;
+  border-bottom-color: color-mix(in oklab, var(--border) 50%, transparent);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 </style>

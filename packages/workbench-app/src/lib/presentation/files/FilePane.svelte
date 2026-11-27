@@ -220,6 +220,7 @@ const showMermaidPreview = $derived(
           <Markdown
             text={view?.draft ?? file.text ?? ""}
             trimCodeBlocks={false}
+            frontmatter={(file.lineStart ?? 1) === 1}
             linkBasePath={resolved.linkBasePath}
             sourceLineStart={file.lineStart ?? 1}
             {onOpenFile}

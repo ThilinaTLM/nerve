@@ -29,7 +29,9 @@ describe("Markdown line breaks", () => {
   it("preserves soft line endings only when requested", () => {
     const source = `first line ${Math.random()}\nsecond line`;
     const standard = renderDecoratedMarkdown(source, true);
-    const preserved = renderDecoratedMarkdown(source, true, true);
+    const preserved = renderDecoratedMarkdown(source, true, {
+      preserveLineBreaks: true,
+    });
 
     assert.doesNotMatch(standard, /<br\s*\/?\s*>/);
     assert.match(preserved, /<br\s*\/?\s*>/);
@@ -38,6 +40,36 @@ describe("Markdown line breaks", () => {
       preserved,
       "render caches remain isolated by line-break mode",
     );
+  });
+});
+
+describe("Markdown frontmatter", () => {
+  const skill =
+    "---\nname: demo\ndescription: Use <when> needed\ntags: [a, b]\n---\n\n# Title\n";
+
+  it("renders flat frontmatter as a key/value table when enabled", () => {
+    const html = renderMarkdown(skill, { cache: false, frontmatter: true });
+    assert.ok(html.startsWith('<table class="frontmatter"><tbody>'));
+    assert.ok(html.includes('<tr><th scope="row">name</th><td>demo</td></tr>'));
+    assert.ok(html.includes("<td>Use &#x3C;when> needed</td>"));
+    assert.ok(html.includes('<th scope="row">tags</th><td>a, b</td>'));
+    assert.ok(html.includes("<h1>Title</h1>"));
+    assert.doesNotMatch(html, /<hr>|<h2>|<thead>/);
+  });
+
+  it("falls back to a yaml code block for nested or invalid metadata", () => {
+    for (const meta of ["a:\n  b: 1", "a: ["]) {
+      const html = renderMarkdown(`---\n${meta}\n---\nbody`, {
+        cache: false,
+        frontmatter: true,
+      });
+      assert.ok(html.startsWith('<pre><code class="language-yaml">'), html);
+    }
+  });
+
+  it("leaves leading rules untouched unless enabled", () => {
+    const html = renderMarkdown(skill, { cache: false });
+    assert.ok(html.startsWith("<hr>"));
   });
 });
 
