@@ -70,15 +70,6 @@ const icons: Record<string, Component> = {
  */
 export type SettingsSurface = { projectName?: string };
 
-/** Pages that have a User and a project layer. */
-export const layeredPageIds: readonly string[] = [
-  "general",
-  "tools",
-  "skills",
-  "extensions",
-  "mcp-servers",
-];
-
 /** Page ids in nav order; the same with or without a project. */
 const surfacePageIds: readonly string[] = settingsNavLayout.flatMap(
   (group) => group.pages,
