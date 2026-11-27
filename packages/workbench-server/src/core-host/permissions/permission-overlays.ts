@@ -38,7 +38,6 @@ function projectContext(
 }
 import { createHash } from "node:crypto";
 import { KeyedSerialQueue } from "@nervekit/primitives";
-import { readFile } from "node:fs/promises";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import { createId } from "@nervekit/contracts";
 import {

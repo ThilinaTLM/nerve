@@ -168,7 +168,7 @@ void test("editing reports which lower layer a local copy shadows", async (t) =>
 
 void test("a user profile is available only while its exact bytes are trusted, and Nerve's own writes keep it trusted", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "profile-catalog-user-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => removeTree(root));
   const paths = new AgentConfigurationPaths({
     home: path.join(root, "home"),
     projectDirectory: () => path.join(root, "project"),
