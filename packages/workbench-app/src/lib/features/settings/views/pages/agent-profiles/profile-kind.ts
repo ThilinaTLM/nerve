@@ -1,5 +1,5 @@
 /**
- * Agents and Sub-Agents are two settings pages over the same profile files.
+ * Agents and Sub-agents are two settings pages over the same profile files.
  * Each page lists, creates and edits only its own kind; the stored
  * `usableBy` value is the kind. `both` files show on both pages.
  */

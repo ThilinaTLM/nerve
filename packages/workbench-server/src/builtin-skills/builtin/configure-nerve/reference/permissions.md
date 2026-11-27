@@ -12,7 +12,7 @@ Policy decides which calls run; it is not an operating-system sandbox. A shell c
 
 1. `configuration.describe()`: the rule set this conversation uses (`ruleSet.id`) and what selected it. Overlay rules apply only under the rule set they name. `configuration.explain` the call: if it is already allowed under the rule set in use, say so and ask which rule set the user means before writing anything. Otherwise write for the rule set in use, and ask whether the rule should also apply under others.
 2. Identify the exact calls: tool, command, path, URL or operation. For a prompt the user saw, `configuration.explain({ tool, args })` names the rule that decided.
-3. Pick the mechanism below and the scope: user overlay for a personal rule, project overlay for a team rule. Both wait for the user's approval in Settings → Permission rules; until then the version the user last approved stays in effect (after a restart without one, calls under that rule set are blocked). A new rule set is not selectable until approved.
+3. Pick the mechanism below and the scope: user overlay for a personal rule, project overlay for a team rule. Both wait for the user's approval in Settings → Permissions; until then the version the user last approved stays in effect (after a restart without one, calls under that rule set are blocked). A new rule set is not selectable until approved.
 4. Write the narrowest rule. Take tool names and groups from `configuration.tools.list()`; they are case-sensitive. Matchers: `reference/permission-matchers.md`.
 5. `configuration.check`, `configuration.reload`, then `configuration.explain` with the call again to confirm the new decision.
 
@@ -88,7 +88,7 @@ The filter (`when`), value and target matchers and globs are in `reference/permi
 
 ## Rule set file
 
-`<home>/config/rule-sets/<id>.json`; keep the file name equal to `id`. User scope only. The user approves each rule set file in Settings → Permission rules; until then it is not selectable, and a profile that requires it is unavailable.
+`<home>/config/rule-sets/<id>.json`; keep the file name equal to `id`. User scope only. The user approves each rule set file in Settings → Permissions; until then it is not selectable, and a profile that requires it is unavailable.
 
 ```json
 {

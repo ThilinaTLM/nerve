@@ -107,12 +107,12 @@ export const tourSteps: readonly TourStep[] = [
   {
     id: "capabilities",
     introducedIn: 2,
-    title: "Choose capabilities and Sub-Agents",
+    title: "Choose capabilities and Sub-agents",
     description:
-      "Skills and Sub-Agents beside the composer each open their own controls; changes apply to the next run. Turn on Delegation to hand off asynchronous work to teammates using profiles configured in Settings → Sub-Agents. Teammates share your worktree but cannot see the lead's conversation, so include context and clear editing boundaries in assignments.",
+      "Skills and Sub-agents beside the composer each open their own controls; changes apply to the next run. Turn on Delegation to hand off asynchronous work to teammates using profiles configured in Settings → Sub-agents. Teammates share your worktree but cannot see the lead's conversation, so include context and clear editing boundaries in assignments.",
     targetId: "composer-skills",
     fallback:
-      "Open a conversation to find Skills and Sub-Agents beside the composer, or configure profiles in Settings → Sub-Agents.",
+      "Open a conversation to find Skills and Sub-agents beside the composer, or configure profiles in Settings → Sub-agents.",
   },
   {
     id: "activity",

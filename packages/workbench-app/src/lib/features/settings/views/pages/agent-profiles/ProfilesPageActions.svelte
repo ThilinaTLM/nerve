@@ -4,7 +4,7 @@ import { LevelMenu } from "$lib/presentation/settings";
 import { profilesPageState } from "./profiles-page-state.svelte";
 import { profileKindForPage } from "./profile-kind";
 
-/** The header action of the Agents and Sub-Agents lists. */
+/** The header action of the Agents and Sub-agents lists. */
 let { pageId }: { pageId: string } = $props();
 </script>
 

@@ -2,40 +2,55 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   defaultSettingsPageId,
-  layoutByScope,
   pagesByScope,
   resolveSettingsPageId,
   resolveSettingsTarget,
   settingsPageDetail,
+  settingsNavLayout,
   settingsPageIds,
   settingsScopeForPage,
   type SettingsRedirect,
 } from "./settings-page-data";
 
-const grouped = (kind: "user" | "project") =>
-  layoutByScope[kind].map((group) => [group.title, group.pages]);
-
 describe("settings page registry", () => {
-  it("groups the user nav as approved", () => {
-    assert.deepEqual(grouped("user"), [
-      ["Connections", ["providers", "extensions", "accounts", "mcp-servers"]],
-      ["Agent", ["general", "tools", "skills"]],
+  it("groups the nav as approved", () => {
+    assert.deepEqual(
+      settingsNavLayout.map((group) => [group.title, group.pages]),
       [
-        "Catalog",
-        ["agents", "sub-agents", "permission-rules", "models", "suggestions"],
+        ["Agent", ["general", "agents", "sub-agents", "permission-rules"]],
+        [
+          "Capabilities",
+          ["tools", "skills", "mcp-servers", "extensions", "accounts"],
+        ],
+        ["AI", ["providers", "models"]],
+        [
+          "App",
+          [
+            "workbench",
+            "notifications",
+            "shortcuts",
+            "voice",
+            "titles",
+            "suggestions",
+          ],
+        ],
+        ["Access", ["remote", "devices"]],
+        ["System", ["storage", "background-jobs", "system", "about"]],
       ],
-      ["App", ["workbench", "notifications", "shortcuts", "voice", "titles"]],
-      [
-        "System",
-        ["storage", "background-jobs", "remote", "devices", "system", "about"],
-      ],
-    ]);
+    );
   });
 
-  it("groups the project nav as approved", () => {
-    assert.deepEqual(grouped("project"), [
-      ["Agent", ["general", "tools", "skills", "extensions", "mcp-servers"]],
-      ["Catalog", ["agents", "sub-agents", "permission-rules", "suggestions"]],
+  it("lists only a scope's own pages", () => {
+    assert.deepEqual(settingsPageIds("project"), [
+      "general",
+      "agents",
+      "sub-agents",
+      "permission-rules",
+      "tools",
+      "skills",
+      "mcp-servers",
+      "extensions",
+      "suggestions",
     ]);
   });
 
@@ -62,7 +77,7 @@ describe("settings page registry", () => {
     assert.equal(resolveSettingsPageId("project", "providers"), "general");
     // The Trust page is gone: each item is decided on its own page.
     assert.equal(resolveSettingsPageId("project", "trust"), "general");
-    assert.equal(resolveSettingsPageId("user", undefined), "providers");
+    assert.equal(resolveSettingsPageId("user", undefined), "general");
   });
 });
 
@@ -136,7 +151,7 @@ describe("settings deep-link targets", () => {
     );
     assert.deepEqual(
       resolveSettingsTarget("user", { pageId: "gone", item: "x" }),
-      { pageId: "providers" },
+      { pageId: "general" },
     );
   });
 });

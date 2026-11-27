@@ -20,8 +20,8 @@ import {
 /** Where the user decides each project file; the decision is made on the page of the resource. */
 export const AGENT_TRUST_PAGE = "Settings → General, project column";
 export const USER_AGENT_TRUST_PAGE = "Settings → General";
-export const PERMISSIONS_TRUST_PAGE = "Settings → Permission rules";
-export const PROFILE_TRUST_PAGE = "Settings → Agents or Sub-Agents";
+export const PERMISSIONS_TRUST_PAGE = "Settings → Permissions";
+export const PROFILE_TRUST_PAGE = "Settings → Agents or Sub-agents";
 const trustAt = (where: string) => ({ kind: "trust", where }) as const;
 
 /** What a diagnostic code means and what to do next; the parser's detail is appended. */

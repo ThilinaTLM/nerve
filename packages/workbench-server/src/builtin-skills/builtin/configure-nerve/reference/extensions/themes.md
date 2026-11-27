@@ -1,6 +1,6 @@
 # Themes
 
-A theme extension has `ui.themes: [{ id, label, file: "src/themes/<id>.json" }]` and no backend. Themes are data: a JSON file with exactly the tokens below, never CSS. Only **user** extensions contribute themes (a theme is app-wide); a project extension's themes are ignored with a warning. The user picks it in Settings → Workbench → Appearance once the extension is allowed.
+A theme extension has `ui.themes: [{ id, label, file: "src/themes/<id>.json" }]` and no backend. Themes are data: a JSON file with exactly the tokens below, never CSS. Only **user** extensions contribute themes (a theme is app-wide); a project extension's themes are ignored with a warning. The user picks it in Settings → Appearance once the extension is allowed.
 
 ```json
 {

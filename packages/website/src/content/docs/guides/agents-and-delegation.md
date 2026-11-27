@@ -18,7 +18,7 @@ Delegation is off by default.
 
 To change the default for new conversations, use the **Sub-agents** row in **Settings → Tools**.
 
-The lead can only start sub-agents from profiles that are usable as teammates. Manage them in **Settings → Sub-Agents**.
+The lead can only start sub-agents from profiles that are usable as teammates. Manage them in **Settings → Sub-agents**.
 
 ## What the lead does
 
@@ -45,7 +45,7 @@ Each time a sub-agent finishes, the lead receives its final response or error. I
 
 ## Write your own teammate profile
 
-1. Open **Settings → Sub-Agents** and choose **New profile**.
+1. Open **Settings → Sub-agents** and choose **New profile**.
 2. Pick user scope (all projects) or project scope (shared through the repository).
 3. Start blank or copy an existing profile, then set its model, permissions, tools, and skills.
 4. Describe when the lead should use it. The lead picks profiles from that description.

@@ -46,7 +46,7 @@ State is in memory only and rebuilt on start:
 | `lastRun` | Start, duration, outcome (`ok` with summary, or error message)  |
 | `nextRun` | When it runs next (absent while running)                        |
 
-- **Settings.** The Background jobs page lists each job with its state and a **Run now** action, which queues a run immediately unless the job is running or queued. Every state change publishes `backgroundJobs.changed` with the job.
+- **Settings.** The Jobs page lists each job with its state and a **Run now** action, which queues a run immediately unless the job is running or queued. Every state change publishes `backgroundJobs.changed` with the job.
 - **Activity bell.** Routine runs stay out of the bell. A job reports what the user must act on as a producer-owned notice through `ActivityService.reportNotice` (`BackgroundJobNotices.report`, kind `background-job.<id>`) and clears it when resolved. A job that fails three times in a row shows a "keeps failing" notice linking to its Settings page, cleared by the next success.
 - **Logs** carry the job id and message; never secrets.
 

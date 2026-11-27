@@ -153,7 +153,7 @@ export function scopedConversationCreation(
         throw new Error(
           waiting.code === "declined"
             ? `Profile "${profile}" is unavailable: the user declined it. Do not retry; choose another profile or tell the user.`
-            : `Profile "${profile}" is unavailable: it waits for the user's review in Settings → Sub-Agents and cannot be used until they approve it. Do not retry; choose another profile or tell the user.`,
+            : `Profile "${profile}" is unavailable: it waits for the user's review in Settings → Sub-agents and cannot be used until they approve it. Do not retry; choose another profile or tell the user.`,
         );
       const resolved = await resolve(scope.projectId, profile, parentId);
       const settings = resolved.resolution.settings;

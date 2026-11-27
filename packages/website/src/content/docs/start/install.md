@@ -27,7 +27,7 @@ The first launch downloads Electron's platform binary and the native package for
 
 On launch, the desktop app starts a local background service (the daemon) on `127.0.0.1:3747`, or reuses one that is already running, and then opens the workbench.
 
-Closing the window quits Nerve and stops the daemon it started. (To keep Nerve running in the tray instead, turn on **Close to system tray** in **Settings → Workbench → Desktop**.) A daemon that was already running, or a remote one, is left alone.
+Closing the window quits Nerve and stops the daemon it started. (To keep Nerve running in the tray instead, turn on **Close to system tray** in **Settings → Appearance → Desktop**.) A daemon that was already running, or a remote one, is left alone.
 
 ## Where Nerve keeps your data
 

@@ -27,7 +27,7 @@ For mobile browsers, add self-signed HTTPS:
 npx @nervekit/desktop@latest -- --host 0.0.0.0 --allow-remote --mobile-https
 ```
 
-HTTP defaults to 3747 and mobile HTTPS to 3748. The same switches are in **Settings → Remote connections → On the same network**; they apply after a daemon restart. To pair a phone, use **Pair a device** there or in **Settings → Devices** (see [Pairing](#pairing)).
+HTTP defaults to 3747 and mobile HTTPS to 3748. The same switches are in **Settings → Remote → On the same network**; they apply after a daemon restart. To pair a phone, use **Pair a device** there or in **Settings → Devices** (see [Pairing](#pairing)).
 
 ## Trust the local CA
 
@@ -55,7 +55,7 @@ Use firewall rules and a trusted network. Stop remote binding when it is no long
 
 <!-- screenshot: remote-tailscale -->
 
-To use Nerve from your phone away from home, turn on **Settings → Remote connections → Private access**. Nerve serves itself through [Tailscale Serve](https://tailscale.com/kb/1312/serve) at `https://<machine>.<tailnet>.ts.net`, reachable only from devices on your tailnet. The certificate is a normal trusted one, so the phone needs no CA install, and Nerve itself keeps listening only on this computer: `--allow-remote` and mobile HTTPS are not needed.
+To use Nerve from your phone away from home, turn on **Settings → Remote → Private access**. Nerve serves itself through [Tailscale Serve](https://tailscale.com/kb/1312/serve) at `https://<machine>.<tailnet>.ts.net`, reachable only from devices on your tailnet. The certificate is a normal trusted one, so the phone needs no CA install, and Nerve itself keeps listening only on this computer: `--allow-remote` and mobile HTTPS are not needed.
 
 You need Tailscale installed and signed in on the computer and the phone, with MagicDNS on. The first time, Nerve may ask you to:
 

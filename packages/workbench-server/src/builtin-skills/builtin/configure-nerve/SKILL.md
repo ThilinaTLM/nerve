@@ -54,7 +54,7 @@ Model providers, accounts and credentials, extension settings, conversation defa
 
 - Same name: project wins over user, user over built-in. A project profile or skill replaces the lower one whole; nothing is merged.
 - Agent preferences: built-in, then user, then project, then the conversation's own choices; a later layer overrides single fields. A profile's requirements win over all of them.
-- Nothing you write is used until the user approves its exact content, in the user's files and the project's alike: `agent.json` in Settings → General; permission overlays and rule sets in Settings → Permission rules; agent profiles in Settings → Agents or Sub-Agents; skills in Settings → Skills; prompt suggestion files in Settings → Suggestions; extensions in Settings → Extensions; MCP entries in Settings → MCP servers. Only what the user changes in Nerve's own Settings stays approved.
+- Nothing you write is used until the user approves its exact content, in the user's files and the project's alike: `agent.json` in Settings → General; permission overlays and rule sets in Settings → Permissions; agent profiles in Settings → Agents or Sub-agents; skills in Settings → Skills; prompt suggestion files in Settings → Suggestions; extensions in Settings → Extensions; MCP entries in Settings → MCP servers. Only what the user changes in Nerve's own Settings stays approved.
 - Any edit outside Settings, including yours, asks again. You cannot approve, consent or add credentials.
 - While a changed user permission file or `agent.json` waits, the version the user last approved stays in effect. Until the user approves, a new rule set, profile, skill or suggestion is not selectable, offered or shown.
 

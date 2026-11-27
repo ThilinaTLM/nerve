@@ -12,7 +12,7 @@ A profile packages how an agent works: instructions plus settings for model, thi
 2. Choose settings: permission rule set first (`configuration.list({ kind: "rule-set" })`), then model (`configuration.describe()` lists `availableModels`) and thinking if the user has a preference, then tools and skills. Recommend by default; require only what the purpose depends on. If no rule set gives the needed behavior, create one first (`reference/permissions.md`).
 3. Write the file: user scope for a personal profile, project scope for a team one.
 4. `configuration.check`, then `configuration.reload`.
-5. Tell the user how to use it: a lead profile from the composer's profile picker or `/profile <name>`; a sub-agent profile is offered to the lead when delegation is on. A project profile first needs approval in Settings → Agents or Sub-Agents. A profile already in use needs **Apply updated profile**.
+5. Tell the user how to use it: a lead profile from the composer's profile picker or `/profile <name>`; a sub-agent profile is offered to the lead when delegation is on. A project profile first needs approval in Settings → Agents or Sub-agents. A profile already in use needs **Apply updated profile**.
 
 ## Common requests
 
@@ -28,7 +28,7 @@ A user or project file with the same name replaces a built-in completely. To adj
 
 ## File
 
-User: `<home>/agent/agent-profiles/<name>.json`. Project: `<project>/.nerve/agent-profiles/<name>.json`. Both wait for the user's approval in Settings → Agents or Sub-Agents; until then the profile cannot be selected and `subagent_prompt` to it fails. Name the profile and the page when you hand over. A rule set it requires must be approved too. The file name is the profile `name` plus `.json`.
+User: `<home>/agent/agent-profiles/<name>.json`. Project: `<project>/.nerve/agent-profiles/<name>.json`. Both wait for the user's approval in Settings → Agents or Sub-agents; until then the profile cannot be selected and `subagent_prompt` to it fails. Name the profile and the page when you hand over. A rule set it requires must be approved too. The file name is the profile `name` plus `.json`.
 
 Project files carry an extra top-level `"version": 3`. In a user file, drop that line from the example below.
 

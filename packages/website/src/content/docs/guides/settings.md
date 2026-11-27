@@ -17,30 +17,32 @@ Without an open project the page shows only the User column. Phones show a small
 
 ## Pages
 
-| Group                   | Pages                                                                | Use them to                                                                                                                                                                                                  |
-| ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Agent**               | General, Tools, Skills, Extensions, MCP servers                      | Set defaults for new conversations, turn tools and skills on or off, set up [extensions](/integrations/extensions/) and [MCP servers](/integrations/mcp/).                                                   |
-| **Profiles and rules**  | Agents, Sub-Agents, Permission rules, Suggestions                    | Edit agent profiles, choose teammate profiles, define permission rules, and manage prompt chips.                                                                                                             |
-| **Models and accounts** | Providers, Models, Accounts                                          | Sign in to model providers, limit the models in pickers, and manage the accounts extensions use. See [Providers](/models/providers-and-auth/) and [Accounts](#accounts).                                     |
-| **App**                 | Workbench, Notifications, Shortcuts, Voice, Titles                   | Pick a theme, set desktop options, tune notifications and sounds, review shortcuts, set up voice input, and enable AI titles.                                                                                |
-| **System**              | Storage, Background jobs, Remote connections, Devices, System, About | See what Nerve stores, check background work, set up [private access and same-network access](/operations/lan-mobile/), manage paired devices, change diagnostics and daemon options, and check the version. |
+| Group            | Pages                                                            | Use them to                                                                                                                                                    |
+| ---------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agent**        | General, Agents, Sub-agents, Permissions                         | Set defaults for new conversations, edit agent and teammate profiles, and define permission rules.                                                             |
+| **Capabilities** | Tools, Skills, MCP servers, Extensions, Accounts                 | Turn tools and skills on or off, set up [MCP servers](/integrations/mcp/) and [extensions](/integrations/extensions/), and manage the accounts extensions use. |
+| **AI**           | Providers, Models                                                | Sign in to model providers and limit the models in pickers. See [Providers](/models/providers-and-auth/).                                                      |
+| **App**          | Appearance, Notifications, Shortcuts, Voice, Titles, Suggestions | Pick a theme, set desktop options, tune notifications and sounds, review shortcuts, set up voice input, enable AI titles, and manage prompt chips.             |
+| **Access**       | Remote, Devices                                                  | Set up [private access and same-network access](/operations/lan-mobile/) and manage paired devices.                                                            |
+| **System**       | Storage, Jobs, Advanced, About                                   | See what Nerve stores, check background work, change diagnostics and daemon options, and check the version.                                                    |
 
 There are no separate Trust, Launch, or Instructions files pages. Review decisions are made on the page where an item is used (see [Items you review](#items-you-review)), launches are managed in the Launches panel, and project instructions are the repository's `AGENTS.md` files.
-
-### Workbench
-
-- **Appearance** has the theme picker. See [Themes and appearance](/guides/personalize/).
-- **Desktop** has the header style and **Close to system tray**. By default, closing the window quits Nerve and stops running launches and commands. Turn on the tray option to hide Nerve instead.
 
 ### Agent
 
 - **General** holds defaults for new conversations: profile, permission level, model, thinking level, and compaction. Projects and conversations can override them.
+- **Agents** edits lead profiles such as Coding and Planning, and your own. See [Choose a profile](/guides/agent-controls/).
+- **Sub-agents** edits the teammate profiles the lead can delegate to. See [Sub-agents](/guides/agents-and-delegation/).
+- **Permissions** manages rule sets and overlays; a project's rules apply once you trust them.
+
+### Capabilities
+
 - **Tools** lists the core tools: Bash (background-command behavior), Python, [Quick script](/guides/quick-script/), Web fetch, Sub-agents, and Plan review. Quick script is on by default and lists the namespaces that are usable. Web search, Jira, Confluence, diagrams, and image generation are set up in their extensions.
 - **Skills** lists your, project, built-in, and Agent Browser skills. See [Skills and project resources](/guides/skills-and-resources/).
-- **Extensions** lists the five built-in extensions (Web Search, Atlassian, Diagrams, Image generation, Image explanation) and the extensions you installed. Each row has User and project switches; open one to see a problem and its fix, add accounts, change its settings, see its **Features**, and review or revoke consent. The page re-reads extension folders when you open it, and **Reload** does so again. A project's extension file is ignored until you trust it. See [Extensions](/integrations/extensions/).
 - **MCP servers** lists the servers in your `mcp.json` and the project's. **Add MCP server** offers a form or pasted JSON, and each server shows its tools after a connection test. See [MCP servers](/integrations/mcp/).
+- **Extensions** lists the five built-in extensions (Web Search, Atlassian, Diagrams, Image generation, Image explanation) and the extensions you installed. Each row has User and project switches; open one to see a problem and its fix, add accounts, change its settings, see its **Features**, and review or revoke consent. The page re-reads extension folders when you open it, and **Reload** does so again. A project's extension file is ignored until you trust it. See [Extensions](/integrations/extensions/).
 
-### Accounts
+#### Accounts
 
 **Accounts** lists every account that extensions use, whichever extension defines it, with one search box that matches an account's name, kind, platform, extension, level, and state (**Ready**, **Needs sign-in**, **Failed**, **Unavailable**). Add an account, sign in (a browser page or a device code, depending on the service), test it, move it between levels, duplicate it, clear its credentials, or delete it.
 
@@ -50,27 +52,29 @@ There are no separate Trust, Launch, or Instructions files pages. Review decisio
 
 Extension pages keep only the choice of which account to use, and link here.
 
-### Profiles and rules
+### AI
 
-- **Agents** edits lead profiles such as Coding and Planning, and your own. See [Choose a profile](/guides/agent-controls/).
-- **Sub-Agents** edits the teammate profiles the lead can delegate to. See [Sub-agents](/guides/agents-and-delegation/).
-- **Permission rules** manage rule sets and overlays; a project's rules apply once you trust them.
-- **Models** (under Models and accounts) limits which models the composer offers. An empty list keeps every signed-in model available.
-- **Suggestions** manages [prompt suggestions](/guides/prompt-suggestions/).
+- **Providers** signs in to subscriptions, adds API keys, and defines custom providers and models. See [Providers](/models/providers-and-auth/).
+- **Models** limits which models the composer offers. An empty list keeps every signed-in model available.
 
-### Notifications, voice, and titles
+### App
 
+- **Appearance** has the theme picker and desktop options. See [Themes and appearance](/guides/personalize/). Its **Desktop** section has the header style and **Close to system tray**. By default, closing the window quits Nerve and stops running launches and commands. Turn on the tray option to hide Nerve instead.
 - **Notifications** has General and Sounds sections. See [Notifications and activity](/guides/notifications/).
 - **Voice** picks the speech-to-text model and context hints. Voice input needs an OpenAI Codex sign-in.
 - **Titles** turns on AI titles. Every new conversation gets an instant local title first; the AI title replaces it once in the background and never overrides a name you set.
+- **Suggestions** manages [prompt suggestions](/guides/prompt-suggestions/).
 
-### Storage and System
+### Access
+
+- **Remote** turns on private access with Tailscale (**Anywhere, with Tailscale**) or access from the same network, and pairs devices. See [Phone and remote access](/operations/lan-mobile/).
+- **Devices** lists paired phones and browsers, passkeys, and recent activity.
+
+### System
 
 - **Storage** shows what Nerve keeps on disk and runs cancellable cleanup. See [Back up, move, and upgrade data](/operations/storage-migration/).
-- **Background jobs** lists work Nerve does on its own while it runs. Today that is **Account credential refresh**, which renews sign-ins that are about to expire so they keep working in the background; it skips accounts you haven't used for 30 days. Each job shows its last run and next run, and **Run now** starts it at once. A job that keeps failing, or an account that needs sign-in, appears in the notification bell. Jobs run only while Nerve runs.
-- **Remote connections** turns on private access with Tailscale (**Anywhere, with Tailscale**) or access from the same network, and pairs devices. See [Phone and remote access](/operations/lan-mobile/).
-- **Devices** lists paired phones and browsers, passkeys, and recent activity.
-- **System** covers network listener settings, diagnostics, resource limits, the daemon, desktop rendering, and daemon options. A control that a command-line flag or environment variable owns shows as locked. Some changes need a restart.
+- **Jobs** lists work Nerve does on its own while it runs. Today that is **Account credential refresh**, which renews sign-ins that are about to expire so they keep working in the background; it skips accounts you haven't used for 30 days. Each job shows its last run and next run, and **Run now** starts it at once. A job that keeps failing, or an account that needs sign-in, appears in the notification bell. Jobs run only while Nerve runs.
+- **Advanced** covers network listener settings, diagnostics, resource limits, the daemon, desktop rendering, and daemon options. A control that a command-line flag or environment variable owns shows as locked. Some changes need a restart.
 - **About** shows the version you run and whether a newer stable release exists, with the commands to run it, the Apache License 2.0, and links to the website, documentation, source code, releases and issue tracker. The title bar shows the version only as an **Update** button while a newer release exists; otherwise the version is in the daemon status popover.
 
 ## Items you review

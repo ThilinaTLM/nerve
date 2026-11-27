@@ -42,7 +42,7 @@ Start with the codebase overview, then the conversation core.
 **UI design system**
 
 - [Styling](ui/styling.md) — tokens, surfaces, themes, type scale, controls, scoped styles and global CSS.
-- [Settings UI](ui/settings.md) — headings, navigation, sections, lists, the Accounts and Background jobs pages, entity cards and provenance.
+- [Settings UI](ui/settings.md) — headings, navigation, sections, lists, the Accounts and Jobs pages, entity cards and provenance.
 - [Transcript notices](ui/transcript-notices.md) — notice cards and their shared anatomy with tool calls.
 - [Panel views](ui/panels.md) — dock panel primitives and layout rules.
 

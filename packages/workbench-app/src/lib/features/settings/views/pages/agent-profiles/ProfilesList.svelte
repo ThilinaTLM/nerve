@@ -1,5 +1,5 @@
 <!--
-  The Agents / Sub-Agents list: one group per origin (project, user, built-in),
+  The Agents / Sub-agents list: one group per origin (project, user, built-in),
   one row per profile with a summary of its changes. Sub-agent rows carry the
   launch switches; main agents are chosen, not switched.
 -->

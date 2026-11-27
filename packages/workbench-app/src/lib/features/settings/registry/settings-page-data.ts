@@ -75,14 +75,14 @@ const agents: PageData = {
   detail: { param: "profile" },
 };
 const subAgents: PageData = {
-  label: "Sub-Agents",
+  label: "Sub-agents",
   description:
     "Profiles the lead agent can delegate to. Edits don't change sub-agents already started.",
-  sections: [{ id: "sub-agents", label: "Sub-Agents" }],
+  sections: [{ id: "sub-agents", label: "Sub-agents" }],
   detail: { param: "profile" },
 };
 const permissionRules: PageData = {
-  label: "Permission rules",
+  label: "Permissions",
   description:
     "Rule sets decide which tool calls are allowed, asked about or blocked.",
   sections: [{ id: "rule-sets", label: "Rule sets" }],
@@ -114,7 +114,7 @@ const userPages: Record<string, PageData> = {
   "permission-rules": permissionRules,
   models,
   workbench: {
-    label: "Workbench",
+    label: "Appearance",
     description: "How Nerve looks and behaves on this computer.",
     sections: [
       { id: "appearance", label: "Appearance" },
@@ -157,13 +157,13 @@ const userPages: Record<string, PageData> = {
     sections: [{ id: "storage", label: "Storage" }],
   },
   "background-jobs": {
-    label: "Background jobs",
+    label: "Jobs",
     description:
       "Work Nerve does on its own. A job that keeps failing shows in the notification bell.",
     sections: [{ id: "jobs", label: "Jobs" }],
   },
   remote: {
-    label: "Remote connections",
+    label: "Remote",
     description: "Open Nerve from your phone or another computer.",
     sections: [
       { id: "tailscale", label: "Tailscale" },
@@ -181,7 +181,7 @@ const userPages: Record<string, PageData> = {
     ],
   },
   system: {
-    label: "System",
+    label: "Advanced",
     description: "Listener, diagnostics and daemon controls.",
     sections: [
       { id: "network", label: "Listener" },
@@ -244,67 +244,47 @@ export const pagesByScope: Record<
 export type NavLayout = readonly {
   id: string;
   title: string;
-  pages: string[];
+  pages: readonly string[];
 }[];
 
-const userLayout: NavLayout = [
-  {
-    id: "connections",
-    title: "Connections",
-    pages: ["providers", "extensions", "accounts", "mcp-servers"],
-  },
-  { id: "agent", title: "Agent", pages: ["general", "tools", "skills"] },
-  {
-    id: "catalog",
-    title: "Catalog",
-    pages: [
-      "agents",
-      "sub-agents",
-      "permission-rules",
-      "models",
-      "suggestions",
-    ],
-  },
-  {
-    id: "app",
-    title: "App",
-    pages: ["workbench", "notifications", "shortcuts", "voice", "titles"],
-  },
-  {
-    id: "system",
-    title: "System",
-    pages: [
-      "storage",
-      "background-jobs",
-      "remote",
-      "devices",
-      "system",
-      "about",
-    ],
-  },
-];
-
-const projectLayout: NavLayout = [
+/** The settings nav: one layout, with or without an open project. */
+export const settingsNavLayout: NavLayout = [
   {
     id: "agent",
     title: "Agent",
-    pages: ["general", "tools", "skills", "extensions", "mcp-servers"],
+    pages: ["general", "agents", "sub-agents", "permission-rules"],
   },
   {
-    id: "catalog",
-    title: "Catalog",
-    pages: ["agents", "sub-agents", "permission-rules", "suggestions"],
+    id: "capabilities",
+    title: "Capabilities",
+    pages: ["tools", "skills", "mcp-servers", "extensions", "accounts"],
+  },
+  { id: "ai", title: "AI", pages: ["providers", "models"] },
+  {
+    id: "app",
+    title: "App",
+    pages: [
+      "workbench",
+      "notifications",
+      "shortcuts",
+      "voice",
+      "titles",
+      "suggestions",
+    ],
+  },
+  { id: "access", title: "Access", pages: ["remote", "devices"] },
+  {
+    id: "system",
+    title: "System",
+    pages: ["storage", "background-jobs", "system", "about"],
   },
 ];
 
-export const layoutByScope: Record<SettingsScopeKind, NavLayout> = {
-  user: userLayout,
-  project: projectLayout,
-};
-
-/** Page ids in nav order. */
+/** Page ids of a scope in nav order. */
 export function settingsPageIds(kind: SettingsScopeKind): string[] {
-  return layoutByScope[kind].flatMap((group) => group.pages);
+  return settingsNavLayout
+    .flatMap((group) => group.pages)
+    .filter((id) => Object.hasOwn(pagesByScope[kind], id));
 }
 
 export function defaultSettingsPageId(kind: SettingsScopeKind): string {

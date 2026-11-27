@@ -1,5 +1,5 @@
 <!--
-  Settings › Remote connections: how phones and other computers reach this
+  Settings › Remote: how phones and other computers reach this
   Nerve. Tailscale first (works anywhere, nothing to install on the phone
   besides Tailscale), then the same-network listener.
 -->

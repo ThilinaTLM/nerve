@@ -47,7 +47,7 @@ Relative source paths resolve from the working directory; absolute paths also wo
 
 `desktop:prod` is an explicit source-build launch against `~/.nerve` (or an overridden `NERVE_HOME`), not a release build. It may migrate or change your real data. Installed/npm desktop defaults remain unchanged. See [Contributing](https://github.com/ThilinaTLM/nerve/blob/main/CONTRIBUTING.md) for safe slot cleanup and ownership rules.
 
-Enable trusted-LAN and mobile HTTPS access from **Settings → Remote connections → On the same network**, then restart the owned daemon when prompted.
+Enable trusted-LAN and mobile HTTPS access from **Settings → Remote → On the same network**, then restart the owned daemon when prompted.
 
 For UI-only development against a running daemon:
 

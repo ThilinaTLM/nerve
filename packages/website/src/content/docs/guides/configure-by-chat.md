@@ -53,8 +53,8 @@ The agent can't approve, trust, consent, or add credentials. It writes the files
 | ------------------------------------------------ | --------------------------------------- |
 | A skill (user or project)                        | **Settings → Skills**                   |
 | An `agent.json` (user or project)                | **Settings → General**                  |
-| Permission rule sets and your permission overlay | **Settings → Permission rules**         |
-| An agent or sub-agent profile (user or project)  | **Settings → Agents** or **Sub-Agents** |
+| Permission rule sets and your permission overlay | **Settings → Permissions**              |
+| An agent or sub-agent profile (user or project)  | **Settings → Agents** or **Sub-agents** |
 | A prompt suggestions file (user or project)      | **Settings → Suggestions**              |
 | A new extension, or one that gained a permission | **Settings → Extensions**               |
 | An MCP server entry (user or project)            | **Settings → MCP servers**              |
