@@ -174,7 +174,8 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         launches: 0,
       },
     }),
-    "storage.usage.get": (state) => state.storageUsage.computeUsage(),
+    "storage.usage.get": (state, params) =>
+      state.storageUsage.computeUsage(params?.force === true),
     "storage.cleanup": async (state, parameters) => ({
       operation: await state.maintenance.start({
         kind: "storage_cleanup",

@@ -37,6 +37,14 @@ export function recommendedCleanupSelection(): StorageCleanupSelection {
   };
 }
 
+/** Only `target` selected, with the default ages. */
+export function cleanupSelectionFor(
+  target: StorageCleanupTarget,
+): StorageCleanupSelection {
+  // Each target is also its selection flag.
+  return { ...EMPTY_CLEANUP_SELECTION, [target]: true };
+}
+
 export function allCleanupSelection(
   current: StorageCleanupSelection,
 ): StorageCleanupSelection {
@@ -113,17 +121,4 @@ export function selectedFootprint(
     if (target.estimate !== "exact") upTo = true;
   }
   return { bytes, upTo };
-}
-
-export function targetLabel(target: StorageCleanupTarget): string {
-  return (
-    {
-      conversations: "Old conversations",
-      datedLogs: "Dated logs",
-      rotatedEventLog: "Rotated event log",
-      crashReports: "Crash reports",
-      cache: "Cache",
-      tmp: "Temporary files",
-    } satisfies Record<StorageCleanupTarget, string>
-  )[target];
 }

@@ -4,138 +4,111 @@ import {
   type MaintenanceOperation,
 } from "@nervekit/contracts/maintenance";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { Callout } from "@nervekit/ui-kit/components/composites/callout";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CheckCircle2 from "@lucide/svelte/icons/check-circle-2";
+import {
+  cleanupTargetLabel,
+  maintenanceActivity,
+  maintenanceCount,
+  maintenanceProgress,
+  maintenanceTitle,
+} from "./maintenance-progress";
 let {
   operation,
   onCancel,
 }: { operation: MaintenanceOperation; onCancel?: () => void } = $props();
 const active = $derived(isMaintenanceActive(operation));
-const title = $derived(
-  operation.kind === "delete_project" ? "Removing project" : "Cleaning up",
-);
-const stages: Record<string, string> = {
-  stopping_agents: "checking and stopping agents",
-  events: "deleting events",
-  leaves: "deleting agent context leaves",
-  parent_links: "detaching parent links",
-  record_projections: "deleting history projections",
-  tool_projections: "deleting tool projections",
-  records: "deleting history records",
-  snapshots: "deleting snapshots",
-  journal_heads: "deleting journal metadata",
-  journal_commits: "deleting journal commits",
-  metadata: "deleting conversation metadata",
-  complete: "finishing history deletion",
-  streams: "removing streams",
-  payloads: "removing payloads",
-};
-const progress = $derived.by(() => {
-  if (
-    !active ||
-    ["queued", "preparing", "discovering", "finalizing"].includes(
-      operation.phase,
-    )
-  )
-    return undefined;
-  const total = operation.totalItems ?? operation.totalTargets;
-  const completed =
-    operation.totalItems === undefined
-      ? operation.completedTargets
-      : operation.completedItems;
-  return total > 0 && completed < total
-    ? Math.min(99, Math.round((completed / total) * 100))
-    : undefined;
-});
-const progressText = $derived(
-  active && operation.totalItems !== undefined
-    ? ` ${operation.completedItems}/${operation.totalItems} conversations`
-    : "",
+const progress = $derived(maintenanceProgress(operation));
+const count = $derived(active ? maintenanceCount(operation) : "");
+const removed = $derived(
+  [
+    operation.removedConversationCount > 0 &&
+      `${operation.removedConversationCount.toLocaleString()} conversations removed`,
+    operation.removedLaunchCount > 0 &&
+      `${operation.removedLaunchCount.toLocaleString()} launch records removed`,
+  ]
+    .filter(Boolean)
+    .join(" · "),
 );
 </script>
 
-<div class="grid min-w-0 gap-3" aria-live="polite" aria-atomic="true">
+<div class="grid min-w-0 gap-2" aria-live="polite" aria-atomic="true">
   <div class="flex items-start gap-2">
     {#if active}<Spinner class="mt-0.5 size-4 shrink-0" />
     {:else if operation.status === "succeeded" && !operation.warnings.length}<CheckCircle2
         class="mt-0.5 size-4 shrink-0 text-success"
       />
     {:else}<CircleAlert class="mt-0.5 size-4 shrink-0 text-warning" />{/if}
-    <div class="min-w-0">
+    <div class="grid min-w-0 flex-1 gap-0.5">
       <p class="text-ui">
-        {active ? title : operation.message}{progressText}
+        {active ? maintenanceTitle(operation) : operation.message}
       </p>
       {#if operation.project}<p
-          class="truncate text-ui text-muted-foreground"
+          class="truncate text-caption text-muted-foreground"
           title={operation.project.directory}
         >
           {operation.project.name}
         </p>{/if}
     </div>
+    {#if count}<span class="flex-none text-caption text-muted-foreground"
+        >{count}</span
+      >{/if}
   </div>
-  {#if active}<p class="text-ui text-muted-foreground">
-      {operation.message}
-    </p>{/if}
-  {#if progress !== undefined}<Progress
-      value={progress}
-      aria-label="Completed cleanup items"
-    />{/if}
-  {#if operation.currentItem && active}
-    <div class="grid gap-1 text-ui">
-      <p class="truncate" title={operation.currentItem.conversationId}>
-        {operation.currentItem.title ?? operation.currentItem.conversationId}
-      </p>
-      <p class="text-muted-foreground">
-        {stages[operation.currentItem.stage] ?? operation.currentItem.stage}: {operation.currentItem.removedRows.toLocaleString()}
-        rows removed
-      </p>
-      {#if operation.currentItem.detachedLinks > 0}<p
-          class="text-muted-foreground"
-        >
-          {operation.currentItem.detachedLinks.toLocaleString()} links detached (not
-          deleted rows)
-        </p>{/if}
-    </div>
-  {/if}
-  {#if operation.totalTargets > 0}<p class="text-ui text-muted-foreground">
-      {operation.completedTargets}/{operation.totalTargets} storage targets completed
-    </p>{/if}
-  <p class="text-ui text-muted-foreground">
-    {operation.removedConversationCount} conversations removed · {operation.removedLaunchCount}
-    launch records removed
-  </p>
-  {#if operation.error}<p class="break-words text-ui text-destructive">
-      {operation.error}
-    </p>{/if}
-  {#each operation.warnings as warning, index (index)}<p
-      class="break-words text-ui text-warning"
+  {#if active}
+    {#if progress !== undefined}<Progress
+        value={progress}
+        aria-label="Cleanup progress"
+      />{/if}
+    <p
+      class="truncate text-caption text-muted-foreground"
+      title={maintenanceActivity(operation)}
     >
-      {warning}
-    </p>{/each}
+      {maintenanceActivity(operation)}
+    </p>
+  {/if}
   {#if operation.result?.kind === "storage_cleanup"}
-    <ul class="grid gap-1 text-ui text-muted-foreground">
+    <ul class="grid gap-0.5 text-caption text-muted-foreground">
       {#each operation.result.targets as target (target.target)}<li>
-          {target.target}: {target.outcome} · {target.removedItems} removed{#if target.note}
+          {cleanupTargetLabel(target.target)} · {target.outcome === "succeeded"
+            ? `${target.removedItems.toLocaleString()} removed`
+            : target.outcome}{#if target.note}
             · {target.note}{/if}
         </li>{/each}
     </ul>
   {/if}
+  {#if removed}<p class="text-caption text-muted-foreground">{removed}</p>{/if}
+  {#if operation.error}<Callout
+      tone="destructive"
+      text={operation.error}
+    />{/if}
+  {#if operation.warnings.length}
+    <Callout tone="warning">
+      {#each operation.warnings as warning, index (index)}<p
+          class="break-words"
+        >
+          {warning}
+        </p>{/each}
+    </Callout>
+  {/if}
   {#if active && operation.cancellable && onCancel}
-    <Button
-      size="sm"
-      variant="outline"
-      disabled={operation.cancellationRequested}
-      onclick={onCancel}
-      >{operation.cancellationRequested
-        ? "Stop requested"
-        : operation.currentItem
-          ? "Stop after this conversation"
-          : "Stop after this item"}</Button
-    >
-    <p class="text-ui text-muted-foreground">
-      Already removed data will not be restored.
-    </p>
+    <div class="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={operation.cancellationRequested}
+        onclick={onCancel}
+        >{operation.cancellationRequested
+          ? "Stopping"
+          : operation.currentItem
+            ? "Stop after this conversation"
+            : "Stop after this item"}</Button
+      >
+      <span class="text-caption text-muted-foreground"
+        >Removed data stays removed.</span
+      >
+    </div>
   {/if}
 </div>

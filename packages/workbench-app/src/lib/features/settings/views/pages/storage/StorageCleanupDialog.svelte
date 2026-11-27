@@ -11,6 +11,7 @@ import {
   allCleanupSelection,
   buildCleanupRequest,
   cleanupSelectionError,
+  cleanupSelectionFor,
   EMPTY_CLEANUP_SELECTION,
   recommendedCleanupSelection,
   selectedFootprint,
@@ -22,20 +23,47 @@ import StorageCleanupChoice from "./StorageCleanupChoice.svelte";
 
 type Props = {
   open?: boolean;
+  /** Opens with only this target selected; without it, the recommended set. */
+  preset?: StorageCleanupTarget;
   usage?: StorageUsageResponse;
   onStart: (
     request: NonNullable<ReturnType<typeof buildCleanupRequest>>,
   ) => void;
 };
 
-let { open = $bindable(false), usage, onStart }: Props = $props();
+let { open = $bindable(false), preset, usage, onStart }: Props = $props();
 
-let selection = $state<StorageCleanupSelection>({ ...EMPTY_CLEANUP_SELECTION });
+const groupTargets: Record<string, StorageCleanupTarget[]> = {
+  history: ["conversations"],
+  logs: ["datedLogs", "rotatedEventLog"],
+  disposable: ["crashReports", "cache", "tmp"],
+};
+
+let selection = $state<StorageCleanupSelection>(recommendedCleanupSelection());
 let confirmOpen = $state(false);
 let openGroups = $state<Record<string, boolean>>({
-  history: true,
-  logs: false,
-  disposable: false,
+  history: false,
+  logs: true,
+  disposable: true,
+});
+
+// Each opening starts from what the user asked for: one category's cleanup
+// from its row, or the recommended set from the header.
+let wasOpen = false;
+$effect.pre(() => {
+  if (open && !wasOpen) {
+    selection = preset
+      ? cleanupSelectionFor(preset)
+      : recommendedCleanupSelection();
+    const selected = new Set(selectedTargets(selection));
+    openGroups = Object.fromEntries(
+      Object.entries(groupTargets).map(([group, targets]) => [
+        group,
+        targets.some((target) => selected.has(target)),
+      ]),
+    );
+  }
+  wasOpen = open;
 });
 
 const request = $derived(buildCleanupRequest(selection));
@@ -44,12 +72,6 @@ const targets = $derived(selectedTargets(selection));
 const footprint = $derived(
   selectedFootprint(selection, usage?.cleanupTargets ?? []),
 );
-
-const groupTargets: Record<string, StorageCleanupTarget[]> = {
-  history: ["conversations"],
-  logs: ["datedLogs", "rotatedEventLog"],
-  disposable: ["crashReports", "cache", "tmp"],
-};
 
 function groupCount(group: string): number {
   const selected = new Set(targets);
@@ -60,7 +82,7 @@ function targetFootprint(target: StorageCleanupTarget): string {
   const item = usage?.cleanupTargets.find(
     (candidate) => candidate.target === target,
   );
-  if (!item) return "Not calculated";
+  if (!item) return "Not measured";
   const prefix = item.estimate === "exact" ? "" : "Up to ";
   return `${prefix}${formatBytes(item.bytes)}`;
 }
@@ -69,6 +91,12 @@ function resetSelection(
   next: StorageCleanupSelection = { ...EMPTY_CLEANUP_SELECTION },
 ): void {
   selection = { ...next };
+}
+
+/** Only deleting history is irreversible enough to ask twice. */
+function review(): void {
+  if (selection.conversations) confirmOpen = true;
+  else start();
 }
 
 function start(): void {
@@ -88,10 +116,12 @@ function start(): void {
     />
     <span class="grid min-w-0 flex-1 gap-0.5 text-left">
       <span class="text-ui text-foreground">{title}</span>
-      <span class="text-ui text-muted-foreground">{description}</span>
+      <span class="text-caption text-muted-foreground">{description}</span>
     </span>
     {#if groupCount(group) > 0}
-      <span class="text-ui text-muted-foreground">{groupCount(group)}</span>
+      <span class="text-caption text-muted-foreground"
+        >{groupCount(group)} selected</span
+      >
     {/if}
   </Collapsible.Trigger>
 {/snippet}
@@ -99,68 +129,33 @@ function start(): void {
 <DialogShell
   bind:open
   title="Clean up storage"
-  description="Choose what to remove. Current footprints are estimates; final results use measured space."
+  description="Choose what to remove."
   size="md"
 >
   <div class="grid gap-2">
-    <div
-      class="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-1 pb-2"
-    >
-      <div class="grid gap-0.5">
-        <span class="text-ui">
-          {targets.length} target{targets.length === 1 ? "" : "s"} selected
-        </span>
-        <span class="text-ui text-muted-foreground">
-          Will free ≈ {footprint.upTo ? "up to " : ""}{formatBytes(
-            footprint.bytes,
-          )}
-        </span>
-      </div>
-      <div class="flex flex-wrap gap-1.5">
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={() => resetSelection(recommendedCleanupSelection())}
-          >Recommended</Button
-        >
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={() => resetSelection(allCleanupSelection(selection))}
-          >Select all</Button
-        >
-        <Button size="sm" variant="ghost" onclick={() => resetSelection()}
-          >Clear</Button
-        >
-      </div>
-    </div>
-
-    <Collapsible.Root bind:open={openGroups.history}>
-      {@render groupHeader(
-        "history",
-        "History",
-        "Permanent conversation and message removal.",
-      )}
-      <Collapsible.Content
-        class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
+    <div class="flex flex-wrap gap-1.5">
+      <Button
+        size="sm"
+        variant="outline"
+        onclick={() => resetSelection(recommendedCleanupSelection())}
+        >Recommended</Button
       >
-        <StorageCleanupChoice
-          id="cleanup-conversations"
-          bind:checked={selection.conversations}
-          bind:amount={selection.conversationsDays}
-          amountLabel="Conversation age in days"
-          amountSuffix="days"
-          title="Old conversations"
-          description={`Not updated recently · ${targetFootprint("conversations")}`}
-        />
-      </Collapsible.Content>
-    </Collapsible.Root>
+      <Button
+        size="sm"
+        variant="outline"
+        onclick={() => resetSelection(allCleanupSelection(selection))}
+        >Select all</Button
+      >
+      <Button size="sm" variant="ghost" onclick={() => resetSelection()}
+        >Clear</Button
+      >
+    </div>
 
     <Collapsible.Root bind:open={openGroups.logs}>
       {@render groupHeader(
         "logs",
         "Logs",
-        "Diagnostic history that is not required for conversations.",
+        "Diagnostic history that conversations do not need.",
       )}
       <Collapsible.Content
         class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
@@ -178,7 +173,7 @@ function start(): void {
           id="cleanup-event-log"
           bind:checked={selection.rotatedEventLog}
           title="Rotated event log"
-          description={`Remove the older retained event generation · ${targetFootprint("rotatedEventLog")}`}
+          description={`The older retained event generation · ${targetFootprint("rotatedEventLog")}`}
         />
       </Collapsible.Content>
     </Collapsible.Root>
@@ -187,7 +182,7 @@ function start(): void {
       {@render groupHeader(
         "disposable",
         "Disposable data",
-        "Generated output that Nerve can operate without.",
+        "Generated output Nerve can work without.",
       )}
       <Collapsible.Content
         class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
@@ -202,7 +197,7 @@ function start(): void {
           id="cleanup-cache"
           bind:checked={selection.cache}
           title="Cache"
-          description={`Disposable cached data · ${targetFootprint("cache")}`}
+          description={`Cached data · ${targetFootprint("cache")}`}
         />
         <StorageCleanupChoice
           id="cleanup-tmp"
@@ -213,38 +208,59 @@ function start(): void {
       </Collapsible.Content>
     </Collapsible.Root>
 
-    {#if selection.conversations}
-      <Callout
-        layout="block"
-        tone="destructive"
-        text="Old conversations and their messages are permanently deleted and cannot be recovered."
-      />
-    {/if}
+    <Collapsible.Root bind:open={openGroups.history}>
+      {@render groupHeader(
+        "history",
+        "History",
+        "Conversations and their messages, permanently.",
+      )}
+      <Collapsible.Content
+        class="mt-0.5 divide-y divide-border-subtle rounded-md border border-border-subtle"
+      >
+        <StorageCleanupChoice
+          id="cleanup-conversations"
+          bind:checked={selection.conversations}
+          bind:amount={selection.conversationsDays}
+          amountLabel="Conversation age in days"
+          amountSuffix="days"
+          title="Old conversations"
+          description={`Not updated in this many days · ${targetFootprint("conversations")}`}
+        />
+      </Collapsible.Content>
+    </Collapsible.Root>
+
     {#if selectionError}
-      <Callout layout="block" tone="destructive" text={selectionError} />
+      <Callout tone="destructive" text={selectionError} />
+    {:else if selection.conversations}
+      <Callout
+        tone="warning"
+        text="Deleted conversations cannot be recovered."
+      />
     {/if}
   </div>
 
   {#snippet footer()}
     <span class="mr-auto text-ui text-muted-foreground">
-      Will free ≈ {footprint.upTo ? "up to " : ""}{formatBytes(footprint.bytes)}
+      {targets.length === 0
+        ? "Nothing selected"
+        : `Frees ${footprint.upTo ? "up to " : ""}${formatBytes(footprint.bytes)}`}
     </span>
     <Button variant="outline" onclick={() => (open = false)}>Cancel</Button>
     <Button
       variant="destructive"
       disabled={!request || !!selectionError}
-      onclick={() => (confirmOpen = true)}
+      onclick={review}
     >
-      <Trash2 class="size-3.5" aria-hidden="true" /> Review cleanup
+      <Trash2 class="size-3.5" aria-hidden="true" /> Clean up
     </Button>
   {/snippet}
 </DialogShell>
 
 <ConfirmDialog
   bind:open={confirmOpen}
-  title="Start storage cleanup?"
-  description={`This runs ${targets.length} selected cleanup target${targets.length === 1 ? "" : "s"}. Permanent history deletion cannot be undone.`}
-  confirmLabel="Start cleanup"
+  title="Delete old conversations?"
+  description={`Conversations not updated in ${selection.conversationsDays} days are deleted with their messages, along with the other selected items. This cannot be undone.`}
+  confirmLabel="Delete and clean up"
   destructive={true}
   onConfirm={start}
 />

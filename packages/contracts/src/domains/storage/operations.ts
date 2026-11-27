@@ -8,6 +8,10 @@ import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 
 const emptyParamsSchema = z.object({}).optional();
+/** `force` rescans now; otherwise the last scan is returned while one exists. */
+const storageUsageParamsSchema = z
+  .object({ force: z.boolean().optional() })
+  .optional();
 
 export const storageOperationDefinitions = [
   defineOperation(
@@ -20,7 +24,7 @@ export const storageOperationDefinitions = [
   ),
   defineOperation(
     "storage.usage.get",
-    emptyParamsSchema,
+    storageUsageParamsSchema,
     storageUsageResponseSchema,
     "read",
     ["workbench_server"] as const,
