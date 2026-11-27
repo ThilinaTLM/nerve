@@ -192,7 +192,7 @@ const diagnostics = $derived<PageStat[]>([
   <SettingsSection
     id="network"
     title="Listener"
-    description="Where the daemon listens on this computer. Phone and remote access are in Remote connections."
+    description="Where the daemon listens on this computer. Phone and remote access are on the Remote page."
   >
     <div class="grid gap-3 sm:grid-cols-2">
       <SettingsFieldRow

@@ -195,7 +195,7 @@ const fileState = $derived.by(() => {
   <PageHeader
     title={openRuleSet?.name ?? itemId}
     description={openRuleSet?.description}
-    parent={{ label: "Permission rules", onBack: onCloseItem }}
+    parent={{ label: "Permissions", onBack: onCloseItem }}
     class="mb-1"
   />
 {/if}

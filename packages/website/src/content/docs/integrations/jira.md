@@ -11,7 +11,7 @@ Each Atlassian account shows its connection status for Jira and Confluence: veri
 
 The agent writes one short script for a task instead of one tool call per request: typed methods cover users, issues, projects, boards, sprints, backlogs, attachments, comments, worklogs and issue links, and a raw `jira.request` covers the rest of the REST API. The agent discovers methods with `sdk.describe("jira")` and `sdk.docs("jira")` inside the script. Only the script's printed output returns to the conversation, and attachment bytes never enter the model context.
 
-Each SDK call is checked against your permission policy as an **operation** such as `jira.issues.create`, with the issue or project it acts on (`jira:issue/APP-12`). Reads are external reads; creating and changing issues are external writes; deletes and raw non-GET requests are destructive. In **Settings → Permission rules** you can allow, prompt or deny by operation, for example a rule that lets the agent edit issues in one project only.
+Each SDK call is checked against your permission policy as an **operation** such as `jira.issues.create`, with the issue or project it acts on (`jira:issue/APP-12`). Reads are external reads; creating and changing issues are external writes; deletes and raw non-GET requests are destructive. In **Settings → Permissions** you can allow, prompt or deny by operation, for example a rule that lets the agent edit issues in one project only.
 
 Read-only and Planning allow Jira reads without asking and block changes, which suits research. Supervised asks before every Jira call, reads included, until you save a rule.
 

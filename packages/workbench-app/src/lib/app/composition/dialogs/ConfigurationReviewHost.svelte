@@ -21,7 +21,7 @@ import ConfigurationReviewDialog from "$lib/presentation/configuration-review/Co
 const clock = createClock(() => (queue.open ? 30_000 : undefined));
 const phone = $derived(responsive.isPhone);
 
-/** A sub-agent-only profile is listed on Sub-Agents; the rest on Agents. */
+/** A sub-agent-only profile is listed on Sub-agents; the rest on Agents. */
 function profilePageOf(target: ConfigurationReviewTarget) {
   const profile = agentProfileCatalog
     .profiles(target.projectId ?? workspaceState.selectedProjectId)

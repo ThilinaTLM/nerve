@@ -13,8 +13,8 @@ import Mic from "@lucide/svelte/icons/mic";
 import Monitor from "@lucide/svelte/icons/monitor";
 import Plug from "@lucide/svelte/icons/plug";
 import Blocks from "@lucide/svelte/icons/blocks";
-import Server from "@lucide/svelte/icons/server";
-import ShieldCheck from "@lucide/svelte/icons/shield-check";
+import ServerCog from "@lucide/svelte/icons/server-cog";
+import Cpu from "@lucide/svelte/icons/cpu";
 import Shield from "@lucide/svelte/icons/shield";
 import SlidersHorizontal from "@lucide/svelte/icons/sliders-horizontal";
 import Users from "@lucide/svelte/icons/users";
@@ -32,7 +32,7 @@ import {
   resolveSettingsTarget,
   settingsScopeForPage,
   pagesByScope,
-  type NavLayout,
+  settingsNavLayout,
   type PageData,
 } from "./settings-page-data";
 
@@ -49,7 +49,7 @@ const icons: Record<string, Component> = {
   agents: Bot,
   "sub-agents": Users,
   "permission-rules": Shield,
-  models: ShieldCheck,
+  models: Cpu,
   workbench: Monitor,
   notifications: Bell,
   shortcuts: Keyboard,
@@ -60,7 +60,7 @@ const icons: Record<string, Component> = {
   "background-jobs": Timer,
   remote: Radio,
   devices: Smartphone,
-  system: Server,
+  system: ServerCog,
   about: Info,
 };
 
@@ -70,48 +70,8 @@ const icons: Record<string, Component> = {
  */
 export type SettingsSurface = { projectName?: string };
 
-/** Pages that have a User and a project layer. */
-export const layeredPageIds: readonly string[] = [
-  "general",
-  "tools",
-  "skills",
-  "extensions",
-  "mcp-servers",
-];
-
-const surfaceLayout: NavLayout = [
-  { id: "agent", title: "Agent", pages: layeredPageIds.slice() },
-  {
-    id: "catalog",
-    title: "Profiles and rules",
-    pages: ["agents", "sub-agents", "permission-rules", "suggestions"],
-  },
-  {
-    id: "connections",
-    title: "Models and accounts",
-    pages: ["providers", "models", "accounts"],
-  },
-  {
-    id: "app",
-    title: "App",
-    pages: ["workbench", "notifications", "shortcuts", "voice", "titles"],
-  },
-  {
-    id: "system",
-    title: "System",
-    pages: [
-      "storage",
-      "background-jobs",
-      "remote",
-      "devices",
-      "system",
-      "about",
-    ],
-  },
-];
-
 /** Page ids in nav order; the same with or without a project. */
-const surfacePageIds: readonly string[] = surfaceLayout.flatMap(
+const surfacePageIds: readonly string[] = settingsNavLayout.flatMap(
   (group) => group.pages,
 );
 
@@ -153,7 +113,7 @@ export function settingsNavFor(
   surface: SettingsSurface,
   badges: Readonly<Record<string, SettingsNavBadge>> = {},
 ): SettingsNavGroup[] {
-  return surfaceLayout.map(({ id, title, pages: ids }) => ({
+  return settingsNavLayout.map(({ id, title, pages: ids }) => ({
     id,
     title,
     items: ids.map(

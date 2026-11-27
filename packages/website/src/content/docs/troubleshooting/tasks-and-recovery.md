@@ -29,7 +29,7 @@ For a launch with a declared port, start and restart wait up to 30 seconds for i
 
 ## Quitting Nerve
 
-Closing the window quits Nerve by default, which stops active local launches and commands before the owned daemon shuts down. If you turned on **Close to system tray** (**Settings → Workbench → Desktop**), closing the window only hides Nerve and processes keep running until you quit from the tray.
+Closing the window quits Nerve by default, which stops active local launches and commands before the owned daemon shuts down. If you turned on **Close to system tray** (**Settings → Appearance → Desktop**), closing the window only hides Nerve and processes keep running until you quit from the tray.
 
 ## Agent run recovery is separate
 

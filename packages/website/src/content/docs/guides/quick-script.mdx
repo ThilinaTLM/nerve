@@ -73,7 +73,7 @@ What this means for each permission level:
 
 A script that starts or restarts a launch is rated as a Bash command. A script that calls an MCP tool is rated destructive, because Nerve can't know what the tool does; see [MCP servers](/integrations/mcp/#permissions).
 
-Choose **Always allow** on an approval only when Nerve offers it; it is offered when Nerve can read every call in the script. You can also write rules for operations such as `jira.issues.*` in **Settings → Permission rules**; see [Tools and approval policy](/developers/tools-policy/).
+Choose **Always allow** on an approval only when Nerve offers it; it is offered when Nerve can read every call in the script. You can also write rules for operations such as `jira.issues.*` in **Settings → Permissions**; see [Tools and approval policy](/developers/tools-policy/).
 
 :::caution
 Scripts can send data to Atlassian, a search provider, a Kroki server, or an image provider, using your configured accounts. Review the operations and targets before approving. The sandbox and permissions limit what a script can reach; they don't make remote content trustworthy.

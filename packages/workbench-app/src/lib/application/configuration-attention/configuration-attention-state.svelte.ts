@@ -45,7 +45,7 @@ class ConfigurationAttentionController {
     );
   }
 
-  /** A sub-agent-only profile is decided on Sub-Agents; the rest on Agents. */
+  /** A sub-agent-only profile is decided on Sub-agents; the rest on Agents. */
   #profilePageOf: ProfilePageOf = (scope, name) => {
     const profile = agentProfileCatalog
       .profiles(scope === "project" ? this.projectId : undefined)

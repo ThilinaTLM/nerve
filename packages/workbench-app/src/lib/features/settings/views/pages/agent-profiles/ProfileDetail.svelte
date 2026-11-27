@@ -123,7 +123,7 @@ const launch = $derived(store.launch(row));
 const copy = $derived(
   row.replacedBy ? store.find(profileRowId("project", row.name)) : undefined,
 );
-const parentLabel = $derived(kind === "subagent" ? "Sub-Agents" : "Agents");
+const parentLabel = $derived(kind === "subagent" ? "Sub-agents" : "Agents");
 const reviewTarget = $derived(
   row.origin === "builtin" || (row.origin === "project" && !projectId)
     ? undefined

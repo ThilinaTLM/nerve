@@ -14,13 +14,13 @@ Program-level configuration has one resolution order:
 3. saved value in `<NERVE_HOME>/config.json`;
 4. product default.
 
-The effective value and its source are visible under **Settings → System**. A control is disabled when an environment variable or command-line option owns it; unset that override and restart before editing it in the UI. An explicit boolean `0` or `false` overrides a saved `true` just as `1` or `true` overrides `false`.
+The effective value and its source are visible under **Settings → Advanced**. A control is disabled when an environment variable or command-line option owns it; unset that override and restart before editing it in the UI. An explicit boolean `0` or `false` overrides a saved `true` just as `1` or `true` overrides `false`.
 
 Defaults are `NERVE_HOME=~/.nerve`, host `127.0.0.1`, HTTP port `3747`, remote access off, and mobile HTTPS port `3748`.
 
 ## Saved settings
 
-**Settings → System** and **Settings → Workbench → Desktop** save to `<NERVE_HOME>/config.json`. They cover:
+**Settings → Advanced** and **Settings → Appearance → Desktop** save to `<NERVE_HOME>/config.json`. They cover:
 
 - bind host, HTTP/HTTPS ports, remote access, and mobile HTTPS;
 - application logging and performance diagnostics;
@@ -29,7 +29,7 @@ Defaults are `NERVE_HOME=~/.nerve`, host `127.0.0.1`, HTTP port `3747`, remote a
 - Linux Electron Ozone platform and font rendering;
 - whether closing the window hides Nerve in the tray (**Close to system tray**) instead of quitting, which is the default.
 
-Enabling **Allow devices on this network** (**Settings → Remote connections**) also changes a loopback bind host to `0.0.0.0`, so the next daemon launch can accept LAN clients. Disabling it restores `127.0.0.1` when the host is a wildcard. You can still enter a specific interface address in the advanced host field.
+Enabling **Allow devices on this network** (**Settings → Remote**) also changes a loopback bind host to `0.0.0.0`, so the next daemon launch can accept LAN clients. Disabling it restores `127.0.0.1` when the host is a wildcard. You can still enter a specific interface address in the advanced host field.
 
 Resource concurrency defaults to automatic. At daemon startup, Nerve uses effective CPU capacity and total memory to choose separate limits; normal developer machines with at least 12 GiB RAM admit ten primary model runs, while tool batches, and subprocesses retain independent safety limits. The System page shows detected, recommended, and effective values. GPU capacity is intentionally not treated as generic concurrency because local-model memory requirements are model-specific.
 

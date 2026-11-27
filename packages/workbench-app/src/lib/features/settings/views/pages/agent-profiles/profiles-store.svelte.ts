@@ -39,7 +39,7 @@ const pointerOf = (name: string) =>
   `/overrides/subagents/${name.replaceAll("~", "~0").replaceAll("/", "~1")}`;
 
 /**
- * The profile files the Agents and Sub-Agents pages edit: the user listing
+ * The profile files the Agents and Sub-agents pages edit: the user listing
  * (user and built-in profiles), the open project's listing, and the two
  * layers' launch settings. Every write goes to the file's own layer.
  */

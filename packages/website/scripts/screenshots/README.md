@@ -76,7 +76,7 @@ The runner prints the isolated raw-output directory for inspection.
 Desktop scenes: `ask-user`, `notifications` (popover with a question, a failure, and a
 stopped agent plus Mute 1 h), `folder-browser` (Open project dialog on the demo
 workspace), `quote` (selection toolbar over a rich reply), `quick-script` (a retained `quick_script` card with its Jira, Confluence, and web SDK calls), `extensions` (Settings → Extensions overview with Atlassian enabled), `discover`, `themes`
-(Settings → Workbench → Appearance), `projects`, `conversation`, `async-bash`,
+(Settings → Appearance), `projects`, `conversation`, `async-bash`,
 `git`, `editor`, `files`, `history`, `launches`, `pull-request`.
 Homepage scenes: `forge-build` (the Forge conversation that builds the Environments extension, with its panel docked), `extension-panel` (a coding conversation with the same panel), `extension-consent` (the Allow dialog of an unreviewed project extension), `mcp-servers`, `integrations-script` (one `quick_script` using `jira`, `mcp` and `confluence`), `accounts`, `launchpad` (Coding, Planning, Lead and Forge starter cards), `settings-layers` (Skills with team skills Needs review, Trusted and Declined, plus the User and Project switches), `remote-tailscale`. Mobile scenes:
 `conversation`, `composer-sheet`, `right-sheet`, `mobile-settings`. Re-run one with
@@ -125,7 +125,7 @@ Settings uses:
 - **Skills**: one user skill and three Aurora skills decided through the trust service.
 - **Conversations**: a Forge transcript (`demo-data/forge-conversations.ts`) that writes, checks
   and reloads `env-status`, and a `quick_script` that combines Jira, GitHub through MCP and Confluence.
-- The Atlassian account and the credential refresh job (Settings → Background jobs) need no extra
+- The Atlassian account and the credential refresh job (Settings → Jobs) need no extra
   seeding.
 
 The capture browser presents the daemon's Tailscale tunnel as ready (`demoTunnelHints` in

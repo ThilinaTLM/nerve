@@ -67,7 +67,7 @@ Installed extensions run in a sandbox and can contribute:
 | **Dock panel**                       | A panel beside the conversation, like Git or Files                                            |
 | **Page tab**                         | A tab in the center area, opened from the new-tab menu (the chevron next to +)                |
 | **File preview**                     | A viewer for chosen file types, in place of the source view; it can offer editing             |
-| **Theme**                            | A color theme you pick in **Settings → Workbench**; only user extensions can add themes       |
+| **Theme**                            | A color theme you pick in **Settings → Appearance**; only user extensions can add themes      |
 | **Quick script namespace and tools** | Methods the agent calls in [Quick script](/guides/quick-script/), and optionally direct tools |
 
 Panels, pages, and previews are drawn in isolated frames with no network access of their own. They use Nerve's components, including floating toolbars for previews and canvas-like pages, and reach data only through the extension's backend and the host.
@@ -90,7 +90,7 @@ Add an account from the extension's page (**Add account**), or manage them all o
 
 ### Refreshed in the background
 
-OAuth tokens are refreshed when used, and once more after a 401 response. A background job, **Account credential refresh**, also renews sign-ins that expire within ten minutes every five minutes, for accounts you used in the last 30 days. It appears under **Settings → Background jobs** with its last and next run and **Run now**. An account that needs you to sign in again, or a job that keeps failing, shows in the notification bell. Jobs run only while Nerve runs.
+OAuth tokens are refreshed when used, and once more after a 401 response. A background job, **Account credential refresh**, also renews sign-ins that expire within ten minutes every five minutes, for accounts you used in the last 30 days. It appears under **Settings → Jobs** with its last and next run and **Run now**. An account that needs you to sign in again, or a job that keeps failing, shows in the notification bell. Jobs run only while Nerve runs.
 
 ## Atlassian
 
@@ -119,7 +119,7 @@ For a main model that can't read images. Choose a vision-capable **Model** and a
 
 ## Permissions
 
-Extension actions are classified by where they act. **External read** covers reading outside your machine: web search, Jira and Confluence reads, diagram rendering. **External write** covers changes there: creating issues, updating pages, generating images. The built-in Read-only and Planning permission levels allow external reads and deny external writes; Supervised asks for both. In **Settings → Permission rules**, a rule can match these risks, or a Quick script operation such as `jira.issues.*`. See [Choose a profile, model, and permissions](/guides/agent-controls/#choose-a-permission-level).
+Extension actions are classified by where they act. **External read** covers reading outside your machine: web search, Jira and Confluence reads, diagram rendering. **External write** covers changes there: creating issues, updating pages, generating images. The built-in Read-only and Planning permission levels allow external reads and deny external writes; Supervised asks for both. In **Settings → Permissions**, a rule can match these risks, or a Quick script operation such as `jira.issues.*`. See [Choose a profile, model, and permissions](/guides/agent-controls/#choose-a-permission-level).
 
 ## Next steps
 

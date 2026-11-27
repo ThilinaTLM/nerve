@@ -14,12 +14,12 @@ export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
     version: 2,
     title: "Give teammates a reusable profile",
     summary:
-      "Set a profile's instructions, model, permissions, tools, and skills in Settings → Sub-Agents. New teammates use it; follow-ups keep the teammate's existing context.",
+      "Set a profile's instructions, model, permissions, tools, and skills in Settings → Sub-agents. New teammates use it; follow-ups keep the teammate's existing context.",
     action: {
       kind: "settings",
       pageId: "sub-agents",
       sectionId: "sub-agents",
-      label: "Configure Sub-Agents",
+      label: "Configure sub-agents",
     },
   },
   {
@@ -27,7 +27,7 @@ export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
     version: 2,
     title: "Delegate context, not just a task name",
     summary:
-      "Sub-Agents cannot see the lead's conversation. Include relevant paths, findings, and constraints, and give each teammate its own files to edit, since they share your worktree.",
+      "Sub-agents cannot see the lead's conversation. Include relevant paths, findings, and constraints, and give each teammate its own files to edit, since they share your worktree.",
   },
   {
     id: "composer-references",
