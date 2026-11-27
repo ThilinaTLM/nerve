@@ -211,23 +211,20 @@ describe("StorageUsageService", () => {
     },
   );
 
-  it("expires cached usage after fifteen seconds", async (t) => {
+  it("keeps the last scan however old it is until a forced refresh", async (t) => {
     const home = await fixtureHome(t);
     const service = new StorageUsageService({
       paths: storagePaths(home),
       getSource: () => ({ listConversations: () => [] }),
     });
-    let now = Date.now();
-    const clock = mock.method(Date, "now", () => now);
+    const initial = await service.computeUsage();
+    const clock = mock.method(Date, "now", () => Date.UTC(2100, 0, 1));
     try {
-      const initial = await service.computeUsage();
-      now += 14_999;
       assert.equal(await service.computeUsage(), initial);
-      now += 1;
-      assert.notEqual(await service.computeUsage(), initial);
     } finally {
       clock.mock.restore();
     }
+    assert.notEqual(await service.computeUsage(true), initial);
   });
 
   it("retries after a rejected refresh instead of retaining a rejected promise", async (t) => {

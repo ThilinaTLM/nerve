@@ -67,21 +67,36 @@ async function walkDirectory(
   let bytes = 0;
   let files = 0;
   const entries = await readdir(path, { withFileTypes: true }).catch(() => []);
-  for (const entry of entries) {
-    if (excludedNames?.has(entry.name) || entry.isSymbolicLink()) continue;
-    const child = join(path, entry.name);
-    if (entry.isDirectory()) {
-      const nested = await walkDirectory(child);
-      directories?.set(entry.name, nested);
-      bytes += nested.bytes;
-      files += nested.files;
-    } else if (entry.isFile()) {
-      const size = await fileSize(child);
-      rootFiles?.set(entry.name, size);
-      if (size === undefined) continue;
-      bytes += size;
-      files += 1;
+  // Siblings are measured concurrently (libuv's pool bounds the I/O); results
+  // are applied in enumeration order so the maps keep a stable order.
+  const measured = await Promise.all(
+    entries.map(async (entry) => {
+      if (excludedNames?.has(entry.name) || entry.isSymbolicLink())
+        return undefined;
+      const child = join(path, entry.name);
+      if (entry.isDirectory())
+        return {
+          kind: "directory" as const,
+          entry,
+          nested: await walkDirectory(child),
+        };
+      if (entry.isFile())
+        return { kind: "file" as const, entry, size: await fileSize(child) };
+      return undefined;
+    }),
+  );
+  for (const item of measured) {
+    if (!item) continue;
+    if (item.kind === "directory") {
+      directories?.set(item.entry.name, item.nested);
+      bytes += item.nested.bytes;
+      files += item.nested.files;
+      continue;
     }
+    rootFiles?.set(item.entry.name, item.size);
+    if (item.size === undefined) continue;
+    bytes += item.size;
+    files += 1;
   }
   return { bytes, files };
 }

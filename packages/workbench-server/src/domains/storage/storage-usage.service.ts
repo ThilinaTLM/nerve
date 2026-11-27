@@ -38,7 +38,7 @@ interface CategoryMeta {
 const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
   database: {
     label: "Canonical database",
-    description: "Authoritative Nerve records. Never removed by cleanup.",
+    description: "Authoritative Nerve records.",
     cleanable: false,
     protected: true,
   },
@@ -133,12 +133,13 @@ const CATEGORY_ORDER: StorageCategoryKey[] = [
   "configurationIdentity",
   "other",
 ];
-const USAGE_CACHE_TTL_MS = 15_000;
 const LARGEST_CONVERSATION_LIMIT = 5;
 const DATED_LOG = /^(application|desktop)-(\d{4}-\d{2}-\d{2})\.jsonl$/;
 
+/** A scan walks every managed file, so the last one is kept until a forced
+ * refresh or a cleanup invalidates it; clients decide when it is too old. */
 export class StorageUsageService {
-  #cache?: { at: number; value: StorageUsageResponse };
+  #cache?: StorageUsageResponse;
   #generation = 0;
   #refresh?: { generation: number; promise: Promise<StorageUsageResponse> };
 
@@ -150,13 +151,7 @@ export class StorageUsageService {
   }
 
   async computeUsage(force = false): Promise<StorageUsageResponse> {
-    if (
-      !force &&
-      this.#cache &&
-      Date.now() - this.#cache.at < USAGE_CACHE_TTL_MS
-    ) {
-      return this.#cache.value;
-    }
+    if (!force && this.#cache) return this.#cache;
 
     if (this.#refresh?.generation === this.#generation) {
       return this.#refresh.promise;
@@ -166,7 +161,7 @@ export class StorageUsageService {
       // An invalidated scan may finish for its callers, but must not repopulate
       // the cache or displace a newer refresh.
       if (generation === this.#generation) {
-        this.#cache = { at: Date.now(), value };
+        this.#cache = value;
       }
       return value;
     });

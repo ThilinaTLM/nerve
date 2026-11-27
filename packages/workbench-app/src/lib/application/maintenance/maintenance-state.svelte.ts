@@ -53,7 +53,9 @@ const controller = new MaintenanceController({
         notify.success(
           operation.kind === "delete_project"
             ? "Project removed"
-            : `Cleanup completed; ${operation.removedConversationCount} conversations removed`,
+            : operation.removedConversationCount > 0
+              ? `Cleanup finished; ${operation.removedConversationCount} conversations removed`
+              : "Cleanup finished",
         );
     }
     await reconcileMaintenance();
