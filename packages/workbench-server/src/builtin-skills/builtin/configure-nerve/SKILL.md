@@ -1,6 +1,6 @@
 ---
 name: configure-nerve
-description: Use when the user wants to set up or understand Nerve itself (project instructions, skills, prompt suggestions, extensions, MCP servers, launches, agent profiles and teammates, permissions), including complaints like "it keeps asking before running tests". Not for project code.
+description: Use when creating, editing or explaining Nerve configuration files (skills, AGENTS.md, prompt suggestions, agent profiles, launches, MCP servers, permission rules, extensions), whatever their content is about, or when the user wants to change how the agent behaves in Nerve. Not for the project's application source code.
 ---
 
 # Configure Nerve
@@ -10,9 +10,17 @@ You shape Nerve to the user's work by editing its configuration. Paths in this s
 ## How to work
 
 - **One mechanism clearly fits and few details are missing** ("add a launch for `pnpm dev`", "allow `pnpm test` under Supervise"): do it, then report what you wrote and where. Ask only what the request leaves open and the project cannot tell you.
-- **A new extension** is always a design to agree first, even when the request names it ("build an extension for X"): follow `guide/extensions.md`, step 2.
-- **The mechanism itself is open** ("it keeps forgetting our conventions", "I want a reviewer"): pick candidates from the table below, read `guide/collaboration.md`, and settle it with the user before building.
+- **A new extension** is always a design to agree first, even when the request names it ("build an extension for X"): follow `reference/extensions/build.md`, step 2.
+- **The mechanism itself is open** ("it keeps forgetting our conventions", "I want a reviewer"): pick candidates from the table below and settle it with the user before building ("Settling an open request").
 - **Question** ("what is configured?", "why was that prompted?"): answer from the calls under "The loop". Offer a change only when it would help.
+
+## Settling an open request
+
+- Learn the goal before the mechanism: what the user does, how often, and what must never happen without them. Ask one or two focused questions at a time with `ask_user`, with options when the choices are clear.
+- Read the current configuration first (`configuration.describe()`, `configuration.list()`), so proposals build on what exists.
+- Offer two or three options with their trade-offs in plain words, and recommend one. Name the Nerve concept each uses (profile, rule set, launch), so the user learns the vocabulary. Propose a combination when it fits better.
+- Name consequences that are easy to miss: project files are shared through the repository, what the user must approve in Settings, and what stays unchanged (running sub-agents keep their configuration).
+- Once the user has chosen, follow the "Procedure" at the top of the thing's reference, then "The loop".
 
 ## Which mechanism
 
@@ -40,13 +48,13 @@ Candidates are listed cheapest first. Take the first that solves the problem.
 | Agent profiles       | `<home>/agent/agent-profiles/<name>.json`   | `<project>/.nerve/agent-profiles/<name>.json` (user approves) | user for a personal one                           | `reference/agent-profiles.md`     |
 | Permission rule sets | `<home>/config/rule-sets/<id>.json`         | none                                                          | user                                              | `reference/permissions.md`        |
 | Permission overlays  | `<home>/config/permissions.json`            | `<project>/.nerve/config/permissions.json` (user approves)    | user for a personal rule                          | `reference/permissions.md`        |
-| Agent preferences    | `<home>/config/agent.json`                  | `<project>/.nerve/config/agent.json` (user approves)          | edit only on an exact request                     | `reference/agent-profiles.md`     |
-| Extensions           | `<home>/agent/extensions/<id>/`             | `<project>/.nerve/extensions/<id>/` (user consents)           | ask; recommend user for a personal one            | `guide/extensions.md`             |
+| Agent preferences    | `<home>/config/agent.json`                  | `<project>/.nerve/config/agent.json` (user approves)          | edit only on an exact request                     | `reference/agent-preferences.md`  |
+| Extensions           | `<home>/agent/extensions/<id>/`             | `<project>/.nerve/extensions/<id>/` (user consents)           | ask; recommend user for a personal one            | `reference/extensions/build.md`   |
 | MCP servers          | `<home>/config/mcp.json` (user approves)    | `<project>/.nerve/config/mcp.json` (user approves)            | user for a personal one, project for a team one   | `reference/mcp.md`                |
 
 Choose project scope for what the team should share, and name in your hand-over the approval the user must give. Choose user scope for what is personal: it works without approval (MCP servers excepted: the user approves every entry).
 
-For text an agent will read (a skill, `AGENTS.md`, profile instructions, an extension's summaries, doc comments, tool descriptions and errors), follow `reference/writing-for-agents.md`.
+For text an agent will read (a skill, `AGENTS.md`, profile instructions, an extension's summaries, doc comments, tool descriptions and errors), follow `writing-for-agents.md`.
 
 Model providers, accounts and credentials, extension settings, conversation defaults and appearance are the user's in Settings. Point them to the page instead of editing those files. A conversation's own files under `<home>/data/conversations/` are managed by Nerve; do not edit them.
 
@@ -90,6 +98,6 @@ What a returned resource means:
 
 Leave no `error` behind when you end your turn. After a restart there is no loaded version to fall back to, and an invalid permission file or preferences that select a missing rule set then block every tool call.
 
-Kinds that need more than the loop: launches are written, started and checked with `launches.*` (`reference/launches.md`); extensions are built and checked with `nerve-ext` (`guide/extensions.md`).
+Kinds that need more than the loop: launches are written, started and checked with `launches.*` (`reference/launches.md`); extensions are built and checked with `nerve-ext` (`reference/extensions/build.md`).
 
 `reference/schemas/*.schema.json` are generated from this Nerve version. Open one only for a diagnostic you cannot resolve from its message.

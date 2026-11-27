@@ -4,7 +4,7 @@ An extension is a folder with a built `dist/`. Nerve loads it only after the use
 
 ## 1. Prerequisites
 
-Node.js 24 or newer and npm (or pnpm). `scripts/create-extension.mjs` checks them and prints how to install what is missing; relay that to the user instead of installing system software yourself.
+Node.js 24 or newer and npm (or pnpm). `reference/extensions/scripts/create-extension.mjs` checks them and prints how to install what is missing; relay that to the user instead of installing system software yourself.
 
 ## 2. Agree the design with the user
 
@@ -23,7 +23,7 @@ Then choose without asking:
 ## 3. Scaffold
 
 ```sh
-node scripts/create-extension.mjs <id> --kind <kind>[,<kind>] --scope <user|project> [--project <dir>]
+node reference/extensions/scripts/create-extension.mjs <id> --kind <kind>[,<kind>] --scope <user|project> [--project <dir>]
 ```
 
 The script writes the project, installs dependencies without running install scripts (`--ignore-scripts`) and runs `nerve-ext check`. Each kind adds a working sample to replace, with tests beside it:
@@ -81,7 +81,7 @@ Edit the sources in its folder (not `dist/`), then run steps 5 to 7. Work in pla
 Find the extensions with `configuration.list({ kind: "extension" })` (`path` is the folder; `state: "incompatible"` needs an upgrade). An extension built with an SDK older than this Nerve's `oldestCompatibleSdkVersion`, or newer than this Nerve, is `incompatible` ("Built with SDK …") and does not load. Upgrade one then or when the user asks. Folders under the Nerve home are outside the project, so run commands there with `cd <folder> && …` in the command and leave the shell tool's `cwd` unset:
 
 ```sh
-node scripts/upgrade-extension.mjs <extension-folder>
+node reference/extensions/scripts/upgrade-extension.mjs <extension-folder>
 ```
 
 It moves `@nervekit/extension-sdk` to this Nerve's version, prints the `UPGRADING.md` sections between the old and new versions (none when nothing broke), and runs `check`, which rebuilds `dist/`. Apply each printed change, run `check` until green, reload, and read the status.
@@ -95,7 +95,7 @@ It moves `@nervekit/extension-sdk` to this Nerve's version, prints the `UPGRADIN
 A folder that arrived from a teammate, a repository or the user shows `not-built` (no `dist/`). Its `package.json` can pull in any package. Before installing:
 
 ```sh
-node scripts/install-extension.mjs <extension-folder> --list
+node reference/extensions/scripts/install-extension.mjs <extension-folder> --list
 ```
 
 Show the user the dependency list it prints and wait for their go-ahead. Then run the same command without `--list`: it installs with the folder's lockfile and without install scripts, and runs `nerve-ext check`. A dependency's code still runs during the build and the tests.

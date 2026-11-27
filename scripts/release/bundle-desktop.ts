@@ -66,7 +66,7 @@ export const bundleOutputFiles = [
   "dist/preload.cjs",
   "dist/web/index.html",
   "dist/builtin/configure-nerve/SKILL.md",
-  "dist/builtin/configure-nerve/scripts/nerve-version.json",
+  "dist/builtin/configure-nerve/reference/extensions/scripts/nerve-version.json",
   "dist/ext-frame/base.css",
   "dist/sandbox-libraries/xlsx.full.min.js",
   "dist/sandbox-libraries/papaparse.min.js",

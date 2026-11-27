@@ -52,7 +52,10 @@ void test("configure-nerve extension reference mirrors the limits and runtime AP
       `reference/extensions/manifest.md must state the limit ${limit}`,
     );
   // The `extensions` namespace the workflow uses.
-  const guide = await readFile(join(dir, "guide", "extensions.md"), "utf8");
+  const guide = await readFile(
+    join(dir, "reference", "extensions", "build.md"),
+    "utf8",
+  );
   assert.match(guide, /extensions\.reload\(/);
   assert.match(guide, /extensions\.status\(/);
 });

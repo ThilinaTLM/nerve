@@ -4,14 +4,14 @@ Agent-facing content is anything a model reads: system prompt, tool names, descr
 
 ## Principles
 
-The priorities and rules for content, structure, tools, results and errors are in [writing-for-agents.md](../packages/workbench-server/src/builtin-skills/builtin/configure-nerve/reference/writing-for-agents.md). It ships with the built-in `configure-nerve` skill, so agents writing skills and extensions for users follow the same rules. Follow it for Nerve's own content too, and change it there.
+The priorities and rules for content, structure, tools, results and errors are in [writing-for-agents.md](../packages/workbench-server/src/builtin-skills/builtin/configure-nerve/writing-for-agents.md). It ships with the built-in `configure-nerve` skill, so agents writing skills and extensions for users follow the same rules. Follow it for Nerve's own content too, and change it there.
 
 ## Nerve-specific rules
 
 - **Tool descriptions.** [Tool-writing rules](architecture/system-prompt.md#tool-writing-rules) cover Nerve's built-in tools.
 - **Cache stability.** Keep prompt prefixes stable and deterministic. Put volatile data (dates, environment, status) late in assembly, and keep stable ordering for lists such as tools, skills and profiles. [Assembly order](architecture/system-prompt.md#assembly) follows this.
 - **Cap outputs by default.** Tool results and injected context start short and load detail on demand (offsets, files, skills).
-- **Shipped docs work from npm.** Skills and docs that ship with Nerve or its npm packages (`configure-nerve`, `@nervekit/extension-sdk`) describe the installed layout (`node_modules/@nervekit/...`, the skill's generated `reference/`), never this repository's source, which users don't have. Local linking for development (`NERVE_EXTENSION_SDK_SPEC`, see `scripts/lib.mjs` of the skill) stays in maintainer notes.
+- **Shipped docs work from npm.** Skills and docs that ship with Nerve or its npm packages (`configure-nerve`, `@nervekit/extension-sdk`) describe the installed layout (`node_modules/@nervekit/...`, the skill's generated `reference/`), never this repository's source, which users don't have. Local linking for development (`NERVE_EXTENSION_SDK_SPEC`, see `reference/extensions/scripts/lib.mjs` of the skill) stays in maintainer notes.
 
 ## Validation
 

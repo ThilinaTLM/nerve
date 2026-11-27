@@ -15,7 +15,7 @@ If both have the same id, the project one wins and the user one shows as `shadow
 
 1. Create it with `--scope project`, or move the folder to `<project>/.nerve/extensions/<id>/`.
 2. Commit the sources and the lockfile; the scaffold's `.gitignore` keeps `dist/` and `node_modules/` out of git. Nerve never builds or installs by itself.
-3. A teammate who pulls it sees `not-built`. They ask the agent to build it: it follows "A folder you did not scaffold in this conversation" in `guide/extensions.md` (list the dependencies, wait, then `scripts/install-extension.mjs`).
+3. A teammate who pulls it sees `not-built`. They ask the agent to build it: it follows "A folder you did not scaffold in this conversation" in `reference/extensions/build.md` (list the dependencies, wait, then `reference/extensions/scripts/install-extension.mjs`).
 4. They review and allow it themselves in Settings → Extensions. A project extension asks again after any change to its files.
 
 ## Share with a person
@@ -24,4 +24,4 @@ Send the sources without `node_modules/` and `dist/`. The receiver copies the fo
 
 ## Updates
 
-Rebuild with `nerve-ext check`, bump `version` in `package.json` for releases, and reload. An extension built with an SDK newer than this Nerve, or older than its `oldestCompatibleSdkVersion`, is `incompatible` in `extensions.status` and does not load; run `scripts/upgrade-extension.mjs`, which upgrades the SDK and rebuilds.
+Rebuild with `nerve-ext check`, bump `version` in `package.json` for releases, and reload. An extension built with an SDK newer than this Nerve, or older than its `oldestCompatibleSdkVersion`, is `incompatible` in `extensions.status` and does not load; run `reference/extensions/scripts/upgrade-extension.mjs`, which upgrades the SDK and rebuilds.
