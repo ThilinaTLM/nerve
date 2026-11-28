@@ -115,7 +115,7 @@ let {
   onCompact,
   onUsageOpenChange,
   onUsageRetry,
-  onOpenSystemPrompt,
+  onOpenRequestPreview,
   onNewConversationInProject,
   onOpenFile,
   onOpenTask,
@@ -495,7 +495,7 @@ function menuForTranscript(
       onCompact={activeConversation ? onCompact : undefined}
       {onUsageOpenChange}
       {onUsageRetry}
-      {onOpenSystemPrompt}
+      {onOpenRequestPreview}
       {onModelSelectionChange}
       {onAgentProfileChange}
       {onPermissionRuleSetChange}

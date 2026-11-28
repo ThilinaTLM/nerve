@@ -69,10 +69,18 @@ export const previewSystemPromptParamsSchema = z.union([
       .optional(),
   }),
 ]);
+/** A tool exactly as the model receives it: name, description and JSON Schema parameters. */
+export const previewToolDefinitionSchema = z.strictObject({
+  name: z.string(),
+  description: z.string(),
+  parameters: z.record(z.string(), z.unknown()),
+});
+export type PreviewToolDefinition = z.infer<typeof previewToolDefinitionSchema>;
 export const previewSystemPromptResultSchema = z.discriminatedUnion("status", [
   z.strictObject({
     status: z.literal("available"),
     systemPrompt: z.string(),
+    tools: z.array(previewToolDefinitionSchema),
     resolution: agentResolutionSchema,
   }),
   configurationUnavailableSchema,

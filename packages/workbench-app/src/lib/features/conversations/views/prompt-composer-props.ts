@@ -1,3 +1,4 @@
+import type { RequestPreviewSection } from "$lib/presentation/conversations/request-preview";
 import type { Snippet } from "svelte";
 import type {
   PermissionRuleSetId,
@@ -78,7 +79,9 @@ export type PromptComposerProps = {
   onCompact?: () => void;
   onUsageOpenChange?: (open: boolean) => void;
   onUsageRetry?: () => void;
-  onOpenSystemPrompt?: () => void | Promise<void>;
+  onOpenRequestPreview?: (
+    section: RequestPreviewSection,
+  ) => void | Promise<void>;
   /** Switches the transcript area between the conversation and History. */
   onToggleHistory?: () => void;
   historyOpen?: boolean;

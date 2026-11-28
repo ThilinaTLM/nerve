@@ -160,6 +160,7 @@ export function testConfiguration(
       return {
         status: "available",
         systemPrompt: config.systemPrompt ?? prepared.systemPrompt,
+        tools: prepared.tools,
         resolution: resolveAgentConfiguration({
           role: "lead",
           conversation: {

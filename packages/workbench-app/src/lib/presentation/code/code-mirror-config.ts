@@ -12,6 +12,9 @@ import {
   foldKeymap,
   HighlightStyle,
   indentOnInput,
+  Language,
+  LanguageDescription,
+  LanguageSupport,
   StreamLanguage,
   syntaxHighlighting,
 } from "@codemirror/language";
@@ -202,6 +205,31 @@ export function loadedCodeLanguage(
   return id ? resolvedLanguages.get(id) : undefined;
 }
 
+const fencedLanguages = new Map<CodeLanguageId, LanguageDescription>();
+
+/** Resolves a fenced block's info string (`json`, `ts`, `sh`) to a lazily
+ * loaded parser so code inside Markdown is highlighted too. */
+export function fencedCodeLanguage(info: string): LanguageDescription | null {
+  const name = info.trim().split(/\s/)[0]?.toLowerCase() ?? "";
+  const id = codeLanguageId(name) ?? extensionLanguages[name];
+  if (!id || id === "markdown") return null;
+  let description = fencedLanguages.get(id);
+  if (!description) {
+    description = LanguageDescription.of({
+      name: id,
+      load: async () => {
+        const extension = await loadCodeLanguage(id);
+        if (extension instanceof LanguageSupport) return extension;
+        if (extension instanceof Language)
+          return new LanguageSupport(extension);
+        throw new Error(`No parser for fenced ${id} code`);
+      },
+    });
+    fencedLanguages.set(id, description);
+  }
+  return description;
+}
+
 async function loadLanguage(id: CodeLanguageId): Promise<Extension> {
   switch (id) {
     case "javascript":
@@ -233,7 +261,7 @@ async function loadLanguage(id: CodeLanguageId): Promise<Extension> {
     }
     case "markdown": {
       const { markdown } = await import("@codemirror/lang-markdown");
-      return markdown();
+      return markdown({ codeLanguages: fencedCodeLanguage });
     }
     case "python": {
       const { python } = await import("@codemirror/lang-python");
