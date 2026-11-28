@@ -103,7 +103,9 @@ SELECT 'delivered', input_id, created_at FROM conversation_event WHERE input_id 
 ## 9. Unreadable conversations and upgrades
 
 - "N conversations couldn't be loaded": a row or event fails the current contracts. Find it with `logs --level warn` and the message `Conversation read failed; skipped` (`context.operation` = `get`, `recovery`, `status.refresh` …). Use `timeline` with `--preview 0` on that conversation, then look for the invalid payload with bounded SQL (`json_valid(payload)` is enforced, so it is a shape problem). Never edit the row; the supported fix is Delete or a code fix.
-- Daemon does not start after an upgrade: read `<home>/migrations/last-failure.json`, `migrations/reports/*.json`, and `manifest.json` (applied home steps). Set-aside data is under `<home>/quarantine/` (managed files under `<home>/data/quarantine/files/`). See `docs/architecture/migrations.md`.
+- Daemon does not start after an upgrade: read `<home>/migrations/last-failure.json`, `migrations/reports/*.json`, and `manifest.json` (applied home steps; compare with the step table in data-model.md). Compare core SQL with `SELECT version, name FROM schema_migrations`. To reproduce, copy the closest `data/snapshot-x-y-z` (or the stopped failing home) to a disposable slot and start it there. Set-aside data is under `<home>/quarantine/` (managed files under `<home>/data/quarantine/files/`). See `docs/architecture/migrations.md`.
+- Accounts missing or `needs_sign_in` after an upgrade: home step 0006 moved `config/accounts.json` into the `account` table and reports dropped or renamed entries as loss notices in `migrations/reports/`. Query `SELECT id, kind, project_id, name, status, expires_at FROM account` (never `credential`).
+- Project resource suddenly asks for trust again: compare its digest with `trusted_resource` (`kind`, `project_id`, `resource_key`, `content_digest`, `status`); step 0007 renamed `project_*` kinds and dropped trusted project suggestion rows by design.
 - Invalid settings: the settings-health notice applies; preserved bytes are in `quarantine/`. See `docs/architecture/storage.md#settings-health`.
 
 ## 10. UI versus storage
