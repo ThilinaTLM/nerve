@@ -21,7 +21,7 @@ export type QuickScriptCapabilities = {
 };
 
 const INTRO =
-  "Run a sandboxed JavaScript script that calls the SDK namespaces below; only its output returns: console.log and the value of the last expression. Use it to loop over, filter and join several calls in one step, and for multi-file or pattern edits (`files.edit`, then format and test with bash); python_exec for general Python, bash for the local machine.\nSandbox: ES module with top-level await; type annotations are ignored; no imports, Node APIs, JSX or direct network and filesystem (use web.*, files.*). Globals: console, sleep(ms), setTimeout/setInterval, URL, URLSearchParams, TextEncoder/TextDecoder, atob/btoa; no fetch, crypto or Intl (toLocale* ignores the locale).";
+  "Run a sandboxed JavaScript script that calls the SDK namespaces below; only its output returns: console.log and the value of the last expression. Use it to loop over, filter and join several calls in one step; python_exec for general Python, bash for the local machine.\nSandbox: ES module with top-level await; type annotations are ignored; no imports, Node APIs, JSX or direct network and filesystem (use web.*, files.*). Globals: console, sleep(ms), setTimeout/setInterval, URL, URLSearchParams, TextEncoder/TextDecoder, atob/btoa; no fetch, crypto or Intl (toLocale* ignores the locale).";
 
 /** The SDK conventions of docs/architecture/code-mode.md ("Namespace design rules"), as far as a script needs them. */
 const CONVENTIONS =
