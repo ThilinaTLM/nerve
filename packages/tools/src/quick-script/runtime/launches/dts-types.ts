@@ -29,11 +29,28 @@ interface LaunchRun {
   exitCode?: number;
   startedAt: string;
 }
+/** The label shown in the Launches panel (the command when unlabeled), or an id from list(). */
+type LaunchName = string;
+interface LaunchRunRef {
+  name?: LaunchName;
+  /** Picks one run of that name; alone, it selects the run directly. */
+  runId?: string;
+}
+interface LaunchWaitOptions {
+  /** A string is matched literally. The call returns when the run's output matches, the run exits or \`timeout\` passes, and adds \`matched\` and \`output\`. Only the started run's output counts. */
+  waitFor?: RegExp | string;
+  /** Seconds; default 60, max 600. A timeout is not an error: \`matched\` is false. */
+  timeout?: number;
+}
 interface LaunchStartResult extends LaunchRun {
   /** already_running: nothing was started. */
   outcome: "started" | "already_running";
   /** Only for definitions with a port: whether it listened within 30 s. */
   listening?: boolean;
+  /** Only with \`waitFor\`: whether the run's output matched; false when it exited or timed out first. */
+  matched?: boolean;
+  /** Only with \`waitFor\`: log tail (at most 100 lines) up to the matching line. */
+  output?: string;
 }
 interface LaunchFolder {
   /** "launchfolder_...". */

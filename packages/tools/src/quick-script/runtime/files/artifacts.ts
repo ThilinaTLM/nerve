@@ -32,7 +32,7 @@ import type {
  * `artifact:<name>` for the folder, anything else is a workspace path.
  */
 
-/** Files crossing the JSON bridge (`files.read`/`files.write` data), and the largest file read into the sandbox. */
+/** Files crossing the JSON bridge (`files`/`artifacts` read and write data), and the largest file read into the sandbox. */
 export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 export type FileRef =
@@ -115,7 +115,7 @@ export async function notFound(ref: FileRef): Promise<Error> {
   const more = names.length - shown.length;
   return codedError(
     "NOT_FOUND",
-    `artifact "${ref.name}" not found; files.list() shows: ${shown.length > 0 ? shown.join(", ") + (more > 0 ? `, +${more} more` : "") : "(no artifacts yet)"}`,
+    `artifact "${ref.name}" not found; artifacts.list() shows: ${shown.length > 0 ? shown.join(", ") + (more > 0 ? `, +${more} more` : "") : "(no artifacts yet)"}`,
   );
 }
 

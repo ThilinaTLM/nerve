@@ -329,7 +329,8 @@ export const quickScriptFailed = sampleCall({
   toolName: "quick_script",
   args: { code: ACME_SCRIPT, timeout: 120 },
   result: {
-    content: "Error: Issue does not exist or you do not have permission",
+    content:
+      "Error: Issue does not exist or you do not have permission\nfailed · exit 1",
     details: {
       status: "failed",
       error: "Issue does not exist or you do not have permission",
@@ -356,6 +357,63 @@ export const quickScriptFailed = sampleCall({
     },
   },
   durationMs: 1_400,
+});
+
+const EDIT_SCRIPT = `files.edit({
+  paths: ["src/lib/presentation/cards/*.svelte"],
+  edits: [{ oldText: "text-primary", newText: "text-muted-foreground" }],
+});
+files.read("src/lib/presentation/cards/MetaChip.svelte", { limit: 1 });`;
+
+const EDIT_DIFF = [
+  "--- src/lib/presentation/cards/MetaChip.svelte",
+  "+++ src/lib/presentation/cards/MetaChip.svelte",
+  "@@ -12,3 +12,3 @@",
+  " const tones = {",
+  '-  accent: "text-primary",',
+  '+  accent: "text-muted-foreground",',
+  '   muted: "text-muted-foreground",',
+  "--- src/lib/presentation/cards/StatusGlyph.svelte",
+  "+++ src/lib/presentation/cards/StatusGlyph.svelte",
+  "@@ -30,4 +30,5 @@",
+  " <span",
+  '-  class="text-primary"',
+  '+  class="text-muted-foreground"',
+  '+  aria-hidden="true"',
+  " >",
+  "   {glyph}",
+].join("\n");
+
+// The result text is terse (match counts, compact JSON, no success footer);
+// the card shows the edit statistic and diff from the call record.
+export const quickScriptEdit = sampleCall({
+  id: "tool_quick_script_edit",
+  toolName: "quick_script",
+  args: { code: EDIT_SCRIPT, timeout: 120 },
+  result: {
+    content:
+      '{"path":"src/lib/presentation/cards/MetaChip.svelte","content":"<script lang=\\"ts\\">","lines":1,"totalLines":64}\nEdit matches: [0] 2 in 2 files',
+    details: {
+      status: "completed",
+      durationMs: 96,
+      hostCalls: [
+        {
+          method: "files.edit",
+          summary: "src/lib/presentation/cards/*.svelte",
+          outcome: "completed",
+          durationMs: 41,
+          edit: { files: 2, added: 3, removed: 2, diff: EDIT_DIFF },
+        },
+        {
+          method: "files.read",
+          summary: "src/lib/presentation/cards/MetaChip.svelte",
+          outcome: "completed",
+          durationMs: 3,
+        },
+      ],
+    },
+  },
+  durationMs: 96,
 });
 
 export const quickScriptWaiting = sampleCall({

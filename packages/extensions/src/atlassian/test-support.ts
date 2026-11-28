@@ -454,7 +454,7 @@ export function createHarness(options: HarnessOptions = {}) {
     ) as Record<string, (...args: unknown[]) => Promise<unknown>> &
       Record<string, Record<string, (...args: unknown[]) => Promise<unknown>>>;
 
-  /** Runs a script like `quick_script`: the SDK globals, `storage`, `files`, `console.log` and a top-level `return`. */
+  /** Runs a script like `quick_script`: the SDK globals, `storage`, `artifacts`, `console.log` and a top-level `return`. */
   async function run(code: string): Promise<RunResult> {
     const output: string[] = [];
     const sandbox = createContext({
@@ -535,12 +535,15 @@ export function createHarness(options: HarnessOptions = {}) {
         return root;
       };
 ${globals}
-      globalThis.files = {
-        read: async (handle, options) =>
-          options && options.as === "bytes"
-            ? Uint8Array.from(await __files.readBytes(handle))
-            : __files.read(handle),
-        write: (name, data) => __files.write(name, data),
+      const handleOf = (name) => name.startsWith("artifact:") ? name : "artifact:" + name;
+      globalThis.artifacts = {
+        read: async (options) => {
+          const { name, as } = typeof options === "string" ? { name: options } : options;
+          return as === "bytes"
+            ? Uint8Array.from(await __files.readBytes(handleOf(name)))
+            : __files.read(handleOf(name));
+        },
+        write: ({ name, data }) => __files.write(name.replace(/^artifact:/, ""), data),
       };
       const isFlat = (row) => row !== null && typeof row === "object" && !Array.isArray(row) &&
         Object.values(row).every((v) => v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean");

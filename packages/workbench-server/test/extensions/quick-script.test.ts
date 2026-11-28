@@ -97,7 +97,8 @@ void test("paginates search to the limit, resolves field names, and authorizes b
     "customfield_10016",
     "customfield_10020",
   ]);
-  assert.match(lines.at(-1)!, /^jira 1 call \(issues\.search 1\) · exit 0/);
+  // A completed run has no status line: its calls are on the tool card.
+  assert.doesNotMatch(result.content ?? "", /exit 0|1 call/);
   assert.equal(
     quickScriptResultDetailsSchema.safeParse(result.details).success,
     true,
@@ -181,7 +182,7 @@ const call = (method: string) => ({
   durationMs: 1,
 });
 
-void test("groups calls and shows duration only above one second", () => {
+void test("the footer is only for what the script cannot know: denials, a run that did not complete, the call limit", () => {
   assert.equal(
     quickScriptFooter({
       hostCalls: [
@@ -193,7 +194,19 @@ void test("groups calls and shows duration only above one second", () => {
       exitCode: 0,
       durationMs: 1234,
     }),
-    "jira 3 calls (issues.search 1, issues.get 2) · exit 0 · 1.2s",
+    undefined,
+  );
+  assert.equal(
+    quickScriptFooter({
+      hostCalls: [
+        { ...call("jira.issues.get"), outcome: "denied" },
+        ...Array.from({ length: 149 }, () => call("jira.issues.get")),
+      ],
+      status: "completed",
+      exitCode: 0,
+      durationMs: 10,
+    }),
+    "1 denied · 150 of 200 SDK calls used",
   );
   assert.equal(
     quickScriptFooter({
@@ -203,27 +216,6 @@ void test("groups calls and shows duration only above one second", () => {
       durationMs: 500,
     }),
     "timed out · exit 124",
-  );
-});
-
-void test("footer groups calls by product", () => {
-  const call = (method: string) => ({
-    method,
-    outcome: "completed" as const,
-    durationMs: 1,
-  });
-  assert.equal(
-    quickScriptFooter({
-      hostCalls: [
-        call("jira.issues.get"),
-        call("confluence.pages.get"),
-        call("confluence.pages.get"),
-      ],
-      status: "completed",
-      exitCode: 0,
-      durationMs: 10,
-    }),
-    "jira 1 call (issues.get 1) · confluence 2 calls (pages.get 2) · exit 0",
   );
 });
 
@@ -297,7 +289,7 @@ const hangingFetch: FetchHandler = (_input, init) =>
     init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
   });
 
-void test("the footer counts failed calls per method group and stays unchanged when all succeed", async (t) => {
+void test("a completed run whose script caught a failed read has no status line", async (t) => {
   stubFetch(t, async (input) =>
     String(input).includes("NER-2")
       ? Response.json({ errorMessages: ["gone"] }, { status: 404 })
@@ -313,24 +305,15 @@ void test("the footer counts failed calls per method group and stays unchanged w
     },
     makeContext({ events: [] }),
   );
-  const lines = (result.content ?? "").split("\n");
-  assert.match(
-    lines.at(-1)!,
-    /^jira 3 calls \(issues\.get 3, 1 failed\) · exit 0/,
-  );
-  // A failed read is only counted, not listed.
-  assert.doesNotMatch(result.content ?? "", /Failed:/);
+  // A failed read the script caught is not listed.
+  assert.match(result.content ?? "", /^ok, no output \(/);
 
   stubFetch(t, async () => Response.json(rawIssue(1)));
   const ok = await executeQuickScript(
     { code: `await jira.issues.get("NER-1");` },
     makeContext({ events: [] }),
   );
-  assert.match(
-    (ok.content ?? "").split("\n").at(-1)!,
-    /^jira 1 call \(issues\.get 1\) · exit 0/,
-  );
-  assert.doesNotMatch(ok.content ?? "", /Still running|Failed:/);
+  assert.doesNotMatch(ok.content ?? "", /Still running|Failed:|exit/);
 });
 
 void test("a failed write the script caught is named with its error", async (t) => {
@@ -346,22 +329,20 @@ void test("a failed write the script caught is named with its error", async (t) 
   const lines = (result.content ?? "").split("\n");
   const failed = lines.find((line) => line.startsWith("Failed: "));
   assert.match(failed ?? "", /^Failed: jira\.issues\.update \(NER-404\): /);
-  assert.equal(lines.at(-1)!.startsWith("jira"), true);
-  assert.ok(lines.indexOf(failed!) < lines.length - 1);
 });
 
 void test("a write that is not awaited is reported as still running with unknown outcome, and recorded as aborted", async (t) => {
   stubFetch(t, hangingFetch);
   const result = await executeQuickScript(
     {
-      code: `jira.issues.update({ key: "NER-5", fields: { summary: "x" } }).catch(() => {}); jira.issues.get("NER-6").catch(() => {});`,
+      code: `jira.issues.update({ key: "NER-5", fields: { summary: "x" } }).catch(() => {}); jira.issues.get("NER-6").catch(() => {}); void 0;`,
     },
     makeContext({ events: [] }),
   );
   const content = result.content ?? "";
   assert.match(
     content,
-    /^Still running when the script ended, aborted: jira\.issues\.update \(NER-5\), outcome unknown; jira\.issues\.get \(NER-6\)\. Await every call\.$/m,
+    /^Still running when the script ended: jira\.issues\.update \(NER-5\), outcome unknown; jira\.issues\.get \(NER-6\), stopped\. Await every call\.$/m,
   );
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.hostCalls.length, 2);
@@ -381,7 +362,7 @@ void test("a call still running at timeout is listed without the await hint", as
   assert.equal(result.exitCode, 124);
   assert.match(
     result.content ?? "",
-    /^Still running when the script ended, aborted: jira\.issues\.update \(NER-5\), outcome unknown\.$/m,
+    /^Still running when the script ended: jira\.issues\.update \(NER-5\), outcome unknown\.$/m,
   );
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.hostCalls.length, 1);

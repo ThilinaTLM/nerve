@@ -163,6 +163,10 @@ const bashCases: LabeledCard[] = [
     props: { toolCall: vfx.quickScriptCompleted, cwd },
   },
   {
+    label: "quick_script — completed (files.edit diff)",
+    props: { toolCall: vfx.quickScriptEdit, cwd },
+  },
+  {
     label: "quick_script — failed (pages, error)",
     props: { toolCall: vfx.quickScriptFailed, cwd },
   },

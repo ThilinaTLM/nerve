@@ -1,11 +1,37 @@
 import { MAX_STREAMED_FILE_BYTES } from "@nervekit/extension-api/host";
+import { HTML_CONVERSION_MAX_INPUT_BYTES } from "../execution/index.js";
 import { MAX_FILE_BYTES } from "./runtime/files/artifacts.js";
+
+/** Per-run sandbox limits, passed to the sandbox and stated in the description. */
+export const SCRIPT_MEMORY_BYTES = 256 * 1024 * 1024;
+export const SCRIPT_OUTPUT_BYTES = 256 * 1024;
+export const SCRIPT_MAX_SDK_CALLS = 200;
+/** Printed values (`console.log` arguments, the script's result): a string inside a structure, an array, and one value's text. */
+export const PRINT_STRING_CHARS = 2000;
+export const PRINT_ROWS = 100;
+export const PRINT_VALUE_CHARS = 8 * 1024;
+/** A table cell, and the files an edit result lists when printed. */
+export const PRINT_CELL_CHARS = 300;
+export const PRINT_EDIT_FILES = 20;
+/** Rows with nested objects become a table only up to this many columns; wider ones print as JSON. */
+export const PRINT_NESTED_COLUMNS = 12;
+/** One `files.edit` / `artifacts.edit` call. */
+export const SCRIPT_EDIT_MAX_FILES = 500;
+export const SCRIPT_EDIT_MAX_BYTES = 20 * 1024 * 1024;
+/** Diff text an edit returns; the full diff goes to an artifact. */
+export const SCRIPT_EDIT_DIFF_BYTES = 8 * 1024;
 
 /** Limits stated in docs and rules as `{{limit:<name>}}`; the values come from the code that enforces them (extensions declare theirs in the manifest). */
 const LIMIT_BYTES: Record<string, number> = {
   "files.read": MAX_FILE_BYTES,
   "files.write": MAX_FILE_BYTES,
   attachments: MAX_STREAMED_FILE_BYTES,
+  "web.fetch": HTML_CONVERSION_MAX_INPUT_BYTES,
+  "script.memory": SCRIPT_MEMORY_BYTES,
+  "script.output": SCRIPT_OUTPUT_BYTES,
+  "edit.bytes": SCRIPT_EDIT_MAX_BYTES,
+  "edit.diff": SCRIPT_EDIT_DIFF_BYTES,
+  "print.value": PRINT_VALUE_CHARS,
 };
 
 function formatBytes(bytes: number): string {

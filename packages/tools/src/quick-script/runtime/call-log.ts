@@ -16,6 +16,12 @@ export type CallEntry = {
   call?: QuickScriptHostCall;
 };
 
+/**
+ * Display fields a method attaches to the value it returns (`files.edit`'s diff
+ * statistics); the executor copies them onto the call's record for the tool card.
+ */
+export const callDetails = new WeakMap<object, Partial<QuickScriptHostCall>>();
+
 const READ_RISKS: readonly MethodRisk[] = ["none", "read", "external_read"];
 const MAX_LISTED = 10;
 const MAX_ERROR_CHARS = 150;
@@ -117,17 +123,20 @@ export function callOutcomeLines(
   unfinished: readonly CallEntry[],
   entries: readonly CallEntry[],
   scriptCompleted: boolean,
+  /** What the run already shows (its output and the uncaught error that ended it); a failure it contains is not listed again. */
+  shown = "",
 ): string[] {
   const lines: string[] = [];
   if (unfinished.length > 0) {
+    // A read is simply stopped; a call that can change something may have taken effect.
     const items = unfinished.map((entry) => {
-      if (!canChange(entry)) return label(entry);
+      if (!canChange(entry)) return `${label(entry)}, stopped`;
       return entry.call?.outcome === "completed"
-        ? `${label(entry)}, completed after the script ended`
+        ? `${label(entry)}, completed anyway`
         : `${label(entry)}, outcome unknown`;
     });
     lines.push(
-      `Still running when the script ended, aborted: ${capped(items)}${scriptCompleted ? ". Await every call." : "."}`,
+      `Still running when the script ended: ${capped(items)}${scriptCompleted ? ". Await every call." : "."}`,
     );
   }
   const ended = new Set(unfinished);
@@ -136,7 +145,8 @@ export function callOutcomeLines(
       (entry) =>
         !ended.has(entry) &&
         canChange(entry) &&
-        entry.call?.outcome === "failed",
+        entry.call?.outcome === "failed" &&
+        !(entry.call.error && shown.includes(entry.call.error)),
     )
     .map(
       (entry) =>

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   agentPreviewText,
   availableToolDetailSections,
+  indentJsonLines,
   resolveToolDetailSection,
   serializeToolArguments,
 } from "./tool-details-state";
@@ -72,4 +73,36 @@ test("agent preview text joins text blocks and skips images", () => {
     "a\n\nb",
   );
   assert.equal(agentPreviewText(undefined), "");
+});
+
+test("indentJsonLines indents whole compact JSON lines only", () => {
+  const text = [
+    "SCRUM-1 Open",
+    '{"key":"SCRUM-1","labels":["a"]}',
+    '[{"k":"A","n":1}]',
+    '{"key":"SCRUM-2",…[+30 chars]',
+    "[+5 more of 105]",
+    "k | n",
+    "{}",
+  ].join("\n");
+  assert.equal(
+    indentJsonLines(text),
+    [
+      "SCRUM-1 Open",
+      '{\n  "key": "SCRUM-1",\n  "labels": [\n    "a"\n  ]\n}',
+      '[\n  {\n    "k": "A",\n    "n": 1\n  }\n]',
+      '{"key":"SCRUM-2",…[+30 chars]',
+      "[+5 more of 105]",
+      "k | n",
+      "{}",
+    ].join("\n"),
+  );
+});
+
+test("indentJsonLines leaves text without JSON lines alone", () => {
+  assert.equal(indentJsonLines("ok, no output"), undefined);
+  assert.equal(indentJsonLines("{}\n[]"), undefined);
+  // Not lossless: precision or spacing would change.
+  assert.equal(indentJsonLines('{"id":12345678901234567890}'), undefined);
+  assert.equal(indentJsonLines('{"a": 1}'), undefined);
 });

@@ -551,7 +551,7 @@ export function detailLayout(
 }
 
 /** `quick_script` namespaces of the runtime itself, always present. */
-export const RUNTIME_NAMESPACES = ["files", "image"] as const;
+export const RUNTIME_NAMESPACES = ["files", "artifacts", "image"] as const;
 
 /** Names the Quick script row lists: the runtime's plus every switched-on extension namespace. */
 export function activeNamespaces(

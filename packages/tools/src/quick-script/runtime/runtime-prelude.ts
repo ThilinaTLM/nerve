@@ -1,9 +1,17 @@
+import {
+  PRINT_CELL_CHARS,
+  PRINT_EDIT_FILES,
+  PRINT_NESTED_COLUMNS,
+  PRINT_ROWS,
+  PRINT_STRING_CHARS,
+  PRINT_VALUE_CHARS,
+} from "../limits.js";
 import { SANDBOX_GLOBALS } from "./sandbox-globals.js";
 
 /**
  * Trusted sandbox code around the generated SDK: error decoding, base64 for
- * binary data on the JSON bridge, `return` printing, and the positional
- * wrappers for `files.*` and the `image(handle)` chain. Pieces are spliced
+ * binary data on the JSON bridge, `return` printing, the bridge wrappers
+ * for `files.*` and `artifacts.*`, and the `image(handle)` chain. Pieces are spliced
  * around the generated product objects (see sdk.ts) inside one function scope.
  */
 
@@ -11,11 +19,16 @@ export const RUNTIME_HEAD = String.raw`
   const hostCall = host.call;
   // Host failures arrive as "[CODE] message"; scripts see error.code === "CODE".
   const call = async (method, args) => {
+    // Taken before the first await, so it names the script line that made the call.
+    const site = /script\.ts:(\d+)/.exec(new Error().stack ?? "");
     try {
       return await hostCall(method, args);
     } catch (error) {
       const match = /^\[([A-Z_]+)\] ([\s\S]*)$/.exec(error.message);
       if (match) { error.code = match[1]; error.message = match[2]; }
+      // The engine's own limit: no more calls can be made in this run.
+      else if (/host call limit of \d+ reached/.test(error.message)) { error.code = "RATE_LIMITED"; error.message = "SDK call limit of " + /\d+/.exec(error.message)[0] + " per run reached; split the work over several scripts."; }
+      try { error.stack = "    at " + method + (site ? " (script.ts:" + site[1] + ")" : ""); } catch {}
       throw error;
     }
   };
@@ -49,41 +62,170 @@ ${SANDBOX_GLOBALS}
     return out;
   };
 
-  // A top-level "return value" prints compactly: flat objects as a table, anything else as JSON.
-  const isFlat = (row) => row !== null && typeof row === "object" && !Array.isArray(row) &&
-    Object.values(row).every((v) => v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean");
-  const cellText = (v) => v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v).replace(/\s*\n\s*/g, " ");
-  const formatReturn = (value) => {
-    if (value === undefined) return undefined;
-    if (typeof value === "string") return value;
-    if (Array.isArray(value) && value.length > 0 && value.every(isFlat)) {
-      const columns = [];
-      for (const row of value) for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
-      return [columns.join(" | "), ...value.map((row) => columns.map((c) => cellText(row[c])).join(" | "))].join("\n");
+  // One formatter for console.* and the script's result, chosen for token count: text as is, flat rows as a
+  // table (each key once), anything else compact JSON. Long strings, long arrays and large values are cut with a note.
+  const STRING_CAP = ${PRINT_STRING_CHARS}, ROW_CAP = ${PRINT_ROWS}, VALUE_CAP = ${PRINT_VALUE_CHARS}, CELL_CAP = ${PRINT_CELL_CHARS}, COLUMN_CAP = ${PRINT_NESTED_COLUMNS}, FILES_CAP = ${PRINT_EDIT_FILES};
+  const errorText = (error) => (typeof error.code === "string" ? error.code : error.name || "Error") + ": " + error.message;
+  const dropped = (v) => v === undefined || typeof v === "function" || typeof v === "symbol";
+  const prune = (value, seen) => {
+    if (typeof value === "string") return value.length > STRING_CAP ? value.slice(0, STRING_CAP) + "…[+" + (value.length - STRING_CAP) + " chars]" : value;
+    if (typeof value === "bigint") return value + "n";
+    if (value === null || typeof value !== "object") return value;
+    if (value instanceof Error) return errorText(value);
+    if (seen.has(value)) return "[circular]";
+    if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return "[" + value.constructor.name + ", " + value.byteLength + " bytes]";
+    if (typeof value.toJSON === "function") return prune(value.toJSON(), seen);
+    let items = value;
+    if (value instanceof Map) items = [...value.keys()].every((key) => typeof key === "string" || typeof key === "number") ? Object.fromEntries(value) : [...value];
+    else if (value instanceof Set) items = [...value];
+    else if (!Array.isArray(value) && value.toString !== Object.prototype.toString && typeof value.toString === "function") return String(value);
+    seen.add(value);
+    let out;
+    if (Array.isArray(items)) {
+      out = items.slice(0, ROW_CAP).map((item) => { const kept = prune(item, seen); return dropped(kept) ? null : kept; });
+      if (items.length > ROW_CAP) out.push("[+" + (items.length - ROW_CAP) + " more of " + items.length + "]");
+    } else {
+      out = {};
+      for (const key of Object.keys(items)) { const kept = prune(items[key], seen); if (!dropped(kept)) out[key] = kept; }
     }
-    try { return JSON.stringify(value) ?? String(value); } catch { return String(value); }
+    seen.delete(value);
+    return out;
   };
+  // A table row: one nested level becomes "a.b" columns, anything deeper is compact JSON in its cell.
+  const isRecord = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+  const cellValue = (v) => v !== null && typeof v === "object" ? JSON.stringify(v) : v;
+  const flatRow = (row) => {
+    const out = {};
+    for (const [key, v] of Object.entries(row)) {
+      if (isRecord(v) && Object.keys(v).length > 0) for (const [inner, w] of Object.entries(v)) out[key + "." + inner] = cellValue(w);
+      else out[key] = cellValue(v);
+    }
+    return out;
+  };
+  const cellText = (v) => {
+    if (v === null || v === undefined) return "";
+    const text = String(v).replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|");
+    return text.length > CELL_CAP ? text.slice(0, CELL_CAP) + "…[+" + (text.length - CELL_CAP) + " chars]" : text;
+  };
+  // Lines of an array's items that fit the value cap, cut between items, with what is missing and how to get it.
+  const fitted = (lines, header, total, sample) => {
+    let size = header.length, shown = 0;
+    while (shown < lines.length && size + lines[shown].length + 1 <= VALUE_CAP) size += lines[shown++].length + 1;
+    if (shown === lines.length || shown === 0) return undefined;
+    const keys = sample !== null && typeof sample === "object" && !Array.isArray(sample) ? "; keys: " + Object.keys(sample).slice(0, 30).join(", ") : "";
+    return { shown, note: "[" + shown + " of " + total + " items shown" + keys + ": print the fields you need, or artifacts.write the value]" };
+  };
+  const formatValue = (value) => {
+    if (typeof value === "string") return value;
+    if (typeof value === "bigint") return value + "n";
+    if (value === null || typeof value !== "object") return String(value);
+    const pruned = prune(value, new Set());
+    if (typeof pruned === "string") return pruned;
+    let text;
+    if (Array.isArray(pruned) && pruned.length > 0) {
+      // The note for a cut array follows it on a line of its own, never as an item.
+      const more = pruned.length === ROW_CAP + 1 && /^\[\+\d+ more of \d+\]$/.test(pruned[ROW_CAP]) ? pruned[ROW_CAP] : undefined;
+      const rows = more ? pruned.slice(0, ROW_CAP) : pruned;
+      const total = more ? Number(/of (\d+)\]$/.exec(more)[1]) : rows.length;
+      // Rows that share most of their keys are a table; rows of different shapes stay JSON.
+      // Nested rows are flattened only while the table stays narrow: an API object with many nested fields is cheaper as JSON.
+      const nested = rows.every(isRecord) && rows.some((row) => Object.values(row).some((v) => v !== null && typeof v === "object"));
+      const flat = rows.every(isRecord) ? rows.map(flatRow) : undefined;
+      const columns = [];
+      let cells = 0;
+      if (flat) for (const row of flat) for (const key of Object.keys(row)) { cells += 1; if (!columns.includes(key)) columns.push(key); }
+      const table = flat !== undefined && columns.length > 0 && cells * 2 >= flat.length * columns.length && (!nested || columns.length <= COLUMN_CAP);
+      const header = table ? columns.join(" | ") : "";
+      const lines = table ? flat.map((row) => columns.map((c) => cellText(row[c])).join(" | ")) : rows.map((row) => JSON.stringify(row) ?? "null");
+      const fit = fitted(lines, header, total, rows[0]);
+      const kept = fit ? lines.slice(0, fit.shown) : lines;
+      const note = fit ? fit.note : more;
+      text = (table ? [header, ...kept].join("\n") : "[" + kept.join(",") + "]") + (note ? "\n" + note : "");
+      if (fit) return text;
+    } else {
+      try { text = JSON.stringify(pruned) ?? String(value); } catch { text = String(value); }
+    }
+    return text.length > VALUE_CAP
+      ? text.slice(0, VALUE_CAP) + "\n[+" + (text.length - VALUE_CAP) + " chars cut: print the fields you need, or artifacts.write the value]"
+      : text;
+  };
+  const print = console.log;
+  const write = (...values) => print(values.map(formatValue).join(" "));
+  globalThis.console = Object.freeze({ log: write, info: write, warn: write, error: write, debug: write, table: write });
+  // The script's result: a top-level "return value", or the value of its last expression.
   Object.defineProperty(globalThis, "__nerveReturn", {
-    value: (value) => { const text = formatReturn(value); if (text !== undefined) console.log(text); },
+    value: (value) => { if (!dropped(value) && value !== "") write(value); },
+  });
+  // An uncaught SDK failure is reported by its code: "NOT_FOUND: message", then the call and its line.
+  Object.defineProperty(globalThis, "__nerveUncaught", {
+    value: (error) => {
+      if (error instanceof Error && typeof error.code === "string") { try { error.name = error.code; } catch {} }
+      throw error;
+    },
   });
 `;
 
 /** `guarded` are the namespace globals that fail with the valid names on a misspelled method; they come from the registry. */
 export const runtimeTail = (guarded: readonly string[]) => String.raw`
-  const filesRead = files.read;
-  const filesWrite = files.write;
-  files.read = async (handle, options) => {
-    const result = await filesRead(handle, options);
-    return typeof result === "string" ? result : b64decode(result.data);
+  // Bytes cross the JSON bridge as base64 and regexes as source + flags.
+  const fromBridge = (result) => typeof result === "string" ? result : b64decode(result.data);
+  const toBridge = (data, method) => {
+    if (typeof data === "string") return { text: data };
+    if (data instanceof ArrayBuffer) return { base64: b64encode(new Uint8Array(data)) };
+    if (ArrayBuffer.isView(data)) return { base64: b64encode(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)) };
+    throw new TypeError(method + ": data must be a string, Uint8Array or ArrayBuffer");
   };
-  files.write = (name, data, options) => {
-    let payload;
-    if (typeof data === "string") payload = { text: data };
-    else if (data instanceof ArrayBuffer) payload = { base64: b64encode(new Uint8Array(data)) };
-    else if (ArrayBuffer.isView(data)) payload = { base64: b64encode(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)) };
-    else throw new TypeError("files.write: data must be a string, Uint8Array or ArrayBuffer");
-    return filesWrite(name, payload, options);
+  const withOptions = (options, map) => options !== null && typeof options === "object" && !Array.isArray(options) ? map(options) : options;
+  const bridgeEdits = (edits, label) => Array.isArray(edits)
+    ? edits.map((edit, index) => {
+      if (edit && typeof edit.replacement === "function") {
+        const error = new TypeError(label + ": edits[" + index + "].replacement must be a string. For a computed replacement use transform: (text) => text.replace(pattern, fn).");
+        error.code = "BAD_REQUEST";
+        throw error;
+      }
+      return edit && edit.pattern instanceof RegExp
+        ? { ...edit, pattern: edit.pattern.source, flags: edit.flags ?? edit.pattern.flags }
+        : edit;
+    })
+    : edits;
+  // An edit result prints as its match counts and line counts per file; the diff is result.diff.
+  const editSummary = (result) => {
+    if (result === null || typeof result !== "object" || !Array.isArray(result.files)) return result;
+    const lines = result.files.map((file) => file.path
+      + (file.changed ? " +" + file.added + " -" + file.removed : " unchanged")
+      + (result.counted === false ? "" : ": " + file.edits.map((edit) => "[" + edit.index + "] " + edit.matches).join(", ")));
+    if (lines.length === 0) lines.push("no file changed");
+    // result.files has every file; the printed form stops at a screenful.
+    if (lines.length > FILES_CAP) lines.splice(FILES_CAP, lines.length, "[+" + (lines.length - FILES_CAP) + " more files: result.files]");
+    // A dry run is a preview, so it prints what would change.
+    if (result.dryRun && result.diff) lines.push(result.diff);
+    delete result.counted;
+    return Object.defineProperty(result, "toString", { value: () => lines.join("\n") });
   };
+  for (const [namespace, label] of [[files, "files"], [artifacts, "artifacts"]]) {
+    const read = namespace.read, write = namespace.write, edit = namespace.edit;
+    namespace.read = async (...args) => fromBridge(await read(...args));
+    namespace.write = (options, ...rest) => write(withOptions(options, (o) => ({ ...o, data: toBridge(o.data, label + ".write") })), ...rest);
+    namespace.edit = async (options, ...rest) => {
+      // transform runs here: the host hands over the files' text, then writes what the function returned, all or nothing.
+      if (label === "files" && options !== null && typeof options === "object" && typeof options.transform === "function") {
+        const { transform, dryRun, ...target } = options;
+        const { staged } = await edit({ ...target, stage: true });
+        const contents = [];
+        for (const file of staged) {
+          const text = await transform(file.text, file.path);
+          if (text === undefined || text === file.text) continue;
+          contents.push({ path: file.path, text, version: file.version });
+        }
+        return editSummary(await edit({ contents, dryRun }));
+      }
+      return editSummary(await edit(withOptions(options, (o) => ({ ...o, edits: bridgeEdits(o.edits, label + ".edit") })), ...rest));
+    };
+  }
+  if (typeof launches !== "undefined") for (const method of ["start", "restart", "logs"]) {
+    const original = launches[method];
+    launches[method] = (options, ...rest) => original(withOptions(options, (o) => o.waitFor instanceof RegExp ? { ...o, waitFor: { source: o.waitFor.source, flags: o.waitFor.flags } } : o), ...rest);
+  }
 
   // image(handle).resize(...).crop(...).png() | .jpeg(...) then .info() / .save(name); work happens host-side.
   const imageHost = globalThis.image;

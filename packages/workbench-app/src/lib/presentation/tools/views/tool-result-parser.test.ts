@@ -340,7 +340,7 @@ describe("quick_script result", () => {
         "quick_script",
         { code: "return 1" },
         {
-          content: "1\nexit 0",
+          content: "1",
           details: {
             status: "completed",
             durationMs: 12,

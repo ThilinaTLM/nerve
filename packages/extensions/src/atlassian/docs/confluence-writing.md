@@ -6,11 +6,11 @@ A page body is RichText (`sdk.docs("storage/builders")`): Markdown for prose, `s
 
 `const page = await confluence.pages.get({ id, body: "storage" })` (the default Markdown body is a read-only view), then pass `version: page.version` to `pages.update`.
 
-| Change                   | How                                                                                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Append / prepend         | `body: [page.body, "## New\n\ntext"]`                                                                                                                                    |
-| Rewrite one section      | `body: storage.replaceSection(page.body, "Risks", "- new risk")`                                                                                                         |
-| Larger or surgical edits | `const d = await confluence.pages.download({ id })`, edit `d.file` with the Edit tool or `files.edit`, then `pages.update({ id, version: d.version, bodyFile: d.file })` |
+| Change                   | How                                                                                                                                                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Append / prepend         | `body: [page.body, "## New\n\ntext"]`                                                                                                                                                                 |
+| Rewrite one section      | `body: storage.replaceSection(page.body, "Risks", "- new risk")`                                                                                                                                      |
+| Larger or surgical edits | `const d = await confluence.pages.download({ id })`, edit `d.file` with the Edit tool or `artifacts.edit({ name: d.file, edits })`, then `pages.update({ id, version: d.version, bodyFile: d.file })` |
 
 `body` and `bodyFile` are exclusive. Rewrites that drop macros, layouts, images or mentions throw unless `allowRemoving: true`; add-on macros (drawio, gliffy, ...) survive only if their storage stays in the body. Never rebuild a page from the Markdown view; use an array, not `page.body + "..."`.
 

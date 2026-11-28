@@ -61,6 +61,7 @@ import {
   createAsyncBashTools,
 } from "@nervekit/conversation-core";
 import {
+  pythonUnavailableMessage,
   resolvePythonRuntime,
   ToolExecutionError,
   type ToolExecutionContext,
@@ -306,7 +307,9 @@ export function createConversationCore(
       if (input.toolName === "python_exec" && (!python || !python.available))
         throw new ToolExecutionError(
           "PYTHON_UNAVAILABLE",
-          "python_exec: no usable Python interpreter is configured. Ask the user to set one in Settings → Tools → python_exec.",
+          pythonUnavailableMessage(
+            settings.tools?.quick_script?.enabled !== false,
+          ),
         );
       const context: ToolExecutionContext & QuickScriptContext = {
         cwd: input.cwd,

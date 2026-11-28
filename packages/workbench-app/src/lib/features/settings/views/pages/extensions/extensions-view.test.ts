@@ -285,10 +285,11 @@ describe("extension summary and availability", () => {
         storage: { configured: false, available: true },
       },
     });
-    assert.deepEqual(activeNamespaces([off]), ["files", "image", "jira"]);
+    const runtime = ["files", "artifacts", "image"];
+    assert.deepEqual(activeNamespaces([off]), [...runtime, "jira"]);
     assert.deepEqual(
       activeNamespaces([{ ...off, enabled: { value: false, source } }]),
-      ["files", "image"],
+      runtime,
     );
     const broken = atlassian({
       availability: {

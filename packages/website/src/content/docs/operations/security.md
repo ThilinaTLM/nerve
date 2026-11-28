@@ -39,7 +39,7 @@ Non-loopback binding requires explicit opt-in. Each phone, browser, or remote de
 
 ## Quick script sandbox
 
-[Quick script](/guides/quick-script/) runs agent-written TypeScript in an embedded QuickJS sandbox with no filesystem, network, or Node access and limits on memory, time, output, and calls. Its only effects are SDK calls, and each call is checked against your permission policy, so a script can't exceed what the tool call was approved for. Extensions reach the network only through their declared origins, and credentials are added by Nerve rather than visible to the script. This limits what a script can reach; it doesn't make the services it talks to, or the content they return, trustworthy.
+[Quick script](/guides/quick-script/) runs agent-written JavaScript in an embedded QuickJS sandbox with no filesystem, network, or Node access and limits on memory, time, output, and calls. Its only effects are SDK calls, and each call is checked against your permission policy, so a script can't exceed what the tool call was approved for. Extensions reach the network only through their declared origins, and credentials are added by Nerve rather than visible to the script. This limits what a script can reach; it doesn't make the services it talks to, or the content they return, trustworthy.
 
 ## Project trust
 

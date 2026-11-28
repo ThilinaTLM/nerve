@@ -8,23 +8,28 @@ const ALL = registry.extensions.flatMap((extension) =>
 );
 
 /** Description size cap (characters) with every namespace configured; raise it only on purpose. */
-const MAX_DESCRIPTION_CHARS = 3_400;
+const MAX_DESCRIPTION_CHARS = 4_300;
 /** Cap for one namespace's summary plus rules. */
 const MAX_NAMESPACE_CHARS = 420;
 
 void test("without extensions the description lists the runtime only", () => {
   const text = quickScriptDescription({}, registry);
   assert.doesNotMatch(text, /jira|confluence|Write to Jira/);
-  assert.match(text, /^Run a sandboxed TypeScript script/);
+  assert.match(text, /^Run a sandboxed JavaScript script/);
   assert.match(
     text,
-    /Namespaces: files \([^)]*\); image \(.*\); web \([^)]*\); extensions \(.*\)\./,
+    /Namespaces: files \([^)]*\); artifacts \([^)]*\); image \(.*\); web \([^)]*\); extensions \(.*\)\./,
   );
   assert.match(
     text,
-    /\nLibraries: XLSX, Papa, docx, mammoth, PptxGenJS, pptxText, JSZip\.\n/,
+    /\nLibraries: XLSX, Papa, docx, mammoth, PptxGenJS, pptxText, JSZip \(docs: libraries\/documents\)\.\n/,
   );
   assert.match(text, /sdk\.describe\("<namespace>\.<group>"\)/);
+  assert.match(text, /files \([^)]*; docs: files\/editing\)/);
+  assert.match(
+    text,
+    /\nLimits per run: 200 SDK calls, 256 KiB printed output .*, 256 MiB memory\./,
+  );
   assert.doesNotMatch(text, /\{\{/);
 });
 

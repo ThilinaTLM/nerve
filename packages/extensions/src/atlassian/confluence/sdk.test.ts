@@ -302,8 +302,8 @@ void test("pages.download saves the storage body; bodyFile writes it back", asyn
   const result =
     await context.run(`const d = await confluence.pages.download({ id: "100" });
         console.log(JSON.stringify(d));
-        const text = await files.read(d.file);
-        await files.write("page-100.xhtml", text.replace("Head", "Heading"));
+        const text = await artifacts.read(d.file);
+        await artifacts.write({ name: "page-100.xhtml", data: text.replace("Head", "Heading") });
         await confluence.pages.update({ id: "100", version: d.version, bodyFile: d.file });`);
   assert.match(
     result.content ?? "",
@@ -359,7 +359,7 @@ void test("comments.add and attachment uploads are listed as created", async () 
         : inner(url, init),
   );
   const result = await context.run(
-    `await files.write("a.txt", "x");
+    `await artifacts.write({ name: "a.txt", data: "x" });
         await confluence.comments.add({ id: "100", body: "hi" });
         await confluence.attachments.upload({ id: "100", file: "artifact:a.txt" });`,
   );
@@ -395,7 +395,7 @@ void test("attachments.download round-trips binary bytes and lists choices on a 
   const result = await context.run(
     `const a = await confluence.attachments.download({ id: "att1" });
         const b = await confluence.attachments.download({ page: "100", filename: "pic one.png" });
-        console.log(a, b, (await files.read(a, { as: "bytes" })).join(","));
+        console.log(a, b, (await artifacts.read({ name: a, as: "bytes" })).join(","));
         try { await confluence.attachments.download({ page: "100", filename: "x.png" }); } catch (e) { console.log(e.code, e.message); }`,
   );
   assert.match(

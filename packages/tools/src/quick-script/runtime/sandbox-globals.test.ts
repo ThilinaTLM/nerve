@@ -163,5 +163,5 @@ void test("SDK calls still hit the host-call cap of 200", async () => {
       for (let i = 0; i < 201; i++) { await sdk.search("x"); done++; }
     } catch (e) { console.log(done, String(e.message ?? e)); }
   `);
-  assert.match(content ?? "", /^200 .*host call limit of 200 reached/);
+  assert.match(content ?? "", /^200 SDK call limit of 200 per run reached/);
 });

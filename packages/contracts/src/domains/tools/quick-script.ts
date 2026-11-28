@@ -30,6 +30,18 @@ export const quickScriptHostCallSchema = z
     outcome: z.enum(["completed", "failed", "denied"]),
     error: z.string().optional(),
     durationMs: z.number().nonnegative(),
+    /** `files.edit` / `artifacts.edit`: what the call changed, for the tool card. The model gets match counts instead. */
+    edit: z
+      .object({
+        files: z.number().int().nonnegative(),
+        added: z.number().int().nonnegative(),
+        removed: z.number().int().nonnegative(),
+        /** Unified diff, capped; `diffFile` (an artifact handle) holds all of it. */
+        diff: z.string(),
+        diffFile: z.string().optional(),
+        dryRun: z.boolean().optional(),
+      })
+      .optional(),
   })
   .passthrough();
 export type QuickScriptHostCall = z.infer<typeof quickScriptHostCallSchema>;

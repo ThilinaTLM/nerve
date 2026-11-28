@@ -31,7 +31,7 @@ Text a model reads is checked when the folder loads; an extension over a limit i
 | A direct tool `description`               | 800                |
 | An error message and its fix, at run time | 600 (cut)          |
 
-Namespace ids must not equal a runtime namespace (`files`, `image`, `web`, `extensions`, `configuration`, `libraries`), `sdk`, `host` or a global (`console`, `JSON`, ...). Account kinds, namespace ids and tool names are unique across all extensions. Each UI kind holds at most 16 contributions.
+Namespace ids must not equal a runtime namespace (`files`, `artifacts`, `image`, `web`, `extensions`, `configuration`, `launches`, `mcp`, `libraries`), `sdk`, `host` or a global (`console`, `JSON`, ...). Account kinds, namespace ids and tool names are unique across all extensions. Each UI kind holds at most 16 contributions.
 
 ## Precedence and states
 

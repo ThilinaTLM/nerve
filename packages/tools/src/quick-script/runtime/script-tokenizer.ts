@@ -50,6 +50,9 @@ const REGEX_AFTER = new Set(["return", "typeof", "case", "in", "of", "yield"]);
 export type Token = {
   kind: "id" | "str" | "tmpl" | "num" | "regex" | "punct";
   text: string;
+  /** Source offsets of the token; template pieces share their opener's start. */
+  start: number;
+  end: number;
 };
 
 /**
@@ -69,9 +72,10 @@ export function tokenize(
   const tokens: Token[] = [];
   const braces: Array<"{" | "${"> = [];
   let i = 0;
+  let at = 0;
 
   const push = (kind: Token["kind"], text: string) =>
-    tokens.push({ kind, text });
+    tokens.push({ kind, text, start: at, end: i });
   /** Reads template text from `i` up to the closing backtick or the next `${`. */
   const templateText = (open: boolean) => {
     let text = "";
@@ -102,6 +106,7 @@ export function tokenize(
   while (i < source.length) {
     const char = source[i];
     const next = source[i + 1];
+    at = i;
     if (/\s/.test(char)) i += 1;
     else if (char === "/" && next === "/") {
       while (i < source.length && source[i] !== "\n") i += 1;

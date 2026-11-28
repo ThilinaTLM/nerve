@@ -38,7 +38,7 @@ async function decision(ruleSet: string, code: string) {
 }
 
 test("quick-script scripts are matched on the risk of their script", async () => {
-  const read = `await files.list()`;
+  const read = `await artifacts.list()`;
   const network = `await jira.issues.get("A-1")`;
   const write = `await confluence.pages.update({ id: "1", title: "t" })`;
   const alias = `const j = jira; await j["issues"].get("A-1")`;
@@ -54,7 +54,7 @@ test("quick-script scripts are matched on the risk of their script", async () =>
 });
 
 test("planning and read-only allow read and external-read scripts and never auto-allow writes", async () => {
-  const read = `await files.list()`;
+  const read = `await artifacts.list()`;
   const network = `await jira.issues.get("A-1"); await confluence.pages.get("1")`;
   const write = `await jira.issues.update({ key: "A-1", fields: { summary: "x" } })`;
   const destructive = `await jira.request("DELETE", "/rest/api/3/issue/A-1")`;

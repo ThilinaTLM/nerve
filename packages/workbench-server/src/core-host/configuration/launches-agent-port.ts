@@ -12,6 +12,7 @@ import {
   type LaunchDefinition,
   type LaunchFolder,
 } from "@nervekit/contracts/launch-definitions";
+import { readFile } from "node:fs/promises";
 import { isAbsolute, relative, sep } from "node:path";
 import type { Project } from "@nervekit/contracts/core";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
@@ -377,6 +378,17 @@ export function createLaunchesAgentPort(options: {
           `Launch ${quoted(name)} has not run yet, so it has no output. Start it with launches.start().`,
         );
       return runs.logs(run, page, name);
+    },
+    async readOutput(runId) {
+      const { name, run } = await select({ runId });
+      const load = (path: string | undefined) =>
+        path ? readFile(path, "utf8").catch(() => "") : "";
+      const text = run!.combinedPath
+        ? await load(run!.combinedPath)
+        : [await load(run!.stdoutPath), await load(run!.stderrPath)]
+            .filter(Boolean)
+            .join("\n");
+      return { run: toLaunchRun(run!, name), text };
     },
     create: (input) =>
       write(async (expected, catalog) => {

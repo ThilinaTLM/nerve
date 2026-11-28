@@ -299,3 +299,15 @@ function executableLocatorOptions(
     cwd: options.cwd,
   };
 }
+
+/**
+ * The error for a python_exec call when no interpreter is usable. It is the one
+ * place an agent learns it has no Python, so it also names the fallback for
+ * scripted edits while quick_script is on.
+ */
+export function pythonUnavailableMessage(quickScriptEnabled: boolean): string {
+  const fallback = quickScriptEnabled
+    ? ' For multi-file or pattern edits without Python, quick_script has files.edit (sdk.docs("files/editing")).'
+    : "";
+  return `python_exec: no usable Python interpreter is configured. Ask the user to set one in Settings → Tools → python_exec.${fallback}`;
+}

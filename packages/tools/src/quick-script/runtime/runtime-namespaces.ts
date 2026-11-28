@@ -7,6 +7,7 @@ import { CONFIGURATION_DTS_TYPES } from "./configuration/dts-types.js";
 import { configurationMethods } from "./configuration/configuration-methods.js";
 import { EXTENSIONS_DTS_TYPES } from "./extensions/dts-types.js";
 import { extensionsMethods } from "./extensions/extensions-methods.js";
+import { artifactsMethods } from "./files/artifacts-methods.js";
 import { filesMethods } from "./files/files-methods.js";
 import { imageMethods } from "./files/image-methods.js";
 import { WEB_DTS_TYPES } from "./web/dts-types.js";
@@ -32,15 +33,29 @@ export const LIBRARY_GLOBALS = [
 export const runtimeNamespaces: SdkNamespace[] = [
   {
     id: "files",
-    summary: "artifact:<name> or workspace paths; read, write, edit, list",
+    summary: "workspace files: list, search, read, write, batch edit",
     methods: filesMethods,
     types: FILES_DTS_TYPES,
     docs: [
       {
-        id: "files/handles",
+        id: "files/editing",
         whenToRead:
-          "before reading or writing files: handles, permissions, limits",
-        file: "files.md",
+          "before files.edit or artifacts.edit: edit shapes, match counts, transform",
+        file: "editing.md",
+      },
+    ],
+  },
+  {
+    id: "artifacts",
+    summary: "this conversation's files: results, downloads, documents",
+    methods: artifactsMethods,
+    types: "",
+    docs: [
+      {
+        id: "artifacts/handles",
+        whenToRead:
+          "before passing files between calls: handles, names, limits",
+        file: "artifacts.md",
       },
     ],
   },
@@ -65,7 +80,9 @@ export const runtimeNamespaces: SdkNamespace[] = [
   {
     id: "web",
     summary: "fetch a URL as markdown, text, JSON or a file",
-    rules: ["`web.fetch` content can be up to 8 MiB: slice before printing."],
+    rules: [
+      "`web.fetch` content can be up to {{limit:web.fetch}}: slice before printing.",
+    ],
     methods: webMethods,
     types: WEB_DTS_TYPES,
     docs: [],
@@ -73,7 +90,7 @@ export const runtimeNamespaces: SdkNamespace[] = [
   {
     id: "extensions",
     summary:
-      "reload(id), status(id) for user and project extensions, built with the configure-nerve skill",
+      "status and reload of user and project extensions (configure-nerve skill)",
     methods: extensionsMethods,
     types: EXTENSIONS_DTS_TYPES,
     docs: [],
@@ -81,7 +98,7 @@ export const runtimeNamespaces: SdkNamespace[] = [
   {
     id: "configuration",
     summary:
-      "describe(), list(filter), tools.list(), explain(call), check(scope), reload(scope): what is configured and in effect, tool names as rules match them, why a call is allowed or prompted, and validating then activating hand-edited files; see the configure-nerve skill",
+      "what is configured and in effect, why a call is allowed or prompted; validate and activate hand-edited files (configure-nerve skill)",
     methods: configurationMethods,
     types: CONFIGURATION_DTS_TYPES,
     docs: [],
@@ -89,7 +106,7 @@ export const runtimeNamespaces: SdkNamespace[] = [
   {
     id: "launches",
     summary:
-      "list, start, restart, stop, logs, create, update, remove, folders.create, move: the project's launches (dev servers), named by label; see the configure-nerve skill",
+      "start, stop, logs and manage the project's dev servers, named by label (configure-nerve skill)",
     methods: launchesMethods,
     types: LAUNCHES_DTS_TYPES,
     docs: [],
@@ -98,7 +115,7 @@ export const runtimeNamespaces: SdkNamespace[] = [
     id: "mcp",
     listedWhenConfigured: true,
     summary:
-      "tools and resources of the configured MCP servers: tools.search(query) first, then tools.get, tools.call; servers.list(), tools.list(server?), resources.list/get",
+      "tools and resources of the configured MCP servers; start with tools.search(query)",
     methods: mcpMethods,
     types: MCP_DTS_TYPES,
     docs: [

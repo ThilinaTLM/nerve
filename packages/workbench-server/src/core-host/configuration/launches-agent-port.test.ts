@@ -446,6 +446,17 @@ void test("logs page the selected run's combined output", async (t) => {
   assert.match(page.output, /^two\nLines 2-2 of 3 \(running\)\./);
 });
 
+void test("readOutput returns the run's raw log without paging text", async (t) => {
+  const f = await fixture(t);
+  const web = await f.port.create({ label: "web", command: "pnpm dev" });
+  const combinedPath = join(f.directory, "output.txt");
+  await writeFile(combinedPath, "one\ntwo\n");
+  f.setRows([run({ id: "launch_new", definitionId: web.id, combinedPath })]);
+  const read = await f.port.readOutput("launch_new");
+  assert.equal(read.text, "one\ntwo\n");
+  assert.equal(read.run.name, "web");
+});
+
 void test("without a usable shell nothing starts", async (t) => {
   const f = await fixture(t);
   await f.port.create({ label: "web", command: "pnpm dev" });

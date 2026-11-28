@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onDestroy } from "svelte";
+import Braces from "@lucide/svelte/icons/braces";
 import Check from "@lucide/svelte/icons/check";
 import Copy from "@lucide/svelte/icons/copy";
 import ExternalLink from "@lucide/svelte/icons/external-link";
@@ -37,6 +38,7 @@ import CompleteResultSection from "./CompleteResultSection.svelte";
 import {
   agentPreviewText,
   availableToolDetailSections,
+  indentJsonLines,
   resolveToolDetailSection,
   serializeToolArguments,
   type ToolDetailSection,
@@ -142,6 +144,12 @@ const openPath = $derived(presentation.primaryArg?.openPath);
 const openLine = $derived(presentation.primaryArg?.line);
 
 const agentText = $derived(agentPreviewText(details?.toolCall.agentPreview));
+// quick_script prints values as compact JSON for the agent; the user can read
+// them indented. Offered only when some printed line is a whole JSON value.
+const indentedAgentText = $derived(
+  view.kind === "quick_script" ? indentJsonLines(agentText) : undefined,
+);
+let indentJson = $state(true);
 const resultText = $derived(
   view.kind === "bash" || view.kind === "python" ? view.output : agentText,
 );
@@ -150,7 +158,9 @@ const argumentsText = $derived(
 );
 const paneText = $derived(
   activeSection === "agent-preview"
-    ? agentText
+    ? indentJson && indentedAgentText
+      ? indentedAgentText
+      : agentText
     : activeSection === "arguments"
       ? argumentsText
       : activeSection === "complete-result"
@@ -343,6 +353,14 @@ async function copy(key: string, text: string): Promise<void> {
                 active={wrap}
                 onclick={() => (wrap = !wrap)}
               />
+              {#if activeSection === "agent-preview" && indentedAgentText}
+                <IconAction
+                  icon={Braces}
+                  label="Indent JSON"
+                  active={indentJson}
+                  onclick={() => (indentJson = !indentJson)}
+                />
+              {/if}
               <IconAction
                 icon={copiedKey === "pane" ? Check : Copy}
                 label={copiedKey === "pane" ? "Copied" : "Copy"}
@@ -368,6 +386,7 @@ async function copy(key: string, text: string): Promise<void> {
                     preview={details.toolCall.agentPreview}
                     projection={details.toolCall.agentProjection}
                     result={details.toolCall.result}
+                    indentJson={indentJson && indentedAgentText !== undefined}
                     {wrap}
                   />
                 {:else if section === "artifacts"}

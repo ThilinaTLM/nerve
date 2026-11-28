@@ -5,6 +5,9 @@ import { BASE_PRELUDE } from "./prelude.js";
 
 export * from "./runtime.js";
 
+/** Scripts that run at once; a further `runSandboxScript` rejects. Mirrors `MAX_ACTIVE_SCRIPTS` in `native/src/sandbox/napi.rs`. */
+export const MAX_ACTIVE_SCRIPTS = 4;
+
 /** Time the engine thread gets past the script timeout to report its exit. */
 const EXIT_GRACE_MS = 5_000;
 

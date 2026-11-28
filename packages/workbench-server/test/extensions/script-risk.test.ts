@@ -36,13 +36,14 @@ void test("runtime namespaces are scanned: starting a launch makes the script de
 void test("the scanner reads each method's declared risk", async () => {
   const risks = async (code: string) => (await classify(code)).risk;
   assert.equal(await risks(`await jira.issues.get("A-1")`), "external_read");
-  assert.equal(await risks(`await files.list()`), "read");
+  assert.equal(await risks(`await artifacts.list()`), "read");
+  assert.equal(await risks(`await files.search("TODO")`), "read");
   assert.equal(
     await risks(`await web.fetch("https://x.test")`),
     "external_read",
   );
   assert.equal(
-    await risks(`await files.list(); await web.fetch("https://x.test")`),
+    await risks(`await artifacts.list(); await web.fetch("https://x.test")`),
     "external_read",
   );
   assert.match(
@@ -102,16 +103,12 @@ void test("writes and destructive calls raise the risk", async () => {
     "external_write",
   );
   assert.equal(
-    (await classify(`await files.write("out/a.txt", "x", { workspace: true })`))
+    (await classify(`await files.write({ path: "out/a.txt", data: "x" })`))
       .risk,
     "workspace_write",
   );
   assert.equal(
-    (await classify(`await files.write("a.txt", "x")`)).risk,
-    "read",
-  );
-  assert.equal(
-    (await classify(`await files.write("a.txt", "x", { workspace: false })`))
+    (await classify(`await artifacts.write({ name: "a.txt", data: "x" })`))
       .risk,
     "read",
   );
@@ -176,7 +173,7 @@ void test("a slash after ) or } cannot hide calls behind a bogus string or regex
 });
 
 void test("a tie between workspace and external writes reports the external write, in any order", async () => {
-  const file = `await files.write("out/a.txt", "x", { workspace: true });`;
+  const file = `await files.write({ path: "out/a.txt", data: "x" });`;
   const jira = `await jira.comments.add({ key: "A-1", body: "x" });`;
   assert.equal((await classify(file + jira)).risk, "external_write");
   assert.equal((await classify(jira + file)).risk, "external_write");
@@ -213,44 +210,19 @@ void test("escaped identifiers, constructor chains and host.call cannot hide cal
   );
 });
 
-void test("workspace writes hidden behind quoted, computed or escaped option keys are found", async () => {
+void test("files.* writes are workspace writes whatever their arguments; artifacts.* never are", async () => {
   for (const code of [
-    `await files.write("a.txt", "x", { "workspace": true })`,
-    `await files.write("a.txt", "x", { ["work" + "space"]: true })`,
-    `await files.write("a.txt", "x", { "\\u0077orkspace": true })`,
-    `await files.write("a.txt", "x", { ...opts })`,
-    `await files.write("a.txt", "x", { workspace })`,
-    `await files.write("a.txt", "x", opts)`,
+    `await files.edit({ edits: [{ path: "src/a.ts", oldText: "a", newText: "b" }] })`,
+    `await files.edit({ edits: [{ glob: "*.ts", pattern: /a/, replacement: "b", all: true }], dryRun: true })`,
+    `await files.edit(options)`,
+    `await files.write(options)`,
   ])
     assert.equal((await classify(code)).risk, "workspace_write", code);
   for (const code of [
-    `await files.write("a.txt", "x", { "workspace": false })`,
-    `await files.write("artifact:a.txt", "x", { other: 1 })`,
+    `await artifacts.edit({ name: "a.md", edits: [{ oldText: "a", newText: "b" }] })`,
+    `await artifacts.write(options)`,
   ])
     assert.equal((await classify(code)).risk, "read", code);
-});
-
-void test("files.edit is a workspace write unless it targets a literal artifact handle", async () => {
-  assert.equal(
-    (
-      await classify(
-        `await files.edit("artifact:a.md", [{ oldText: "a", newText: "b" }])`,
-      )
-    ).risk,
-    "read",
-  );
-  assert.equal(
-    (
-      await classify(
-        `await files.edit("src/a.ts", [{ oldText: "a", newText: "b" }])`,
-      )
-    ).risk,
-    "workspace_write",
-  );
-  assert.equal(
-    (await classify(`await files.edit(handle, edits)`)).risk,
-    "workspace_write",
-  );
 });
 
 void test("image chains read at most; only the bare global is not analysable", async () => {

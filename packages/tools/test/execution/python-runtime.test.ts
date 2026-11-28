@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it, type TestContext } from "node:test";
-import { resolvePythonRuntime } from "../../src/execution/python/runtime.js";
+import {
+  pythonUnavailableMessage,
+  resolvePythonRuntime,
+} from "../../src/execution/python/runtime.js";
 import {
   createTempProject,
   writeExecutable,
@@ -117,4 +120,12 @@ describe("Python runtime resolver", () => {
     assert.equal(status.source, "manual");
     assert.equal(status.displayPath, manualPython);
   });
+});
+
+void it("the missing-interpreter error names quick_script files.edit only while quick_script is on", () => {
+  assert.match(
+    pythonUnavailableMessage(true),
+    /Settings → Tools → python_exec\. For multi-file or pattern edits without Python, quick_script has files\.edit/,
+  );
+  assert.doesNotMatch(pythonUnavailableMessage(false), /quick_script/);
 });

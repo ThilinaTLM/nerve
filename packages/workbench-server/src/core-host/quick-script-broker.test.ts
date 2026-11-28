@@ -169,13 +169,15 @@ void test("only operations and the remaining direct tools can be brokered", asyn
     toolName: "edit",
     args: { path: "a.txt", edits: [] },
   });
+  await authorize(call, { toolName: "find", args: { pattern: "*.ts" } });
+  await authorize(call, { toolName: "grep", args: { pattern: "TODO" } });
   await authorize(call, {
     toolName: "web_fetch",
     args: { url: "https://example.com" },
   });
   assert.deepEqual(
     inputs.map((input) => input.toolName),
-    ["bash", "read", "write", "edit", "web_fetch"],
+    ["bash", "read", "write", "edit", "find", "grep", "web_fetch"],
   );
 });
 

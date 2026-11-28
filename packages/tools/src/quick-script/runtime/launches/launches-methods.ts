@@ -2,6 +2,7 @@ import { parseOptions } from "@nervekit/extension-api/host";
 import { codedError } from "../errors.js";
 import { defineMethod } from "../sdk-args.js";
 import type { SdkMethod } from "../sdk-types.js";
+import { parseLaunchWait, waitForLaunchOutput } from "./launch-wait.js";
 import type {
   LaunchDefinitionInput,
   LaunchPlacement,
@@ -117,12 +118,10 @@ function placement(options: Record<string, unknown>): LaunchPlacement {
 const FIELD_OPTIONS = ["label", "command", "cwd", "port", "runPolicy"] as const;
 const PLACE_OPTIONS = ["folder", "before"] as const;
 const SELECT_OPTIONS = ["name", "runId"] as const;
+const WAIT_OPTIONS = ["waitFor", "timeout"] as const;
+// Shared wording lives on the types (`LaunchName`, `LaunchRunRef`, `LaunchWaitOptions`), which every describe of a method includes.
 const WRITES =
-  "Writes the project's launch catalog through Nerve (locking, ids and order are handled); never edit definitions.json by hand. If the file on disk is invalid, the call fails and says how to fix it.";
-const NAMES =
-  "`name`: the label shown in the Launches panel (the command when unlabeled), or an id from list().";
-const RUN =
-  "`runId` picks one run of that name; alone, it selects the run directly.";
+  "Writes the launch catalog through Nerve; never edit definitions.json by hand.";
 
 const describe = (
   command: string | undefined,
@@ -140,12 +139,15 @@ function startMethod(mode: "start" | "restart"): SdkMethod {
     directTool: "bash",
     signature:
       mode === "start"
-        ? `/** Start a launch definition (or a stopped run). ${NAMES} Checked like the bash command it runs. A single-run definition that is already running is not started twice. With a port, waits up to 30 s for it to listen. Runs keep going after the script ends; you are notified when one you started exits. */ start(name: string | { name?: string; runId?: string }): Promise<LaunchStartResult>`
-        : `/** Stop the launch's current run (if any) and start it again with the definition's current command. ${NAMES} ${RUN} Checked like the bash command it runs. */ restart(name: string | { name?: string; runId?: string }): Promise<LaunchStartResult>`,
+        ? "/** Start a launch definition (or a stopped run). Checked like the bash command it runs. A single-run definition that is already running is not started twice. With a port, waits up to 30 s for it to listen. Runs keep going after the script ends; you are notified when one you started exits. */ start(name: LaunchName | (LaunchRunRef & LaunchWaitOptions)): Promise<LaunchStartResult>"
+        : "/** Stop the launch's current run (if any) and start it again with the definition's current command. Checked like the bash command it runs. */ restart(name: LaunchName | (LaunchRunRef & LaunchWaitOptions)): Promise<LaunchStartResult>",
     async prepare(args, env) {
-      const target = selector(
-        parseOptions(method, args, { bare: "name", options: SELECT_OPTIONS }),
-      );
+      const options = parseOptions(method, args, {
+        bare: "name",
+        options: [...SELECT_OPTIONS, ...WAIT_OPTIONS],
+      });
+      const target = selector(options);
+      const wait = parseLaunchWait(options);
       const prepared = await port(env).prepareStart(target, mode);
       return {
         ...(prepared.process
@@ -163,7 +165,23 @@ function startMethod(mode: "start" | "restart"): SdkMethod {
             }
           : {}),
         resource: `launch ${JSON.stringify(prepared.name)}`,
-        run: () => prepared.start(),
+        run: async (env) => {
+          const started = await prepared.start();
+          if (!wait) return started;
+          const waited = await waitForLaunchOutput(
+            port(env),
+            started.runId,
+            wait,
+            env.context.signal,
+          );
+          return {
+            ...started,
+            ...waited.run,
+            name: started.name,
+            matched: waited.matched,
+            output: waited.output,
+          };
+        },
       };
     },
   };
@@ -192,7 +210,8 @@ export const launchesMethods: SdkMethod[] = [
     product: "launches",
     path: "stop",
     risk: "external_write",
-    signature: `/** Stop the launch's latest run. ${NAMES} ${RUN} \`stopped\` is false when nothing was running. */ stop(name: string | { name?: string; runId?: string }): Promise<{ stopped: boolean; run?: LaunchRun }>`,
+    signature:
+      "/** Stop the launch's latest run. `stopped` is false when nothing was running. */ stop(name: LaunchName | LaunchRunRef): Promise<{ stopped: boolean; run?: LaunchRun }>",
     async prepare(args, env) {
       const prepared = await port(env).prepareStop(
         selector(
@@ -219,12 +238,32 @@ export const launchesMethods: SdkMethod[] = [
     path: "logs",
     risk: "read",
     bare: "name",
-    options: [...SELECT_OPTIONS, "offset", "lines"],
-    signature: `/** Output of the launch's latest run: \`lines\` lines (default 100, max 500) from \`offset\` (0-based; default: the tail). ${NAMES} ${RUN} */ logs(name: string | { name?: string; runId?: string; offset?: number; lines?: number }): Promise<{ run: LaunchRun; output: string }>`,
-    parse: (options) => ({ target: selector(options), page: page(options) }),
+    options: [...SELECT_OPTIONS, "offset", "lines", ...WAIT_OPTIONS],
+    signature: `/** Output of the launch's latest run: \`lines\` lines (default 100, max 500) from \`offset\` (0-based; default: the tail). With \`waitFor\`, \`output\` is the log tail (at most 100 lines) up to the matching line; not combinable with \`offset\`/\`lines\`. */ logs(name: LaunchName | (LaunchRunRef & ({ offset?: number; lines?: number } | LaunchWaitOptions))): Promise<{ run: LaunchRun; output: string; matched?: boolean }>`,
+    parse: (options) => {
+      const wait = parseLaunchWait(options);
+      if (wait && (options.offset !== undefined || options.lines !== undefined))
+        throw new Error(
+          "offset and lines do not combine with waitFor: the output is the log tail up to the match.",
+        );
+      return { target: selector(options), page: page(options), wait };
+    },
     resource: ({ target }) => `launch ${label(target)}`,
-    run: async ({ target, page: lines }, env) =>
-      await port(env).logs(target, lines),
+    run: async ({ target, page: lines, wait }, env) => {
+      const logs = await port(env).logs(target, wait ? {} : lines);
+      if (!wait) return logs;
+      const waited = await waitForLaunchOutput(
+        port(env),
+        logs.run.runId,
+        wait,
+        env.context.signal,
+      );
+      return {
+        run: waited.run,
+        output: waited.output,
+        matched: waited.matched,
+      };
+    },
   }),
   defineMethod({
     product: "launches",
@@ -250,7 +289,7 @@ export const launchesMethods: SdkMethod[] = [
     path: "update",
     risk: "write",
     options: ["name", ...FIELD_OPTIONS],
-    signature: `/** Change a definition: fields you omit stay; null clears label, cwd or port. ${NAMES} ${WRITES} */ update(options: { name: string; command?: string; label?: string | null; cwd?: string | null; port?: number | null; runPolicy?: "single" | "concurrent" }): Promise<LaunchDefinition>`,
+    signature: `/** Change a definition: fields you omit stay; null clears label, cwd or port. ${WRITES} */ update(options: { name: LaunchName; command?: string; label?: string | null; cwd?: string | null; port?: number | null; runPolicy?: "single" | "concurrent" }): Promise<LaunchDefinition>`,
     parse: (options) => ({ name: name(options), input: fields(options) }),
     authorize: ({ name: target, input }) => ({
       targets: [TARGET],
@@ -266,7 +305,7 @@ export const launchesMethods: SdkMethod[] = [
     risk: "write",
     bare: "name",
     options: ["name"],
-    signature: `/** Delete a definition; its runs keep going. ${NAMES} ${WRITES} */ remove(name: string | { name: string }): Promise<{ ok: true }>`,
+    signature: `/** Delete a definition; its runs keep going. ${WRITES} */ remove(name: LaunchName | { name: LaunchName }): Promise<{ ok: true }>`,
     parse: (options) => name(options),
     authorize: (target) => ({
       targets: [TARGET],

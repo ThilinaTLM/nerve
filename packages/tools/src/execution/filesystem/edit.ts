@@ -247,7 +247,7 @@ function resolveExactEdit(
   };
 }
 
-function exactMatchOffsets(content: string, needle: string): number[] {
+export function exactMatchOffsets(content: string, needle: string): number[] {
   const matches: number[] = [];
   let offset = content.indexOf(needle);
   while (offset >= 0) {
@@ -298,10 +298,12 @@ function snippet(line: string | undefined): string {
   return text.length > MAX_SNIPPET ? `${text.slice(0, MAX_SNIPPET)}…` : text;
 }
 
-function ambiguousMessage(
+/** `field` names the matched argument (`oldText`, `from`, `insertBefore`…) for `files.edit`'s other edit shapes. */
+export function ambiguousMessage(
   content: string,
   matches: number[],
   index: number,
+  field = "oldText",
 ): string {
   const lines = content.split("\n");
   const found = matches.map((offset) => {
@@ -332,19 +334,20 @@ function ambiguousMessage(
   });
   const rest = found.length - listed.length;
   return [
-    `edits[${index}].oldText matched ${matches.length} times. Add context that tells them apart:`,
+    `edits[${index}].${field} matched ${matches.length} times. Add context that tells them apart:`,
     ...listed,
     ...(rest > 0 ? [`  … and ${rest} more`] : []),
   ].join("\n");
 }
 
-function notFoundMessage(
+export function notFoundMessage(
   content: string,
   oldText: string,
   index: number,
   shown: string,
+  field = "oldText",
 ): string {
-  const base = `edits[${index}].oldText was not found in ${shown}. Reread the file and use exact current text.`;
+  const base = `edits[${index}].${field} was not found in ${shown}. Reread the file and use exact current text.`;
   const needle = collapseWhitespace(oldText);
   if (needle.text.length === 0) return base;
   const haystack = collapseWhitespace(content);
@@ -353,7 +356,7 @@ function notFoundMessage(
   const offset = haystack.origins[at] ?? 0;
   const number = lineAtOffset(content, offset);
   const line = snippet(content.split("\n")[number - 1]);
-  return `edits[${index}].oldText was not found in ${shown}; only whitespace differs from line ${number}: ${line}`;
+  return `edits[${index}].${field} was not found in ${shown}; only whitespace differs from line ${number}: ${line}`;
 }
 
 /** Collapses whitespace runs to one space and trims, tracking original offsets. */

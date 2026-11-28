@@ -83,33 +83,11 @@ export function objectProperties(
       const [key, colon] = part;
       if ((key.kind === "id" || key.kind === "str") && colon?.text === ":")
         return { key: key.text, value: part.slice(2) };
-      // Shorthand `{ workspace }`.
+      // Shorthand `{ name }`.
       if (key.kind === "id" && part.length === 1)
         return { key: key.text, value: part };
       return { value: part };
     });
-}
-
-/** `files.write` writes outside the artifact folder only with `workspace: true`; anything that might set it counts. */
-export function writesWorkspace(args: Token[][]): boolean {
-  const options = args[2];
-  if (!options) return false;
-  const properties = objectProperties(options);
-  if (!properties) return true;
-  // A computed key, spread or method could name `workspace`.
-  if (properties.some((property) => property.key === undefined)) return true;
-  const workspace = properties.filter(
-    (property) => property.key === "workspace",
-  );
-  return workspace.some(
-    (property) =>
-      !(property.value.length === 1 && property.value[0].text === "false"),
-  );
-}
-
-/** `files.edit` changes the workspace unless its handle is a literal `artifact:` one. */
-export function editsWorkspace(args: Token[][]): boolean {
-  return !literal(args[0])?.startsWith("artifact:");
 }
 
 export const NOT_LITERAL = Symbol("not literal");

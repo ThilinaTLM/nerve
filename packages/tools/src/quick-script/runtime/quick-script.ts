@@ -19,9 +19,15 @@ import {
   processFooter,
 } from "../../result-projection/index.js";
 import { withImageSizes } from "./files/artifacts.js";
-import { CallLog, callOutcomeLines, truncate } from "./call-log.js";
+import {
+  CallLog,
+  callDetails,
+  callOutcomeLines,
+  truncate,
+} from "./call-log.js";
 import { SLEEP_METHOD } from "./sandbox-globals.js";
 import { assertDeclaredRisk } from "./script-risk.js";
+import { resultExpressions } from "./script-result.js";
 import { declarationLine } from "./sdk-dts.js";
 import {
   createSdkEnvironment,
@@ -30,11 +36,17 @@ import {
   sdkMethodNames,
   wrapScript,
 } from "./sdk.js";
+import {
+  SCRIPT_MAX_SDK_CALLS,
+  SCRIPT_MEMORY_BYTES,
+  SCRIPT_OUTPUT_BYTES,
+} from "../limits.js";
 
 const DEFAULT_TIMEOUT_SECONDS = 120;
+/** Starts the result text of a completed run that printed nothing; the reason follows in parentheses. */
+const NO_OUTPUT = "ok, no output";
 /** How long calls aborted at the end of a run get to settle before the result is built. */
 const SETTLE_GRACE_MS = 3000;
-const MEMORY_LIMIT_BYTES = 256 * 1024 * 1024;
 const MAX_TIMEOUT_SECONDS = 600;
 export const MAX_CODE_CHARS = 100_000;
 
@@ -47,7 +59,7 @@ const EXIT_CODES: Record<string, number> = {
 };
 
 /**
- * Runs an agent-written TypeScript script in the QuickJS sandbox with the
+ * Runs an agent-written script (JavaScript; type annotations are stripped) in the QuickJS sandbox with the
  * extensions' SDKs. Failure convention follows `python_exec`: a script that fails,
  * times out or is cancelled still yields a normal result (error text + footer,
  * non-zero `exitCode`); only invalid arguments and a missing runtime throw.
@@ -106,13 +118,20 @@ export async function executeQuickScript(
   // result is built, so nothing mutates the report afterwards.
   const pending = new Set<Promise<void>>();
   const log = new CallLog(emit);
+  const taughtMethods = new Set<string>();
 
-  const outcome = await sandbox
-    .runSandboxScript({
-      code: wrapScript(code),
+  // The last expression is the script's result. Its statement boundary is found without a parser, so a
+  // rewrite that does not compile is dropped: a syntax error is raised before anything runs.
+  const withResult = resultExpressions(code);
+  const run = (source: string) =>
+    sandbox.runSandboxScript({
+      code: wrapScript(source),
       typescript: true,
       preludes: preludesFor(code, registry),
       timeoutMs: clampTimeoutSeconds(args.timeout) * 1000,
+      memoryBytes: SCRIPT_MEMORY_BYTES,
+      maxHostCalls: SCRIPT_MAX_SDK_CALLS,
+      maxOutputBytes: SCRIPT_OUTPUT_BYTES,
       signal: stop.signal,
       // Timer waits are bounded by the script timeout, so they do not use up the host-call cap.
       uncountedHostMethods: [SLEEP_METHOD],
@@ -128,8 +147,33 @@ export async function executeQuickScript(
         pending.add(settled);
         return call;
       },
-    })
-    .finally(() => context.signal?.removeEventListener("abort", abortStop));
+    });
+  let outcome!: Awaited<ReturnType<typeof run>>;
+  /** Whether the script's last expression was returned as its result. */
+  let resultCaptured = false;
+  try {
+    for (const source of [...withResult, code]) {
+      outcome = await run(source).catch((failure: unknown) => {
+        if (/Too many active sandbox scripts/.test(messageOf(failure)))
+          throw new Error(
+            `${sandbox.MAX_ACTIVE_SCRIPTS} scripts are already running, the most at once. This one did not start: run it again when one of them has finished.`,
+            { cause: failure },
+          );
+        throw failure;
+      });
+      resultCaptured = source !== code;
+      const didNotCompile =
+        outcome.status === "failed" &&
+        log.entries.length === 0 &&
+        outcome.output === "" &&
+        // Raised by the engine, or by type stripping before the engine started.
+        (/^SyntaxError\b/.test(outcome.error ?? "") ||
+          outcome.durationMs === 0);
+      if (!didNotCompile) break;
+    }
+  } finally {
+    context.signal?.removeEventListener("abort", abortStop);
+  }
 
   async function hostCall(method: string, rawArgs: unknown): Promise<unknown> {
     if (log.isSealed) throw new Error("[BAD_REQUEST] the script has finished");
@@ -154,9 +198,15 @@ export async function executeQuickScript(
     try {
       prepared = await sdkMethod.prepare(callArgs, env);
     } catch (error) {
-      const taught = withDeclaration(error, sdkMethod);
-      record({ outcome: "failed", error: cleanMessage(taught, paths) });
-      throw hostFailure(taught, undefined, paths);
+      // The declaration is help for the agent: once per method in a run, and not in the tool card's row.
+      record({ outcome: "failed", error: cleanMessage(error, paths) });
+      const first = !taughtMethods.has(method);
+      taughtMethods.add(method);
+      throw hostFailure(
+        first ? withDeclaration(error, sdkMethod) : error,
+        undefined,
+        paths,
+      );
     }
     const checks = [
       ...(prepared.authorization ? [prepared.authorization] : []),
@@ -215,7 +265,13 @@ export async function executeQuickScript(
         !log.isSealed
       )
         env.report.raw.push(prepared.authorization.summary);
-      record({ ...base, outcome: "completed" });
+      record({
+        ...base,
+        ...(value !== null && typeof value === "object"
+          ? callDetails.get(value)
+          : undefined),
+        outcome: "completed",
+      });
       return value;
     } catch (error) {
       const unauthorized = unauthorizedMessage(error);
@@ -261,7 +317,7 @@ export async function executeQuickScript(
   const error =
     authFailure ??
     (memoryExceeded
-      ? `script exceeded the ${MEMORY_LIMIT_BYTES / (1024 * 1024)} MiB memory limit`
+      ? `script exceeded the ${SCRIPT_MEMORY_BYTES / (1024 * 1024)} MiB memory limit`
       : outcome.error
         ? scriptError(outcome.error, code)
         : undefined);
@@ -281,16 +337,30 @@ export async function executeQuickScript(
     exitCode,
     durationMs: outcome.durationMs,
   });
-  const content = [
-    outcome.output.trimEnd(),
-    outcome.outputTruncated ? "[output truncated]" : undefined,
-    error,
-    ...reportLines(artifacts, report, env.report.notes),
-    ...callOutcomeLines(unfinished, log.entries, status === "completed"),
-    footer,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join("\n");
+  const content =
+    [
+      outcome.output.trimEnd(),
+      outcome.outputTruncated ? "[output truncated]" : undefined,
+      error,
+      ...reportLines(artifacts, report, env.report.notes),
+      ...callOutcomeLines(
+        unfinished,
+        log.entries,
+        status === "completed",
+        `${outcome.output}\n${error ?? ""}`,
+      ),
+      footer,
+    ]
+      .filter((part): part is string => Boolean(part))
+      // Success and empty stay distinct states, and a script whose value was not printed learns why.
+      .join("\n") ||
+    `${NO_OUTPUT} (${
+      resultCaptured
+        ? "the last expression was undefined or empty"
+        : /\breturn\b/.test(code)
+          ? "nothing was printed or returned"
+          : "the last statement is not an expression; return a value to print it"
+    })`;
 
   return {
     content,
@@ -411,43 +481,33 @@ export function reportLines(
 
 const MAX_CREATED_LISTED = 20;
 
-/** `jira 3 calls (issues.search 1, issues.get 2) · confluence 1 call (pages.get 1) · exit 0 · 1.2s`. */
+/** Share of the SDK-call limit from which a successful run says how many it used. */
+const CALLS_NEAR_LIMIT = 0.75;
+
+/**
+ * The status line, only for what the agent cannot know from its own script:
+ * denied calls, a run that did not complete (`timed out · exit 124 · 120.0s`),
+ * or one close to the SDK-call limit. Calls and timings are on the tool card, from the
+ * call records.
+ */
 export function quickScriptFooter(input: {
   hostCalls: readonly QuickScriptHostCall[];
   status: string;
   exitCode: number;
   durationMs: number;
-}): string {
+}): string | undefined {
   const parts: string[] = [];
-  const byProduct = new Map<
-    string,
-    { counts: Map<string, number>; failed: number }
-  >();
-  for (const call of input.hostCalls) {
-    const [product = "sdk", ...rest] = call.method.split(".");
-    const group = byProduct.get(product) ?? {
-      counts: new Map<string, number>(),
-      failed: 0,
-    };
-    const name = rest.join(".") || call.method;
-    group.counts.set(name, (group.counts.get(name) ?? 0) + 1);
-    if (call.outcome === "failed") group.failed++;
-    byProduct.set(product, group);
-  }
-  for (const [product, { counts, failed }] of byProduct) {
-    const total = [...counts.values()].reduce((a, b) => a + b, 0);
-    const breakdown = [
-      ...[...counts].map(([name, n]) => `${name} ${n}`),
-      ...(failed > 0 ? [`${failed} failed`] : []),
-    ].join(", ");
-    parts.push(
-      `${product} ${total} call${total === 1 ? "" : "s"} (${breakdown})`,
-    );
-  }
   const denied = input.hostCalls.filter(
     (call) => call.outcome === "denied",
   ).length;
   if (denied > 0) parts.push(`${denied} denied`);
+  if (input.status === "completed") {
+    if (input.hostCalls.length >= SCRIPT_MAX_SDK_CALLS * CALLS_NEAR_LIMIT)
+      parts.push(
+        `${input.hostCalls.length} of ${SCRIPT_MAX_SDK_CALLS} SDK calls used`,
+      );
+    return parts.length > 0 ? parts.join(" · ") : undefined;
+  }
   if (input.status === "failed") parts.push("failed");
   parts.push(
     processFooter({

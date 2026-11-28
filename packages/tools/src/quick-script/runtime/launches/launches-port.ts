@@ -78,6 +78,10 @@ export type LaunchStartResult = LaunchRun & {
   outcome: "started" | "already_running";
   /** Set when the definition has a port: whether it listened within 30 s. */
   listening?: boolean;
+  /** Set with `waitFor`: whether the run's output matched. */
+  matched?: boolean;
+  /** Set with `waitFor`: the log's tail (at most 100 lines) up to the matching line. */
+  output?: string;
 };
 
 /** A start resolved before it is authorized: the exact command that runs. */
@@ -119,4 +123,6 @@ export interface LaunchesAgentPort {
     selector: LaunchSelector,
     page: { offset?: number; limit?: number },
   ): Promise<{ run: LaunchRun; output: string }>;
+  /** The run's whole log as written, with no paging text, and its current state; the wait for output polls it. */
+  readOutput(runId: string): Promise<{ run: LaunchRun; text: string }>;
 }
