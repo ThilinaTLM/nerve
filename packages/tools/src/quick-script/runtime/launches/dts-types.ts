@@ -29,9 +29,16 @@ interface LaunchRun {
   exitCode?: number;
   startedAt: string;
 }
+/** The label shown in the Launches panel (the command when unlabeled), or an id from list(). */
+type LaunchName = string;
+interface LaunchRunRef {
+  name?: LaunchName;
+  /** Picks one run of that name; alone, it selects the run directly. */
+  runId?: string;
+}
 interface LaunchWaitOptions {
-  /** A string is matched literally. Returns when the output matches, the run exits or \`timeout\` passes. */
-  waitFor: RegExp | string;
+  /** A string is matched literally. The call returns when the run's output matches, the run exits or \`timeout\` passes, and adds \`matched\` and \`output\`. Only the started run's output counts. */
+  waitFor?: RegExp | string;
   /** Seconds; default 60, max 600. A timeout is not an error: \`matched\` is false. */
   timeout?: number;
 }

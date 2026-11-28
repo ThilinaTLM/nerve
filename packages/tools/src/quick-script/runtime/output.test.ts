@@ -39,6 +39,17 @@ void test("console.log and the result share one compact format", async () => {
     table,
   );
   assert.equal(await run(`[{ k: "A", n: 1 }, { k: "B", n: 2 }]`), table);
+  // One nested level becomes columns and anything deeper is JSON in its cell; rows of different shapes stay JSON.
+  assert.equal(
+    await run(
+      `[{ n: 1, user: { login: "a", tags: ["x"] } }, { n: 2, user: { login: "b", tags: [] } }]`,
+    ),
+    'n | user.login | user.tags\n1 | a | ["x"]\n2 | b | []',
+  );
+  assert.equal(
+    await run(`[{ a: 1 }, { b: 2 }, { c: 3 }]`),
+    '[{"a":1},{"b":2},{"c":3}]',
+  );
   // A call printed without await says so.
   assert.match(await run(`console.log({ p: sleep(1) })`), /not awaited/);
 });
@@ -89,11 +100,19 @@ void test("long strings, long arrays and large values are cut with a note", asyn
       `Array.from({ length: ${PRINT_ROWS} }, (_, i) => ({ i, nested: { text: "y".repeat(200) } }))`,
     )
   ).split("\n");
-  assert.ok(large[0].length <= PRINT_VALUE_CHARS && large[0].endsWith("}]"));
+  assert.equal(large[0], "i | nested.text");
+  assert.ok(large.slice(0, -1).join("\n").length <= PRINT_VALUE_CHARS);
   assert.match(
-    large[1],
+    large.at(-1)!,
     /^\[\d+ of 100 items shown; keys: i, nested: print the fields you need, or artifacts\.write the value\]$/,
   );
+  const lists = (
+    await run(
+      `Array.from({ length: ${PRINT_ROWS} }, (_, i) => [i, "y".repeat(200)])`,
+    )
+  ).split("\n");
+  assert.ok(lists[0].endsWith('"]]') && lists[0].length <= PRINT_VALUE_CHARS);
+  assert.match(lists[1], /^\[\d+ of 100 items shown: print the fields/);
   assert.equal(
     await run(`[{ a: "x|y", b: "z".repeat(${PRINT_CELL_CHARS + 7}) }]`),
     `a | b\nx\\|y | ${"z".repeat(PRINT_CELL_CHARS)}…[+7 chars]`,

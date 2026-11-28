@@ -88,8 +88,17 @@ ${SANDBOX_GLOBALS}
     seen.delete(value);
     return out;
   };
-  const isFlat = (row) => row !== null && typeof row === "object" && !Array.isArray(row) &&
-    Object.values(row).every((v) => v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean");
+  // A table row: one nested level becomes "a.b" columns, anything deeper is compact JSON in its cell.
+  const isRecord = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+  const cellValue = (v) => v !== null && typeof v === "object" ? JSON.stringify(v) : v;
+  const flatRow = (row) => {
+    const out = {};
+    for (const [key, v] of Object.entries(row)) {
+      if (isRecord(v) && Object.keys(v).length > 0) for (const [inner, w] of Object.entries(v)) out[key + "." + inner] = cellValue(w);
+      else out[key] = cellValue(v);
+    }
+    return out;
+  };
   const cellText = (v) => {
     if (v === null || v === undefined) return "";
     const text = String(v).replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|");
@@ -115,11 +124,14 @@ ${SANDBOX_GLOBALS}
       const more = pruned.length === ROW_CAP + 1 && /^\[\+\d+ more of \d+\]$/.test(pruned[ROW_CAP]) ? pruned[ROW_CAP] : undefined;
       const rows = more ? pruned.slice(0, ROW_CAP) : pruned;
       const total = more ? Number(/of (\d+)\]$/.exec(more)[1]) : rows.length;
-      const table = rows.every(isFlat);
+      // Rows that share most of their keys are a table; rows of different shapes stay JSON.
+      const flat = rows.every(isRecord) ? rows.map(flatRow) : undefined;
       const columns = [];
-      if (table) for (const row of rows) for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
+      let cells = 0;
+      if (flat) for (const row of flat) for (const key of Object.keys(row)) { cells += 1; if (!columns.includes(key)) columns.push(key); }
+      const table = flat !== undefined && columns.length > 0 && cells * 2 >= flat.length * columns.length;
       const header = table ? columns.join(" | ") : "";
-      const lines = table ? rows.map((row) => columns.map((c) => cellText(row[c])).join(" | ")) : rows.map((row) => JSON.stringify(row) ?? "null");
+      const lines = table ? flat.map((row) => columns.map((c) => cellText(row[c])).join(" | ")) : rows.map((row) => JSON.stringify(row) ?? "null");
       const fit = fitted(lines, header, total, rows[0]);
       const kept = fit ? lines.slice(0, fit.shown) : lines;
       const note = fit ? fit.note : more;
