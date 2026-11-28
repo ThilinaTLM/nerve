@@ -4,7 +4,7 @@
 Subcommands (all take --slot N, default 1):
   status         Paths, ports, running state, default model, OAuth expiry, launch definition.
   ensure-launch  Add/update the `desktop-dev-slot-N` launch definition with CDP enabled.
-  set-model      Set the slot's default agent model (slot must be stopped).
+  set-model      Set the slot's default agent model (slot must be stopped): haiku (default) or sonnet.
   copy-secrets   API keys, provider config and refresh-free OAuth access tokens from ~/.nerve (slot must be stopped).
 
 Ports mirror scripts/development/storage-slot.ts:
@@ -30,7 +30,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[4]
 LAUNCH_FILE = REPO / ".nerve" / "launches" / "definitions.json"
 DEFAULT_PROVIDER = "anthropic"
-DEFAULT_MODEL = "claude-haiku-5-5"
+MODEL_ALIASES = {"haiku": "claude-haiku-5-5", "sonnet": "claude-sonnet-5-5"}
+DEFAULT_MODEL = "haiku"
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 
@@ -111,6 +112,10 @@ def launch_command(info: dict) -> str:
 
 def cmd_status(info: dict) -> None:
     model = None
+    home_steps = None
+    manifest = info["home"] / "manifest.json"
+    if manifest.is_file():
+        home_steps = [m.get("id") for m in json.loads(manifest.read_text()).get("migrations", [])]
     config = agent_config_path(info)
     if config.exists():
         model = json.loads(config.read_text()).get("overrides", {}).get("model")
@@ -134,6 +139,8 @@ def cmd_status(info: dict) -> None:
                 "daemonRunning": running(info),
                 "cdpOwner": cdp_owner(info["cdp"]),
                 "defaultModel": model,
+                "homeMigrations": home_steps,
+                "migrationFailure": (info["home"] / "migrations" / "last-failure.json").is_file(),
                 "oauth": slot_oauth_status(info) if (info["home"] / "secrets" / "credentials.enc").is_file() else [],
                 "launchDefinition": definition
                 and {
@@ -187,6 +194,7 @@ def cmd_ensure_launch(info: dict) -> None:
 
 
 def cmd_set_model(info: dict, provider: str, model: str) -> None:
+    model = MODEL_ALIASES.get(model, model)
     require_not_own_home(info)
     config = agent_config_path(info)
     if not config.exists():
@@ -329,7 +337,7 @@ def main() -> None:
         p.add_argument("--slot", type=int, default=1)
         if name == "set-model":
             p.add_argument("--provider", default=DEFAULT_PROVIDER)
-            p.add_argument("--model", default=DEFAULT_MODEL)
+            p.add_argument("--model", default=DEFAULT_MODEL, help="haiku, sonnet, or a full model id")
         if name == "copy-secrets":
             p.add_argument("--from", dest="source", type=Path, default=Path.home() / ".nerve" / "secrets")
             p.add_argument("--full", action="store_true", help="old behaviour: copy the whole folder incl. OAuth (can log the source out)")

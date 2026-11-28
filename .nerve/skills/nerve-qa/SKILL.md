@@ -24,7 +24,7 @@ Slot `N` uses `data/storage-N` (home), HTTP `43967 + 2*(N-1)`, HTTPS the next po
 $H status --slot N   # home, ports, running state, default model, launch definition
 ```
 
-Prefer slot 1 unless it hosts you or the user names another. For DB schema/migration testing, use a copied slot (`pnpm storage:copy --slot N`), not slot 1.
+Prefer slot 1 unless it hosts you or the user names another. For DB schema/migration testing, never use slot 1: create a fresh slot from a release snapshot (section 3a).
 
 ## 2. Ensure the launch definition
 
@@ -39,10 +39,11 @@ This adds or updates `desktop-dev-slot-N` in `.nerve/launches/definitions.json` 
 If the slot is running, stop it with `launches.stop("desktop-dev-slot-N")`. Then:
 
 ```bash
-$H set-model --slot N   # default model anthropic/claude-haiku-5-5 (Haiku 5.5); idempotent
+$H set-model --slot N                  # Haiku 5.5 (anthropic/claude-haiku-5-5); idempotent
+$H set-model --slot N --model sonnet   # Sonnet 5.5 (anthropic/claude-sonnet-5-5)
 ```
 
-Do this once per slot; it persists in `data/storage-N/config/agent.json`. A brand-new slot has no config until its first launch: start it once, stop it, then run `set-model`.
+Use Haiku 5.5 for routine checks and Sonnet 5.5 when the scenario needs stronger tool use or reasoning (delegation, plans, multi-step edits). Never use another Haiku version or a bare "Haiku". Do this once per slot; it persists in `data/storage-N/config/agent.json`. A brand-new slot has no config until its first launch: start it once, stop it, then run `set-model`.
 
 `copy-secrets` (`scripts/copy-secrets.ts`, run through `$H`) is the only way to give a slot credentials; never copy `secrets/` by hand. Run it when a slot lacks credentials, or when provider authentication fails (401/403, "expired", "sign in", or a token-refresh error):
 
@@ -61,6 +62,20 @@ When an access token expires, stop the slot and rerun `copy-secrets --slot N`. `
 
 `--full` restores the old whole-folder copy, including refresh tokens. Use it only if the user asks.
 
+## 3a. Migration testing from a release snapshot
+
+`data/snapshot-x-y-z/` holds frozen, stopped homes from released versions: `snapshot-0-34-1` (oldest supported baseline, pre-0001 legacy layout), `snapshot-0-37-0`, `snapshot-0-38-1`, `snapshot-0-39-0`, `snapshot-0-40-0`, `snapshot-0-40-2`. Pick the oldest one the change affects (usually the latest snapshot plus `0-34-1` for the full chain). `$H status --slot N` shows a slot's applied home steps (`homeMigrations`) and whether `migrations/last-failure.json` exists.
+
+**Snapshots are read-only baselines.** Never start a daemon on one, edit it, or run `storage:migrate` against it; always copy it to a slot first.
+
+1. Pick an unused slot N (≥ 2, `homeExists: false` in `$H status --slot N`). The copy refuses an existing destination; to reuse a slot, ask the user before deleting `data/storage-N`.
+2. Copy the snapshot: `pnpm storage:copy --from data/snapshot-0-40-2 --slot N`. Optionally rehearse offline first: `pnpm storage:migrate --home data/storage-N --dry-run`.
+3. `$H ensure-launch --slot N`, then start it (section 4). The daemon runs pending home steps before storage opens, then core SQL migrations. Read the launch logs for migration errors; afterwards check `$H status --slot N` (`homeMigrations` lists every registered step, `migrationFailure: false`) and `data/storage-N/migrations/reports/` for set-aside or loss notices.
+4. The snapshot's own credentials are old: stop the slot, run `set-model` and `copy-secrets`, then start it again before sending prompts.
+5. Verify migrated data in the UI (conversation list, old transcripts, settings, accounts, agent profiles) and with `nerve-debug` against `data/storage-N`.
+
+Snapshot projects point at real directories under `/home/tlm/Projects/`, and project configuration upgrades lazily when the app loads it. Do not open those projects in a migration slot unless that is the test; use TestApp for new conversations. When project files matter, use `pnpm storage:rehearse --from data/snapshot-x-y-z --slot N` instead, which redirects projects to copies under `data/storage-N-projects/`.
+
 ## 4. Launch and connect
 
 1. `launches.start("desktop-dev-slot-N")`. The first run builds native, runtime and desktop packages and can take minutes. Read `launches.logs("desktop-dev-slot-N")` until `HTTP <port>` appears and no error follows. Fix build/launch errors before continuing.
@@ -78,11 +93,11 @@ After code changes, `launches.restart("desktop-dev-slot-N")` rebuilds and relaun
 
 ## 5. Test
 
-- **Project:** use `Random` (`/home/tlm/Projects/Random`). If it is missing from the slot, add it through the UI's add-project flow; never insert database rows.
-- **Model:** confirm the composer shows Haiku 5.5 before sending prompts. Switch it in the UI if a conversation overrides it.
+- **Project:** use `TestApp` (`/home/tlm/Projects/TestApp`). If it is missing from the slot, add it through the UI's add-project flow; never insert database rows. Do not use other projects (including `Random`) for new conversations.
+- **Model:** confirm the composer shows Haiku 5.5 or Sonnet 5.5 (the version matters) before sending prompts. Switch it in the UI if a conversation overrides it.
 - Exercise the changed behavior and its nearby edges. Take a fresh snapshot after every action, and take screenshots of key states as evidence.
 - Use `nerve-debug` (read-only) against `data/storage-N` when the UI and stored state disagree.
 
 ## 6. Report and clean up
 
-Report the slot, steps performed, expected versus observed results, and screenshot paths. State clearly what was not verified. Leave the instance running unless the user asks to stop it; when stopping, use only `launches.stop`.
+Report the slot (and source snapshot, if any), steps performed, expected versus observed results, and screenshot paths. State clearly what was not verified. Leave the instance running unless the user asks to stop it; when stopping, use only `launches.stop`.
