@@ -306,7 +306,7 @@ void test("a completed run whose script caught a failed read has no status line"
     makeContext({ events: [] }),
   );
   // A failed read the script caught is not listed.
-  assert.equal(result.content, "ok, no output");
+  assert.match(result.content ?? "", /^ok, no output \(/);
 
   stubFetch(t, async () => Response.json(rawIssue(1)));
   const ok = await executeQuickScript(
@@ -342,7 +342,7 @@ void test("a write that is not awaited is reported as still running with unknown
   const content = result.content ?? "";
   assert.match(
     content,
-    /^Still running when the script ended, aborted: jira\.issues\.update \(NER-5\), outcome unknown; jira\.issues\.get \(NER-6\)\. Await every call\.$/m,
+    /^Still running when the script ended: jira\.issues\.update \(NER-5\), outcome unknown; jira\.issues\.get \(NER-6\), stopped\. Await every call\.$/m,
   );
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.hostCalls.length, 2);
@@ -362,7 +362,7 @@ void test("a call still running at timeout is listed without the await hint", as
   assert.equal(result.exitCode, 124);
   assert.match(
     result.content ?? "",
-    /^Still running when the script ended, aborted: jira\.issues\.update \(NER-5\), outcome unknown\.$/m,
+    /^Still running when the script ended: jira\.issues\.update \(NER-5\), outcome unknown\.$/m,
   );
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.hostCalls.length, 1);

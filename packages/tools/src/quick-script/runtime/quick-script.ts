@@ -27,7 +27,7 @@ import {
 } from "./call-log.js";
 import { SLEEP_METHOD } from "./sandbox-globals.js";
 import { assertDeclaredRisk } from "./script-risk.js";
-import { resultExpression } from "./script-result.js";
+import { resultExpressions } from "./script-result.js";
 import { declarationLine } from "./sdk-dts.js";
 import {
   createSdkEnvironment,
@@ -43,6 +43,8 @@ import {
 } from "../limits.js";
 
 const DEFAULT_TIMEOUT_SECONDS = 120;
+/** Starts the result text of a completed run that printed nothing; the reason follows in parentheses. */
+const NO_OUTPUT = "ok, no output";
 /** How long calls aborted at the end of a run get to settle before the result is built. */
 const SETTLE_GRACE_MS = 3000;
 const MAX_TIMEOUT_SECONDS = 600;
@@ -120,7 +122,7 @@ export async function executeQuickScript(
 
   // The last expression is the script's result. Its statement boundary is found without a parser, so a
   // rewrite that does not compile is dropped: a syntax error is raised before anything runs.
-  const withResult = resultExpression(code);
+  const withResult = resultExpressions(code);
   const run = (source: string) =>
     sandbox.runSandboxScript({
       code: wrapScript(source),
@@ -146,18 +148,22 @@ export async function executeQuickScript(
         return call;
       },
     });
-  let outcome;
+  let outcome!: Awaited<ReturnType<typeof run>>;
+  /** Whether the script's last expression was returned as its result. */
+  let resultCaptured = false;
   try {
-    outcome = await run(withResult);
-    if (
-      withResult !== code &&
-      outcome.status === "failed" &&
-      log.entries.length === 0 &&
-      outcome.output === "" &&
-      // Raised by the engine, or by type stripping before the engine started.
-      (/^SyntaxError\b/.test(outcome.error ?? "") || outcome.durationMs === 0)
-    )
-      outcome = await run(code);
+    for (const source of [...withResult, code]) {
+      outcome = await run(source);
+      resultCaptured = source !== code;
+      const didNotCompile =
+        outcome.status === "failed" &&
+        log.entries.length === 0 &&
+        outcome.output === "" &&
+        // Raised by the engine, or by type stripping before the engine started.
+        (/^SyntaxError\b/.test(outcome.error ?? "") ||
+          outcome.durationMs === 0);
+      if (!didNotCompile) break;
+    }
   } finally {
     context.signal?.removeEventListener("abort", abortStop);
   }
@@ -330,12 +336,24 @@ export async function executeQuickScript(
       outcome.outputTruncated ? "[output truncated]" : undefined,
       error,
       ...reportLines(artifacts, report, env.report.notes),
-      ...callOutcomeLines(unfinished, log.entries, status === "completed"),
+      ...callOutcomeLines(
+        unfinished,
+        log.entries,
+        status === "completed",
+        error,
+      ),
       footer,
     ]
       .filter((part): part is string => Boolean(part))
-      // Success and empty stay distinct states.
-      .join("\n") || "ok, no output";
+      // Success and empty stay distinct states, and a script whose value was not printed learns why.
+      .join("\n") ||
+    `${NO_OUTPUT} (${
+      resultCaptured
+        ? "the last expression was undefined or empty"
+        : /\breturn\b/.test(code)
+          ? "nothing was printed or returned"
+          : "the last statement is not an expression; return a value to print it"
+    })`;
 
   return {
     content,

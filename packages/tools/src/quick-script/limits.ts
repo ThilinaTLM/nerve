@@ -10,6 +10,9 @@ export const SCRIPT_MAX_SDK_CALLS = 200;
 export const PRINT_STRING_CHARS = 2000;
 export const PRINT_ROWS = 100;
 export const PRINT_VALUE_CHARS = 8 * 1024;
+/** A table cell, and the files an edit result lists when printed. */
+export const PRINT_CELL_CHARS = 300;
+export const PRINT_EDIT_FILES = 20;
 /** One `files.edit` / `artifacts.edit` call. */
 export const SCRIPT_EDIT_MAX_FILES = 500;
 export const SCRIPT_EDIT_MAX_BYTES = 20 * 1024 * 1024;
@@ -26,6 +29,7 @@ const LIMIT_BYTES: Record<string, number> = {
   "script.output": SCRIPT_OUTPUT_BYTES,
   "edit.bytes": SCRIPT_EDIT_MAX_BYTES,
   "edit.diff": SCRIPT_EDIT_DIFF_BYTES,
+  "print.value": PRINT_VALUE_CHARS,
 };
 
 function formatBytes(bytes: number): string {

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   editStatLabel,
   editStatParts,
+  isNoOutputText,
   splitEditDiff,
 } from "./quick-script-calls";
 
@@ -81,4 +82,16 @@ describe("splitEditDiff", () => {
     ]);
     assert.deepEqual(splitEditDiff("").files, []);
   });
+});
+
+it("recognises the no-output placeholder with or without its reason", () => {
+  assert.equal(isNoOutputText("ok, no output"), true);
+  assert.equal(
+    isNoOutputText(
+      "ok, no output (the last expression was undefined or empty)",
+    ),
+    true,
+  );
+  assert.equal(isNoOutputText("ok, no output\nUpdated: file a.ts"), false);
+  assert.equal(isNoOutputText("ok"), false);
 });

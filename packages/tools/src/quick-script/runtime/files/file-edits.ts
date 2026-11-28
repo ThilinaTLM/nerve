@@ -20,6 +20,9 @@ import { applyEdit, type ParsedEdit } from "./text-edits.js";
  * changes nothing; a failed write restores the files already written.
  */
 
+/** Files a count mismatch names with their matches. */
+const MAX_FILES_NAMED = 10;
+
 export type EditFile = {
   /** Absolute path. */
   path: string;
@@ -123,6 +126,7 @@ export async function applyFileEdits(
   const byPath = new Map(loaded.map((entry) => [entry.file.path, entry]));
   for (const edit of planned) {
     let matched = 0;
+    const where: string[] = [];
     for (const file of edit.files) {
       const entry = byPath.get(file.path)!;
       if (edit.version !== undefined && fileVersion(entry.raw) !== edit.version)
@@ -138,6 +142,7 @@ export async function applyFileEdits(
       );
       entry.after = result.text;
       matched += result.matches;
+      if (result.matches > 0) where.push(`${file.shown} ${result.matches}`);
       if (result.matches > 0 || edit.glob === undefined)
         entry.edits.push({ index: edit.parsed.index, matches: result.matches });
     }
@@ -149,7 +154,8 @@ export async function applyFileEdits(
       );
     if (count !== undefined && matched !== count)
       throw new Error(
-        `edits[${index}] matched ${matched} times across glob ${JSON.stringify(edit.glob)}; count is ${count}.`,
+        // Where the matches are, so the count or the pattern can be corrected without a dry run.
+        `edits[${index}] matched ${matched} times across glob ${JSON.stringify(edit.glob)} (${where.slice(0, MAX_FILES_NAMED).join(", ")}${where.length > MAX_FILES_NAMED ? `, +${where.length - MAX_FILES_NAMED} more files` : ""}); count is ${count}.`,
       );
   }
 

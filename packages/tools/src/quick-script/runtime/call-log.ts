@@ -123,17 +123,20 @@ export function callOutcomeLines(
   unfinished: readonly CallEntry[],
   entries: readonly CallEntry[],
   scriptCompleted: boolean,
+  /** The uncaught error that ended the script; the call that raised it is not listed again. */
+  scriptError?: string,
 ): string[] {
   const lines: string[] = [];
   if (unfinished.length > 0) {
+    // A read is simply stopped; a call that can change something may have taken effect.
     const items = unfinished.map((entry) => {
-      if (!canChange(entry)) return label(entry);
+      if (!canChange(entry)) return `${label(entry)}, stopped`;
       return entry.call?.outcome === "completed"
-        ? `${label(entry)}, completed after the script ended`
+        ? `${label(entry)}, completed anyway`
         : `${label(entry)}, outcome unknown`;
     });
     lines.push(
-      `Still running when the script ended, aborted: ${capped(items)}${scriptCompleted ? ". Await every call." : "."}`,
+      `Still running when the script ended: ${capped(items)}${scriptCompleted ? ". Await every call." : "."}`,
     );
   }
   const ended = new Set(unfinished);
@@ -142,7 +145,8 @@ export function callOutcomeLines(
       (entry) =>
         !ended.has(entry) &&
         canChange(entry) &&
-        entry.call?.outcome === "failed",
+        entry.call?.outcome === "failed" &&
+        !(entry.call.error && scriptError?.includes(entry.call.error)),
     )
     .map(
       (entry) =>

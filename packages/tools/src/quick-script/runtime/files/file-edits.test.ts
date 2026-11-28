@@ -305,3 +305,26 @@ void test("transform rewrites whole files, all or nothing, and keeps line ending
     /^BAD_REQUEST: transform cannot be combined with edits/,
   );
 });
+
+void test("a count mismatch names the files that matched; a wide edit prints a capped summary", async () => {
+  const { run } = await workspace(
+    Object.fromEntries(
+      Array.from({ length: 30 }, (_, i) => [`many/f${i}.ts`, "old(1);\n"]),
+    ),
+  );
+  const failed = await run(
+    `await files.edit({ glob: "many/f[12].ts", edits: [{ oldText: "old(", newText: "new(", all: true, count: 3 }] })`,
+  );
+  assert.equal(
+    failed[0],
+    'BAD_REQUEST: edits[0] matched 2 times across glob "many/f[12].ts" (many/f1.ts 1, many/f2.ts 1); count is 3.',
+  );
+  // The uncaught error is not repeated as a failed call.
+  assert.ok(!failed.some((line) => line.startsWith("Failed:")));
+  const lines = await run(
+    `await files.edit({ glob: "many/*.ts", edits: [{ oldText: "old(", newText: "new(", all: true }] })`,
+  );
+  assert.equal(lines[19], "many/f26.ts +1 -1: [0] 1");
+  assert.equal(lines[20], "[+10 more files: result.files]");
+  assert.equal(lines.at(-1), "Edit matches: [0] 30 in 30 files");
+});

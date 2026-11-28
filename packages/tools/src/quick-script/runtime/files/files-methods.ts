@@ -30,7 +30,8 @@ import {
 
 /** `files.*`: the workspace's files, each call checked as the matching direct tool. */
 
-const LIST_LIMIT = 200;
+// Both defaults equal the number of items a printed array shows (`PRINT_ROWS`), so a default call prints whole.
+const LIST_LIMIT = 100;
 const SEARCH_LIMIT = 100;
 const MAX_LIMIT = 2000;
 
@@ -170,7 +171,7 @@ export const filesMethods: SdkMethod[] = [
     bare: "glob",
     options: ["glob", "path", "limit"],
     signature:
-      '/** Workspace files matching a glob, relative to the cwd; .gitignore applies. A glob with "/" matches the path, otherwise the file name. limit default 200, max 2000. */ list(glob: string | { glob: string; path?: string; limit?: number }): Promise<string[]>',
+      '/** Workspace files matching a glob, relative to the cwd; .gitignore applies. A glob with "/" matches the path, otherwise the file name. limit default 100, max 2000. */ list(glob: string | { glob: string; path?: string; limit?: number }): Promise<string[]>',
     parse: (options) => {
       const glob = optionalString(options.glob, "glob");
       if (!glob) throw new Error("glob must be a non-empty string.");

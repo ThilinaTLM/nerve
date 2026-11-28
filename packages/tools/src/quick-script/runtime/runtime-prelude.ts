@@ -1,4 +1,6 @@
 import {
+  PRINT_CELL_CHARS,
+  PRINT_EDIT_FILES,
   PRINT_ROWS,
   PRINT_STRING_CHARS,
   PRINT_VALUE_CHARS,
@@ -59,7 +61,7 @@ ${SANDBOX_GLOBALS}
 
   // One formatter for console.* and the script's result, chosen for token count: text as is, flat rows as a
   // table (each key once), anything else compact JSON. Long strings, long arrays and large values are cut with a note.
-  const STRING_CAP = ${PRINT_STRING_CHARS}, ROW_CAP = ${PRINT_ROWS}, VALUE_CAP = ${PRINT_VALUE_CHARS};
+  const STRING_CAP = ${PRINT_STRING_CHARS}, ROW_CAP = ${PRINT_ROWS}, VALUE_CAP = ${PRINT_VALUE_CHARS}, CELL_CAP = ${PRINT_CELL_CHARS}, FILES_CAP = ${PRINT_EDIT_FILES};
   const errorText = (error) => (typeof error.code === "string" ? error.code : error.name || "Error") + ": " + error.message;
   const dropped = (v) => v === undefined || typeof v === "function" || typeof v === "symbol";
   const prune = (value, seen) => {
@@ -88,7 +90,19 @@ ${SANDBOX_GLOBALS}
   };
   const isFlat = (row) => row !== null && typeof row === "object" && !Array.isArray(row) &&
     Object.values(row).every((v) => v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean");
-  const cellText = (v) => v === null || v === undefined ? "" : String(v).replace(/\s*\n\s*/g, " ");
+  const cellText = (v) => {
+    if (v === null || v === undefined) return "";
+    const text = String(v).replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|");
+    return text.length > CELL_CAP ? text.slice(0, CELL_CAP) + "…[+" + (text.length - CELL_CAP) + " chars]" : text;
+  };
+  // Lines of an array's items that fit the value cap, cut between items, with what is missing and how to get it.
+  const fitted = (lines, header, total, sample) => {
+    let size = header.length, shown = 0;
+    while (shown < lines.length && size + lines[shown].length + 1 <= VALUE_CAP) size += lines[shown++].length + 1;
+    if (shown === lines.length || shown === 0) return undefined;
+    const keys = sample !== null && typeof sample === "object" && !Array.isArray(sample) ? "; keys: " + Object.keys(sample).slice(0, 30).join(", ") : "";
+    return { shown, note: "[" + shown + " of " + total + " items shown" + keys + ": print the fields you need, or artifacts.write the value]" };
+  };
   const formatValue = (value) => {
     if (typeof value === "string") return value;
     if (typeof value === "bigint") return value + "n";
@@ -96,17 +110,26 @@ ${SANDBOX_GLOBALS}
     const pruned = prune(value, new Set());
     if (typeof pruned === "string") return pruned;
     let text;
-    const more = Array.isArray(pruned) && pruned.length === ROW_CAP + 1 && /^\[\+\d+ more of \d+\]$/.test(pruned[ROW_CAP]) ? pruned[ROW_CAP] : undefined;
-    const rows = more ? pruned.slice(0, ROW_CAP) : pruned;
-    if (Array.isArray(rows) && rows.length > 0 && rows.every(isFlat)) {
+    if (Array.isArray(pruned) && pruned.length > 0) {
+      // The note for a cut array follows it on a line of its own, never as an item.
+      const more = pruned.length === ROW_CAP + 1 && /^\[\+\d+ more of \d+\]$/.test(pruned[ROW_CAP]) ? pruned[ROW_CAP] : undefined;
+      const rows = more ? pruned.slice(0, ROW_CAP) : pruned;
+      const total = more ? Number(/of (\d+)\]$/.exec(more)[1]) : rows.length;
+      const table = rows.every(isFlat);
       const columns = [];
-      for (const row of rows) for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
-      text = [columns.join(" | "), ...rows.map((row) => columns.map((c) => cellText(row[c])).join(" | ")), ...(more ? [more] : [])].join("\n");
+      if (table) for (const row of rows) for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
+      const header = table ? columns.join(" | ") : "";
+      const lines = table ? rows.map((row) => columns.map((c) => cellText(row[c])).join(" | ")) : rows.map((row) => JSON.stringify(row) ?? "null");
+      const fit = fitted(lines, header, total, rows[0]);
+      const kept = fit ? lines.slice(0, fit.shown) : lines;
+      const note = fit ? fit.note : more;
+      text = (table ? [header, ...kept].join("\n") : "[" + kept.join(",") + "]") + (note ? "\n" + note : "");
+      if (fit) return text;
     } else {
       try { text = JSON.stringify(pruned) ?? String(value); } catch { text = String(value); }
     }
     return text.length > VALUE_CAP
-      ? text.slice(0, VALUE_CAP) + "\n[+" + (text.length - VALUE_CAP) + " chars cut: print a narrower field, or artifacts.write the value]"
+      ? text.slice(0, VALUE_CAP) + "\n[+" + (text.length - VALUE_CAP) + " chars cut: print the fields you need, or artifacts.write the value]"
       : text;
   };
   const print = console.log;
@@ -155,6 +178,8 @@ export const runtimeTail = (guarded: readonly string[]) => String.raw`
       + (file.changed ? " +" + file.added + " -" + file.removed : " unchanged")
       + (result.counted === false ? "" : ": " + file.edits.map((edit) => "[" + edit.index + "] " + edit.matches).join(", ")));
     if (lines.length === 0) lines.push("no file changed");
+    // result.files has every file; the printed form stops at a screenful.
+    if (lines.length > FILES_CAP) lines.splice(FILES_CAP, lines.length, "[+" + (lines.length - FILES_CAP) + " more files: result.files]");
     delete result.counted;
     return Object.defineProperty(result, "toString", { value: () => lines.join("\n") });
   };

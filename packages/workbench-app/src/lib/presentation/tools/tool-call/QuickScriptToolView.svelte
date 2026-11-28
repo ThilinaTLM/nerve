@@ -14,7 +14,7 @@ import {
   operationLines,
 } from "../views/tool-presentation-helpers";
 import {
-  NO_OUTPUT_TEXT,
+  isNoOutputText,
   callEdit,
   editStatLabel,
   editStatParts,
@@ -52,7 +52,7 @@ const plannedLines = $derived(
 );
 // What the agent received. A run that printed nothing returns a placeholder
 // line, which the card words for the reader.
-const output = $derived(view.output === NO_OUTPUT_TEXT ? "" : view.output);
+const output = $derived(isNoOutputText(view.output) ? "" : view.output);
 const finished = $derived(
   view.status !== undefined || toolCall.status === "completed",
 );

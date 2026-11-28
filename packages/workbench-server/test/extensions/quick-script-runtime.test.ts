@@ -41,7 +41,10 @@ void test("a top-level return prints flat objects as a table and everything else
     '{"a":[1,{"b":2}]}',
   );
   assert.equal((await run(`return "plain";`)).content, "plain");
-  assert.equal((await run(`return;`)).content, "ok, no output");
+  assert.equal(
+    (await run(`return;`)).content,
+    "ok, no output (nothing was printed or returned)",
+  );
   // Mixed arrays are not tables; top-level await still works next to return.
   assert.equal(
     (
