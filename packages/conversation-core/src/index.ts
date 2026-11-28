@@ -100,6 +100,7 @@ export type {
 
 export type {
   ConversationContext,
+  ConfigurationPreview,
   ConfigurationPreviewInput,
 } from "./configuration.js";
 

@@ -77,7 +77,7 @@ import {
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import {
   createComposerConfigActions,
-  createSystemPromptOpener,
+  createRequestPreviewOpener,
 } from "./conversation-center/composer-config.svelte";
 import { createInteractionActions } from "./conversation-center/interaction-actions.svelte";
 import { ComposerSession } from "./conversation-center/composer-session.svelte";
@@ -397,7 +397,7 @@ async function compactActiveConversation() {
 async function cancelPendingCompaction() {
   await store?.cancelCompaction();
 }
-const openSystemPrompt = createSystemPromptOpener({
+const openRequestPreview = createRequestPreviewOpener({
   pending: () => activePendingConversation,
   inherited: () => composerView.inherited,
   profiles: () => resolvedProfiles,
@@ -621,8 +621,8 @@ const historyLocked = $derived(stoppable || isForking(conversationId));
   onCompact={() => {
     void runActivePaneAction(compactActiveConversation);
   }}
-  onOpenSystemPrompt={activePendingConversation || activeConversation
-    ? () => runActivePaneAction(openSystemPrompt)
+  onOpenRequestPreview={activePendingConversation || activeConversation
+    ? (section) => runActivePaneAction(() => openRequestPreview(section))
     : undefined}
   onNewConversationInProject={newConversationInProject}
   onOpenFile={openToolFile}

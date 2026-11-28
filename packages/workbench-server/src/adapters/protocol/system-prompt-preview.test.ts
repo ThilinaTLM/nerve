@@ -5,9 +5,10 @@ import {
   previewSystemPromptResultSchema,
 } from "@nervekit/contracts/core";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
+import { toolManifest } from "@nervekit/tools/catalog";
 import { publicSystemPromptPreview } from "./system-prompt-preview.js";
 
-void test("unsent draft preview exposes effective resolution but not executor tools under the strict result DTO", () => {
+void test("unsent draft preview exposes effective resolution and model-facing tool fields only", () => {
   const draft = previewSystemPromptParamsSchema.parse({
     projectId: "p",
     overrides: {
@@ -25,8 +26,9 @@ void test("unsent draft preview exposes effective resolution but not executor to
     status: "available" as const,
     systemPrompt: "Unsent instructions",
     resolution,
-    tools: [{ name: "bash" }],
+    tools: toolManifest.filter((tool) => tool.name === "bash"),
   };
+  const bash = prepared.tools[0];
   assert.equal(
     previewSystemPromptResultSchema.safeParse(prepared).success,
     false,
@@ -42,6 +44,12 @@ void test("unsent draft preview exposes effective resolution but not executor to
       "conversation",
     );
     assert.equal(result.systemPrompt, "Unsent instructions");
-    assert.ok(!("tools" in result));
+    assert.deepEqual(result.tools, [
+      {
+        name: "bash",
+        description: bash.description,
+        parameters: JSON.parse(JSON.stringify(bash.parameters)),
+      },
+    ]);
   }
 });

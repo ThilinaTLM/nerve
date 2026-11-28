@@ -190,6 +190,7 @@ export {
 export type {
   PreviewSystemPromptParams,
   PreviewSystemPromptResult,
+  PreviewToolDefinition,
   ConversationChannelOperationName,
   ConversationChannelOperationParams,
   ConversationChannelOperationResult,

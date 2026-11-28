@@ -21,6 +21,7 @@ import {
   loadCodeLanguage,
   localLineNumber,
   codeSurfaceExtensions,
+  fencedCodeLanguage,
 } from "./code-mirror-config";
 
 const newLanguageIds: CodeLanguageId[] = [
@@ -295,5 +296,16 @@ describe("CodeMirror viewer helpers", () => {
     });
     assert.equal(cursorStatus(multi).selections, 2);
     assert.equal(cursorStatus(multi).selectedLength, 9);
+  });
+});
+
+void describe("fencedCodeLanguage", () => {
+  void it("resolves fence info strings by language id or file extension", async () => {
+    assert.equal(fencedCodeLanguage("json")?.name, "json");
+    assert.equal(fencedCodeLanguage("ts title=x")?.name, "typescript");
+    assert.equal(fencedCodeLanguage("markdown"), null);
+    assert.equal(fencedCodeLanguage("unknown-lang"), null);
+    const support = await fencedCodeLanguage("json")!.load();
+    assert.ok(support.language);
   });
 });

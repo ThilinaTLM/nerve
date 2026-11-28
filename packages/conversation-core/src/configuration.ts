@@ -29,6 +29,15 @@ export interface ConfigurationPreviewInput {
   agentProfile?: ProfileTarget;
 }
 
+type AvailablePreview = Extract<
+  PreviewSystemPromptResult,
+  { status: "available" }
+>;
+/** Host preview with executor tool definitions; the transport adapter projects it to the public DTO. */
+export type ConfigurationPreview =
+  | Exclude<PreviewSystemPromptResult, AvailablePreview>
+  | (Omit<AvailablePreview, "tools"> & { tools: ToolDefinition[] });
+
 export interface RetryPreferences {
   enabled: boolean;
   maxRetries: number;
@@ -117,7 +126,7 @@ export interface AgentConfigurationPort {
   ): Promise<void>;
   capturePreview(
     input: ConfigurationPreviewInput,
-  ): Promise<PreviewSystemPromptResult>;
+  ): Promise<ConfigurationPreview>;
   captureRequest(
     input: TurnPreparationInput & {
       coreTools: ToolDefinition[];

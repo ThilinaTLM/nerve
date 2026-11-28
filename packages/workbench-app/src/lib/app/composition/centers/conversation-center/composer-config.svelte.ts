@@ -6,6 +6,7 @@ import { requestConversation } from "$lib/application/startup/conversation-conne
 import { captureSystemPromptPreview } from "$lib/app/composition/conversations/system-prompt-preview";
 import { openSystemPromptPane } from "$lib/features/conversations/state/system-prompt-pane.svelte";
 import { modelKey } from "$lib/presentation/utils/model";
+import type { RequestPreviewSection } from "$lib/presentation/conversations/request-preview";
 
 /** Composer model/profile/permission setters, delegating to the composer view. */
 export function createComposerConfigActions(composerView: ComposerView) {
@@ -29,8 +30,8 @@ export function createComposerConfigActions(composerView: ComposerView) {
   };
 }
 
-/** Opens the system prompt preview for the pending draft or active conversation. */
-export function createSystemPromptOpener(deps: {
+/** Opens the next-request preview (system prompt or tools) for the pending draft or active conversation. */
+export function createRequestPreviewOpener(deps: {
   pending: () => PendingConversationState | undefined;
   inherited: () => ComposerView["inherited"];
   profiles: () => readonly { name: string; digest?: string }[];
@@ -39,7 +40,7 @@ export function createSystemPromptOpener(deps: {
   >[0]["conversation"];
 }) {
   let opening = false;
-  return async function openSystemPrompt() {
+  return async function openRequestPreview(section: RequestPreviewSection) {
     if (opening) return;
     const pending = deps.pending();
     const target = captureSystemPromptPreview({
@@ -65,10 +66,12 @@ export function createSystemPromptOpener(deps: {
       await openSystemPromptPane({
         projectId: target.projectId,
         sourceId: target.sourceId,
-        text:
-          preview.status === "available"
-            ? preview.systemPrompt
-            : "Configuration unavailable. Check scoped configuration diagnostics.",
+        section,
+        ...(preview.status === "available"
+          ? { text: preview.systemPrompt, tools: preview.tools }
+          : {
+              text: "Configuration unavailable. Check scoped configuration diagnostics.",
+            }),
       });
     } finally {
       opening = false;

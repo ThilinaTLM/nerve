@@ -1,3 +1,4 @@
+import type { RequestPreviewSection } from "./request-preview";
 import type { Snippet } from "svelte";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
@@ -247,7 +248,9 @@ export type ConversationPaneActions = ConversationApprovalPlanActions & {
   onSubmit?: () => void;
   onAbort?: () => void;
   onCompact?: () => void;
-  onOpenSystemPrompt?: () => void | Promise<void>;
+  onOpenRequestPreview?: (
+    section: RequestPreviewSection,
+  ) => void | Promise<void>;
   onUsageOpenChange?: (open: boolean) => void;
   onUsageRetry?: () => void;
   onModelSelectionChange?: (next: ComposerModelChange) => void;

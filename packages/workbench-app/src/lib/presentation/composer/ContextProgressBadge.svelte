@@ -1,9 +1,11 @@
 <script lang="ts">
+import type { RequestPreviewSection } from "../conversations/request-preview";
 import { untrack, type Snippet } from "svelte";
 import Clipboard from "@lucide/svelte/icons/clipboard";
 import ClipboardCheck from "@lucide/svelte/icons/clipboard-check";
 import FileText from "@lucide/svelte/icons/file-text";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
+import Wrench from "@lucide/svelte/icons/wrench";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { ContextUsage } from "@nervekit/contracts/models";
@@ -47,8 +49,10 @@ type Props = {
   compacting?: boolean;
   compactDisabled?: boolean;
   onCompact?: () => void;
-  /** Prepares and opens the next-request system prompt using current settings. */
-  onOpenSystemPrompt?: () => void | Promise<void>;
+  /** Prepares and opens the next-request system prompt or tool definitions using current settings. */
+  onOpenRequestPreview?: (
+    section: RequestPreviewSection,
+  ) => void | Promise<void>;
   /** Cumulative recorded response usage for this conversation and its
    * sub-agents. Replaces `conversationUsage` when the owner supplies it. */
   agentUsage?: ConversationAgentUsage;
@@ -68,7 +72,7 @@ let {
   compacting = false,
   compactDisabled = false,
   onCompact,
-  onOpenSystemPrompt,
+  onOpenRequestPreview,
   agentUsage,
   agentUsageLoading = false,
   agentUsageError,
@@ -78,7 +82,7 @@ let {
 
 let open = $state(false);
 let confirmCompactOpen = $state(false);
-let systemPromptBusy = $state(false);
+let previewBusy = $state<RequestPreviewSection | undefined>();
 let sessionCopied = $state(false);
 let sessionCopiedTimer: ReturnType<typeof setTimeout> | undefined;
 $effect(() => () => clearTimeout(sessionCopiedTimer));
@@ -171,15 +175,32 @@ const meterTone = $derived<"brand" | "warning" | "destructive">(
   tone === "error" ? "destructive" : tone === "warning" ? "warning" : "brand",
 );
 
-async function openSystemPrompt(): Promise<void> {
-  if (!onOpenSystemPrompt || systemPromptBusy) return;
-  systemPromptBusy = true;
+async function openPreview(section: RequestPreviewSection): Promise<void> {
+  if (!onOpenRequestPreview || previewBusy) return;
+  previewBusy = section;
   try {
-    await onOpenSystemPrompt();
+    await onOpenRequestPreview(section);
   } finally {
-    systemPromptBusy = false;
+    previewBusy = undefined;
   }
 }
+
+const previewActions = [
+  {
+    section: "system-prompt",
+    label: "Open system prompt",
+    tooltip:
+      "Open the system prompt for the next request using current settings. Changes before sending may change it.",
+    icon: FileText,
+  },
+  {
+    section: "tools",
+    label: "Open tool definitions",
+    tooltip:
+      "Open the tool descriptions and parameter schemas for the next request using current settings. Changes before sending may change them.",
+    icon: Wrench,
+  },
+] as const;
 
 function requestCompact(): void {
   if (compactActionDisabled) return;
@@ -219,7 +240,7 @@ function requestCompact(): void {
   </div>
 {/snippet}
 
-{#if onOpenSystemPrompt || contextLimit > 0 || percent != null}
+{#if onOpenRequestPreview || contextLimit > 0 || percent != null}
   <Popover
     bind:open
     size="md"
@@ -302,35 +323,36 @@ function requestCompact(): void {
             </Tooltip.Root>
           </Tooltip.Provider>
         {/if}
-        {#if onOpenSystemPrompt}
-          <Tooltip.Provider delayDuration={200}>
-            <Tooltip.Root ignoreNonKeyboardFocus>
-              <Tooltip.Trigger>
-                {#snippet child({ props })}
-                  <span {...props} class="inline-flex">
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      class="text-muted-foreground hover:text-foreground"
-                      ariaLabel="Open system prompt"
-                      disabled={systemPromptBusy}
-                      onclick={() => void openSystemPrompt()}
-                    >
-                      {#if systemPromptBusy}
-                        <Spinner class="size-3.5" />
-                      {:else}
-                        <FileText class="size-3.5" aria-hidden="true" />
-                      {/if}
-                    </Button>
-                  </span>
-                {/snippet}
-              </Tooltip.Trigger>
-              <Tooltip.Content side="top" class="max-w-xs">
-                Open the system prompt for the next request using current
-                settings. Changes before sending may change it.
-              </Tooltip.Content>
-            </Tooltip.Root>
-          </Tooltip.Provider>
+        {#if onOpenRequestPreview}
+          {#each previewActions as action (action.section)}
+            <Tooltip.Provider delayDuration={200}>
+              <Tooltip.Root ignoreNonKeyboardFocus>
+                <Tooltip.Trigger>
+                  {#snippet child({ props })}
+                    <span {...props} class="inline-flex">
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        class="text-muted-foreground hover:text-foreground"
+                        ariaLabel={action.label}
+                        disabled={previewBusy !== undefined}
+                        onclick={() => void openPreview(action.section)}
+                      >
+                        {#if previewBusy === action.section}
+                          <Spinner class="size-3.5" />
+                        {:else}
+                          <action.icon class="size-3.5" aria-hidden="true" />
+                        {/if}
+                      </Button>
+                    </span>
+                  {/snippet}
+                </Tooltip.Trigger>
+                <Tooltip.Content side="top" class="max-w-xs">
+                  {action.tooltip}
+                </Tooltip.Content>
+              </Tooltip.Root>
+            </Tooltip.Provider>
+          {/each}
         {/if}
         {@render contextActions?.(() => (open = false))}
       {/snippet}

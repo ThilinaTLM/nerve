@@ -1,3 +1,4 @@
+import type { RequestPreviewSection } from "$lib/presentation/conversations/request-preview";
 import type { PromptComposerProps } from "./prompt-composer-props";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 import type { ApprovalWithToolCall } from "$lib/presentation/view-models/conversation";
@@ -122,7 +123,9 @@ export type WorkbenchConversationAdapterProps =
     onCompact?: () => void;
     onUsageOpenChange?: (open: boolean) => void;
     onUsageRetry?: () => void;
-    onOpenSystemPrompt?: () => void | Promise<void>;
+    onOpenRequestPreview?: (
+      section: RequestPreviewSection,
+    ) => void | Promise<void>;
     onNewConversationInProject?: (
       projectDir: string,
       initialProfile?: string,

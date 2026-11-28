@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { RequestPreviewSection } from "../conversations/request-preview";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
 import History from "@lucide/svelte/icons/history";
@@ -73,7 +74,9 @@ type Props = {
   modelEmptyMessage?: string;
   onModelSelectionChange?: (next: ComposerModelChange) => void;
   onCompact?: () => void;
-  onOpenSystemPrompt?: () => void | Promise<void>;
+  onOpenRequestPreview?: (
+    section: RequestPreviewSection,
+  ) => void | Promise<void>;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
@@ -137,7 +140,7 @@ let {
   modelEmptyMessage,
   onModelSelectionChange,
   onCompact,
-  onOpenSystemPrompt,
+  onOpenRequestPreview,
   onPermissionRuleSetChange,
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
@@ -359,5 +362,5 @@ non-default permission. -->
   {compacting}
   {compactDisabled}
   {onCompact}
-  {onOpenSystemPrompt}
+  {onOpenRequestPreview}
 />
