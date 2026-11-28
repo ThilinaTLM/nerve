@@ -863,8 +863,9 @@ $effect(() => () => {
   text-align: left;
   vertical-align: top;
   white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  /* break-word, not anywhere: it keeps a column's min-content at its longest
+     word, so a long cell cannot squeeze a neighbour to one letter per line. */
+  overflow-wrap: break-word;
 }
 
 .markdown :global(tbody tr:last-child th),
@@ -909,7 +910,5 @@ $effect(() => () => {
   border-bottom-color: color-mix(in oklab, var(--border) 50%, transparent);
   font-family: var(--font-mono);
   white-space: nowrap;
-  overflow-wrap: normal;
-  word-break: normal;
 }
 </style>
