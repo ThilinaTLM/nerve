@@ -123,8 +123,8 @@ export function callOutcomeLines(
   unfinished: readonly CallEntry[],
   entries: readonly CallEntry[],
   scriptCompleted: boolean,
-  /** The uncaught error that ended the script; the call that raised it is not listed again. */
-  scriptError?: string,
+  /** What the run already shows (its output and the uncaught error that ended it); a failure it contains is not listed again. */
+  shown = "",
 ): string[] {
   const lines: string[] = [];
   if (unfinished.length > 0) {
@@ -146,7 +146,7 @@ export function callOutcomeLines(
         !ended.has(entry) &&
         canChange(entry) &&
         entry.call?.outcome === "failed" &&
-        !(entry.call.error && scriptError?.includes(entry.call.error)),
+        !(entry.call.error && shown.includes(entry.call.error)),
     )
     .map(
       (entry) =>

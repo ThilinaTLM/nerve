@@ -30,7 +30,7 @@ files.edit({
 - **All or nothing.** Every edit is checked before anything is written; a mismatch fails the call with the edit's index and file, and nothing changes. A `glob` edit skips files without a match but must match at least once in total (or `count` times).
 - **Range edits** delete the range when `newText` is omitted.
 - **Result.** It prints as one line per file, for the first 20 files: lines added and removed, and each edit's matches (`src/api.ts +3 -3: [0] 2, [1] 1`). `result.files` has all of them. `result.diff` is the unified diff, cut at {{limit:edit.diff}} with the rest in `diffFile`. The run's result also states each edit's total matches.
-- **Dry run.** `dryRun: true` checks everything and returns the same result without writing.
+- **Dry run.** `dryRun: true` checks everything, writes nothing, and prints the diff after the per-file lines.
 - **Limits.** 500 files and {{limit:edit.bytes}} per call; binary files are refused; line endings and a BOM are kept.
 
 For logic the edits cannot express, `transform` maps each file's text to its new text, with the same all-or-nothing write. Return `undefined` to leave a file unchanged.

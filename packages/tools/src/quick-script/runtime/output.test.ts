@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import {
   PRINT_CELL_CHARS,
+  PRINT_NESTED_COLUMNS,
   PRINT_ROWS,
   PRINT_STRING_CHARS,
   PRINT_VALUE_CHARS,
@@ -46,6 +47,13 @@ void test("console.log and the result share one compact format", async () => {
     ),
     'n | user.login | user.tags\n1 | a | ["x"]\n2 | b | []',
   );
+  // Flattening that would make a wide table (an API object with many nested fields) stays JSON.
+  assert.match(
+    await run(
+      `[1, 2].map((n) => ({ n, user: Object.fromEntries(Array.from({ length: ${PRINT_NESTED_COLUMNS} }, (_, i) => ["k" + i, i])) }))`,
+    ),
+    /^\[\{"n":1,"user":\{"k0":0,/,
+  );
   assert.equal(
     await run(`[{ a: 1 }, { b: 2 }, { c: 3 }]`),
     '[{"a":1},{"b":2},{"c":3}]',
@@ -73,6 +81,9 @@ void test("the last expression is the result; a script that prints nothing says 
   );
   assert.equal(await run(`const a = (4) / 2;\n"after"`), "after");
   assert.equal(await run(`for (const k of [1]) { }\n(1 + 1)`), "2");
+  // An object literal alone on the last line is a value; a real block still runs as written.
+  assert.equal(await run(`const a = 1;\n{ a, b: 2 }`), '{"a":1,"b":2}');
+  assert.equal(await run(`const a = 1;\n{ console.log(a); }`), "1");
   assert.equal(await run(`const a = 1;\nif (a)\n  console.log("yes")`), "yes");
   // A rewrite that does not compile falls back to the script as written.
   assert.equal(await run(`console.log(1);\nlet x = 1\nx++\nx--`), "1");
@@ -140,5 +151,27 @@ void test("an uncaught SDK failure is reported with its code, call and line", as
   assert.match(
     lines[1],
     /^HostError BAD_REQUEST files\.read has no option 'nope'[^D]*$/,
+  );
+});
+
+void test("the SDK-call limit is a coded failure that says what to do", async () => {
+  const text = await run(
+    `try { for (let i = 0; i < 250; i++) await files.list("*.none"); } catch (e) { console.log(e.code, e.message) }`,
+  );
+  assert.equal(
+    text.split("\n")[0],
+    "RATE_LIMITED SDK call limit of 200 per run reached; split the work over several scripts.",
+  );
+});
+
+void test("a script beyond the concurrent limit does not start and says to run it again", async () => {
+  const runs = await Promise.allSettled(
+    Array.from({ length: 6 }, () => run(`await sleep(300)`)),
+  );
+  const refused = runs.filter((result) => result.status === "rejected");
+  assert.equal(refused.length, 2);
+  assert.equal(
+    (refused[0].reason as Error).message,
+    "4 scripts are already running, the most at once. This one did not start: run it again when one of them has finished.",
   );
 });

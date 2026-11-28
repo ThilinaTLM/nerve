@@ -34,7 +34,9 @@ void test("statements that are not expressions stay as written", () => {
   same("const r = await a();");
   same("a();\nfor (const x of xs) f(x)");
   same("a();\nif (x) b(); else c()");
-  same("a();\n{ b() }");
+  // A brace block is offered as an object literal; it does not compile as one, so the script runs as written.
+  assert.equal(resultExpression("a();\n{ b() }"), "a();\nreturn ({ b() })");
+  same("a();\n{ b() }\n{ c() }");
   same("a();\nreturn b");
   same("a();\nasync function f() {}");
   same("a();\nouter: b()");

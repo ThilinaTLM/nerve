@@ -172,8 +172,10 @@ function lastExpression(
   while (first > 0 && !startsStatement(first)) first -= 1;
 
   const head = tokens[first];
-  if (head.kind === "punct" && (head.text === "{" || head.text === "@"))
-    return undefined;
+  if (isPunct(head, "@")) return undefined;
+  // `{ a: 1 }` alone on the last line: offered as an object literal, as a REPL reads it. A real block does not
+  // compile inside the parentheses and the script then runs as written.
+  if (isPunct(head, "{") && openOf.get(last) !== first) return undefined;
   if (head.kind === "id") {
     if (STATEMENT_WORDS.has(head.text)) return undefined;
     const next = tokens[first + 1];

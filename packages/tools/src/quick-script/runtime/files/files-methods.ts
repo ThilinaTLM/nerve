@@ -7,6 +7,7 @@ import { resolveToolPath } from "../../../execution/index.js";
 import { normalizeLineEndings } from "../../../execution/filesystem/text-editing.js";
 import { formatByteSize } from "../../../execution/output/format-bytes.js";
 import { SCRIPT_EDIT_MAX_BYTES, SCRIPT_EDIT_MAX_FILES } from "../../limits.js";
+import { codedError } from "../errors.js";
 import { defineMethod } from "../sdk-args.js";
 import type {
   MethodAuthorization,
@@ -427,7 +428,8 @@ export const filesMethods: SdkMethod[] = [
           SCRIPT_EDIT_MAX_FILES + 1,
         );
         if (found.paths.length === 0)
-          throw new Error(
+          throw codedError(
+            "NOT_FOUND",
             `glob ${JSON.stringify(edit.glob)} matches no files.`,
           );
         if (found.paths.length > SCRIPT_EDIT_MAX_FILES)

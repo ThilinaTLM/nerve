@@ -328,3 +328,30 @@ void test("a count mismatch names the files that matched; a wide edit prints a c
   assert.equal(lines[20], "[+10 more files: result.files]");
   assert.equal(lines.at(-1), "Edit matches: [0] 30 in 30 files");
 });
+
+void test("a dry run prints the diff; a caught failure the script printed is not listed again; no match is not an argument error", async () => {
+  const { run } = await workspace({ "a.ts": "one\none\n" });
+  const dry = await run(
+    `await files.edit({ path: "a.ts", dryRun: true, edits: [{ oldText: "one", newText: "two", all: true }] })`,
+  );
+  assert.equal(dry[0], "a.ts +2 -2: [0] 2");
+  assert.equal(dry[1], "--- a.ts");
+  assert.equal(
+    dry.at(-1),
+    "Dry run, nothing written. Edit matches: [0] 2 in 1 file",
+  );
+  const caught = await run(
+    `try { await files.edit({ path: "a.ts", edits: [{ oldText: "one", newText: "two" }] }) } catch (e) { console.log(e.message) }`,
+  );
+  assert.match(caught[0], /edits\[0\]\.oldText matched 2 times/);
+  assert.ok(!caught.some((line) => line.startsWith("Failed:")));
+  // A swallowed failure of a write is still named.
+  const swallowed = await run(
+    `try { await files.edit({ path: "a.ts", edits: [{ oldText: "one", newText: "two" }] }) } catch {}`,
+  );
+  assert.match(swallowed[0], /^Failed: files\.edit/);
+  const none = await run(
+    `await files.edit({ glob: "*.nope", edits: [{ oldText: "a", newText: "b" }] })`,
+  );
+  assert.equal(none[0], 'NOT_FOUND: glob "*.nope" matches no files.');
+});

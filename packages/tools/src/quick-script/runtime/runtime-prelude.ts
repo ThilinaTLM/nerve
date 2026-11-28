@@ -1,6 +1,7 @@
 import {
   PRINT_CELL_CHARS,
   PRINT_EDIT_FILES,
+  PRINT_NESTED_COLUMNS,
   PRINT_ROWS,
   PRINT_STRING_CHARS,
   PRINT_VALUE_CHARS,
@@ -25,6 +26,8 @@ export const RUNTIME_HEAD = String.raw`
     } catch (error) {
       const match = /^\[([A-Z_]+)\] ([\s\S]*)$/.exec(error.message);
       if (match) { error.code = match[1]; error.message = match[2]; }
+      // The engine's own limit: no more calls can be made in this run.
+      else if (/host call limit of \d+ reached/.test(error.message)) { error.code = "RATE_LIMITED"; error.message = "SDK call limit of " + /\d+/.exec(error.message)[0] + " per run reached; split the work over several scripts."; }
       try { error.stack = "    at " + method + (site ? " (script.ts:" + site[1] + ")" : ""); } catch {}
       throw error;
     }
@@ -61,7 +64,7 @@ ${SANDBOX_GLOBALS}
 
   // One formatter for console.* and the script's result, chosen for token count: text as is, flat rows as a
   // table (each key once), anything else compact JSON. Long strings, long arrays and large values are cut with a note.
-  const STRING_CAP = ${PRINT_STRING_CHARS}, ROW_CAP = ${PRINT_ROWS}, VALUE_CAP = ${PRINT_VALUE_CHARS}, CELL_CAP = ${PRINT_CELL_CHARS}, FILES_CAP = ${PRINT_EDIT_FILES};
+  const STRING_CAP = ${PRINT_STRING_CHARS}, ROW_CAP = ${PRINT_ROWS}, VALUE_CAP = ${PRINT_VALUE_CHARS}, CELL_CAP = ${PRINT_CELL_CHARS}, COLUMN_CAP = ${PRINT_NESTED_COLUMNS}, FILES_CAP = ${PRINT_EDIT_FILES};
   const errorText = (error) => (typeof error.code === "string" ? error.code : error.name || "Error") + ": " + error.message;
   const dropped = (v) => v === undefined || typeof v === "function" || typeof v === "symbol";
   const prune = (value, seen) => {
@@ -125,11 +128,13 @@ ${SANDBOX_GLOBALS}
       const rows = more ? pruned.slice(0, ROW_CAP) : pruned;
       const total = more ? Number(/of (\d+)\]$/.exec(more)[1]) : rows.length;
       // Rows that share most of their keys are a table; rows of different shapes stay JSON.
+      // Nested rows are flattened only while the table stays narrow: an API object with many nested fields is cheaper as JSON.
+      const nested = rows.every(isRecord) && rows.some((row) => Object.values(row).some((v) => v !== null && typeof v === "object"));
       const flat = rows.every(isRecord) ? rows.map(flatRow) : undefined;
       const columns = [];
       let cells = 0;
       if (flat) for (const row of flat) for (const key of Object.keys(row)) { cells += 1; if (!columns.includes(key)) columns.push(key); }
-      const table = flat !== undefined && columns.length > 0 && cells * 2 >= flat.length * columns.length;
+      const table = flat !== undefined && columns.length > 0 && cells * 2 >= flat.length * columns.length && (!nested || columns.length <= COLUMN_CAP);
       const header = table ? columns.join(" | ") : "";
       const lines = table ? flat.map((row) => columns.map((c) => cellText(row[c])).join(" | ")) : rows.map((row) => JSON.stringify(row) ?? "null");
       const fit = fitted(lines, header, total, rows[0]);
@@ -192,6 +197,8 @@ export const runtimeTail = (guarded: readonly string[]) => String.raw`
     if (lines.length === 0) lines.push("no file changed");
     // result.files has every file; the printed form stops at a screenful.
     if (lines.length > FILES_CAP) lines.splice(FILES_CAP, lines.length, "[+" + (lines.length - FILES_CAP) + " more files: result.files]");
+    // A dry run is a preview, so it prints what would change.
+    if (result.dryRun && result.diff) lines.push(result.diff);
     delete result.counted;
     return Object.defineProperty(result, "toString", { value: () => lines.join("\n") });
   };

@@ -13,6 +13,8 @@ export const PRINT_VALUE_CHARS = 8 * 1024;
 /** A table cell, and the files an edit result lists when printed. */
 export const PRINT_CELL_CHARS = 300;
 export const PRINT_EDIT_FILES = 20;
+/** Rows with nested objects become a table only up to this many columns; wider ones print as JSON. */
+export const PRINT_NESTED_COLUMNS = 12;
 /** One `files.edit` / `artifacts.edit` call. */
 export const SCRIPT_EDIT_MAX_FILES = 500;
 export const SCRIPT_EDIT_MAX_BYTES = 20 * 1024 * 1024;

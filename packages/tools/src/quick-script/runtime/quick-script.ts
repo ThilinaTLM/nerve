@@ -153,7 +153,14 @@ export async function executeQuickScript(
   let resultCaptured = false;
   try {
     for (const source of [...withResult, code]) {
-      outcome = await run(source);
+      outcome = await run(source).catch((failure: unknown) => {
+        if (/Too many active sandbox scripts/.test(messageOf(failure)))
+          throw new Error(
+            `${sandbox.MAX_ACTIVE_SCRIPTS} scripts are already running, the most at once. This one did not start: run it again when one of them has finished.`,
+            { cause: failure },
+          );
+        throw failure;
+      });
       resultCaptured = source !== code;
       const didNotCompile =
         outcome.status === "failed" &&
@@ -340,7 +347,7 @@ export async function executeQuickScript(
         unfinished,
         log.entries,
         status === "completed",
-        error,
+        `${outcome.output}\n${error ?? ""}`,
       ),
       footer,
     ]
