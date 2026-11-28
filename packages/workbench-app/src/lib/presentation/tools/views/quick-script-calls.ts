@@ -5,6 +5,9 @@ import {
 } from "@nervekit/contracts/tools";
 import type { ConversationLiveToolOutputSnapshot } from "$lib/presentation/view-models/conversation";
 
+/** The result text of a completed run that printed nothing (see `executeQuickScript`). */
+export const NO_OUTPUT_TEXT = "ok, no output";
+
 /** A quick_script SDK call row: a settled call, or one still running (live only). */
 export type QuickScriptCallRow =
   | QuickScriptHostCall

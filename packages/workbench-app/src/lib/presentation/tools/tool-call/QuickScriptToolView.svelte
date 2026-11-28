@@ -14,6 +14,7 @@ import {
   operationLines,
 } from "../views/tool-presentation-helpers";
 import {
+  NO_OUTPUT_TEXT,
   callEdit,
   editStatLabel,
   editStatParts,
@@ -29,7 +30,7 @@ type Props = {
   expanded?: boolean;
   onOpenFile?: (path: string, line?: number) => void;
 };
-let { view, expanded = false, onOpenFile }: Props = $props();
+let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
 
 // The script itself is the card's persistent argument section. While the
 // script runs, a collapsed card keeps the newest calls in view.
@@ -49,12 +50,19 @@ const scriptFailed = $derived(
 const plannedLines = $derived(
   view.hostCalls.length === 0 ? operationLines(view.plannedOperations) : [],
 );
+// What the agent received. A run that printed nothing returns a placeholder
+// line, which the card words for the reader.
+const output = $derived(view.output === NO_OUTPUT_TEXT ? "" : view.output);
+const finished = $derived(
+  view.status !== undefined || toolCall.status === "completed",
+);
 const hasSummary = $derived(
   view.hostCalls.length > 0 ||
     plannedLines.length > 0 ||
     view.artifacts.length > 0 ||
     view.created.length > 0 ||
-    scriptFailed,
+    output.length > 0 ||
+    finished,
 );
 
 // Artifact handles in call summaries become links that open the file in a tab;
@@ -253,12 +261,24 @@ function toggleEdit(index: number) {
       </p>
     {/if}
 
-    {#if scriptFailed}
+    {#if output.length > 0}
+      <div class="px-2.5 py-2" aria-label="Script output">
+        <p class="m-0 mb-1 text-ui text-muted-foreground">Output</p>
+        <ToolOutputBlock text={output} {expanded} />
+      </div>
+    {:else if scriptFailed}
       <p
         class="m-0 px-2.5 py-2 text-ui text-destructive [overflow-wrap:anywhere]"
       >
         {view.error ?? view.status?.replaceAll("_", " ")}
       </p>
+    {:else if finished}
+      <div
+        class="px-2.5 py-2 text-ui text-muted-foreground"
+        aria-label="Script output"
+      >
+        No output.
+      </div>
     {/if}
   </ToolSections>
 {/if}
