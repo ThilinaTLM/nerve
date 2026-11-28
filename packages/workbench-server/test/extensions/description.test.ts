@@ -8,14 +8,14 @@ const ALL = registry.extensions.flatMap((extension) =>
 );
 
 /** Description size cap (characters) with every namespace configured; raise it only on purpose. */
-const MAX_DESCRIPTION_CHARS = 4_100;
+const MAX_DESCRIPTION_CHARS = 4_300;
 /** Cap for one namespace's summary plus rules. */
 const MAX_NAMESPACE_CHARS = 420;
 
 void test("without extensions the description lists the runtime only", () => {
   const text = quickScriptDescription({}, registry);
   assert.doesNotMatch(text, /jira|confluence|Write to Jira/);
-  assert.match(text, /^Run a sandboxed TypeScript script/);
+  assert.match(text, /^Run a sandboxed JavaScript script/);
   assert.match(
     text,
     /Namespaces: files \([^)]*\); artifacts \([^)]*\); image \(.*\); web \([^)]*\); extensions \(.*\)\./,

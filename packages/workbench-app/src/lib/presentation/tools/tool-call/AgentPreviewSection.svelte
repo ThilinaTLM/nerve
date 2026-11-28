@@ -5,14 +5,23 @@ import type { AgentProjectionSnapshot } from "@nervekit/contracts/tools";
 import type { ToolCallRecord } from "../../view-models/tool-records";
 type AgentPreviewSnapshot = NonNullable<ToolCallRecord["agentPreview"]>;
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
+import { indentJsonLines } from "./tool-details-state";
 
 type Props = {
   preview?: AgentPreviewSnapshot;
   projection?: AgentProjectionSnapshot;
   result?: unknown;
   wrap?: boolean;
+  /** Show text lines that are whole compact JSON values indented. */
+  indentJson?: boolean;
 };
-let { preview, projection, result, wrap = true }: Props = $props();
+let {
+  preview,
+  projection,
+  result,
+  wrap = true,
+  indentJson = false,
+}: Props = $props();
 
 function imageData(index: number, mimeType: string): string | undefined {
   if (!result || typeof result !== "object" || Array.isArray(result)) return;
@@ -47,7 +56,9 @@ function supportedImageMime(mimeType: string): boolean {
         {#if block.type === "text"}
           <ResultCodeBlock
             bare
-            code={block.text}
+            code={indentJson
+              ? (indentJsonLines(block.text) ?? block.text)
+              : block.text}
             {wrap}
             maxHeight="none"
             trim={false}

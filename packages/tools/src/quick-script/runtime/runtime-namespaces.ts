@@ -40,7 +40,7 @@ export const runtimeNamespaces: SdkNamespace[] = [
       {
         id: "files/editing",
         whenToRead:
-          "before files.edit or artifacts.edit: edit shapes, match counts, globs, dry runs",
+          "before files.edit or artifacts.edit: edit shapes, match counts, transform",
         file: "editing.md",
       },
     ],

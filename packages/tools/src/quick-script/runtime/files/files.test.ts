@@ -215,8 +215,7 @@ void test("XLSX and Papa work in the sandbox and load only for scripts that ment
   assert.equal(lines[0], '[{"a":1,"b":"x"},{"a":2,"b":"y"}]');
   assert.equal(lines[1], 'a,b|1,"x,y" [{"a":"1","b":"2"}]');
   const plain = await run(`return typeof XLSX;`);
-  // Slow runs (>1s, e.g. on CI) append a duration such as " · 1.1s".
-  assert.match(plain.content ?? "", /^object\nexit 0(?: · \S+)?$/);
+  assert.equal(plain.content, "object");
 });
 
 void test("artifacts.write accepts a name or an artifact handle and keeps Unicode names", async () => {
@@ -259,6 +258,8 @@ void test("artifacts.edit applies edits in order without authorization; a mismat
     {
       path: "artifact:doc.md",
       changed: true,
+      added: 1,
+      removed: 1,
       edits: [
         { index: 0, matches: 1 },
         { index: 1, matches: 1 },

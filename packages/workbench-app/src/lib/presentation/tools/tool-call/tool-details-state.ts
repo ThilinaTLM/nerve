@@ -109,6 +109,37 @@ export function agentPreviewText(
     .join("\n\n");
 }
 
+/**
+ * `text` with every line that is, in full, a compact JSON object or array
+ * indented for reading; other lines stay exactly as they are. Undefined when no line
+ * would change, so callers can offer indenting only when it does something.
+ */
+export function indentJsonLines(text: string): string | undefined {
+  let changed = false;
+  const lines = text.split("\n").map((line) => {
+    const trimmed = line.trim();
+    const open = trimmed[0];
+    const close = trimmed.at(-1);
+    if (
+      trimmed.length < 3 ||
+      !((open === "{" && close === "}") || (open === "[" && close === "]"))
+    )
+      return line;
+    let value: unknown;
+    try {
+      value = JSON.parse(trimmed);
+    } catch {
+      return line;
+    }
+    // Only lines that round-trip exactly: a number past double precision or
+    // an escaped character must not read differently once indented.
+    if (JSON.stringify(value) !== trimmed) return line;
+    changed = true;
+    return JSON.stringify(value, null, 2);
+  });
+  return changed ? lines.join("\n") : undefined;
+}
+
 export type RawTextSegment = { key: number; text: string };
 
 export function segmentRawText(

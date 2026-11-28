@@ -28,7 +28,9 @@ export type TextEdit =
       inclusive: boolean;
       newText: string;
     }
-  | { kind: "insert"; anchor: string; before: boolean; text: string };
+  | { kind: "insert"; anchor: string; before: boolean; text: string }
+  /** The whole new text, computed by a script's `transform`. */
+  | { kind: "whole"; text: string };
 
 export type ParsedEdit = {
   index: number;
@@ -37,7 +39,11 @@ export type ParsedEdit = {
   count?: number;
 };
 
-const SHAPES: { key: string; kind: TextEdit["kind"]; fields: string[] }[] = [
+const SHAPES: {
+  key: string;
+  kind: Exclude<TextEdit["kind"], "whole">;
+  fields: string[];
+}[] = [
   {
     key: "oldText",
     kind: "exact",
@@ -58,7 +64,7 @@ const SHAPES: { key: string; kind: TextEdit["kind"]; fields: string[] }[] = [
 ];
 
 const SHAPE_HINT =
-  "{ oldText, newText, all?, count? }, { pattern, replacement, flags?, all?, count? }, { from, through | upTo, newText } or { insertBefore | insertAfter, text }";
+  "{ oldText, newText, all?, count? }, { pattern, replacement, flags?, all?, count? }, { from, through | upTo, newText? } or { insertBefore | insertAfter, text }";
 
 const nonEmpty = (value: unknown, label: string): string => {
   if (typeof value !== "string" || value.length === 0)
@@ -92,14 +98,19 @@ export function parseEdit(
     throw new Error(
       `${label} has unknown field${unknown.length === 1 ? "" : "s"} ${unknown.join(", ")}; this edit takes ${[...allowed].join(", ")}.`,
     );
-  const all = record.all === undefined ? false : record.all;
-  if (typeof all !== "boolean")
+  if (record.all !== undefined && typeof record.all !== "boolean")
     throw new Error(`${label}.all must be a boolean.`);
+  // A regular expression's `g` flag means what it says: every match.
+  const all =
+    record.all === true ||
+    (shape.kind === "regex" &&
+      typeof record.flags === "string" &&
+      record.flags.includes("g"));
   let count: number | undefined;
   if (record.count !== undefined) {
     if (!all)
       throw new Error(
-        `${label}.count needs all: true; without it the edit must match exactly once.`,
+        `${label}.count needs all: true (or a g flag); without it the edit must match exactly once.`,
       );
     if (!Number.isInteger(record.count) || (record.count as number) < 1)
       throw new Error(`${label}.count must be a positive integer.`);
@@ -153,7 +164,11 @@ export function parseEdit(
             `${label}.${inclusive ? "through" : "upTo"}`,
           ),
           inclusive,
-          newText: text(record.newText, `${label}.newText`),
+          // Omitted: the range is deleted.
+          newText:
+            record.newText === undefined
+              ? ""
+              : text(record.newText, `${label}.newText`),
         },
       };
     }
@@ -186,6 +201,8 @@ export function editNeedle(edit: TextEdit): string {
       return edit.from;
     case "insert":
       return edit.anchor;
+    case "whole":
+      return "(whole file)";
   }
 }
 
@@ -193,7 +210,7 @@ export function editNeedle(edit: TextEdit): string {
 export function editReplacement(edit: TextEdit): string {
   return edit.kind === "regex"
     ? edit.replacement
-    : edit.kind === "insert"
+    : edit.kind === "insert" || edit.kind === "whole"
       ? edit.text
       : edit.newText;
 }
@@ -265,7 +282,7 @@ export function applyEdit(
         if (matches === 0 && optional) return { text: content, matches: 0 };
         if (matches !== 1)
           throw new EditMismatch(
-            `edits[${index}].pattern matched ${matches} times in ${shown}; without all: true it must match exactly once.`,
+            `edits[${index}].pattern matched ${matches} times in ${shown}; without all: true or a g flag it must match exactly once.`,
           );
         return {
           text: content.replace(
@@ -303,5 +320,7 @@ export function applyEdit(
         matches: 1,
       };
     }
+    case "whole":
+      return { text: edit.text, matches: 1 };
   }
 }

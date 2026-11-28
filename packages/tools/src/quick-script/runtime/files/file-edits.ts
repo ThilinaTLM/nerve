@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { writeTextFileAtomically } from "../../../execution/filesystem/atomic-write.js";
 import { withFileMutationQueue } from "../../../execution/filesystem/file-mutation-queue.js";
@@ -31,11 +32,20 @@ export type PlannedEdit = {
   files: EditFile[];
   /** Expanded from a glob: a file without a match is skipped; the total must match. */
   glob?: string;
+  /** `fileVersion` of the content the edit was computed from; another version on disk is a CONFLICT. */
+  version?: string;
 };
+
+/** Identifies a file's content between the two calls of a `transform` edit. */
+export const fileVersion = (raw: string): string =>
+  createHash("sha256").update(raw).digest("hex");
 
 export type FileEditResult = {
   path: string;
   changed: boolean;
+  /** Lines added and removed. */
+  added: number;
+  removed: number;
   edits: { index: number; matches: number }[];
 };
 
@@ -115,6 +125,11 @@ export async function applyFileEdits(
     let matched = 0;
     for (const file of edit.files) {
       const entry = byPath.get(file.path)!;
+      if (edit.version !== undefined && fileVersion(entry.raw) !== edit.version)
+        throw codedError(
+          "CONFLICT",
+          `${file.shown} changed while transform ran; nothing was written. Run the edit again.`,
+        );
       const result = applyEdit(
         entry.after,
         edit.parsed,
@@ -170,16 +185,26 @@ export async function applyFileEdits(
     }
   }
 
+  const diffs = new Map(
+    changed.map((entry) => [
+      entry.file.path,
+      generateDiffString(entry.before, entry.after),
+    ]),
+  );
+  const lines = (diff: string | undefined, sign: string) =>
+    diff?.split("\n").filter((line) => line.startsWith(sign)).length ?? 0;
   return {
     files: touched.map((entry) => ({
       path: entry.file.shown,
       changed: entry.after !== entry.before,
+      added: lines(diffs.get(entry.file.path), "+"),
+      removed: lines(diffs.get(entry.file.path), "-"),
       edits: entry.edits,
     })),
     diff: changed
       .map(
         (entry) =>
-          `--- ${entry.file.shown}\n+++ ${entry.file.shown}\n${generateDiffString(entry.before, entry.after)}`,
+          `--- ${entry.file.shown}\n+++ ${entry.file.shown}\n${diffs.get(entry.file.path)}`,
       )
       .join("\n"),
     written,

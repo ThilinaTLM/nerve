@@ -1,3 +1,8 @@
+import {
+  PRINT_ROWS,
+  PRINT_STRING_CHARS,
+  PRINT_VALUE_CHARS,
+} from "../limits.js";
 import { SANDBOX_GLOBALS } from "./sandbox-globals.js";
 
 /**
@@ -11,11 +16,14 @@ export const RUNTIME_HEAD = String.raw`
   const hostCall = host.call;
   // Host failures arrive as "[CODE] message"; scripts see error.code === "CODE".
   const call = async (method, args) => {
+    // Taken before the first await, so it names the script line that made the call.
+    const site = /script\.ts:(\d+)/.exec(new Error().stack ?? "");
     try {
       return await hostCall(method, args);
     } catch (error) {
       const match = /^\[([A-Z_]+)\] ([\s\S]*)$/.exec(error.message);
       if (match) { error.code = match[1]; error.message = match[2]; }
+      try { error.stack = "    at " + method + (site ? " (script.ts:" + site[1] + ")" : ""); } catch {}
       throw error;
     }
   };
@@ -49,22 +57,71 @@ ${SANDBOX_GLOBALS}
     return out;
   };
 
-  // A top-level "return value" prints compactly: flat objects as a table, anything else as JSON.
+  // One formatter for console.* and the script's result, chosen for token count: text as is, flat rows as a
+  // table (each key once), anything else compact JSON. Long strings, long arrays and large values are cut with a note.
+  const STRING_CAP = ${PRINT_STRING_CHARS}, ROW_CAP = ${PRINT_ROWS}, VALUE_CAP = ${PRINT_VALUE_CHARS};
+  const errorText = (error) => (typeof error.code === "string" ? error.code : error.name || "Error") + ": " + error.message;
+  const dropped = (v) => v === undefined || typeof v === "function" || typeof v === "symbol";
+  const prune = (value, seen) => {
+    if (typeof value === "string") return value.length > STRING_CAP ? value.slice(0, STRING_CAP) + "…[+" + (value.length - STRING_CAP) + " chars]" : value;
+    if (typeof value === "bigint") return value + "n";
+    if (value === null || typeof value !== "object") return value;
+    if (value instanceof Error) return errorText(value);
+    if (seen.has(value)) return "[circular]";
+    if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return "[" + value.constructor.name + ", " + value.byteLength + " bytes]";
+    if (typeof value.toJSON === "function") return prune(value.toJSON(), seen);
+    let items = value;
+    if (value instanceof Map) items = [...value.keys()].every((key) => typeof key === "string" || typeof key === "number") ? Object.fromEntries(value) : [...value];
+    else if (value instanceof Set) items = [...value];
+    else if (!Array.isArray(value) && value.toString !== Object.prototype.toString && typeof value.toString === "function") return String(value);
+    seen.add(value);
+    let out;
+    if (Array.isArray(items)) {
+      out = items.slice(0, ROW_CAP).map((item) => { const kept = prune(item, seen); return dropped(kept) ? null : kept; });
+      if (items.length > ROW_CAP) out.push("[+" + (items.length - ROW_CAP) + " more of " + items.length + "]");
+    } else {
+      out = {};
+      for (const key of Object.keys(items)) { const kept = prune(items[key], seen); if (!dropped(kept)) out[key] = kept; }
+    }
+    seen.delete(value);
+    return out;
+  };
   const isFlat = (row) => row !== null && typeof row === "object" && !Array.isArray(row) &&
     Object.values(row).every((v) => v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean");
-  const cellText = (v) => v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v).replace(/\s*\n\s*/g, " ");
-  const formatReturn = (value) => {
-    if (value === undefined) return undefined;
+  const cellText = (v) => v === null || v === undefined ? "" : String(v).replace(/\s*\n\s*/g, " ");
+  const formatValue = (value) => {
     if (typeof value === "string") return value;
-    if (Array.isArray(value) && value.length > 0 && value.every(isFlat)) {
+    if (typeof value === "bigint") return value + "n";
+    if (value === null || typeof value !== "object") return String(value);
+    const pruned = prune(value, new Set());
+    if (typeof pruned === "string") return pruned;
+    let text;
+    const more = Array.isArray(pruned) && pruned.length === ROW_CAP + 1 && /^\[\+\d+ more of \d+\]$/.test(pruned[ROW_CAP]) ? pruned[ROW_CAP] : undefined;
+    const rows = more ? pruned.slice(0, ROW_CAP) : pruned;
+    if (Array.isArray(rows) && rows.length > 0 && rows.every(isFlat)) {
       const columns = [];
-      for (const row of value) for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
-      return [columns.join(" | "), ...value.map((row) => columns.map((c) => cellText(row[c])).join(" | "))].join("\n");
+      for (const row of rows) for (const key of Object.keys(row)) if (!columns.includes(key)) columns.push(key);
+      text = [columns.join(" | "), ...rows.map((row) => columns.map((c) => cellText(row[c])).join(" | ")), ...(more ? [more] : [])].join("\n");
+    } else {
+      try { text = JSON.stringify(pruned) ?? String(value); } catch { text = String(value); }
     }
-    try { return JSON.stringify(value) ?? String(value); } catch { return String(value); }
+    return text.length > VALUE_CAP
+      ? text.slice(0, VALUE_CAP) + "\n[+" + (text.length - VALUE_CAP) + " chars cut: print a narrower field, or artifacts.write the value]"
+      : text;
   };
+  const print = console.log;
+  const write = (...values) => print(values.map(formatValue).join(" "));
+  globalThis.console = Object.freeze({ log: write, info: write, warn: write, error: write, debug: write, table: write });
+  // The script's result: a top-level "return value", or the value of its last expression.
   Object.defineProperty(globalThis, "__nerveReturn", {
-    value: (value) => { const text = formatReturn(value); if (text !== undefined) console.log(text); },
+    value: (value) => { if (!dropped(value) && value !== "") write(value); },
+  });
+  // An uncaught SDK failure is reported by its code: "NOT_FOUND: message", then the call and its line.
+  Object.defineProperty(globalThis, "__nerveUncaught", {
+    value: (error) => {
+      if (error instanceof Error && typeof error.code === "string") { try { error.name = error.code; } catch {} }
+      throw error;
+    },
   });
 `;
 
@@ -79,16 +136,51 @@ export const runtimeTail = (guarded: readonly string[]) => String.raw`
     throw new TypeError(method + ": data must be a string, Uint8Array or ArrayBuffer");
   };
   const withOptions = (options, map) => options !== null && typeof options === "object" && !Array.isArray(options) ? map(options) : options;
-  const bridgeEdits = (edits) => Array.isArray(edits)
-    ? edits.map((edit) => edit && edit.pattern instanceof RegExp
-      ? { ...edit, pattern: edit.pattern.source, flags: edit.flags ?? edit.pattern.flags }
-      : edit)
+  const bridgeEdits = (edits, label) => Array.isArray(edits)
+    ? edits.map((edit, index) => {
+      if (edit && typeof edit.replacement === "function") {
+        const error = new TypeError(label + ": edits[" + index + "].replacement must be a string. For a computed replacement use transform: (text) => text.replace(pattern, fn).");
+        error.code = "BAD_REQUEST";
+        throw error;
+      }
+      return edit && edit.pattern instanceof RegExp
+        ? { ...edit, pattern: edit.pattern.source, flags: edit.flags ?? edit.pattern.flags }
+        : edit;
+    })
     : edits;
+  // An edit result prints as its match counts and line counts per file; the diff is result.diff.
+  const editSummary = (result) => {
+    if (result === null || typeof result !== "object" || !Array.isArray(result.files)) return result;
+    const lines = result.files.map((file) => file.path
+      + (file.changed ? " +" + file.added + " -" + file.removed : " unchanged")
+      + (result.counted === false ? "" : ": " + file.edits.map((edit) => "[" + edit.index + "] " + edit.matches).join(", ")));
+    if (lines.length === 0) lines.push("no file changed");
+    delete result.counted;
+    return Object.defineProperty(result, "toString", { value: () => lines.join("\n") });
+  };
   for (const [namespace, label] of [[files, "files"], [artifacts, "artifacts"]]) {
     const read = namespace.read, write = namespace.write, edit = namespace.edit;
     namespace.read = async (...args) => fromBridge(await read(...args));
     namespace.write = (options, ...rest) => write(withOptions(options, (o) => ({ ...o, data: toBridge(o.data, label + ".write") })), ...rest);
-    namespace.edit = (options, ...rest) => edit(withOptions(options, (o) => ({ ...o, edits: bridgeEdits(o.edits) })), ...rest);
+    namespace.edit = async (options, ...rest) => {
+      // transform runs here: the host hands over the files' text, then writes what the function returned, all or nothing.
+      if (label === "files" && options !== null && typeof options === "object" && typeof options.transform === "function") {
+        const { transform, dryRun, ...target } = options;
+        const { staged } = await edit({ ...target, stage: true });
+        const contents = [];
+        for (const file of staged) {
+          const text = await transform(file.text, file.path);
+          if (text === undefined || text === file.text) continue;
+          contents.push({ path: file.path, text, version: file.version });
+        }
+        return editSummary(await edit({ contents, dryRun }));
+      }
+      return editSummary(await edit(withOptions(options, (o) => ({ ...o, edits: bridgeEdits(o.edits, label + ".edit") })), ...rest));
+    };
+  }
+  if (typeof launches !== "undefined") for (const method of ["start", "restart", "logs"]) {
+    const original = launches[method];
+    launches[method] = (options, ...rest) => original(withOptions(options, (o) => o.waitFor instanceof RegExp ? { ...o, waitFor: { source: o.waitFor.source, flags: o.waitFor.flags } } : o), ...rest);
   }
 
   // image(handle).resize(...).crop(...).png() | .jpeg(...) then .info() / .save(name); work happens host-side.

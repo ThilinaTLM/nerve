@@ -2,6 +2,7 @@ import { parseOptions } from "@nervekit/extension-api/host";
 import { codedError } from "../errors.js";
 import { defineMethod } from "../sdk-args.js";
 import type { SdkMethod } from "../sdk-types.js";
+import { parseLaunchWait, waitForLaunchOutput } from "./launch-wait.js";
 import type {
   LaunchDefinitionInput,
   LaunchPlacement,
@@ -117,6 +118,9 @@ function placement(options: Record<string, unknown>): LaunchPlacement {
 const FIELD_OPTIONS = ["label", "command", "cwd", "port", "runPolicy"] as const;
 const PLACE_OPTIONS = ["folder", "before"] as const;
 const SELECT_OPTIONS = ["name", "runId"] as const;
+const WAIT_OPTIONS = ["waitFor", "timeout"] as const;
+const WAIT =
+  "`waitFor` (RegExp, or a string matched literally) returns when the run's output matches, the run exits or `timeout` seconds pass (default 60, max 600); adds `matched` and `output` (log tail, at most 100 lines, up to the matching line). Only the started run's output counts.";
 const WRITES =
   "Writes the project's launch catalog through Nerve (locking, ids and order are handled); never edit definitions.json by hand. If the file on disk is invalid, the call fails and says how to fix it.";
 const NAMES =
@@ -140,12 +144,15 @@ function startMethod(mode: "start" | "restart"): SdkMethod {
     directTool: "bash",
     signature:
       mode === "start"
-        ? `/** Start a launch definition (or a stopped run). ${NAMES} Checked like the bash command it runs. A single-run definition that is already running is not started twice. With a port, waits up to 30 s for it to listen. Runs keep going after the script ends; you are notified when one you started exits. */ start(name: string | { name?: string; runId?: string }): Promise<LaunchStartResult>`
-        : `/** Stop the launch's current run (if any) and start it again with the definition's current command. ${NAMES} ${RUN} Checked like the bash command it runs. */ restart(name: string | { name?: string; runId?: string }): Promise<LaunchStartResult>`,
+        ? `/** Start a launch definition (or a stopped run). ${NAMES} Checked like the bash command it runs. A single-run definition that is already running is not started twice. With a port, waits up to 30 s for it to listen. ${WAIT} Runs keep going after the script ends; you are notified when one you started exits. */ start(name: string | ({ name?: string; runId?: string } & LaunchWaitOptions)): Promise<LaunchStartResult>`
+        : `/** Stop the launch's current run (if any) and start it again with the definition's current command. ${NAMES} ${RUN} Checked like the bash command it runs. ${WAIT} */ restart(name: string | ({ name?: string; runId?: string } & LaunchWaitOptions)): Promise<LaunchStartResult>`,
     async prepare(args, env) {
-      const target = selector(
-        parseOptions(method, args, { bare: "name", options: SELECT_OPTIONS }),
-      );
+      const options = parseOptions(method, args, {
+        bare: "name",
+        options: [...SELECT_OPTIONS, ...WAIT_OPTIONS],
+      });
+      const target = selector(options);
+      const wait = parseLaunchWait(options);
       const prepared = await port(env).prepareStart(target, mode);
       return {
         ...(prepared.process
@@ -163,7 +170,23 @@ function startMethod(mode: "start" | "restart"): SdkMethod {
             }
           : {}),
         resource: `launch ${JSON.stringify(prepared.name)}`,
-        run: () => prepared.start(),
+        run: async (env) => {
+          const started = await prepared.start();
+          if (!wait) return started;
+          const waited = await waitForLaunchOutput(
+            port(env),
+            started.runId,
+            wait,
+            env.context.signal,
+          );
+          return {
+            ...started,
+            ...waited.run,
+            name: started.name,
+            matched: waited.matched,
+            output: waited.output,
+          };
+        },
       };
     },
   };
@@ -219,12 +242,32 @@ export const launchesMethods: SdkMethod[] = [
     path: "logs",
     risk: "read",
     bare: "name",
-    options: [...SELECT_OPTIONS, "offset", "lines"],
-    signature: `/** Output of the launch's latest run: \`lines\` lines (default 100, max 500) from \`offset\` (0-based; default: the tail). ${NAMES} ${RUN} */ logs(name: string | { name?: string; runId?: string; offset?: number; lines?: number }): Promise<{ run: LaunchRun; output: string }>`,
-    parse: (options) => ({ target: selector(options), page: page(options) }),
+    options: [...SELECT_OPTIONS, "offset", "lines", ...WAIT_OPTIONS],
+    signature: `/** Output of the launch's latest run: \`lines\` lines (default 100, max 500) from \`offset\` (0-based; default: the tail). ${NAMES} ${RUN} With \`waitFor\` (RegExp, or a string matched literally) waits until the run's output matches, the run exits or \`timeout\` seconds pass (default 60, max 600); \`output\` is then the log tail (at most 100 lines) up to the matching line, with \`matched\`; not combinable with \`offset\`/\`lines\`. */ logs(name: string | ({ name?: string; runId?: string } & ({ offset?: number; lines?: number } | LaunchWaitOptions))): Promise<{ run: LaunchRun; output: string; matched?: boolean }>`,
+    parse: (options) => {
+      const wait = parseLaunchWait(options);
+      if (wait && (options.offset !== undefined || options.lines !== undefined))
+        throw new Error(
+          "offset and lines do not combine with waitFor: the output is the log tail up to the match.",
+        );
+      return { target: selector(options), page: page(options), wait };
+    },
     resource: ({ target }) => `launch ${label(target)}`,
-    run: async ({ target, page: lines }, env) =>
-      await port(env).logs(target, lines),
+    run: async ({ target, page: lines, wait }, env) => {
+      const logs = await port(env).logs(target, wait ? {} : lines);
+      if (!wait) return logs;
+      const waited = await waitForLaunchOutput(
+        port(env),
+        logs.run.runId,
+        wait,
+        env.context.signal,
+      );
+      return {
+        run: waited.run,
+        output: waited.output,
+        matched: waited.matched,
+      };
+    },
   }),
   defineMethod({
     product: "launches",

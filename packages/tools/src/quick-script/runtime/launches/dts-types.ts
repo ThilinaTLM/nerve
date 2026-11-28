@@ -29,11 +29,21 @@ interface LaunchRun {
   exitCode?: number;
   startedAt: string;
 }
+interface LaunchWaitOptions {
+  /** A string is matched literally. Returns when the output matches, the run exits or \`timeout\` passes. */
+  waitFor: RegExp | string;
+  /** Seconds; default 60, max 600. A timeout is not an error: \`matched\` is false. */
+  timeout?: number;
+}
 interface LaunchStartResult extends LaunchRun {
   /** already_running: nothing was started. */
   outcome: "started" | "already_running";
   /** Only for definitions with a port: whether it listened within 30 s. */
   listening?: boolean;
+  /** Only with \`waitFor\`: whether the run's output matched; false when it exited or timed out first. */
+  matched?: boolean;
+  /** Only with \`waitFor\`: log tail (at most 100 lines) up to the matching line. */
+  output?: string;
 }
 interface LaunchFolder {
   /** "launchfolder_...". */

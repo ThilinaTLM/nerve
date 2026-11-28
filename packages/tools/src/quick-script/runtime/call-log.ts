@@ -16,6 +16,12 @@ export type CallEntry = {
   call?: QuickScriptHostCall;
 };
 
+/**
+ * Display fields a method attaches to the value it returns (`files.edit`'s diff
+ * statistics); the executor copies them onto the call's record for the tool card.
+ */
+export const callDetails = new WeakMap<object, Partial<QuickScriptHostCall>>();
+
 const READ_RISKS: readonly MethodRisk[] = ["none", "read", "external_read"];
 const MAX_LISTED = 10;
 const MAX_ERROR_CHARS = 150;

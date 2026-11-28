@@ -120,5 +120,5 @@ void test("PptxGenJS and JSZip can be used in the same script", async () => {
     const zip = await JSZip.loadAsync(await deck.write({ outputType: "uint8array" }));
     console.log(Object.keys(zip.files).includes("ppt/slides/slide1.xml"));
   `);
-  assert.equal(result.content, "true\nexit 0");
+  assert.equal(result.content, "true");
 });

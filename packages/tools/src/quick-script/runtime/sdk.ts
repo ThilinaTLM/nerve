@@ -145,5 +145,5 @@ export function preludesFor(
  * The wrapper opens on the script's first line, so reported line numbers match.
  */
 export function wrapScript(code: string): string {
-  return `__nerveReturn(await (async () => {${code}\n})());`;
+  return `__nerveReturn(await (async () => {${code}\n})().catch(__nerveUncaught));`;
 }

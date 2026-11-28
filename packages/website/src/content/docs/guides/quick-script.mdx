@@ -9,7 +9,7 @@ import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
 import quickScriptDark from "../../../assets/screenshots/desktop/quick-script-dark.webp";
 import quickScriptLight from "../../../assets/screenshots/desktop/quick-script-light.webp";
 
-**Quick script** (`quick_script`) lets the agent write a short TypeScript script instead of spending a model turn on every request. One call can search Jira, read ten issues, build a spreadsheet, and publish a Confluence page, and only the script's printed output returns to the conversation.
+**Quick script** (`quick_script`) lets the agent write a short JavaScript script instead of spending a model turn on every request. One call can search Jira, read ten issues, build a spreadsheet, and publish a Confluence page, and only the script's printed output returns to the conversation.
 
 ## What a script can reach
 
@@ -42,7 +42,7 @@ A project can set its own tool switches and extensions. Project files apply only
 
 ## Watch a script run
 
-A Quick script tool card shows each SDK call as it happens, for example `jira.issues.get · jira:issue/APP-12`, so you can follow long scripts without waiting for the end. When the script finishes, the card shows its printed output, files it created, and a footer with the number of calls per product and the exit status.
+A Quick script tool card shows each SDK call as it happens, for example `jira.issues.get · jira:issue/APP-12`, so you can follow long scripts without waiting for the end. When the script finishes, the card shows its printed output, the files it created, the number of calls and the time it took. A row for a batch file edit shows how many files and lines changed, and opens to the diff.
 
 - A script that fails, times out or is cancelled still returns a normal result, with a non-zero exit status.
 - The default time limit is 120 seconds; the agent can ask for up to 600. A script is limited to 256 MiB of memory and 100,000 characters of code.

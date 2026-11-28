@@ -1,8 +1,10 @@
 <script lang="ts">
+import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleX from "@lucide/svelte/icons/circle-x";
 import ShieldAlert from "@lucide/svelte/icons/shield-alert";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import { SvelteSet } from "svelte/reactivity";
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import type { ToolView } from "../views/tool-result-view";
 import type { QuickScriptArtifact } from "@nervekit/contracts/tools";
@@ -11,6 +13,14 @@ import {
   formatDuration,
   operationLines,
 } from "../views/tool-presentation-helpers";
+import {
+  callEdit,
+  editStatLabel,
+  editStatParts,
+  splitEditDiff,
+  type QuickScriptCallEdit,
+} from "../views/quick-script-calls";
+import ToolOutputBlock from "./ToolOutputBlock.svelte";
 import ToolSections from "./ToolSections.svelte";
 
 type Props = {
@@ -72,7 +82,41 @@ const namedHandles = $derived(
 const unnamedArtifacts = $derived(
   view.artifacts.filter((artifact) => !namedHandles.has(artifact.handle)),
 );
+
+// Edit rows expand to their diff; keyed by call index.
+const openEdits = new SvelteSet<number>();
+function toggleEdit(index: number) {
+  if (openEdits.has(index)) openEdits.delete(index);
+  else openEdits.add(index);
+}
 </script>
+
+{#snippet editDiff(edit: QuickScriptCallEdit)}
+  {@const split = splitEditDiff(edit.diff)}
+  {@const diffArtifact = edit.diffFile
+    ? artifactsByHandle.get(edit.diffFile)
+    : undefined}
+  <div class="grid min-w-0 gap-1 pt-1 pb-0.5 pl-5.5">
+    {#each split.files as file, fileIndex (fileIndex)}
+      {#if file.path}
+        <p class="m-0 font-mono text-ui text-muted-foreground wrap-anywhere">
+          {file.path}
+        </p>
+      {/if}
+      {#if file.diff}
+        <ToolOutputBlock text={file.diff} language="diff" expanded />
+      {/if}
+    {/each}
+    {#if split.cut}
+      <p class="m-0 text-ui text-muted-foreground">
+        Diff cut{#if edit.diffFile}; full diff:
+          {#if diffArtifact}{@render artifactLink(diffArtifact)}{:else}<span
+              class="font-mono">{edit.diffFile}</span
+            >{/if}{/if}
+      </p>
+    {/if}
+  </div>
+{/snippet}
 
 {#snippet artifactLink(artifact: QuickScriptArtifact)}
   <button
@@ -107,53 +151,78 @@ const unnamedArtifacts = $derived(
           </li>
         {/if}
         {#each hostCalls as call, index (firstShown + index)}
-          <li
-            class="flex min-w-0 items-baseline gap-2 px-2.5 py-0.5 text-ui"
-            title={call.outcome === "running"
-              ? undefined
-              : [call.targets?.join(", "), call.error]
-                  .filter(Boolean)
-                  .join(" — ") || undefined}
-          >
-            {#if call.outcome === "running"}
-              <Spinner
-                class="size-3.5 flex-none translate-y-0.5 text-muted-foreground"
-                aria-label="Running"
-              />
-            {:else if call.outcome === "completed"}
-              <CircleCheck
-                class="size-3.5 flex-none translate-y-0.5 text-success"
-                aria-label="Completed"
-              />
-            {:else if call.outcome === "denied"}
-              <ShieldAlert
-                class="size-3.5 flex-none translate-y-0.5 text-warning"
-                aria-label="Denied"
-              />
-            {:else}
-              <CircleX
-                class="size-3.5 flex-none translate-y-0.5 text-destructive"
-                aria-label="Failed"
-              />
-            {/if}
-            <span class="flex-none font-mono text-foreground"
-              >{call.method}</span
+          {@const edit = callEdit(call)}
+          {@const editOpen = openEdits.has(firstShown + index)}
+          <li class="min-w-0 px-2.5 py-0.5 text-ui">
+            <div
+              class="flex min-w-0 items-baseline gap-2"
+              title={call.outcome === "running"
+                ? undefined
+                : [call.targets?.join(", "), call.error]
+                    .filter(Boolean)
+                    .join(" — ") || undefined}
             >
-            <span class="min-w-0 flex-1 truncate text-muted-foreground">
-              {#if call.outcome === "completed" || call.outcome === "running"}
-                {#each summaryParts(call.summary ?? "") as part, partIndex (partIndex)}
-                  {#if part.artifact}
-                    {@render artifactLink(part.artifact)}
-                  {:else}{part.text}{/if}
-                {/each}
-              {:else}{call.error ?? call.summary ?? ""}{/if}
-            </span>
-            {#if call.outcome !== "running"}
-              <span
-                class="flex-none text-caption text-muted-foreground tabular-nums"
-                >{formatDuration(call.durationMs)}</span
+              {#if call.outcome === "running"}
+                <Spinner
+                  class="size-3.5 flex-none translate-y-0.5 text-muted-foreground"
+                  aria-label="Running"
+                />
+              {:else if call.outcome === "completed"}
+                <CircleCheck
+                  class="size-3.5 flex-none translate-y-0.5 text-success"
+                  aria-label="Completed"
+                />
+              {:else if call.outcome === "denied"}
+                <ShieldAlert
+                  class="size-3.5 flex-none translate-y-0.5 text-warning"
+                  aria-label="Denied"
+                />
+              {:else}
+                <CircleX
+                  class="size-3.5 flex-none translate-y-0.5 text-destructive"
+                  aria-label="Failed"
+                />
+              {/if}
+              <span class="flex-none font-mono text-foreground"
+                >{call.method}</span
               >
-            {/if}
+              <span class="min-w-0 flex-1 truncate text-muted-foreground">
+                {#if call.outcome === "completed" || call.outcome === "running"}
+                  {#each summaryParts(call.summary ?? "") as part, partIndex (partIndex)}
+                    {#if part.artifact}
+                      {@render artifactLink(part.artifact)}
+                    {:else}{part.text}{/if}
+                  {/each}
+                {:else}{call.error ?? call.summary ?? ""}{/if}
+              </span>
+              {#if edit}
+                {@const stat = editStatParts(edit)}
+                <button
+                  type="button"
+                  class="flex flex-none cursor-pointer items-baseline gap-1.5 rounded-sm border-0 bg-transparent p-0 text-caption text-muted-foreground tabular-nums outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-focus"
+                  aria-expanded={editOpen}
+                  aria-label={`${editOpen ? "Hide" : "Show"} diff: ${editStatLabel(edit)}`}
+                  title={editOpen ? "Hide diff" : "Show diff"}
+                  onclick={() => toggleEdit(firstShown + index)}
+                >
+                  <span>{stat.files}</span>
+                  <span class="text-success">{stat.added}</span>
+                  <span class="text-destructive">{stat.removed}</span>
+                  {#if stat.dryRun}<span class="text-info">dry run</span>{/if}
+                  <ChevronRight
+                    class={`size-3 self-center transition-transform ${editOpen ? "rotate-90" : ""}`}
+                    aria-hidden="true"
+                  />
+                </button>
+              {/if}
+              {#if call.outcome !== "running"}
+                <span
+                  class="flex-none text-caption text-muted-foreground tabular-nums"
+                  >{formatDuration(call.durationMs)}</span
+                >
+              {/if}
+            </div>
+            {#if edit && editOpen}{@render editDiff(edit)}{/if}
           </li>
         {/each}
         {#if hiddenCalls > 0 && firstShown === 0}

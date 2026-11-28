@@ -10,7 +10,7 @@ const parameters = Type.Object(
   {
     code: Type.String({
       description:
-        "TypeScript ES module with top-level await, up to 100 KB. Output is what you console.log plus a top-level `return`.",
+        "JavaScript ES module with top-level await, up to 100 KB. Output is what it prints with console.log plus the value of its last expression (or a top-level `return`).",
     }),
     timeout: Type.Optional(
       Type.Integer({
@@ -46,7 +46,7 @@ export function createQuickScriptToolDefinition(
       (await classifyQuickScriptArguments(args, registry)).risk,
     label: "Quick script",
     description:
-      "Run a sandboxed TypeScript script (ES module, top-level await) that calls the SDK namespaces of the configured extensions; only its output returns.",
+      "Run a sandboxed JavaScript script (ES module, top-level await) that calls the SDK namespaces of the configured extensions; only its output returns.",
     parameters,
     executionMode: "parallel",
   };

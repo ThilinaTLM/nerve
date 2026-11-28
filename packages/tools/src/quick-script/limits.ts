@@ -6,6 +6,10 @@ import { MAX_FILE_BYTES } from "./runtime/files/artifacts.js";
 export const SCRIPT_MEMORY_BYTES = 256 * 1024 * 1024;
 export const SCRIPT_OUTPUT_BYTES = 256 * 1024;
 export const SCRIPT_MAX_SDK_CALLS = 200;
+/** Printed values (`console.log` arguments, the script's result): a string inside a structure, an array, and one value's text. */
+export const PRINT_STRING_CHARS = 2000;
+export const PRINT_ROWS = 100;
+export const PRINT_VALUE_CHARS = 8 * 1024;
 /** One `files.edit` / `artifacts.edit` call. */
 export const SCRIPT_EDIT_MAX_FILES = 500;
 export const SCRIPT_EDIT_MAX_BYTES = 20 * 1024 * 1024;

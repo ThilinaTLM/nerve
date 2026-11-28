@@ -16,13 +16,16 @@ export type QuickScriptCapabilities = {
 };
 
 const INTRO =
-  "Run a sandboxed TypeScript script that calls the SDK namespaces below; only its output returns. Use it to loop over, filter and join several calls in one step, and for multi-file or pattern edits (`files.edit`, then format and test with bash); python_exec for general Python, bash for the local machine.\nSandbox: ES module with top-level await; types are not checked; no imports, Node APIs, JSX or direct network and filesystem (use web.*, files.*). Globals: console, sleep(ms), setTimeout/setInterval, URL, URLSearchParams, TextEncoder/TextDecoder, atob/btoa; no fetch, crypto or Intl (toLocale* ignores the locale).";
+  "Run a sandboxed JavaScript script that calls the SDK namespaces below; only its output returns: console.log and the value of the last expression. Use it to loop over, filter and join several calls in one step, and for multi-file or pattern edits (`files.edit`, then format and test with bash); python_exec for general Python, bash for the local machine.\nSandbox: ES module with top-level await; type annotations are ignored; no imports, Node APIs, JSX or direct network and filesystem (use web.*, files.*). Globals: console, sleep(ms), setTimeout/setInterval, URL, URLSearchParams, TextEncoder/TextDecoder, atob/btoa; no fetch, crypto or Intl (toLocale* ignores the locale).";
 
 /** The SDK conventions of docs/architecture/code-mode.md ("Namespace design rules"), as far as a script needs them. */
 const CONVENTIONS =
   "Conventions: methods are `namespace.resource.verb()` and take one argument: the ID, key or query alone, or an options object (`<namespace>.request` is raw HTTP and positional). Lists return arrays, and a footer note says when `limit` cut one. A wrong method, option or argument fails with the valid ones.";
 
-const RULES = `Rules: await every call; calls still running at the end are aborted. Call methods directly, \`files.read(path)\`: an aliased or passed method (\`paths.map(files.read)\`) cannot be scanned and is approved as destructive. The script is approved by its highest-risk call, and each call is checked when it runs: a refused one throws DENIED. Failures throw with e.code (${HOST_ERROR_CODES.join(", ")}); a 401 ends the run. Finished calls stay done when a run fails, times out or is cancelled: check the result's Created/Updated/Deleted lines before rerunning. Filter early (queries, \`fields\`, \`limit\`), then in code. A returned array of flat objects prints as a table.`;
+const RULES = `Rules: await every call; calls still running at the end are aborted. Call methods directly, \`files.read(path)\`: an aliased or passed method (\`paths.map(files.read)\`) cannot be scanned and is approved as destructive. The script is approved by its highest-risk call, and each call is checked when it runs: a refused one throws DENIED. Failures throw with e.code (${HOST_ERROR_CODES.join(", ")}); uncaught, one is reported with its code and line, so catch only to continue; a 401 ends the run. Finished calls stay done when a run fails, times out or is cancelled: check the result's Created/Updated/Deleted lines before rerunning. Filter early (queries, \`fields\`, \`limit\`), then in code.`;
+
+const OUTPUT =
+  "Output: text prints as is, an array of flat objects as a table, other values as compact JSON. Long strings, arrays and values are cut with a note (JSON.stringify prints all).";
 
 const LIMITS = `Limits per run: ${SCRIPT_MAX_SDK_CALLS} SDK calls, {{limit:script.output}} printed output (the rest is truncated), {{limit:script.memory}} memory. For larger results, \`artifacts.write\` a file: artifacts persist across runs and the result names their folder for Read.`;
 
@@ -55,6 +58,7 @@ export function quickScriptDescription(
       INTRO,
       CONVENTIONS,
       RULES,
+      OUTPUT,
       LIMITS,
       ...listed.flatMap((namespace) =>
         (namespace.rules ?? []).map(

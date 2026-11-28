@@ -34,14 +34,14 @@ void test("a top-level return prints flat objects as a table and everything else
   );
   assert.equal(
     table.content,
-    "before\nkey | n | note | extra\nA-1 | 1 | x y | \nA-2 |  |  | true\nexit 0",
+    "before\nkey | n | note | extra\nA-1 | 1 | x y | \nA-2 |  |  | true",
   );
   assert.equal(
     (await run(`return { a: [1, { b: 2 }] };`)).content,
-    '{"a":[1,{"b":2}]}\nexit 0',
+    '{"a":[1,{"b":2}]}',
   );
-  assert.equal((await run(`return "plain";`)).content, "plain\nexit 0");
-  assert.equal((await run(`return;`)).content, "exit 0");
+  assert.equal((await run(`return "plain";`)).content, "plain");
+  assert.equal((await run(`return;`)).content, "ok, no output");
   // Mixed arrays are not tables; top-level await still works next to return.
   assert.equal(
     (
@@ -49,7 +49,7 @@ void test("a top-level return prints flat objects as a table and everything else
         `const n: number = await Promise.resolve(2); return [n, { a: 1 }];`,
       )
     ).content,
-    '[2,{"a":1}]\nexit 0',
+    '[2,{"a":1}]',
   );
 });
 
@@ -197,7 +197,7 @@ void test("a 403 is a catchable HostError with code FORBIDDEN naming the resourc
   );
   assert.equal(
     result.content,
-    "HostError FORBIDDEN no access to project APP\ncontinued\njira 1 call (projects.get 1, 1 failed) · exit 0",
+    "HostError FORBIDDEN no access to project APP\ncontinued",
   );
   const details = quickScriptResultDetailsSchema.parse(result.details);
   assert.equal(details.hostCalls[0].error, "no access to project APP");
@@ -224,7 +224,7 @@ void test("prepare and validation failures carry the BAD_REQUEST code", async ()
        try { await attempt(); console.log("ok"); } catch (e) { console.log(e.code); }
      }`,
   );
-  assert.match(result.content ?? "", /^BAD_REQUEST\nBAD_REQUEST\n/);
+  assert.match(result.content ?? "", /^BAD_REQUEST\nBAD_REQUEST$/);
 });
 
 void test("an unknown Jira field lists close matches", async (t) => {

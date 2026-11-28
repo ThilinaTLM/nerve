@@ -176,10 +176,18 @@ void test("files.edit changes several files in order, all or nothing, and report
     console.log(dry.dryRun, dry.diff.includes("+related"));
   `);
   assert.deepEqual(JSON.parse(lines[0]), [
-    { path: "src/a.ts", changed: true, edits: [{ index: 0, matches: 2 }] },
+    {
+      path: "src/a.ts",
+      changed: true,
+      added: 2,
+      removed: 2,
+      edits: [{ index: 0, matches: 2 }],
+    },
     {
       path: "src/b.ts",
       changed: true,
+      added: 2,
+      removed: 1,
       edits: [
         { index: 0, matches: 1 },
         { index: 1, matches: 1 },
@@ -227,4 +235,73 @@ void test("a long diff is cut and saved whole as an artifact", async () => {
   assert.deepEqual(await readdir(join(root, "conversation", "quick-script")), [
     "edit-1.diff",
   ]);
+});
+
+void test("edits inherit the call's target, a g flag replaces all, and a range without newText is deleted", async () => {
+  const { run, read } = await workspace({
+    "src/a.ts": "fetchUser(1); fetchUser(2);\n// start\nold\n// end\nkeep\n",
+    "src/b.ts": "fetchUser(3);\n",
+  });
+  const lines = await run(`
+    await files.edit({
+      glob: "src/*.ts",
+      edits: [
+        { pattern: /\\bfetchUser\\b/g, replacement: "loadUser", count: 3 },
+        { path: "src/a.ts", from: "// start", through: "// end\\n" },
+      ],
+    })
+  `);
+  // The result of the last expression prints as one line per file; the run states each edit's total.
+  assert.deepEqual(lines, [
+    "src/a.ts +1 -4: [0] 2, [1] 1",
+    "src/b.ts +1 -1: [0] 1",
+    "Updated: file src/a.ts, file src/b.ts",
+    "Edit matches: [0] 3 in 2 files, [1] 1 in 1 file",
+  ]);
+  assert.equal(await read("src/a.ts"), "loadUser(1); loadUser(2);\nkeep\n");
+  const failed = await run(
+    `try { await files.edit({ edits: [{ oldText: "a", newText: "b" }] }) } catch (e) { console.log(e.message.split(" Declaration:")[0]) }`,
+  );
+  assert.equal(
+    failed[0],
+    "edits[0] needs a path or glob, on the edit or on the call.",
+  );
+});
+
+void test("transform rewrites whole files, all or nothing, and keeps line endings", async () => {
+  const { run, read, authorized } = await workspace({
+    "src/a.ts": "one(1);\r\n",
+    "src/b.ts": "one(2);\n",
+    "src/c.ts": "other\n",
+  });
+  const lines = await run(`
+    await files.edit({
+      glob: "src/*.ts",
+      transform: (text, path) => path.endsWith("c.ts") ? undefined : text.replace(/one\\((\\d)\\)/g, (_, n) => "two(" + n * 2 + ")"),
+    })
+  `);
+  assert.deepEqual(lines, [
+    "src/a.ts +1 -1",
+    "src/b.ts +1 -1",
+    "Updated: file src/a.ts, file src/b.ts",
+    "Transform: 2 files changed",
+  ]);
+  assert.equal(await read("src/a.ts"), "two(2);\r\n");
+  assert.equal(await read("src/b.ts"), "two(4);\n");
+  // Every file the glob matched is checked as the edit tool before the function sees its text.
+  assert.equal(authorized.filter((r) => r.toolName === "edit").length, 5);
+  const bad = await run(
+    `await files.edit({ path: "src/c.ts", edits: [{ pattern: /o/, replacement: (m) => m }] })`,
+  );
+  assert.match(
+    bad[0],
+    /^BAD_REQUEST: files\.edit: edits\[0\]\.replacement must be a string\. For a computed replacement use transform/,
+  );
+  const mixed = await run(
+    `await files.edit({ path: "src/c.ts", transform: (t) => t, edits: [] })`,
+  );
+  assert.match(
+    mixed[0],
+    /^BAD_REQUEST: transform cannot be combined with edits/,
+  );
 });
