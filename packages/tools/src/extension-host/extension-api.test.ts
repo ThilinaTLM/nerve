@@ -156,7 +156,7 @@ void test("report entries, notes and a session shared by the run's calls", async
   assert.match(result.content ?? "", /Created: item 7, item 7/);
   assert.equal(demoSessions.created, 1);
   // Identical notes of one run are shown once with their count.
-  assert.match(result.content ?? "", /\nsession 1 \(×2\)\n/);
+  assert.match(result.content ?? "", /\nsession 1 \(×2\)$/);
 });
 
 void test("a response can stream into an artifact", async () => {
