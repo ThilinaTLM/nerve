@@ -144,6 +144,9 @@ jobs:
       - name: Build native prebuild
         working-directory: packages/native
         run: pnpm exec napi build --cwd native --package-json-path ../package.json --platform --release --target ${{ matrix.target }} --output-dir ../prebuilds
+      # The tests import workspace packages (test-kit) through their dist.
+      - name: Build native test dependencies
+        run: pnpm --filter "@nervekit/native^..." build
       - name: Test native prebuild
         # A hung test must fail this step, not hit the job timeout: a
         # job-timeout cancellation discards the log that names the test.
